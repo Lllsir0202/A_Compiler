@@ -1,3 +1,5 @@
 !.gitkeep
-/bin/
+bin/
 compile_commands.json
+.cache/
+build/
