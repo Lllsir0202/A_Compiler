@@ -1,5 +1,5 @@
 # To begin with, we finish the build of syslib
-.PHONY: librv, libarm, libs, format, check-tidy, build, clean
+.PHONY: librv libarm libs format check-tidy build clean all
 
 # Define Src and Include
 DIR := frontend middleend backend
@@ -37,6 +37,8 @@ CXXFLAGS := -std=c++17 -Wall -Wextra $(INCLUDE_DIRS)
 TARGET := bin/compiler
 
 
+all: format check-tidy build
+
 librv:
 	$(RISCV_GCC) -c $(LIB_SRC) -o $(LIB_PATH)/syslib_tmp.o -I $(LIB_PATH) -mcmodel=medany
 	$(RISCV_AR) rcs $(LIB_PATH)/librv.a $(LIB_PATH)/syslib_tmp.o
@@ -50,8 +52,7 @@ libarm:
 libs: librv libarm
 
 format:
-	@find . -type f \( -name "*.c" -o -name "*.cpp" -o -name "*.h" -o -name "*.hpp" -o -name "*.hh" \) -exec $(CLANG_FORMAT) -i {} +
-
+	@find . -type f \( -name "*.c" -o -name "*.cpp" -o -name "*.h" -o -name "*.hpp" -o -name "*.hh" \) -not -name "sylib.*" -exec $(CLANG_FORMAT) -i {} +
 
 check-tidy:
 	@for file in $(CHECK_SRC) $(CHECK_HEADER); do \
@@ -70,8 +71,8 @@ build:
 	@if [ -n "$(SRC)" ]; then \
 		$(CXX) $(CXXFLAGS) -o $(TARGET) $(SRC); \
 	else \
-    	echo "No source files found!"; \
-    	exit 1; \
+		echo "No source files found!"; \
+		exit 1; \
 	fi
 
 clean:
