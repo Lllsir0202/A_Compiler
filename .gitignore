@@ -4,3 +4,8 @@ compile_commands.json
 .cache/
 build/
 objs/
+# Ignore generated lexer and parser files
+frontend/lexer/lexer.h
+frontend/parser/parser.h
+frontend/lexer/lexer.cpp
+frontend/parser/parser.cpp

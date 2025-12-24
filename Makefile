@@ -1,5 +1,5 @@
 # To begin with, we finish the build of syslib
-.PHONY: librv libarm libs format check-tidy build clean all
+.PHONY: librv libarm libs format check-tidy build clean all lexer parser
 
 # Define Src and Include
 DIR := frontend middleend backend
@@ -43,16 +43,16 @@ TARGET := bin/compiler
 all: format check-tidy build
 
 build: $(TARGET)
+	@echo "Build completed: $(TARGET)"
 
 $(TARGET): $(OBJS)
-	@echo "LD $@"
 	@mkdir -p bin
-	$(CXX) $(CXXFLAGS) -o $@ $^
+	@$(CXX) $(CXXFLAGS) -o $@ $^
 
 $(BUILD_DIR)/%.o: %.cpp
-	@echo "$(CXX) $<"
 	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) -MMD -MP -c $< -o $@
+	@$(CXX) $(CXXFLAGS) -MMD -MP -c $< -o $@
+	@echo "Compiling $< to $@"
 
 -include $(DEPS)
 
@@ -86,3 +86,9 @@ clean:
 	@rm -rf bin
 	@rm -rf objs
 	@rm -f frontend/lexer/lexer.cpp frontend/parser/parser.cpp frontend/lexer/lexer.h frontend/parser/parser.h
+
+lexer:
+	$(FLEX) -o frontend/lexer/lexer.cpp --header-file=frontend/lexer/lexer.h frontend/lexer/lexer.l
+
+parser:
+	$(BISON) -o frontend/parser/parser.cpp --header=frontend/parser/parser.h --defines=frontend/parser/parser.h frontend/parser/parser.y
