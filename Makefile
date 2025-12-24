@@ -87,6 +87,9 @@ clean:
 	@rm -rf objs
 	@rm -f frontend/lexer/lexer.cpp frontend/parser/parser.cpp frontend/lexer/lexer.h frontend/parser/parser.h
 
+clean-frontend:
+	@rm -f frontend/lexer/lexer.cpp frontend/parser/parser.cpp frontend/lexer/lexer.h frontend/parser/parser.h
+
 lexer:
 	$(FLEX) -o frontend/lexer/lexer.cpp --header-file=frontend/lexer/lexer.h frontend/lexer/lexer.l
 
