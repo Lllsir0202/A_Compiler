@@ -3,12 +3,15 @@
 
 # Define Src and Include
 DIR := frontend middleend backend
+BUILD_DIR := objs
 SRC := $(shell find $(DIR) -name '*.cpp') main.cpp
+OBJS := $(SRC:%.cpp=$(BUILD_DIR)/%.o)
+DEPS := $(OBJS:.o=.d)
+
 INCLUDE := $(shell find $(DIR) -name '*.h')
 CHECK_DIR := $(DIR)
-CHECK_SRC := $(shell find $(CHECK_DIR) -name '*.cpp')
-CHECK_HEADER := $(shell find $(CHECK_DIR) -name '*.h')
-
+CHECK_SRC := $(shell find $(CHECK_DIR) -name '*.cpp' -not -name 'lexer.cpp' -not -name 'parser.cpp')
+CHECK_HEADER := $(shell find $(CHECK_DIR) -name '*.h' -not -name 'lexer.h' -not -name 'parser.h')
 # Compile libs
 LIB_PATH := ./libs
 LIB_SRC := $(LIB_PATH)/sylib.c
@@ -29,7 +32,7 @@ CLANG_TIDY := clang-tidy
 # Default to use clangd
 CLANGD := clang++
 GCC := gcc
-CXX ?= $(CLANGD)
+CXX := $(CLANGD)
 
 # Build configuration
 INCLUDE_DIRS := -I. -Ifrontend -Imiddleend -Ibackend
@@ -38,6 +41,20 @@ TARGET := bin/compiler
 
 
 all: format check-tidy build
+
+build: $(TARGET)
+
+$(TARGET): $(OBJS)
+	@echo "LD $@"
+	@mkdir -p bin
+	$(CXX) $(CXXFLAGS) -o $@ $^
+
+$(BUILD_DIR)/%.o: %.cpp
+	@echo "$(CXX) $<"
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -MMD -MP -c $< -o $@
+
+-include $(DEPS)
 
 librv:
 	$(RISCV_GCC) -c $(LIB_SRC) -o $(LIB_PATH)/syslib_tmp.o -I $(LIB_PATH) -mcmodel=medany
@@ -65,15 +82,7 @@ check-tidy:
 		echo "Checked $$file"; \
 	done
 
-build:
-	@echo "Building compiler..."
-	@mkdir -p bin
-	@if [ -n "$(SRC)" ]; then \
-		$(CXX) $(CXXFLAGS) -o $(TARGET) $(SRC); \
-	else \
-		echo "No source files found!"; \
-		exit 1; \
-	fi
-
 clean:
 	@rm -rf bin
+	@rm -rf objs
+	@rm -f frontend/lexer/lexer.cpp frontend/parser/parser.cpp frontend/lexer/lexer.h frontend/parser/parser.h
