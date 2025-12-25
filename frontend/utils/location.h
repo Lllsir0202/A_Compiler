@@ -47,6 +47,7 @@ struct SourceRange {
   }
   auto GetBegin() const -> SourceLocation { return begin_; }
   auto GetEnd() const -> SourceLocation { return end_; }
+  // TODO(): 添加输出函数,用于输出SourceRange信息,传入ostream对象
 };
 
 };  // namespace frontend
