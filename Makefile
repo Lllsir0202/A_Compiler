@@ -10,8 +10,8 @@ DEPS := $(OBJS:.o=.d)
 
 INCLUDE := $(shell find $(DIR) -name '*.h')
 CHECK_DIR := $(DIR)
-CHECK_SRC := $(shell find $(CHECK_DIR) -name '*.cpp' -not -name 'lexer.cpp' -not -name 'parser.cpp')
-CHECK_HEADER := $(shell find $(CHECK_DIR) -name '*.h' -not -name 'lexer.h' -not -name 'parser.h')
+CHECK_SRC := $(shell find $(CHECK_DIR) -name '*.cpp' -not -name 'flex.cpp' -not -name 'yacc.cpp')
+CHECK_HEADER := $(shell find $(CHECK_DIR) -name '*.h' -not -name 'flex.h' -not -name 'yacc.h')
 # Compile libs
 LIB_PATH := ./libs
 LIB_SRC := $(LIB_PATH)/sylib.c
@@ -52,7 +52,7 @@ $(TARGET): $(OBJS)
 $(BUILD_DIR)/%.o: %.cpp
 	@mkdir -p $(dir $@)
 	@$(CXX) $(CXXFLAGS) -MMD -MP -c $< -o $@
-	@echo "Compiling $< to $@"
+	@echo "$(CXX) $< to $@"
 
 -include $(DEPS)
 
@@ -75,9 +75,9 @@ check-tidy:
 	@for file in $(CHECK_SRC) $(CHECK_HEADER); do \
 		case "$$file" in \
 			*.cpp) \
-				clang-tidy -quiet $$file -- -I$(DIR) -std=c++17;; \
+				clang-tidy -quiet $$file -- $(INCLUDE_DIRS) -std=c++17;; \
 			*.h|*.hpp|*.hh) \
-				clang-tidy -quiet $$file -- -I$(DIR) -std=c++17 -x c++;; \
+				clang-tidy -quiet $$file -- $(INCLUDE_DIRS) -std=c++17 -x c++;; \
 		esac; \
 		echo "Checked $$file"; \
 	done
@@ -85,13 +85,13 @@ check-tidy:
 clean:
 	@rm -rf bin
 	@rm -rf objs
-	@rm -f frontend/lexer/lexer.cpp frontend/parser/parser.cpp frontend/lexer/lexer.h frontend/parser/parser.h
+	@rm -f frontend/lexer/flex.cpp frontend/parser/yacc.cpp frontend/lexer/flex.h frontend/parser/yacc.h
 
 clean-frontend:
-	@rm -f frontend/lexer/lexer.cpp frontend/parser/parser.cpp frontend/lexer/lexer.h frontend/parser/parser.h
+	@rm -f frontend/lexer/flex.cpp frontend/parser/yacc.cpp frontend/lexer/flex.h frontend/parser/yacc.h
 
 lexer:
-	$(FLEX) -o frontend/lexer/lexer.cpp --header-file=frontend/lexer/lexer.h frontend/lexer/lexer.l
+	$(FLEX) -d -o frontend/lexer/flex.cpp --header-file=frontend/lexer/flex.h frontend/lexer/lexer.l
 
 parser:
-	$(BISON) -o frontend/parser/parser.cpp --header=frontend/parser/parser.h --defines=frontend/parser/parser.h frontend/parser/parser.y
+	$(BISON) -d -o frontend/parser/yacc.cpp --header=frontend/parser/yacc.h --defines=frontend/parser/yacc.h frontend/parser/yacc.y

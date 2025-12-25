@@ -1,0 +1,85 @@
+// --Firstly we define LITERAL--
+// int and float literal
+TOKEN(INTCONST)
+TOKEN(FLOATCONST)
+
+// --Secondly we define SOME_KEYWORDS--
+TOKEN(KWBegin)
+// Indicate the begin of KW
+TOKEN(CONST)
+TOKEN(IF)
+TOKEN(ELSE)
+TOKEN(WHILE)
+TOKEN(BREAK)
+TOKEN(CONTINUE)
+TOKEN(RETURN)
+// Value Type def but alse KEYWORDS
+TOKEN(VOID)
+TOKEN(INTEGAR)
+TOKEN(FLOAT)
+TOKEN(KWEnd)
+// Indicate the end of KW
+
+// --Then some SIGNALS--
+TOKEN(LCBRACE)
+// {
+TOKEN(RCBRACE)
+// }
+TOKEN(LSBRACE)
+// [
+TOKEN(RSBRACE)
+// ]
+TOKEN(LPAREN)
+// (
+TOKEN(RPAREN)
+// )
+TOKEN(SEMICOLON)
+// ;
+TOKEN(COMMA)
+// ,
+
+// --Variable--
+TOKEN(IDENTIFER)
+
+// --Operators--
+// Algorithm
+TOKEN(OpBegin)
+// Indicate the begin of Operators
+TOKEN(PLUS)
+// +
+TOKEN(MINUS)
+// -
+TOKEN(STAR)
+// *
+TOKEN(DIV)
+// /
+TOKEN(MOD)
+// %
+
+// Relation
+TOKEN(EQUAL)
+// ==
+TOKEN(NEQUAL)
+// !=
+TOKEN(LESS)
+// <
+TOKEN(GREATER)
+// >
+TOKEN(LEQUAL)
+// <=
+TOKEN(GEQUAL)
+// >=
+
+// Logical
+TOKEN(NOT)
+// !
+TOKEN(AND)
+// &&
+TOKEN(OR)
+// ||
+TOKEN(OpEnd)
+// Indicate the end of Operators
+
+// -- Some special Token type--
+TOKEN(END)
+// Indicate the end of the file
