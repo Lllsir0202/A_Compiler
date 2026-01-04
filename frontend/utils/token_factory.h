@@ -9,13 +9,13 @@ namespace frontend {
 
 class TokenFactory {
  public:
-  // 获取全局单例实例
+  // Get global singleton instance
   static auto GetInstance() -> TokenFactory & {
     static TokenFactory instance;
     return instance;
   }
 
-  // 禁止拷贝和赋值
+  // Forbid copy and assignment
   TokenFactory(const TokenFactory &) = delete;
   auto operator=(const TokenFactory &) -> TokenFactory & = delete;
 
@@ -25,7 +25,7 @@ class TokenFactory {
   }
 
  private:
-  // 私有构造函数，防止外部实例化
+  // private constructor for singleton
   TokenFactory() = default;
 };
 

@@ -1,6 +1,8 @@
 #ifndef LOCATION_H
 #define LOCATION_H
 #include <cstdint>
+#include <iomanip>
+#include <ostream>
 
 namespace frontend {
 // 记录源代码位置的结构体
@@ -48,6 +50,9 @@ struct SourceRange {
   auto GetBegin() const -> SourceLocation { return begin_; }
   auto GetEnd() const -> SourceLocation { return end_; }
   // TODO(): 添加输出函数,用于输出SourceRange信息,传入ostream对象
+  auto Print(std::ostream &out) -> void {
+    out << std::left << std::setw(8) << GetBegin().line_ << std::left << std::setw(8) << GetBegin().column_ << "\n";
+  }
   // TODO(): 重载赋值运算符
 };
 
