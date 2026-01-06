@@ -20,7 +20,17 @@ Over here, we offer different architectures libraries(RISC-V 64-bit, AArch64), a
     make libarm
 ```
 
-## Lexer
+## Frontend
+To summarize, we offer multiple frontends, just need to obey our rules. 
+
+Rules are following:
+1.  ``lexer`` file must be ended with **.l**;
+2.  ``parser`` file must be ended with **.y**;
+3.  ``frontend.mk`` is used to define config which is used to decide which ``lexer`` and ``parser`` to use.
+
+**But to be attention**: Different lexer and parser may have different kinds of input form and arguments, so there may be a little bit command needed to be changed which will be decided by which tools you are using.
+
+### Lexer
 For ``Lexer`` Part, we designed an **abstract base class** that defines a unified interface for tokenization. This allows us to integrate different lexer implementations (such as Flex or hand-written lexers) seamlessly using the **Adapter Pattern**.
 
 By default, we use `flex` for lexical analysis.
