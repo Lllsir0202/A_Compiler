@@ -52,7 +52,7 @@ struct SourceRange {
   // TODO(): 添加输出函数,用于输出SourceRange信息,传入ostream对象
   auto Print(std::ostream &out) -> void {
     // since the location will be at the end of a line for a variable, so we need to add '\n'
-    out << std::left << std::setw(8) << GetBegin().line_ << std::setw(8) << GetBegin().column_ << "\n";
+    out << std::left << std::setw(16) << GetBegin().line_ << std::setw(16) << GetBegin().column_ << "\n";
   }
   // TODO(): 重载赋值运算符
 };

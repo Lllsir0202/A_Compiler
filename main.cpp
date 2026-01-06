@@ -1,6 +1,10 @@
+#include <cstdint>
+#include <fstream>
 #include <iostream>
 #include <unordered_set>
-// #include "frontend/utils/token.h"
+#include "frontend/utils/location.h"
+#include "frontend/utils/token_factory.h"
+#include "utils/token_utils.h"
 
 #define DEBUG
 static std::string file_name;
@@ -68,10 +72,30 @@ auto main(int argc, char *argv[]) -> int {
   std::cout << "Optimization Level: " << optimization_level << std::endl;
 #endif
 
-  // Following code would implement the actual compilation stages
-  // We begin with tokenization
-  if(stage == "lexer") {
-    
+  // Apply code to read and write files
+  std::ifstream input(file_name);
+  if (!input.is_open()) {
+    std::cerr << "Error: Unable to open input file " << file_name << std::endl;
+    return 1;
+  }
+
+  std::ofstream output(output_name);
+  if (!output.is_open()) {
+    std::cerr << "Error: Unable to open/create output file " << output_name << std::endl;
+    return 1;
+  }
+
+  auto &token_factory = frontend::TokenFactory::GetInstance();
+
+// Following code would implement the actual compilation stages
+// We begin with tokenization
+#ifdef DEBUG
+  std::string lexeme = "const";
+  auto range = frontend::SourceRange::GetRange(0, static_cast<uint32_t>(-1), 1, 0, 1, 6);
+  auto token = token_factory.CreateToken(frontend::TokenType::CONST, lexeme, range);
+  token.Print(std::cout);
+#endif
+  if (stage == "lexer") {
   }
 
   std::cout << "Hello, World!" << std::endl;
