@@ -28,7 +28,7 @@ class Token {
   auto GetLexeme() const -> const std::string & { return lexeme_; }
   [[maybe_unused]] auto GetSourceRange() const -> const SourceRange & { return source_range_; }
   auto Print(std::ostream &out) -> void {
-    out << std::left << std::setw(8) << TokenTypeToString(token_type_) << std::left << std::setw(12) << lexeme_;
+    out << std::left << std::setw(8) << TokenTypeToString(token_type_) << std::setw(12) << lexeme_;
   }
 };
 
