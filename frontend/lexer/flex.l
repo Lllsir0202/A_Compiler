@@ -1,5 +1,6 @@
 %{
 #include "./lexer.h"
+#include "../utils/token_factory.h"
 %}
 
 %option noyywrap
