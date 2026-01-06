@@ -3,6 +3,7 @@
 #include "../utils/token.h"
 
 namespace frontend {
+class TokenFactory;
 // Virtual Lexer class : adapter to all kinds of lexers
 class Lexer {
  public:

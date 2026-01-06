@@ -19,3 +19,13 @@ Over here, we offer different architectures libraries(RISC-V 64-bit, AArch64), a
 # Used to build arm lib
     make libarm
 ```
+
+## Lexer
+For ``Lexer`` Part, we designed an **abstract base class** that defines a unified interface for tokenization. This allows us to integrate different lexer implementations (such as Flex or hand-written lexers) seamlessly using the **Adapter Pattern**.
+
+By default, we use `flex` for lexical analysis.
+
+```bash
+# Compile the lexer module
+    make lexer
+```
