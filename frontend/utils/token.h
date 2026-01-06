@@ -16,8 +16,8 @@ class Token {
   SourceRange source_range_;
 
   // Private constructor
-  Token(TokenType type, std::string &lexeme, SourceRange &source_range)
-      : token_type_(type), lexeme_(lexeme), source_range_(source_range) {}
+  Token(TokenType type, std::string lexeme, SourceRange &source_range)
+      : token_type_(type), lexeme_(std::move(lexeme)), source_range_(source_range) {}
   friend class TokenFactory;
 
  public:
@@ -29,6 +29,8 @@ class Token {
     out << std::left << std::setw(8) << TokenTypeToString(token_type_) << std::setw(12) << lexeme_;
     source_range_.Print(out);
   }
+
+  // Overloaded Print with width parameter for lexeme to print formally
   auto Print(std::ostream &out, int width) -> void {
     out << std::left << std::setw(8) << TokenTypeToString(token_type_) << std::setw(width) << lexeme_;
     source_range_.Print(out);

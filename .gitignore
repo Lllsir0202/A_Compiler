@@ -5,9 +5,13 @@ compile_commands.json
 build/
 objs/
 # Ignore generated lexer and parser files
-frontend/lexer/lexer.h
-frontend/parser/parser.h
-frontend/lexer/lexer.cpp
-frontend/parser/parser.cpp
+frontend/lexer/*.h
+!frontend/lexer/lexer.h
+frontend/parser/*.h
+!frontend/parser/parser.h
+frontend/lexer/*.cpp
+!frontend/lexer/lexer.cpp
+frontend/parser/*.cpp
+!frontend/parser/parser.cpp
 # Ignore all test files
 test.*
