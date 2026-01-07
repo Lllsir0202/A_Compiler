@@ -1,6 +1,9 @@
 # To begin with, we finish the build of syslib
 .PHONY: librv libarm libs format check-tidy build clean all lexer parser
 
+# Lexer and Parser
+-include frontend.mk
+
 # Define Src and Include
 DIR := frontend middleend backend
 BUILD_DIR := objs
@@ -10,8 +13,8 @@ DEPS := $(OBJS:.o=.d)
 
 INCLUDE := $(shell find $(DIR) -name '*.h')
 CHECK_DIR := $(DIR)
-CHECK_SRC := $(shell find $(CHECK_DIR) -name '*.cpp' -not -name '$(LEXER).cpp' -not -name '$(PARSER).cpp')
-CHECK_HEADER := $(shell find $(CHECK_DIR) -name '*.h' -not -name '$(LEXER).h' -not -name '$(PARSER).h')
+CHECK_SRC := $(shell find $(CHECK_DIR) -name '*.cpp' -not -name '$(LEXER_FILE).cpp' -not -name '$(PARSER_FILE).cpp')
+CHECK_HEADER := $(shell find $(CHECK_DIR) -name '*.h' -not -name '$(LEXER_FILE).h' -not -name '$(PARSER_FILE).h')
 # Compile libs
 LIB_PATH := ./libs
 LIB_SRC := $(LIB_PATH)/sylib.c
@@ -19,9 +22,6 @@ RISCV_GCC ?= riscv64-unknown-elf-gcc
 ARM_GCC ?= aarch64-linux-gnu-gcc
 RISCV_AR ?= riscv64-unknown-elf-ar
 ARM_AR ?= aarch64-linux-gnu-ar
-
-# Lexer and Parser
--include frontend.mk
 
 # Format and Check
 CLANG_FORMAT := clang-format

@@ -1,9 +1,12 @@
 #include <cstdint>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <unordered_set>
+#include "frontend/lexer/flex_lexer_impl.h"
 #include "frontend/utils/location.h"
 #include "frontend/utils/token_factory.h"
+#include "lexer/lexer.h"
 #include "utils/token_utils.h"
 
 #define DEBUG
@@ -95,6 +98,11 @@ auto main(int argc, char *argv[]) -> int {
   auto token = token_factory.CreateToken(frontend::TokenType::CONST, lexeme, range);
   token.Print(std::cout);
 #endif
+
+  // Initialize lexer
+  std::unique_ptr<frontend::Lexer> lexer = std::make_unique<frontend::FlexLexerImpl>(&input);
+  lexer->GetNextToken().Print(std::cout);
+
   if (stage == "lexer") {
   }
 

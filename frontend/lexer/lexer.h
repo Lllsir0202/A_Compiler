@@ -1,6 +1,7 @@
 #ifndef FRONTEND_LEXER_H
 #define FRONTEND_LEXER_H
 #include <deque>
+#include <utility>
 #include "../utils/token.h"
 
 namespace frontend {
@@ -18,14 +19,15 @@ class Lexer {
     if (token_buffer_.empty()) {
       return GetNextTokenfromImpl();
     }
-    Token token = token_buffer_.front();
+    // move rather than copy
+    Token token = std::move(token_buffer_.front());
     token_buffer_.pop_front();
     return token;
   }
   // Add next token back to the stream
   auto AddTokenBack(const Token &token) -> void { token_buffer_.push_front(token); }
   // Peek the next token without consuming it
-  auto PeekToken(int offset) -> Token {
+  auto PeekToken(int offset) -> const Token & {
     if (offset >= static_cast<int>(token_buffer_.size())) {
       // Need to fetch more tokens
       for (int i = token_buffer_.size(); i <= offset; i++) {

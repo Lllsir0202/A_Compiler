@@ -7,11 +7,15 @@ objs/
 # Ignore generated lexer and parser files
 frontend/lexer/*.h
 !frontend/lexer/lexer.h
+!frontend/lexer/*_impl.h
 frontend/parser/*.h
 !frontend/parser/parser.h
+!frontend/parser/*_impl.h
 frontend/lexer/*.cpp
 !frontend/lexer/lexer.cpp
+!frontend/lexer/*_impl.cpp
 frontend/parser/*.cpp
 !frontend/parser/parser.cpp
+!frontend/parser/*_impl.cpp
 # Ignore all test files
 test.*

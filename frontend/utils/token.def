@@ -1,3 +1,4 @@
+TOKEN(UNKNOWN)
 // --Firstly we define LITERAL--
 // int and float literal
 TOKEN(INTCONST)
