@@ -28,7 +28,7 @@ Rules are following:
 2.  ``parser`` file must be ended with **.y**;
 3.  ``frontend.mk`` is used to define config which is used to decide which ``lexer`` and ``parser`` to use.
 
-**But to be attention**: Different lexer and parser may have different kinds of input form and arguments, so there may be a little bit command needed to be changed which will be decided by which tools you are using.
+**But to be attention**: Different lexer and parser may have different kinds of input form and arguments, so there may be a little bit command needed to be changed which will be decided by which tools you are using. To be honest, now we only fit in **flex** and **bison**.
 
 ### Lexer
 For ``Lexer`` Part, we designed an **abstract base class** that defines a unified interface for tokenization. This allows us to integrate different lexer implementations (such as Flex or hand-written lexers) seamlessly using the **Adapter Pattern**.

@@ -93,4 +93,4 @@ lexer:
 	$(LEXER_TOOL) -d -o frontend/lexer/$(LEXER_FILE).cpp --header-file=frontend/lexer/$(LEXER_FILE).h frontend/lexer/$(LEXER_FILE).l
 
 parser:
-	$(PARSER_TOOL) -d -o frontend/parser/$(PARSER_FILE).cpp --header=frontend/parser/$(PARSER_FILE).h --defines=frontend/parser/$(PARSER_FILE).h frontend/parser/$(PARSER_FILE).y
+	$(PARSER_TOOL) -d -o frontend/parser/$(PARSER_FILE).cpp --defines=frontend/parser/$(PARSER_FILE).h frontend/parser/$(PARSER_FILE).y
