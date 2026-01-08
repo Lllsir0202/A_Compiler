@@ -23,7 +23,7 @@ class Token {
   friend class TokenFactory;
 
  public:
-  // 首先提供一些接口来访问内部成员
+  // provide some getters
   auto GetTokenType() const -> TokenType { return token_type_; }
   auto GetLexeme() const -> const std::string & { return lexeme_; }
   [[maybe_unused]] auto GetSourceRange() const -> const SourceRange & { return source_range_; }

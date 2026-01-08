@@ -20,6 +20,17 @@ Over here, we offer different architectures libraries(RISC-V 64-bit, AArch64), a
     make libarm
 ```
 
+## Stages
+In order to be more convenient, we divide our compiler into different stages, and each stage is responsible for a specific part of the compilation process. The stages are as follows:
+1. Lexer Stage
+2. Parser Stage
+3. Semantic Analysis Stage
+4. Intermediate Representation (IR) Generation Stage
+5. Optimization Stage
+6. Code Generation Stage
+
+And we use ``stages`` namespace to divide it clearly with potential other parts. But to be honest, we only use ``stages`` to do output for each stage, it is just a Print function for each stage.
+
 ## Frontend
 To summarize, we offer multiple frontends, just need to obey our rules. 
 
@@ -39,3 +50,9 @@ By default, we use `flex` for lexical analysis.
 # Compile the lexer module
     make lexer
 ```
+
+We follow ``ISO/IEC 9899`` to finish all the ``const integar and float`` recognition, and we follow the procedures listed below to do recognition and output:
+1. if user need to output lexer, we will stop at lexer, and output tokens to the specified file;
+2. to be attention, we will transfer owner to ``stages`` module to do output for lexer stage, so we cannot use ``lexer`` and ``ofstream`` after that.
+3. if user do not need to output lexer, we will transfer tokens to parser directly.
+
