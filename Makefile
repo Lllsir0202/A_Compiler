@@ -5,7 +5,7 @@
 -include frontend.mk
 
 # Define Src and Include
-DIR := frontend middleend backend
+DIR := frontend middleend backend stages
 BUILD_DIR := objs
 SRC := $(shell find $(DIR) -name '*.cpp') main.cpp
 OBJS := $(SRC:%.cpp=$(BUILD_DIR)/%.o)

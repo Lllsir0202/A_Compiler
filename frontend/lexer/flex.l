@@ -123,6 +123,7 @@ using namespace frontend;
 %{
     // ---- ERROR Handle ---- //
 %}
+
 .                           {return this->MakeToken(TokenType::UNKNOWN, yytext, yylineno);}
 
 %%

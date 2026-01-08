@@ -35,6 +35,12 @@ class Token {
     out << std::left << std::setw(10) << TokenTypeToString(token_type_) << std::setw(width) << lexeme_;
     source_range_.Print(out);
   }
+
+  // Overloaded Print with more specific width parameters
+  auto Print(std::ostream &out, int type_width, int lexeme_width, int line_width, int column_width) -> void {
+    out << std::left << std::setw(type_width) << TokenTypeToString(token_type_) << std::setw(lexeme_width) << lexeme_;
+    source_range_.Print(out, line_width, column_width);
+  }
 };
 
 };  // namespace frontend

@@ -23,8 +23,19 @@ class FlexLexerImpl : public Lexer, public yyFlexLexer {
     [[maybe_unused]] int token_type = yylex();  // Call the generated lexer function
     // We decide that we will generate Token(END) when we reach EOF
     // so we DONT need to handle EOF here
+
     if (token_slot_.has_value()) {
       Token token = std::move(token_slot_.value());
+      // We can handle error tokens here as well
+      if (token_type == static_cast<int>(TokenType::UNKNOWN)) {
+        // We can handle error reporting here
+        // and to be more advanced, we can ignore unknown tokens and continue lexing
+        // but for simplicity, we just stop here
+        std::string error_msg = "LexerError: Unknown token: " + token.GetLexeme() + " in line " +
+                                std::to_string(token.GetSourceRange().GetBegin().GetLine()) + ", column " +
+                                std::to_string(token.GetSourceRange().GetBegin().GetColumn());
+        LexerError(error_msg.c_str());
+      }
       token_slot_.reset();
       return token;
     }

@@ -2,6 +2,7 @@
 #define TOKEN_UTILS_H
 
 #include <cstdint>
+#include <string>
 
 namespace frontend {
 
@@ -13,7 +14,7 @@ enum class TokenType : uint8_t {
 };
 
 // Define Helper used to transform TokenType to string
-[[maybe_unused]] inline auto TokenTypeToString(TokenType type) -> const char * {
+[[maybe_unused]] inline auto TokenTypeToString(TokenType type) -> std::string {
   switch (type) {
 #define TOKEN(name)     \
   case TokenType::name: \
