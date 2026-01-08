@@ -114,10 +114,27 @@ using namespace frontend;
     // ---- Number ---- //
 %}
 %{
-    // demical
+    // Integer    
 %}
-[0-9]+                      {return this->MakeToken(TokenType::INTCONST, yytext, yylineno);}
+%{
+    // demical
+    // because we need to distinguish hex and demical
+%}
+[0-9] | [1-9][0-9]+         {return this->MakeToken(TokenType::INTCONST, yytext, yylineno);}
 
+%{
+    // hexadecimal    
+%}
+0[xX][0-9a-fA-F]+           {return this->MakeToken(TokenType::INTCONST, yytext, yylineno);}
+
+%{
+    // octal
+%}
+0[0-7]+                     {return this->MakeToken(TokenType::INTCONST, yytext, yylineno);}
+
+%{
+    // TODO: float point number    
+%}
 
 
 %{

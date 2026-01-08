@@ -31,7 +31,7 @@ class FlexLexerImpl : public Lexer, public yyFlexLexer {
         // We can handle error reporting here
         // and to be more advanced, we can ignore unknown tokens and continue lexing
         // but for simplicity, we just stop here
-        std::string error_msg = "LexerError: Unknown token: " + token.GetLexeme() + " in line " +
+        std::string error_msg = "LexerError: Unknown token: `" + token.GetLexeme() + "` in line " +
                                 std::to_string(token.GetSourceRange().GetBegin().GetLine()) + ", column " +
                                 std::to_string(token.GetSourceRange().GetBegin().GetColumn());
         LexerError(error_msg.c_str());

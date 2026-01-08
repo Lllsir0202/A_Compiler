@@ -6,7 +6,6 @@
 #include "lexer/lexer.h"
 #include "stages/lexer/lexer_stage.h"
 #include "stages/stage.h"
-#include "utils/token_utils.h"
 
 #define DEBUG
 static std::string file_name;
