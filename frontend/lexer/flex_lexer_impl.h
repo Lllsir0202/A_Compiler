@@ -35,7 +35,7 @@ class FlexLexerImpl : public Lexer, public yyFlexLexer {
 
   // Then we need to alloca some space to store the yycolumn
  private:
-  [[maybe_unused]] int yycolumn_ = 0;
+  [[maybe_unused]] int yycolumn_ = 1;
   std::optional<Token> token_slot_;
   auto MakeToken(TokenType type, const char *yytext, int lineno) -> int {
     auto &token_factory = frontend::TokenFactory::GetInstance();

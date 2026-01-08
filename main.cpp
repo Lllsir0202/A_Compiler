@@ -88,11 +88,10 @@ auto main(int argc, char *argv[]) -> int {
     return 1;
   }
 
-  auto &token_factory = frontend::TokenFactory::GetInstance();
-
 // Following code would implement the actual compilation stages
 // We begin with tokenization
-#ifdef DEBUG
+#ifdef TOKENDEBUG
+  auto &token_factory = frontend::TokenFactory::GetInstance();
   std::string lexeme = "const";
   auto range = frontend::SourceRange::GetRange(0, static_cast<uint32_t>(-1), 1, 0, 1, 6);
   auto token = token_factory.CreateToken(frontend::TokenType::CONST, lexeme, range);
@@ -106,8 +105,6 @@ auto main(int argc, char *argv[]) -> int {
     auto token = lexer->GetNextToken();
     while (token.GetTokenType() != frontend::TokenType::END) {
       if (token.GetTokenType() != frontend::TokenType::UNKNOWN) {
-        std::cout << "Token: " << frontend::TokenTypeToString(token.GetTokenType()) << ", Lexeme: " << token.GetLexeme()
-                  << std::endl;
         token.Print(std::cout);
       }
       token = lexer->GetNextToken();

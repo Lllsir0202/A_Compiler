@@ -46,6 +46,8 @@ TOKEN(IDENTIFER)
 // Algorithm
 TOKEN(OpBegin)
 // Indicate the begin of Operators
+TOKEN(ASSIGN)
+// =
 TOKEN(PLUS)
 // +
 TOKEN(MINUS)
