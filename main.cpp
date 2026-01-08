@@ -101,11 +101,23 @@ auto main(int argc, char *argv[]) -> int {
 
   // Initialize lexer
   std::unique_ptr<frontend::Lexer> lexer = std::make_unique<frontend::FlexLexerImpl>(&input);
-  lexer->GetNextToken().Print(std::cout);
+#ifdef DEBUG
+  {
+    auto token = lexer->GetNextToken();
+    while (token.GetTokenType() != frontend::TokenType::END) {
+      if (token.GetTokenType() != frontend::TokenType::UNKNOWN) {
+        std::cout << "Token: " << frontend::TokenTypeToString(token.GetTokenType()) << ", Lexeme: " << token.GetLexeme()
+                  << std::endl;
+        token.Print(std::cout);
+      }
+      token = lexer->GetNextToken();
+    }
+  }
 
+#endif
   if (stage == "lexer") {
   }
 
-  std::cout << "Hello, World!" << std::endl;
+  // std::cout << "Hello, World!" << std::endl;
   return 0;
 }

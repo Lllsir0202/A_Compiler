@@ -33,6 +33,6 @@ using namespace frontend;
 [\n]            {this->yycolumn_ = 0; /* New line resets column */}
 [ \t\r]+        { /* Ignore whitespace */ }
 
-[.]+           {return this->MakeToken(TokenType::UNKNOWN, yytext, yylineno);}
+.               {return this->MakeToken(TokenType::UNKNOWN, yytext, yylineno);}
 
 %%
