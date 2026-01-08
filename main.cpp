@@ -96,7 +96,8 @@ auto main(int argc, char *argv[]) -> int {
   token.Print(std::cout);
 #endif
 
-  // Initialize lexer
+  // Initialize all members
+  std::unique_ptr<stages::Stage> stage_ptr;
   std::unique_ptr<frontend::Lexer> lexer = std::make_unique<frontend::FlexLexerImpl>(&input);
 #ifdef LEXERDEBUG
   {
@@ -111,8 +112,8 @@ auto main(int argc, char *argv[]) -> int {
 #endif
 
   if (stage == "lexer") {
-    std::unique_ptr<stages::Stage> lexer_stage = std::make_unique<stages::LexerStage>(std::move(lexer), output);
-    lexer_stage->Run();
+    stage_ptr = std::make_unique<stages::LexerStage>(std::move(lexer), output);
+    stage_ptr->Run();
     return 0;
   }
 
