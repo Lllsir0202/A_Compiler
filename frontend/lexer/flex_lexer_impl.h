@@ -20,7 +20,7 @@ class FlexLexerImpl : public Lexer, public yyFlexLexer {
   auto yylex() -> int override;
 
   auto GetNextTokenfromImpl() -> Token override {
-    [[maybe_unused]] int token_type = yylex();  // Call the generated lexer function
+    int token_type = yylex();  // Call the generated lexer function
     // We decide that we will generate Token(END) when we reach EOF
     // so we DONT need to handle EOF here
 
@@ -46,7 +46,7 @@ class FlexLexerImpl : public Lexer, public yyFlexLexer {
 
   // Then we need to alloca some space to store the yycolumn
  private:
-  [[maybe_unused]] int yycolumn_ = 1;
+  int yycolumn_ = 1;
   std::optional<Token> token_slot_;
   auto MakeToken(TokenType type, const char *yytext, int lineno) -> int {
     auto &token_factory = frontend::TokenFactory::GetInstance();
