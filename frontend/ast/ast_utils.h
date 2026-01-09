@@ -3,14 +3,12 @@
 
 #include <cstdint>
 
-namespace frontend {
-
+namespace frontend::ast {
 enum class OpCode : uint8_t {
 #define OP_CODE(name) name,
 #include "op_code.def"
 #undef OP_CODE
 };
-
-}  // namespace frontend
+}  // namespace frontend::ast
 
 #endif
