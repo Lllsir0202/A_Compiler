@@ -1,0 +1,7 @@
+OP_CODE(UNKNOWN)
+// -- First, we define as token.def --
+// int and float literal
+OP_CODE(INTCONST)
+OP_CODE(FLOATCONST)
+
+// -- Since in AstNode, we don't need keywords --

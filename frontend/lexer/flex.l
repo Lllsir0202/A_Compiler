@@ -94,6 +94,13 @@ using namespace frontend;
 <COMMENT>\n                                         { this->yycolumn_ = 1; }
 
 %{
+    // Error handling for unclosed comment    
+%}
+<COMMENT><<EOF>>                                   {return this->MakeToken(TokenType::UNKNOWN, "Unclosed comment", yylineno);}
+<INITIAL>"*/"                                      {return this->MakeToken(TokenType::UNKNOWN, "Unmatched comment closer", yylineno);}
+
+
+%{
     // ---- End of File ---- //
 %}
 <<EOF>>                                             {return this->MakeToken(TokenType::END, yytext, yylineno);}
