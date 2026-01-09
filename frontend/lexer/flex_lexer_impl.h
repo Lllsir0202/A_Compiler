@@ -4,8 +4,8 @@
 // include the generated header from flex
 #include <optional>
 #include "lexer.h"
-#include "utils/token.h"
-#include "utils/token_factory.h"
+#include "token/token.h"
+#include "token/token_factory.h"
 
 #if defined(yyFlexLexer)
 #undef yyFlexLexer

@@ -2,7 +2,7 @@
 #define FRONTEND_LEXER_H
 #include <deque>
 #include <utility>
-#include "../utils/token.h"
+#include "../token/token.h"
 
 namespace frontend {
 class TokenFactory;
