@@ -27,6 +27,7 @@ using namespace frontend;
 "if"                                                {return this->MakeToken(TokenType::IF, yytext, yylineno);}
 "else"                                              {return this->MakeToken(TokenType::ELSE, yytext, yylineno);}
 "while"                                             {return this->MakeToken(TokenType::WHILE, yytext, yylineno);}
+"for"                                               {return this->MakeToken(TokenType::FOR, yytext, yylineno);} 
 "break"                                             {return this->MakeToken(TokenType::BREAK, yytext, yylineno);}
 "continue"                                          {return this->MakeToken(TokenType::CONTINUE, yytext, yylineno);}
 "return"                                            {return this->MakeToken(TokenType::RETURN, yytext, yylineno);}
