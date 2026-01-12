@@ -2,6 +2,7 @@
 #include <iostream>
 #include <memory>
 #include <unordered_set>
+#include "ast/ast_utils.h"
 #include "frontend/frontend.h"
 #include "stages/lexer/lexer_stage.h"
 #include "stages/stage.h"
@@ -115,6 +116,18 @@ auto main(int argc, char *argv[]) -> int {
     stage_ptr->Run();
     return 0;
   }
+
+// #define OPCODEDEBUG
+
+#ifdef OPCODEDEBUG
+  {
+    using frontend::ast::OpCode;
+    using frontend::ast::OpCodeToString;
+    auto op = OpCode::PLUS;
+    std::cout << "OpCode: " << OpCodeToString(op) << std::endl;
+  }
+
+#endif
 
   // std::cout << "Hello, World!" << std::endl;
   return 0;
