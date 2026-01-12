@@ -1,3 +1,5 @@
+// -- UNKNOWN Type will be used in a lot of places --
+// -- since we don't meed opcode in stmts like ifStmt --
 OP_CODE(UNKNOWN)
 // -- First, we define as token.def --
 // int and float literal
@@ -5,3 +7,40 @@ OP_CODE(INTCONST)
 OP_CODE(FLOATCONST)
 
 // -- Since in AstNode, we don't need keywords --
+// -- So we start with algorithm operators --
+OP_CODE(ASSIGN)
+// =
+OP_CODE(PLUS)
+// +
+OP_CODE(MINUS)
+// -
+OP_CODE(STAR)
+// *
+OP_CODE(DIV)
+// /
+OP_CODE(MOD)
+// %
+
+// -- Then we need to deal with relation operators --
+OP_CODE(EQUAL)
+// ==
+OP_CODE(NEQUAL)
+// !=
+OP_CODE(LESS)
+// <
+OP_CODE(GREATER)
+// >
+OP_CODE(LEQUAL)
+// <=
+OP_CODE(GEQUAL)
+// >=
+
+// -- Finally, logical operators --
+OP_CODE(NOT)
+// !
+OP_CODE(AND)
+// &&
+OP_CODE(OR)
+// ||
+
+// We only need these opcodes in AstNode -- 
