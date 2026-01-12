@@ -5,6 +5,7 @@
 #include <string>
 
 namespace frontend::ast {
+// Since a lot of stmt and expr nodes will not use OpCode
 // define OpCode enum class
 enum class OpCode : uint8_t {
 #define OP_CODE(name) name,

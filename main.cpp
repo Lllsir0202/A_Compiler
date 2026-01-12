@@ -2,8 +2,7 @@
 #include <iostream>
 #include <memory>
 #include <unordered_set>
-#include "frontend/lexer/flex_lexer_impl.h"
-#include "lexer/lexer.h"
+#include "frontend/frontend.h"
 #include "stages/lexer/lexer_stage.h"
 #include "stages/stage.h"
 
