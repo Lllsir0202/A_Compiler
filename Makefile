@@ -35,7 +35,7 @@ CXX := $(CLANGD)
 
 # Build configuration
 INCLUDE_DIRS := -I. -Ifrontend -Imiddleend -Ibackend
-CXXFLAGS := -std=c++17 -Wall -Wextra $(INCLUDE_DIRS)
+CXXFLAGS := -std=c++17 -Wall -Wextra $(INCLUDE_DIRS) -O2 -lm
 TARGET := bin/compiler
 
 
