@@ -2,7 +2,6 @@
 #include <iostream>
 #include <memory>
 #include <unordered_set>
-#include "ast/ast_utils.h"
 #include "frontend/frontend.h"
 #include "stages/lexer/lexer_stage.h"
 #include "stages/stage.h"
