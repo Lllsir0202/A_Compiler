@@ -4,7 +4,6 @@
 #include "ast/ast_base.h"
 namespace frontend::ast {
 
-class ASTNode;
 class RootNode;
 class ExprNode;  // should not be called directly
 class StmtNode;  // should not be called directly
