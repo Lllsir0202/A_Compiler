@@ -65,6 +65,34 @@ public:
 // Normally we can only visit parent class, but with CRTP we can visit derived class directly from parent class and without dynamatic cast overhead.
 ```
 
+Morever, in dealing with the middle layer ``exprnode`` in ast, I meet the problem that the inheriting structure will inherit from both ``ExprNode`` and ``VisitAble`` class, which will lead to a problem which is called the **Diamond Problem**. To solve this problem, I made ``VisitAble`` class to inherit from the base class directly, and use CRTP to make it work. So the final design is like this:
+
+```cpp
+template <typename Derived, typename Base = ASTNode>
+class VisitAble : public Base {
+ public:
+  using Base::Base;
+  void Accept(ASTVisitor *visitor) override { visitor->Visit(static_cast<Derived *>(this)); }
+};
+
+// the class VisitAble will inherit from Base class directly, and we can specify which base class to use.
+// For example, in ExprNode, we will make a comparison. To be more convenient, we define some rules of expression:
+// -> represents inheritance, such as A->B means class A inherits from class B.
+/*
+    Initially: class AddExprNode -> ExprNode AND VisitAble<AddExprNode>
+    But : ExprNode -> ASTNode
+            VisitAble<AddExprNode> -> ASTNode
+    
+    Now we have a diamond problem.
+
+    Then after change:
+    class AddExprNode -> VisitAble<AddExprNode, ExprNode>
+    ExprNode -> ASTNode
+    AddExprNode will inherit from VisitAble directly, and VisitAble will inherit from ExprNode, so there is no diamond problem.
+    which means: ExprNode -> ExprNode -> ASTNode. It's a linear inheritance.
+*/
+```
+
 ## Frontend
 To summarize, we offer multiple frontends, just need to obey our rules. 
 
