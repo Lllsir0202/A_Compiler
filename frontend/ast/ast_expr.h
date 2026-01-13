@@ -70,10 +70,20 @@ class PrimaryExprNode : public VisitAble<PrimaryExprNode, ExprNode> {
 class LValExprNode : public VisitAble<LValExprNode, ExprNode> {
  public:
   explicit LValExprNode(SourceRange range, std::string ident, std::vector<ASTNodePtr> indices, bool is_const = false)
-      : VisitAble<LValExprNode, ExprNode>(range, is_const), ident_(std::move(ident)), indices_(std::move(indices)) {}
+      : VisitAble<LValExprNode, ExprNode>(range, is_const), ident_(std::move(ident)), indices_(std::move(indices)) {
+    is_array_ = true;
+  }
+  explicit LValExprNode(SourceRange range, std::string ident, bool is_const = false)
+      : VisitAble<LValExprNode, ExprNode>(range, is_const), ident_(std::move(ident)) {
+    is_array_ = false;
+  }
 
   std::string ident_;
   std::vector<ASTNodePtr> indices_;
+  auto IsArray() const -> bool { return is_array_; }
+
+ private:
+  bool is_array_;
 };
 
 /**
