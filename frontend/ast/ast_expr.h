@@ -128,6 +128,31 @@ class LOrExprNode : public VisitAble<LOrExprNode, ExprNode> {
   ASTNodePtr right_;
 };
 
+/**
+ * @brief Number node representing a numeric literal
+ */
+
+/**
+ * @brief IntLiteralExprNode representing an integer literal
+ */
+class IntLiteralExprNode : public VisitAble<IntLiteralExprNode, ExprNode> {
+ public:
+  explicit IntLiteralExprNode(SourceRange range, int value)
+      : VisitAble<IntLiteralExprNode, ExprNode>(range, true), value_(value) {}
+  int value_;
+};
+
+/**
+ * @brief FloatLiteralExprNode representing a floating-point literal
+ */
+
+class FloatLiteralExprNode : public VisitAble<FloatLiteralExprNode, ExprNode> {
+ public:
+  explicit FloatLiteralExprNode(SourceRange range, float value)
+      : VisitAble<FloatLiteralExprNode, ExprNode>(range, true), value_(value) {}
+  float value_;
+};
+
 }  // namespace frontend::ast
 
 #endif

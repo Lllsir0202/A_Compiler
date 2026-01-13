@@ -17,6 +17,8 @@ class RelExprNode;
 class EqExprNode;
 class LAndExprNode;
 class LOrExprNode;
+class IntLiteralExprNode;
+class FloatLiteralExprNode;
 
 class ASTVisitor {
  public:
@@ -24,8 +26,6 @@ class ASTVisitor {
 
   // Visit methods for different AST node types can be declared here
   virtual void Visit(RootNode *root) = 0;
-  virtual void Visit(ExprNode *expr) = 0;
-  virtual void Visit(StmtNode *stmt) = 0;
   virtual void Visit(AddExprNode *add_expr) = 0;
   virtual void Visit(MulExprNode *mul_expr) = 0;
   virtual void Visit(UnaryExprNode *unary_expr) = 0;
@@ -35,6 +35,8 @@ class ASTVisitor {
   virtual void Visit(EqExprNode *eq_expr) = 0;
   virtual void Visit(LAndExprNode *land_expr) = 0;
   virtual void Visit(LOrExprNode *lor_expr) = 0;
+  virtual void Visit(IntLiteralExprNode *int_literal) = 0;
+  virtual void Visit(FloatLiteralExprNode *float_literal) = 0;
 };
 
 template <typename Derived, typename Base = ASTNode>
