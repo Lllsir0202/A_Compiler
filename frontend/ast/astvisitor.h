@@ -8,6 +8,8 @@ class ASTNode;
 class RootNode;
 class ExprNode;  // should not be called directly
 class StmtNode;  // should not be called directly
+
+// Expression nodes
 class AddExprNode;
 class MulExprNode;
 class UnaryExprNode;
@@ -19,6 +21,16 @@ class LAndExprNode;
 class LOrExprNode;
 class IntLiteralExprNode;
 class FloatLiteralExprNode;
+
+// Statement nodes
+class BlockStmtNode;
+class AssignStmtNode;
+class CommaStmtNode;
+class IfStmtNode;
+class WhileStmtNode;
+class BreakStmtNode;
+class ContinueStmtNode;
+class ReturnStmtNode;
 
 class ASTVisitor {
  public:
@@ -37,6 +49,14 @@ class ASTVisitor {
   virtual void Visit(LOrExprNode *lor_expr) = 0;
   virtual void Visit(IntLiteralExprNode *int_literal) = 0;
   virtual void Visit(FloatLiteralExprNode *float_literal) = 0;
+  virtual void Visit(BlockStmtNode *block_stmt) = 0;
+  virtual void Visit(AssignStmtNode *assign_stmt) = 0;
+  virtual void Visit(CommaStmtNode *comma_stmt) = 0;
+  virtual void Visit(IfStmtNode *if_stmt) = 0;
+  virtual void Visit(WhileStmtNode *while_stmt) = 0;
+  virtual void Visit(BreakStmtNode *break_stmt) = 0;
+  virtual void Visit(ContinueStmtNode *continue_stmt) = 0;
+  virtual void Visit(ReturnStmtNode *return_stmt) = 0;
 };
 
 template <typename Derived, typename Base = ASTNode>
