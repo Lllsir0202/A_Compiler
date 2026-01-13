@@ -9,7 +9,7 @@ Make sure you have the following toolchains installed:
 ## Compile libs
 Since we need to build our compiler from very scratch, we have to build our libs from sourcecode. So we provide Makefile command to build sylibs easily.
 
-Over here, we offer different architectures libraries(RISC-V 64-bit, AArch64), and the commands are as follows:
+Over here, we provide different architectures libraries(RISC-V 64-bit, AArch64), and the commands are as follows:
 
 ``` bash
 # Used to build all libs
@@ -20,7 +20,8 @@ Over here, we offer different architectures libraries(RISC-V 64-bit, AArch64), a
     make libarm
 ```
 
-## Stages
+## Some design ideas
+### Stages
 In order to be more convenient, we divide our compiler into different stages, and each stage is responsible for a specific part of the compilation process. The stages are as follows:
 1. Lexer Stage
 2. Parser Stage
@@ -30,6 +31,9 @@ In order to be more convenient, we divide our compiler into different stages, an
 6. Code Generation Stage
 
 And we use ``stages`` namespace to divide it clearly with potential other parts. But to be honest, we only use ``stages`` to do output for each stage, it is just a Print function for each stage.
+
+### Context
+Before starting design ``parser`` part, I was wondering how to manage all the information and avoid unnecessary repeated codes. Initially I decided to use ``Stages`` to run each part until specific stage, but I found it would lead to a lot of repeated code. So I designed a ``Context`` class to manage all the information needed during compilation. This class holds all data structures and provides methods to access and modify them. This way, each stage can interact with the ``Context`` to get the information it needs without duplicating code. Thus the class ``Stages`` only need to do output for each stage.
 
 ## Frontend
 To summarize, we offer multiple frontends, just need to obey our rules. 
