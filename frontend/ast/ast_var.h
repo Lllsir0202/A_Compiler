@@ -5,7 +5,7 @@
 
 namespace frontend::ast {
 
-// define variable declaration node
+// TODO(loki): define variable declaration node
 
 }  // namespace frontend::ast
 #endif
