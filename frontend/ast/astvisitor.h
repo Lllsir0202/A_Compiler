@@ -5,13 +5,15 @@
 namespace frontend::ast {
 
 class ASTNode;
+class RootNode;
 
 class ASTVisitor {
  public:
   virtual ~ASTVisitor() = default;
 
   // Visit methods for different AST node types can be declared here
-  virtual void Visit() = 0;
+  virtual void Visit(RootNode *root) = 0;
+  virtual void Visit(ASTNode *node) = 0;
 };
 
 template <typename T>

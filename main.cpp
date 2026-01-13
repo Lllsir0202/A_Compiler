@@ -116,7 +116,7 @@ auto main(int argc, char *argv[]) -> int {
     return 0;
   }
 
-// #define OPCODEDEBUG
+  // #define OPCODEDEBUG
 
 #ifdef OPCODEDEBUG
   {

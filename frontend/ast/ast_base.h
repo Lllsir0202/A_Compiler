@@ -1,8 +1,8 @@
 #ifndef FRONTEND_AST_AST_BASE_H
 #define FRONTEND_AST_AST_BASE_H
 
-#include "token/location.h"
 #include <memory>
+#include "token/location.h"
 namespace frontend::ast {
 class ASTVisitor;
 
@@ -15,7 +15,7 @@ class ASTNode {
       : line_(source_range.GetBegin().GetLine()), column_(source_range.GetBegin().GetColumn()) {}
   explicit ASTNode() : line_(0), column_(0) {}
   virtual ~ASTNode() = default;
-  virtual void Accept(class ASTVisitor *visitor) = 0;
+  virtual void Accept(ASTVisitor *visitor) = 0;
   auto GetLine() const { return line_; }
   auto GetColumn() const { return column_; }
 
