@@ -6,7 +6,16 @@
 #include "ast/astvisitor.h"
 #include "token/location.h"
 namespace frontend::ast {
-// Define parent class for all expression nodes
+/**
+ * @brief Define parent class for all expression nodes
+ * Since only expression nodes can be constant
+ * and only expression nodes need to be considered as different types,
+ * we can define a parent class for all expression nodes here.
+ * And member variables' meanings are as follows:
+ * @param is_const_: whether the expression is a constant expression
+ * @param type_: the type of the expression (int, float, etc.), 
+ * especially we need to distinguish between int and ptr
+ */
 class ExprNode : public ASTNode {
  public:
   explicit ExprNode(SourceRange range, bool is_const = false) : ASTNode(range), is_const_(is_const) {}

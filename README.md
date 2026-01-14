@@ -93,6 +93,11 @@ class VisitAble : public Base {
 */
 ```
 
+And I want to add some more details about ``Visitor Pattern`` and how it works.
+Take the ``frontend/ast/ast_expr.h`` for example, we know that the ``ASTNodePtr`` is a smart pointer that points to the base class of all AST nodes, which is ``ASTNode``. When we want to visit a specific node type, such as ``AddExprNode``, we need to downcast the ``ASTNodePtr`` to the derived class pointer type, which is ``AddExprNode*``. In C++ language, we record the specific child class and here it is ``AddExprNode``, so when we call the ``Accept`` function via ``node->visit(visitor)``, even though the ``ASTNodePtr`` is of type ``ASTNode``, the actual object is still the ``AddExprNode``. This is because of the polymorphic behavior of C++.
+
+So when we call the ``Accept`` function even via the pointer of base class ``ASTNode``, we are still calling the sepcific function in child class and here is ``AddExprNode::Accept``. It is based on C++'s virtual function mechanism, which ensures that the correct overridden function is called based on the actual object type, not the pointer type.
+
 ## Frontend
 To summarize, we offer multiple frontends, just need to obey our rules. 
 
