@@ -12,6 +12,7 @@ class StmtNode;  // should not be called directly
 class AddExprNode;
 class MulExprNode;
 class UnaryExprNode;
+class FuncCallExprNode;
 class PrimaryExprNode;
 class LValExprNode;
 class RelExprNode;
@@ -40,6 +41,7 @@ class ASTVisitor {
   virtual void Visit(AddExprNode *add_expr) = 0;
   virtual void Visit(MulExprNode *mul_expr) = 0;
   virtual void Visit(UnaryExprNode *unary_expr) = 0;
+  virtual void Visit(FuncCallExprNode *func_call) = 0;
   virtual void Visit(PrimaryExprNode *primary_expr) = 0;
   virtual void Visit(LValExprNode *lval_expr) = 0;
   virtual void Visit(RelExprNode *rel_expr) = 0;

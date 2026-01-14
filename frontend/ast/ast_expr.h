@@ -54,6 +54,23 @@ class UnaryExprNode : public VisitAble<UnaryExprNode, ExprNode> {
 };
 
 /**
+ * @brief FuncCallExp -> Ident ( [FuncRParams] )
+ * Initially it is in UnaryExp, but we separate it for clarity.
+ * Because we don't want unaryexpr to include to many things.
+ */
+class FuncCallExprNode : public VisitAble<FuncCallExprNode, ExprNode> {
+ public:
+  explicit FuncCallExprNode(SourceRange range, std::string func_name, std::vector<ASTNodePtr> params,
+                            bool is_const = false)
+      : VisitAble<FuncCallExprNode, ExprNode>(range, is_const),
+        func_name_(std::move(func_name)),
+        params_(std::move(params)) {}
+
+  std::string func_name_;
+  std::vector<ASTNodePtr> params_;
+};
+
+/**
  * @brief PrimaryExp -> (Exp) | LVal | Number
  */
 class PrimaryExprNode : public VisitAble<PrimaryExprNode, ExprNode> {
