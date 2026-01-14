@@ -19,7 +19,7 @@ class CompilerContext {
     delete ast_context_;
   }
   // First we control types pointer here
-  [[maybe_unused]] TypeContext *type_context_;
+  TypeContext *type_context_;
   // Then we need to control ast context here
   [[maybe_unused]] AstContext *ast_context_;
 };

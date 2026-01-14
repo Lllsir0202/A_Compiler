@@ -2,6 +2,7 @@
 #include <iostream>
 #include <memory>
 #include <unordered_set>
+#include "context/compiler_context.h"
 #include "frontend/frontend.h"
 #include "stages/lexer/lexer_stage.h"
 #include "stages/stage.h"
@@ -96,8 +97,10 @@ auto main(int argc, char *argv[]) -> int {
 #endif
 
   // Initialize all members
+  static context::CompilerContext compiler_context;
   std::unique_ptr<stages::Stage> stage_ptr;
   std::unique_ptr<frontend::Lexer> lexer = std::make_unique<frontend::FlexLexerImpl>(&input);
+
 #ifdef LEXERDEBUG
   {
     auto token = lexer->GetNextToken();
