@@ -3,6 +3,7 @@
 
 #include <memory>
 #include "token/location.h"
+#include "utils/type/type.h"
 namespace frontend::ast {
 class ASTVisitor;
 
@@ -25,6 +26,7 @@ class ASTNode {
 };
 
 using ASTNodePtr = std::unique_ptr<ASTNode>;
+using TypePtr = type::Type*;
 
 }  // namespace frontend::ast
 

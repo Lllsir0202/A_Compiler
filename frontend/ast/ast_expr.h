@@ -2,6 +2,7 @@
 #define FRONTEND_AST_AST_EXPR_H
 
 #include <vector>
+#include "ast/ast_base.h"
 #include "ast/ast_utils.h"
 #include "ast/astvisitor.h"
 #include "token/location.h"
@@ -13,16 +14,19 @@ namespace frontend::ast {
  * we can define a parent class for all expression nodes here.
  * And member variables' meanings are as follows:
  * @param is_const_: whether the expression is a constant expression
- * @param type_: the type of the expression (int, float, etc.), 
+ * @param type_: the type of the expression (int, float, etc.),
  * especially we need to distinguish between int and ptr
  */
 class ExprNode : public ASTNode {
  public:
-  explicit ExprNode(SourceRange range, bool is_const = false) : ASTNode(range), is_const_(is_const) {}
+  explicit ExprNode(SourceRange range, TypePtr type, bool is_const = false)
+      : ASTNode(range), type_(type), is_const_(is_const) {}
   ~ExprNode() override = default;
   auto IsConst() const -> bool { return is_const_; }
+  auto GetType() const -> TypePtr { return type_; }
 
  private:
+  TypePtr type_;
   bool is_const_;
 };
 
@@ -31,8 +35,8 @@ class ExprNode : public ASTNode {
  */
 class AddExprNode : public VisitAble<AddExprNode, ExprNode> {
  public:
-  explicit AddExprNode(SourceRange range, ASTNodePtr left, ASTNodePtr right, bool is_const = false)
-      : VisitAble<AddExprNode, ExprNode>(range, is_const), left_(std::move(left)), right_(std::move(right)) {}
+  explicit AddExprNode(SourceRange range, TypePtr type, ASTNodePtr left, ASTNodePtr right, bool is_const = false)
+      : VisitAble<AddExprNode, ExprNode>(range, type, is_const), left_(std::move(left)), right_(std::move(right)) {}
 
   OpCode operator_;
   ASTNodePtr left_;
@@ -44,8 +48,8 @@ class AddExprNode : public VisitAble<AddExprNode, ExprNode> {
  */
 class MulExprNode : public VisitAble<MulExprNode, ExprNode> {
  public:
-  explicit MulExprNode(SourceRange range, ASTNodePtr left, ASTNodePtr right, bool is_const = false)
-      : VisitAble<MulExprNode, ExprNode>(range, is_const), left_(std::move(left)), right_(std::move(right)) {}
+  explicit MulExprNode(SourceRange range, TypePtr type, ASTNodePtr left, ASTNodePtr right, bool is_const = false)
+      : VisitAble<MulExprNode, ExprNode>(range, type, is_const), left_(std::move(left)), right_(std::move(right)) {}
   OpCode operator_;
   ASTNodePtr left_;
   ASTNodePtr right_;
@@ -56,8 +60,8 @@ class MulExprNode : public VisitAble<MulExprNode, ExprNode> {
  */
 class UnaryExprNode : public VisitAble<UnaryExprNode, ExprNode> {
  public:
-  explicit UnaryExprNode(SourceRange range, ASTNodePtr operand, bool is_const = false)
-      : VisitAble<UnaryExprNode, ExprNode>(range, is_const), operand_(std::move(operand)) {}
+  explicit UnaryExprNode(SourceRange range, TypePtr type, ASTNodePtr operand, bool is_const = false)
+      : VisitAble<UnaryExprNode, ExprNode>(range, type, is_const), operand_(std::move(operand)) {}
   OpCode operator_;
   ASTNodePtr operand_;
 };
@@ -66,12 +70,13 @@ class UnaryExprNode : public VisitAble<UnaryExprNode, ExprNode> {
  * @brief FuncCallExp -> Ident ( [FuncRParams] )
  * Initially it is in UnaryExp, but we separate it for clarity.
  * Because we don't want unaryexpr to include to many things.
+ * @note: type here is the return type of the function
  */
 class FuncCallExprNode : public VisitAble<FuncCallExprNode, ExprNode> {
  public:
-  explicit FuncCallExprNode(SourceRange range, std::string func_name, std::vector<ASTNodePtr> params,
+  explicit FuncCallExprNode(SourceRange range, TypePtr type, std::string func_name, std::vector<ASTNodePtr> params,
                             bool is_const = false)
-      : VisitAble<FuncCallExprNode, ExprNode>(range, is_const),
+      : VisitAble<FuncCallExprNode, ExprNode>(range, type, is_const),
         func_name_(std::move(func_name)),
         params_(std::move(params)) {}
 
@@ -84,8 +89,8 @@ class FuncCallExprNode : public VisitAble<FuncCallExprNode, ExprNode> {
  */
 class PrimaryExprNode : public VisitAble<PrimaryExprNode, ExprNode> {
  public:
-  explicit PrimaryExprNode(SourceRange range, ASTNodePtr value, bool is_const = false)
-      : VisitAble<PrimaryExprNode, ExprNode>(range, is_const), value_(std::move(value)) {}
+  explicit PrimaryExprNode(SourceRange range, TypePtr type, ASTNodePtr value, bool is_const = false)
+      : VisitAble<PrimaryExprNode, ExprNode>(range, type, is_const), value_(std::move(value)) {}
 
   ASTNodePtr value_;
 };
@@ -95,12 +100,15 @@ class PrimaryExprNode : public VisitAble<PrimaryExprNode, ExprNode> {
  */
 class LValExprNode : public VisitAble<LValExprNode, ExprNode> {
  public:
-  explicit LValExprNode(SourceRange range, std::string ident, std::vector<ASTNodePtr> indices, bool is_const = false)
-      : VisitAble<LValExprNode, ExprNode>(range, is_const), ident_(std::move(ident)), indices_(std::move(indices)) {
+  explicit LValExprNode(SourceRange range, TypePtr type, std::string ident, std::vector<ASTNodePtr> indices,
+                        bool is_const = false)
+      : VisitAble<LValExprNode, ExprNode>(range, type, is_const),
+        ident_(std::move(ident)),
+        indices_(std::move(indices)) {
     is_array_ = true;
   }
-  explicit LValExprNode(SourceRange range, std::string ident, bool is_const = false)
-      : VisitAble<LValExprNode, ExprNode>(range, is_const), ident_(std::move(ident)) {
+  explicit LValExprNode(SourceRange range, TypePtr type, std::string ident, bool is_const = false)
+      : VisitAble<LValExprNode, ExprNode>(range, type, is_const), ident_(std::move(ident)) {
     is_array_ = false;
   }
 
@@ -117,8 +125,8 @@ class LValExprNode : public VisitAble<LValExprNode, ExprNode> {
  */
 class RelExprNode : public VisitAble<RelExprNode, ExprNode> {
  public:
-  explicit RelExprNode(SourceRange range, ASTNodePtr left, ASTNodePtr right, bool is_const = false)
-      : VisitAble<RelExprNode, ExprNode>(range, is_const), left_(std::move(left)), right_(std::move(right)) {}
+  explicit RelExprNode(SourceRange range, TypePtr type, ASTNodePtr left, ASTNodePtr right, bool is_const = false)
+      : VisitAble<RelExprNode, ExprNode>(range, type, is_const), left_(std::move(left)), right_(std::move(right)) {}
 
   OpCode operator_;
   ASTNodePtr left_;
@@ -130,8 +138,8 @@ class RelExprNode : public VisitAble<RelExprNode, ExprNode> {
  */
 class EqExprNode : public VisitAble<EqExprNode, ExprNode> {
  public:
-  explicit EqExprNode(SourceRange range, ASTNodePtr left, ASTNodePtr right, bool is_const = false)
-      : VisitAble<EqExprNode, ExprNode>(range, is_const), left_(std::move(left)), right_(std::move(right)) {}
+  explicit EqExprNode(SourceRange range, TypePtr type, ASTNodePtr left, ASTNodePtr right, bool is_const = false)
+      : VisitAble<EqExprNode, ExprNode>(range, type, is_const), left_(std::move(left)), right_(std::move(right)) {}
 
   OpCode operator_;
   ASTNodePtr left_;
@@ -143,8 +151,8 @@ class EqExprNode : public VisitAble<EqExprNode, ExprNode> {
  */
 class LAndExprNode : public VisitAble<LAndExprNode, ExprNode> {
  public:
-  explicit LAndExprNode(SourceRange range, ASTNodePtr left, ASTNodePtr right, bool is_const = false)
-      : VisitAble<LAndExprNode, ExprNode>(range, is_const), left_(std::move(left)), right_(std::move(right)) {}
+  explicit LAndExprNode(SourceRange range, TypePtr type, ASTNodePtr left, ASTNodePtr right, bool is_const = false)
+      : VisitAble<LAndExprNode, ExprNode>(range, type, is_const), left_(std::move(left)), right_(std::move(right)) {}
 
   OpCode operator_ = OpCode::AND;
   ASTNodePtr left_;
@@ -156,8 +164,8 @@ class LAndExprNode : public VisitAble<LAndExprNode, ExprNode> {
  */
 class LOrExprNode : public VisitAble<LOrExprNode, ExprNode> {
  public:
-  explicit LOrExprNode(SourceRange range, ASTNodePtr left, ASTNodePtr right, bool is_const = false)
-      : VisitAble<LOrExprNode, ExprNode>(range, is_const), left_(std::move(left)), right_(std::move(right)) {}
+  explicit LOrExprNode(SourceRange range, TypePtr type, ASTNodePtr left, ASTNodePtr right, bool is_const = false)
+      : VisitAble<LOrExprNode, ExprNode>(range, type, is_const), left_(std::move(left)), right_(std::move(right)) {}
 
   OpCode operator_ = OpCode::OR;
   ASTNodePtr left_;
@@ -166,6 +174,8 @@ class LOrExprNode : public VisitAble<LOrExprNode, ExprNode> {
 
 /**
  * @brief Number node representing a numeric literal
+ * @note Initially in parser, only these two types are supported: int and float
+ * and we will extend them later in semantic analysis phase
  */
 
 /**
@@ -173,8 +183,8 @@ class LOrExprNode : public VisitAble<LOrExprNode, ExprNode> {
  */
 class IntLiteralExprNode : public VisitAble<IntLiteralExprNode, ExprNode> {
  public:
-  explicit IntLiteralExprNode(SourceRange range, int value)
-      : VisitAble<IntLiteralExprNode, ExprNode>(range, true), value_(value) {}
+  explicit IntLiteralExprNode(SourceRange range, TypePtr type, int value)
+      : VisitAble<IntLiteralExprNode, ExprNode>(range, type, true), value_(value) {}
   int value_;
 };
 
@@ -184,8 +194,8 @@ class IntLiteralExprNode : public VisitAble<IntLiteralExprNode, ExprNode> {
 
 class FloatLiteralExprNode : public VisitAble<FloatLiteralExprNode, ExprNode> {
  public:
-  explicit FloatLiteralExprNode(SourceRange range, float value)
-      : VisitAble<FloatLiteralExprNode, ExprNode>(range, true), value_(value) {}
+  explicit FloatLiteralExprNode(SourceRange range, TypePtr type, float value)
+      : VisitAble<FloatLiteralExprNode, ExprNode>(range, type, true), value_(value) {}
   float value_;
 };
 
