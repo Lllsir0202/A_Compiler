@@ -5,7 +5,7 @@
 -include frontend.mk
 
 # Define Src and Include
-DIR := frontend middleend backend stages context
+DIR := frontend middleend backend stages context utils
 BUILD_DIR := objs
 SRC := $(shell find $(DIR) -name '*.cpp') main.cpp
 OBJS := $(SRC:%.cpp=$(BUILD_DIR)/%.o)
@@ -34,7 +34,7 @@ GCC := gcc
 CXX := $(CLANGD)
 
 # Build configuration
-INCLUDE_DIRS := -I. -Ifrontend -Imiddleend -Ibackend -Istages -Icontext
+INCLUDE_DIRS := -I. -Ifrontend -Imiddleend -Ibackend -Istages -Icontext -I utils
 CXXFLAGS := -std=c++17 -Wall -Wextra $(INCLUDE_DIRS) -O2
 TARGET := bin/compiler
 
