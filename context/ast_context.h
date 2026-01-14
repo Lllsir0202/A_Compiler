@@ -3,11 +3,13 @@
 
 namespace context {
 /**
- * @brief Since every process in compiler will only need one Ast,
- * so we can control all Ast related information here.
- */
-class AstContext {};
+* @brief Since every process in compiler will only need one Ast, 
+* so we can control all Ast related information here.
+*/
+    class AstContext {
 
-}  // namespace context
+    } ;
+
+} //namespace context
 
 #endif

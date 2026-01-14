@@ -10,10 +10,18 @@ namespace context {
  * This class will hold global information and states needed during the compilation process.
  */
 class CompilerContext {
+  // We can create TypeContext at the beginning since it doesn't depend on anything else
+  // and will be used throughout the compilation process.
+ public:
+  CompilerContext() { type_context_ = new TypeContext(); }
+  ~CompilerContext() {
+    delete type_context_;
+    delete ast_context_;
+  }
   // First we control types pointer here
-  [[maybe_unused]] TypeContext type_context_;
+  [[maybe_unused]] TypeContext *type_context_;
   // Then we need to control ast context here
-  [[maybe_unused]] AstContext ast_context_;
+  [[maybe_unused]] AstContext *ast_context_;
 };
 
 }  // namespace context
