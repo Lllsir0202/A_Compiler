@@ -116,8 +116,6 @@ auto main(int argc, char *argv[]) -> int {
     return 0;
   }
 
-  // #define OPCODEDEBUG
-
 #ifdef OPCODEDEBUG
   {
     using frontend::ast::OpCode;
@@ -125,7 +123,25 @@ auto main(int argc, char *argv[]) -> int {
     auto op = OpCode::PLUS;
     std::cout << "OpCode: " << OpCodeToString(op) << std::endl;
   }
+#endif
 
+// #define CONVERTDEBUG
+#ifdef CONVERTDEBUG
+  {
+    using frontend::StringToFloat;
+    using frontend::StringToInt;
+    std::vector<std::string> test_ints = {"123", "0", "-456", "0777", "0x1A3F", "111111111111"};
+    std::vector<std::string> test_floats = {"3.14",     "0.0",  "-2.71",     "1e10",
+                                            "6.022e23", "1e-2", "0x1.6FP03", "0x.6AFP-2"};
+    for (const auto &str : test_ints) {
+      int value = StringToInt(str);
+      std::cout << "String: " << str << " -> Int: " << value << std::endl;
+    }
+    for (const auto &str : test_floats) {
+      float value = StringToFloat(str);
+      std::cout << "String: " << str << " -> Float: " << value << std::endl;
+    }
+  }
 #endif
 
   // std::cout << "Hello, World!" << std::endl;

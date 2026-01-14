@@ -65,11 +65,18 @@ class InitListNode : public VisitAble<InitListNode, Initializer> {
  */
 class GlobalVarDeclNode : public VisitAble<GlobalVarDeclNode, DeclNode> {
  public:
-  explicit GlobalVarDeclNode(SourceRange range, TypePtr type, std::string ident, ASTNodePtr init_values = nullptr,
-                             bool is_const = false)
-      : VisitAble<GlobalVarDeclNode, DeclNode>(range, type, is_const),
-        ident_(std::move(ident)),
-        init_values_(std::move(init_values)) {}
+  explicit GlobalVarDeclNode(SourceRange range, TypePtr type, std::vector<ASTNodePtr> defs, bool is_const = false)
+      : VisitAble<GlobalVarDeclNode, DeclNode>(range, type, is_const), defs_(std::move(defs)) {}
+  std::vector<ASTNodePtr> defs_;  // can be empty
+};
+
+/**
+ * @brief Same as local var we need to add defnode for global var
+ */
+class GlobalVarDefNode : public VisitAble<GlobalVarDefNode, ASTNode> {
+ public:
+  explicit GlobalVarDefNode(SourceRange range, std::string ident, ASTNodePtr init_values = nullptr)
+      : VisitAble<GlobalVarDefNode, ASTNode>(range), ident_(std::move(ident)), init_values_(std::move(init_values)) {}
   std::string ident_;
   ASTNodePtr init_values_;  // can be empty
 };
@@ -83,9 +90,9 @@ class GlobalVarDeclNode : public VisitAble<GlobalVarDeclNode, DeclNode> {
  */
 class LocalVarDeclNode : public VisitAble<LocalVarDeclNode, DeclNode> {
  public:
-  explicit LocalVarDeclNode(SourceRange range, TypePtr type, std::vector<ASTNodePtr> vars, bool is_const = false)
-      : VisitAble<LocalVarDeclNode, DeclNode>(range, type, is_const), vars_(std::move(vars)) {}
-  std::vector<ASTNodePtr> vars_;
+  explicit LocalVarDeclNode(SourceRange range, TypePtr type, std::vector<ASTNodePtr> defs, bool is_const = false)
+      : VisitAble<LocalVarDeclNode, DeclNode>(range, type, is_const), defs_(std::move(defs)) {}
+  std::vector<ASTNodePtr> defs_;
 };
 
 /**

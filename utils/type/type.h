@@ -2,8 +2,9 @@
 #define TYPE_TYPE_TYPE_H
 
 #include <cstddef>
+#include <cstdint>
 namespace type {
-enum class TypeKind { UNKNOWN, BOOL, INT, FLOAT, VOID, PTR, ARRAY };
+enum class TypeKind : uint8_t { UNKNOWN, BOOL, INT, FLOAT, VOID, PTR, ARRAY };
 
 class Type {
  public:

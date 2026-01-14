@@ -10,6 +10,7 @@ frontend/lexer/*.h
 !frontend/lexer/*_impl.h
 frontend/parser/*.h
 !frontend/parser/parser.h
+!frontend/parser/parser_utils.h
 !frontend/parser/*_impl.h
 frontend/lexer/*.cpp
 !frontend/lexer/lexer.cpp

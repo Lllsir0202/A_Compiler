@@ -26,7 +26,7 @@ class ASTNode {
 };
 
 using ASTNodePtr = std::unique_ptr<ASTNode>;
-using TypePtr = type::Type*;
+using TypePtr = type::Type *;
 
 }  // namespace frontend::ast
 

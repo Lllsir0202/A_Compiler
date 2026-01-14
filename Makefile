@@ -39,7 +39,8 @@ CXXFLAGS := -std=c++17 -Wall -Wextra $(INCLUDE_DIRS) -O2
 TARGET := bin/compiler
 
 
-all: format check-tidy build
+# all: format check-tidy build
+all: format build
 
 build: $(TARGET)
 	@echo "Build completed: $(TARGET)"

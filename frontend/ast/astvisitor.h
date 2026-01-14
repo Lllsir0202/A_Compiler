@@ -32,12 +32,21 @@ class BreakStmtNode;
 class ContinueStmtNode;
 class ReturnStmtNode;
 
+// Variable nodes includes decl and initializer
+class GlobalVarDeclNode;
+class GlobalVarDefNode;
+class LocalVarDeclNode;
+class LocalVarDefNode;
+class InitListNode;
+class InitValNode;
+
 class ASTVisitor {
  public:
   virtual ~ASTVisitor() = default;
 
   // Visit methods for different AST node types can be declared here
   virtual void Visit(RootNode *root) = 0;
+  // Visit methods for expression nodes
   virtual void Visit(AddExprNode *add_expr) = 0;
   virtual void Visit(MulExprNode *mul_expr) = 0;
   virtual void Visit(UnaryExprNode *unary_expr) = 0;
@@ -50,6 +59,7 @@ class ASTVisitor {
   virtual void Visit(LOrExprNode *lor_expr) = 0;
   virtual void Visit(IntLiteralExprNode *int_literal) = 0;
   virtual void Visit(FloatLiteralExprNode *float_literal) = 0;
+  // Visit methods for statement nodes
   virtual void Visit(BlockStmtNode *block_stmt) = 0;
   virtual void Visit(AssignStmtNode *assign_stmt) = 0;
   virtual void Visit(CommaStmtNode *comma_stmt) = 0;
@@ -58,6 +68,13 @@ class ASTVisitor {
   virtual void Visit(BreakStmtNode *break_stmt) = 0;
   virtual void Visit(ContinueStmtNode *continue_stmt) = 0;
   virtual void Visit(ReturnStmtNode *return_stmt) = 0;
+  // Visit methods for variable nodes
+  virtual void Visit(GlobalVarDeclNode *global_var_decl) = 0;
+  virtual void Visit(GlobalVarDefNode *global_var_def) = 0;
+  virtual void Visit(LocalVarDeclNode *local_var_decl) = 0;
+  virtual void Visit(LocalVarDefNode *local_var_def) = 0;
+  virtual void Visit(InitListNode *init_list) = 0;
+  virtual void Visit(InitValNode *init_val) = 0;
 };
 
 template <typename Derived, typename Base = ASTNode>
