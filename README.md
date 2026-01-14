@@ -123,3 +123,14 @@ We follow ``ISO/IEC 9899`` to finish all the ``const integar and float`` recogni
 2. to be attention, we will transfer owner to ``stages`` module to do output for lexer stage, so we cannot use ``lexer`` and ``ofstream`` after that.
 3. if user do not need to output lexer, we will transfer tokens to parser directly.
 
+### AST
+Before starting design ``parser`` part, we need to design the AST structure to represent the syntax tree of the source code. The AST is a hierarchical representation of the program's structure, where each node corresponds to a construct in the source code (e.g., expressions, statements, declarations). But it is still different from IR tree, which is more close to machine code.
+
+Over here, we first import ``Visitor Pattern`` to centralize different operations on AST nodes without modifying their classes. This allows us to add new operations easily by creating new visitor classes.
+
+But I think there is something else needed to pay attention to, mainly focus on types:
+1. We need to design different types for different kinds of ``decl`` and ``expr``. Until now, I haven't found any necessarity to add types for ``stmt`` nodes.
+2. Ever before, I have always been struck by how to handle **array** in AST, especially when it is defined and passed as a parameter. Essentially, I decided to divide it into two different types:
+   1. ``ArrayType``: used to represent array variable declaration and definition, which contains information about the base type and dimensions of the array.
+   2. ``PtrType``: used to represent array parameters in function declarations, which is treated as a pointer to the base type of the array.
+And when we need to alloca memory for array variables, we will calculate the total size based on the dimensions stored in ``ArrayType``. For array parameters, we will allocate memory for a pointer to the base type. But in symbol table, we still need to store the array type since it is still an array variable. I suppose this kind of design can make it easier to check types during semantic analysis.
