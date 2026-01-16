@@ -101,6 +101,8 @@ auto main(int argc, char *argv[]) -> int {
   std::unique_ptr<stages::Stage> stage_ptr;
   std::unique_ptr<frontend::Lexer> lexer = std::make_unique<frontend::FlexLexerImpl>(&input);
 
+  // From parser stage we would build AST, so we should pass compiler context to each stage
+
 #ifdef LEXERDEBUG
   {
     auto token = lexer->GetNextToken();

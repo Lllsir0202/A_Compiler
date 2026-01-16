@@ -98,6 +98,15 @@ Take the ``frontend/ast/ast_expr.h`` for example, we know that the ``ASTNodePtr`
 
 So when we call the ``Accept`` function even via the pointer of base class ``ASTNode``, we are still calling the sepcific function in child class and here is ``AddExprNode::Accept``. It is based on C++'s virtual function mechanism, which ensures that the correct overridden function is called based on the actual object type, not the pointer type.
 
+#### Two separate visitors: mutable and const visitors
+When designing the visitor pattern for our AST, I realized that the stages ``semantic analysis`` and ``IR generation`` are quite different in terms of whether they modify the AST or not. Semantic analysis typically needs to modify the AST to annotate nodes with type information, while IR generation usually just reads the AST without modifying it.
+
+So I decided to create two separate visitor interfaces:
+1. `ASTVisitor`: This visitor is designed for stages that need to modify the AST, such as semantic analysis. It provides non-const visit methods that allow modification of the AST nodes.
+2. `ConstASTVisitor`: This visitor is intended for stages that only need to read the AST without modifying it, such as IR generation. It provides const visit methods that ensure the AST nodes are not modified during the visit.
+
+I believe this separation helps to clarify the intent of each visitor and prevents accidental modifications to the AST during read-only operations.
+
 ## Frontend
 To summarize, we offer multiple frontends, just need to obey our rules. 
 
@@ -134,3 +143,20 @@ But I think there is something else needed to pay attention to, mainly focus on 
    1. ``ArrayType``: used to represent array variable declaration and definition, which contains information about the base type and dimensions of the array.
    2. ``PtrType``: used to represent array parameters in function declarations, which is treated as a pointer to the base type of the array.
 And when we need to alloca memory for array variables, we will calculate the total size based on the dimensions stored in ``ArrayType``. For array parameters, we will allocate memory for a pointer to the base type. But in symbol table, we still need to store the array type since it is still an array variable. I suppose this kind of design can make it easier to check types during semantic analysis.
+
+### Parser
+For ``Parser`` part, we designed an **abstract base class** that defines a unified interface for parsing. This allows us to integrate different parser implementations (such as Bison or hand-written parsers) seamlessly using the **Adapter Pattern**.
+
+By default, I still use `bison` for syntactic analysis. And since I have separated the lexer and parser, I need to make an adapter to connect them together. While traditionally lexer(Flex) and parser(Bison) are tightly coupled, I want to decouple them for better modularity and flexibility. So I designed a `FlexLexerImpl` class that acts as an adapter between the Flex-generated lexer and our abstract `Lexer` interface. This way, we can easily swap out the lexer implementation if needed without affecting the parser as well as we can also swap out the parser implementation if needed without affecting the lexer.
+
+Based on our current design of the ``Lexer`` and ``Parser`` classes, we only require the `Lexer` instance store all the information in our ``Token`` structure, and the `Parser` will call the `GetNextToken()` method from the `Lexer` to retrieve tokens one by one during parsing. This design keeps the interaction between the lexer and parser simple and focused on token retrieval and I believe this kind of design can make our compiler more modular and easier to maintain. Moreover, our lexer can be either streaming lexer or buffered lexer, as long as it implements the `GetNextToken()` method to provide tokens to the parser.
+
+Then I would like to introduce some interesting details about parser design, and maily based on ``bison`` parser:
+1. Since ``bison`` parser doesn't know anything about the ``Token`` or something else, it just requires a function called ``yylex`` to get next token. So in our design, we need to implement this function to call our ``Lexer`` instance's ``GetNextToken()`` method to retrieve tokens. To achieve this, we need to override the default ``yylex`` function provided by ``bison`` and implement our own version that interacts with our `Lexer` class.
+2. Aftering achieving token retrieval, we need to build AST from these tokens. In ``bison``, we can define grammar rules and associate actions with them. These actions will be executed when the corresponding grammar rule is matched during parsing. So in our design, we will implement these actions to create AST nodes and link them together based on the structure of the source code.
+3. Finally, we need to provide a way to access the constructed AST after parsing is complete. We can achieve this by storing the root of the AST in ``ast_context`` inside ``compiler_context``, and providing a method to retrieve it.
+
+And some more details about the overall management of ``AST``:
+1. All AST nodes are **only** managed by ``AstContext``, which is inside ``CompilerContext``. This ensures that the memory management of AST nodes is centralized and consistent.
+2. Each stage that needs to interact with the AST will receive a reference to the same ``CompilerContext`` instance. This allows all stages to access and modify the AST as needed without duplicating code or data structures.
+3. Even though the ``Semantic analysis`` or ``IR generation`` stage may need to either modify or just read the AST, **The resource are still managed by ``AstContext`` inside ``CompilerContext``.** And the resource ownership will never be transferred to these stages.

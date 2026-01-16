@@ -40,6 +40,7 @@ class LocalVarDefNode;
 class InitListNode;
 class InitValNode;
 
+// There are two kinds of visitors: mutable and const visitors
 class ASTVisitor {
  public:
   virtual ~ASTVisitor() = default;
@@ -77,11 +78,49 @@ class ASTVisitor {
   virtual void Visit(InitValNode *init_val) = 0;
 };
 
+class ConstASTVisitor {
+ public:
+  virtual ~ConstASTVisitor() = default;
+
+  // Visit methods for different AST node types can be declared here
+  virtual void Visit(const RootNode *root) = 0;
+  // Visit methods for expression nodes
+  virtual void Visit(const AddExprNode *add_expr) = 0;
+  virtual void Visit(const MulExprNode *mul_expr) = 0;
+  virtual void Visit(const UnaryExprNode *unary_expr) = 0;
+  virtual void Visit(const FuncCallExprNode *func_call) = 0;
+  virtual void Visit(const PrimaryExprNode *primary_expr) = 0;
+  virtual void Visit(const LValExprNode *lval_expr) = 0;
+  virtual void Visit(const RelExprNode *rel_expr) = 0;
+  virtual void Visit(const EqExprNode *eq_expr) = 0;
+  virtual void Visit(const LAndExprNode *land_expr) = 0;
+  virtual void Visit(const LOrExprNode *lor_expr) = 0;
+  virtual void Visit(const IntLiteralExprNode *int_literal) = 0;
+  virtual void Visit(const FloatLiteralExprNode *float_literal) = 0;
+  // Visit methods for statement nodes
+  virtual void Visit(const BlockStmtNode *block_stmt) = 0;
+  virtual void Visit(const AssignStmtNode *assign_stmt) = 0;
+  virtual void Visit(const CommaStmtNode *comma_stmt) = 0;
+  virtual void Visit(const IfStmtNode *if_stmt) = 0;
+  virtual void Visit(const WhileStmtNode *while_stmt) = 0;
+  virtual void Visit(const BreakStmtNode *break_stmt) = 0;
+  virtual void Visit(const ContinueStmtNode *continue_stmt) = 0;
+  virtual void Visit(const ReturnStmtNode *return_stmt) = 0;
+  // Visit methods for variable nodes
+  virtual void Visit(const GlobalVarDeclNode *global_var_decl) = 0;
+  virtual void Visit(const GlobalVarDefNode *global_var_def) = 0;
+  virtual void Visit(const LocalVarDeclNode *local_var_decl) = 0;
+  virtual void Visit(const LocalVarDefNode *local_var_def) = 0;
+  virtual void Visit(const InitListNode *init_list) = 0;
+  virtual void Visit(const InitValNode *init_val) = 0;
+};
+
 template <typename Derived, typename Base = ASTNode>
 class VisitAble : public Base {
  public:
   using Base::Base;
   void Accept(ASTVisitor *visitor) override { visitor->Visit(static_cast<Derived *>(this)); }
+  void Accept(ConstASTVisitor *visitor) const override { visitor->Visit(static_cast<const Derived *>(this)); }
 };
 
 }  // namespace frontend::ast

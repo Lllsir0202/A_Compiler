@@ -18,6 +18,10 @@ class CompilerContext {
     delete type_context_;
     delete ast_context_;
   }
+  auto GetTypeContext() -> TypeContext * { return type_context_; }
+  auto GetAstContext() -> AstContext * { return ast_context_; }
+
+ private:
   // First we control types pointer here
   TypeContext *type_context_;
   // Then we need to control ast context here

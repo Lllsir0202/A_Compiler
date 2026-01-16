@@ -6,6 +6,7 @@
 #include "utils/type/type.h"
 namespace frontend::ast {
 class ASTVisitor;
+class ConstASTVisitor;
 
 // We define basic AST Node here
 class ASTNode {
@@ -17,6 +18,7 @@ class ASTNode {
   explicit ASTNode() : line_(0), column_(0) {}
   virtual ~ASTNode() = default;
   virtual void Accept(ASTVisitor *visitor) = 0;
+  virtual void Accept(ConstASTVisitor *visitor) const = 0;
   auto GetLine() const { return line_; }
   auto GetColumn() const { return column_; }
 

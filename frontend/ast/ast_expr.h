@@ -24,6 +24,8 @@ class ExprNode : public ASTNode {
   ~ExprNode() override = default;
   auto IsConst() const -> bool { return is_const_; }
   auto GetType() const -> TypePtr { return type_; }
+  auto SetType(TypePtr type) -> void { type_ = type; }
+  auto SetConst(bool is_const) -> void { is_const_ = is_const; }
 
  private:
   TypePtr type_;
