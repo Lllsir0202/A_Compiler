@@ -115,7 +115,7 @@ using namespace frontend;
 %{
     // ---- IDENTIFER ---- //
 %}
-[a-zA-Z_]+[0-9a-zA-Z_]*                             {return this->MakeToken(TokenType::IDENTIFER, yytext, yylineno);}
+[a-zA-Z_]+[0-9a-zA-Z_]*                             {return this->MakeToken(TokenType::IDENTIFIER, yytext, yylineno);}
 
 
 %{

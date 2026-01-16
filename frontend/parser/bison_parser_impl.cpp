@@ -1,5 +1,6 @@
 #include "bison_parser_impl.h"
 #include "bison.h"
+#include "parser_utils.h"
 
 namespace frontend {
 
@@ -27,9 +28,6 @@ auto BisonParserImpl::Parse(context::CompilerContext &context) -> int {
   compiler_context_ = nullptr;
   return 0;
 }
-
-}  // namespace frontend
-
 /**
  * @brief We briefly introduce how symbol_type looks like in bison generated parser
  * @code
@@ -43,15 +41,14 @@ auto BisonParserImpl::Parse(context::CompilerContext &context) -> int {
  * @note Here we redefine location_type as SourceRange in our bison parser
  * so that we can keep track of source code locations easily.
  */
-// #ifdef yy_parser_symbol_type
-auto yylex(frontend::BisonParserImpl &parser) -> yy::parser::symbol_type {
-  auto lexer = parser.GetLexer();
+auto BisonParserImpl::Lex() -> yy::parser::symbol_type {
+  auto lexer = GetLexer();
   auto token = lexer->GetNextToken();
   switch (token.GetTokenType()) {
-    case frontend::TokenType::INT_LITERAL:
-      return yy::parser::make_INT_LITERAL(token.GetLexeme(), token.GetSourceRange());
-    case frontend::TokenType::FLOAT_LITERAL:
-      return yy::parser::make_FLOAT_LITERAL(token.GetLexeme(), token.GetSourceRange());
+    case frontend::TokenType::INTCONST:
+      return yy::parser::make_INT_LITERAL(StringToInt(token.GetLexeme()), token.GetSourceRange());
+    case frontend::TokenType::FLOATCONST:
+      return yy::parser::make_FLOAT_LITERAL(StringToFloat(token.GetLexeme()), token.GetSourceRange());
     case frontend::TokenType::IDENTIFIER:
       return yy::parser::make_IDENTIFIER(token.GetLexeme(), token.GetSourceRange());
     // Add cases for other token types as needed
@@ -59,4 +56,5 @@ auto yylex(frontend::BisonParserImpl &parser) -> yy::parser::symbol_type {
       return yy::parser::make_YYEOF(token.GetSourceRange());
   }
 }
-// #endif
+
+}  // namespace frontend

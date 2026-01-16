@@ -18,6 +18,9 @@ struct SourceLocation {
   uint32_t line_;
   uint32_t column_;
 
+ public:
+  SourceLocation() = default;
+
  private:
   SourceLocation(uint32_t offset, uint32_t line, uint32_t column) : offset_(offset), line_(line), column_(column) {}
   friend struct SourceRange;
@@ -38,6 +41,9 @@ struct SourceLocation {
 struct SourceRange {
   SourceLocation begin_;
   SourceLocation end_;
+
+ public:
+  SourceRange() = default;
 
  private:
   SourceRange(SourceLocation begin, SourceLocation end) : begin_(begin), end_(end) {}

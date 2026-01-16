@@ -41,7 +41,7 @@ TOKEN(COMMA)
 // ,
 
 // --Variable--
-TOKEN(IDENTIFER)
+TOKEN(IDENTIFIER)
 
 // --Operators--
 // Algorithm

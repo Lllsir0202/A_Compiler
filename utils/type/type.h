@@ -76,6 +76,9 @@ class VoidType : public Type {
  * as a function parameter.
  */
 class PtrType : public Type {
+ public:
+  auto GetBaseType() const -> Type * { return base_type_; }
+
  private:
   explicit PtrType(Type *base_type) : Type(TypeKind::PTR), base_type_(base_type) {}
   Type *base_type_;
@@ -88,6 +91,10 @@ class PtrType : public Type {
  * @brief Since we need to use the size information when allocating space for arrays
  */
 class ArrayType : public Type {
+ public:
+  auto GetElementType() const -> Type * { return element_type_; }
+  auto GetSize() const -> size_t { return size_; }
+
  private:
   explicit ArrayType(Type *element_type, size_t size)
       : Type(TypeKind::ARRAY), element_type_(element_type), size_(size) {}
