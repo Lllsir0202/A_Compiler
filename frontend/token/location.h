@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <iomanip>
 #include <ostream>
+#include <string>
 
 namespace frontend {
 // 记录源代码位置的结构体
@@ -57,6 +58,11 @@ struct SourceRange {
   auto Print(std::ostream &out, int line_width, int column_width) -> void {
     out << std::left << std::setw(line_width) << GetBegin().line_ << std::setw(column_width) << GetBegin().column_
         << "\n";
+  }
+
+  // Add overloaded for error reporting
+  auto ToString() const -> std::string {
+    return "Line " + std::to_string(GetBegin().line_) + ", Column " + std::to_string(GetBegin().column_);
   }
 };
 

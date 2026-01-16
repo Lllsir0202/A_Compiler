@@ -26,7 +26,7 @@ class BisonParserImpl : public Parser {
   explicit BisonParserImpl(std::unique_ptr<Lexer> lexer) noexcept : Parser(std::move(lexer)) {}
   ~BisonParserImpl() override = default;
 
-  auto Parse(context::CompilerContext &context) -> void override;
+  auto Parse(context::CompilerContext &context) -> int override;
 
   // Since yylex() will be a global function, we can just make GetLexer() public
   auto GetLexer() -> Lexer * { return Parser::GetLexer(); }
@@ -40,4 +40,7 @@ class BisonParserImpl : public Parser {
 
 }  // namespace frontend
 
+#ifdef yy_parser_symbol_type
+auto yylex(frontend::BisonParserImpl &parser) -> yy::parser::symbol_type;
+#endif
 #endif

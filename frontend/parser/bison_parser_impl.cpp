@@ -8,17 +8,55 @@ auto BisonParserImpl::GetContext() -> context::CompilerContext & {
   return *compiler_context_;
 }
 
-auto BisonParserImpl::Parse(context::CompilerContext &context) -> void {
+auto BisonParserImpl::Parse(context::CompilerContext &context) -> int {
   // Set the compiler context member
   compiler_context_ = &context;
 
-  // Create bison parser instance
-  yy::parser parser(*this);
-  // Invoke the parse method
-  parser.parse();
+  try {
+    // Create bison parser instance
+    yy::parser parser(*this);
+    // Invoke the parse method
+    parser.parse();
+  } catch (const std::runtime_error &e) {
+    // Handle parsing errors if necessary
+    compiler_context_ = nullptr;
+    return 1;
+  }
 
   // Clear the context after parsing
   compiler_context_ = nullptr;
+  return 0;
 }
 
 }  // namespace frontend
+
+/**
+ * @brief We briefly introduce how symbol_type looks like in bison generated parser
+ * @code
+ *
+ * struct symbol_type {
+ *  token_kind_type kind;
+ *  semantic_type   value;
+ *  location_type   location;
+ *};
+ * @endcode
+ * @note Here we redefine location_type as SourceRange in our bison parser
+ * so that we can keep track of source code locations easily.
+ */
+// #ifdef yy_parser_symbol_type
+auto yylex(frontend::BisonParserImpl &parser) -> yy::parser::symbol_type {
+  auto lexer = parser.GetLexer();
+  auto token = lexer->GetNextToken();
+  switch (token.GetTokenType()) {
+    case frontend::TokenType::INT_LITERAL:
+      return yy::parser::make_INT_LITERAL(token.GetLexeme(), token.GetSourceRange());
+    case frontend::TokenType::FLOAT_LITERAL:
+      return yy::parser::make_FLOAT_LITERAL(token.GetLexeme(), token.GetSourceRange());
+    case frontend::TokenType::IDENTIFIER:
+      return yy::parser::make_IDENTIFIER(token.GetLexeme(), token.GetSourceRange());
+    // Add cases for other token types as needed
+    default:
+      return yy::parser::make_YYEOF(token.GetSourceRange());
+  }
+}
+// #endif
