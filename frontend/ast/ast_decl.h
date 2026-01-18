@@ -108,9 +108,9 @@ class LocalVarDefNode : public VisitAble<LocalVarDefNode, ASTNode> {
 };
 
 /**
-* TODO(loki): define function declaration node
-* @brief FunctionDeclNode representing a function declaration
-*/
+ * TODO(loki): define function declaration node
+ * @brief FunctionDeclNode representing a function declaration
+ */
 
 }  // namespace frontend::ast
 #endif

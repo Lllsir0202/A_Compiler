@@ -11,7 +11,7 @@ NOVAL(FLOAT, FLOAT)
 NOVAL(VOID, VOID)
 NOVAL(CONST, CONST)
 // Representing the end of file
-NOVAL(END, YYEOF)
+NOVAL(END, END)
 
 // Algorithm Operators
 NOVAL(PLUS, ADD)

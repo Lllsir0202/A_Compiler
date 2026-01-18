@@ -129,10 +129,14 @@ program:
     compunit
     {
         driver.GetContext().GetAstContext()->SetRootNode(std::move($1));
-    };
+    }
+    | program END
+    {
+        YYACCEPT;
+    }
 
 compunit:
-    
+
 
 %%
 
