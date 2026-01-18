@@ -82,7 +82,7 @@
         default: {
             driver.ReportError(token.GetSourceRange(), "Unknown token");
             // Should not reach here
-            return yy::parser::make_END(token.GetSourceRange());
+            return yy::parser::make_YYEOF(token.GetSourceRange());
         }
       }
     }

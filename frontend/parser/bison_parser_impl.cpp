@@ -1,6 +1,5 @@
 #include "bison_parser_impl.h"
 #include "bison.h"
-#include "parser_utils.h"
 
 namespace frontend {
 
