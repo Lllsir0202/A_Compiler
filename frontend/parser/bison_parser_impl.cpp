@@ -41,20 +41,4 @@ auto BisonParserImpl::Parse(context::CompilerContext &context) -> int {
  * @note Here we redefine location_type as SourceRange in our bison parser
  * so that we can keep track of source code locations easily.
  */
-auto BisonParserImpl::Lex() -> yy::parser::symbol_type {
-  auto lexer = GetLexer();
-  auto token = lexer->GetNextToken();
-  switch (token.GetTokenType()) {
-    case frontend::TokenType::INTCONST:
-      return yy::parser::make_INT_LITERAL(StringToInt(token.GetLexeme()), token.GetSourceRange());
-    case frontend::TokenType::FLOATCONST:
-      return yy::parser::make_FLOAT_LITERAL(StringToFloat(token.GetLexeme()), token.GetSourceRange());
-    case frontend::TokenType::IDENTIFIER:
-      return yy::parser::make_IDENTIFIER(token.GetLexeme(), token.GetSourceRange());
-    // Add cases for other token types as needed
-    default:
-      return yy::parser::make_YYEOF(token.GetSourceRange());
-  }
-}
-
 }  // namespace frontend

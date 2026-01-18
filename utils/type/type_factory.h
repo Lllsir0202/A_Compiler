@@ -14,8 +14,8 @@ namespace type {
 class TypeFactory {
  public:
   static auto GetUnknownType() -> Type * { return new UnknownType(); }
-  static auto GetBoolenType() -> Type * { return new BoolenType(); }
-  static auto GetIntegarType() -> Type * { return new IntegarType(); }
+  static auto GetBooleanType() -> Type * { return new BooleanType(); }
+  static auto GetIntegerType() -> Type * { return new IntegerType(); }
   static auto GetFloatType() -> Type * { return new FloatType(); }
   static auto GetVoidType() -> Type * { return new VoidType(); }
   static auto GetPtrType(Type *base_type) -> Type * { return new PtrType(base_type); }

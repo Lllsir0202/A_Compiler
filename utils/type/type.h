@@ -31,19 +31,18 @@ class UnknownType : public Type {
 /**
  * @brief Bool type will be used when condition import logical expressions
  */
-class BoolenType : public Type {
+class BooleanType : public Type {
  private:
-  BoolenType() : Type(TypeKind::BOOL) {}
-
+  BooleanType() : Type(TypeKind::BOOL) {}
   friend class TypeFactory;
 };
 
 /**
  * @brief Int type will be used for integer values
  */
-class IntegarType : public Type {
+class IntegerType : public Type {
  private:
-  IntegarType() : Type(TypeKind::INT) {}
+  IntegerType() : Type(TypeKind::INT) {}
 
   friend class TypeFactory;
 };

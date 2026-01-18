@@ -10,7 +10,7 @@ namespace frontend::ast {
 // TODO(loki): define variable declaration node
 // We need to define variable declaration nodes to represent variable declarations in the AST.
 // This includes nodes for single variable declarations, array declarations, and possibly initialization.
-// Before implementing, we need to consider every type of variable declaration as well as how to handle ptr and integar.
+// Before implementing, we need to consider every type of variable declaration as well as how to handle ptr and integer.
 class DeclNode : public ASTNode {
  public:
   explicit DeclNode(SourceRange range, TypePtr type, bool is_const = false)

@@ -127,7 +127,7 @@ By default, we use `flex` for lexical analysis.
     make lexer
 ```
 
-We follow ``ISO/IEC 9899`` to finish all the ``const integar and float`` recognition, and we follow the procedures listed below to do recognition and output:
+We follow ``ISO/IEC 9899`` to finish all the ``const integer and float`` recognition, and we follow the procedures listed below to do recognition and output:
 1. if user need to output lexer, we will stop at lexer, and output tokens to the specified file;
 2. to be attention, we will transfer owner to ``stages`` module to do output for lexer stage, so we cannot use ``lexer`` and ``ofstream`` after that.
 3. if user do not need to output lexer, we will transfer tokens to parser directly.

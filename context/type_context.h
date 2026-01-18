@@ -14,10 +14,10 @@ class TypeContext {
   TypeContext() {
     // We can create some basic types here
     unknown_type_ = type::TypeFactory::GetUnknownType();
-    integar_type_ = type::TypeFactory::GetIntegarType();
+    integer_type_ = type::TypeFactory::GetIntegerType();
     float_type_ = type::TypeFactory::GetFloatType();
     void_type_ = type::TypeFactory::GetVoidType();
-    boolen_type_ = type::TypeFactory::GetBoolenType();
+    boolean_type_ = type::TypeFactory::GetBooleanType();
   }
 
   ~TypeContext() {
@@ -32,18 +32,18 @@ class TypeContext {
       delete pair.second;
     }
     delete unknown_type_;
-    delete integar_type_;
+    delete integer_type_;
     delete float_type_;
     delete void_type_;
-    delete boolen_type_;
+    delete boolean_type_;
   }
 
   // Provide methods to get types
   auto GetUnknownType() -> type::Type * { return unknown_type_; }
-  auto GetIntegarType() -> type::Type * { return integar_type_; }
+  auto GetIntegerType() -> type::Type * { return integer_type_; }
   auto GetFloatType() -> type::Type * { return float_type_; }
   auto GetVoidType() -> type::Type * { return void_type_; }
-  auto GetBoolenType() -> type::Type * { return boolen_type_; }
+  auto GetBooleanType() -> type::Type * { return boolean_type_; }
   auto GetPtrType(type::Type *base_type) -> type::Type * {
     // Check if we have already created this ptr type
     if (ptr_type_map_.find(base_type) != ptr_type_map_.end()) {
@@ -69,10 +69,10 @@ class TypeContext {
 
  private:
   type::Type *unknown_type_;
-  type::Type *integar_type_;
+  type::Type *integer_type_;
   type::Type *float_type_;
   type::Type *void_type_;
-  type::Type *boolen_type_;
+  type::Type *boolean_type_;
   // following types will be created on demand, such as ptr type, we need to know the base type first
   // and we will create a map to manage them later
   /**

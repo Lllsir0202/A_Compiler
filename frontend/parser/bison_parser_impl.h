@@ -2,14 +2,15 @@
 #define FRONTEND_BISON_PARSER_IMPL_H
 
 #include <cassert>
-#include "bison.h"
 #include "parser.h"
 // The details of bison parser implementation will be introduced in README.md
 
 // Firstly, we need to declare the bison parser class
 // Since we use our own token class,
 // we need to adapt bison parser to our Parser interface
-
+namespace yy {
+class parser;
+}
 namespace frontend {
 
 /**
@@ -32,8 +33,6 @@ class BisonParserImpl : public Parser {
 
   // Set member function to provide access to compiler context
   auto GetContext() -> context::CompilerContext &;
-
-  auto Lex() -> yy::parser::symbol_type;
 
  private:
   context::CompilerContext *compiler_context_;

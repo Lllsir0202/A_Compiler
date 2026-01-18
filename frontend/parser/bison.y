@@ -33,10 +33,11 @@
 
 %code {
     #include "frontend/parser/bison_parser_impl.h"
+    #include "frontend/parser/parser_utils.h"
     #include "frontend/token/token.h"
     #include "frontend/ast/ast_base.h"
 
-    // 【新增】告诉 Bison 使用 begin_ 和 end_ 而不是默认的 begin 和 end
+    // Using rewritten YYLLOC_DEFAULT macro to adapt to SourceRange
     #define YYLLOC_DEFAULT(Res, Rhs, N)                     \
       do                                                    \
         {                                                   \
@@ -60,7 +61,30 @@
         driver.ReportError(loc, msg);
     }
     yy::parser::symbol_type yylex(frontend::BisonParserImpl& driver) {
-        return driver.Lex();
+      auto token = driver.GetLexer()->GetNextToken();
+        switch (token.GetTokenType()) {
+        #define NOVAL(name, bisontype) \
+            case frontend::TokenType::name: { \
+                return yy::parser::make_##bisontype(token.GetSourceRange()); \
+            }
+            #include "token2bison.def"
+        #undef NOVAL
+        // Then tokens with values
+        case frontend::TokenType::INTCONST: {
+            return yy::parser::make_INTCONST(frontend::StringToInt(token.GetLexeme()), token.GetSourceRange());
+        }
+        case frontend::TokenType::FLOATCONST: {
+            return yy::parser::make_FLOATCONST(frontend::StringToFloat(token.GetLexeme()), token.GetSourceRange());
+        }
+        case frontend::TokenType::IDENTIFIER: {
+            return yy::parser::make_IDENTIFIER(token.GetLexeme(), token.GetSourceRange());
+        }
+        default: {
+            driver.ReportError(token.GetSourceRange(), "Unknown token");
+            // Should not reach here
+            return yy::parser::make_END(token.GetSourceRange());
+        }
+      }
     }
 }
 
@@ -68,7 +92,7 @@
 /* Start with tokens without any attribute */
 
 /* KeyWords */
-%token IF ELSE WHILE BREAK CONTINUE RETURN INT FLOAT VOID CONST
+%token IF ELSE WHILE BREAK CONTINUE RETURN INT FLOAT VOID CONST END
 
 /* Algorithm Operators */
 %token ADD SUB MUL DIV MOD ASSIGN
@@ -80,9 +104,12 @@
 %token LT GT LE GE EQ NEQ
 
 /* Tokens with values */
-%token <int> INT_LITERAL "integer literal"
-%token <float> FLOAT_LITERAL "float literal"
+%token <int> INTCONST "integer constant"
+%token <float> FLOATCONST "float constant"
 %token <std::string> IDENTIFIER "identifier"
+
+/* Some Punctuation */
+%token LCBRACE RCBRACE LSBRACE RSBRACE LPAREN RPAREN SEMICOLON COMMA
 
 /* Then define priority */
 %left ADD SUB

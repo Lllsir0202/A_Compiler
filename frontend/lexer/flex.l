@@ -36,7 +36,7 @@ using namespace frontend;
     // ---- Value def ---- //
 %}
 "void"                                              {return this->MakeToken(TokenType::VOID, yytext, yylineno);}
-"int"                                               {return this->MakeToken(TokenType::INTEGAR, yytext, yylineno);}
+"int"                                               {return this->MakeToken(TokenType::INTEGER, yytext, yylineno);}
 "float"                                             {return this->MakeToken(TokenType::FLOAT, yytext, yylineno);}
 
 %{
