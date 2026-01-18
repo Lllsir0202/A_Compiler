@@ -116,15 +116,24 @@
 %left MUL DIV MOD
 
 /* Followed by type definitions */
+/* Define the type of non-terminal symbols */
 %type <frontend::ASTNodePtr> program
+%type <frontend::ASTNodePtr> compunit
+%type <frontend::ASTNodePtr> stmt
+%type <frontend::ASTNodePtr> expr
 
 
 /* Define grammer here */
 %%
 program:
+    compunit
     {
-        driver.GetContext().GetAstContext()->SetRootNode(std::move(nullptr));
-    }
+        driver.GetContext().GetAstContext()->SetRootNode(std::move($1));
+    };
+
+compunit:
+    
+
 %%
 
 /* Error handle and yylex */

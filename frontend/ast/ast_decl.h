@@ -1,5 +1,5 @@
-#ifndef FRONTEND_AST_AST_VAR_H
-#define FRONTEND_AST_AST_VAR_H
+#ifndef FRONTEND_AST_AST_DECL_H
+#define FRONTEND_AST_AST_DECL_H
 
 #include <vector>
 #include "ast/ast_base.h"
@@ -106,6 +106,11 @@ class LocalVarDefNode : public VisitAble<LocalVarDefNode, ASTNode> {
   std::string ident_;
   ASTNodePtr init_values_;  // can be empty
 };
+
+/**
+* TODO(loki): define function declaration node
+* @brief FunctionDeclNode representing a function declaration
+*/
 
 }  // namespace frontend::ast
 #endif
