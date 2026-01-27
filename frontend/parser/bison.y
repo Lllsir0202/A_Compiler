@@ -36,6 +36,11 @@
     #include "frontend/parser/parser_utils.h"
     #include "frontend/token/token.h"
     #include "frontend/ast/ast_base.h"
+    #include "frontend/ast/ast_spec.h"
+    #include "frontend/ast/ast_decl.h"
+    #include "frontend/ast/ast_expr.h"
+    #include "frontend/ast/ast_stmt.h"
+
 
     // Using rewritten YYLLOC_DEFAULT macro to adapt to SourceRange
     #define YYLLOC_DEFAULT(Res, Rhs, N)                     \
@@ -118,9 +123,14 @@
 /* Followed by type definitions */
 /* Define the type of non-terminal symbols */
 %type <frontend::ASTNodePtr> program
-%type <frontend::ASTNodePtr> compunit
+%type <std::vector<frontend::ASTNodePtr>>* compunit
 %type <frontend::ASTNodePtr> stmt
 %type <frontend::ASTNodePtr> expr
+%type <frontend::ASTNodePtr> global_decl
+%type <frontend::ASTNodePtr> decl
+%type <frontend::ASTNodePtr> funcdef
+%type <frontend::ASTNodePtr> def
+%type <std::vector<frontend::ASTNodePtr>>* global_def_list
 
 
 /* Define grammer here */
@@ -128,14 +138,72 @@
 program:
     compunit
     {
-        driver.GetContext().GetAstContext()->SetRootNode(std::move($1));
+        $$ = new frontend::ast::RootNode(std::move($1));
+        delete $1;
+        driver.GetContext().GetAstContext()->SetRootNode(std::move($$));
     }
     | program END
     {
         YYACCEPT;
     }
+    ;
 
 compunit:
+    compunit global_decl
+    {
+      $$ = std::move($1);
+      delete $1;
+      $$.push_back(std::move($2));
+    }
+    |
+    compunit funcdef
+    {
+      $$ = std::move($1);
+      delete $1;
+      $$.push_back(std::move($2));
+    }
+    |
+    global_decl
+    {
+      $$ = new std::vector<frontend::ASTNodePtr>();
+      $$->emplace_back(std::move($1));
+    }
+    |
+    funcdef
+    {
+      $$ = new std::vector<frontend::ASTNodePtr>();
+      $$->emplace_back(std::move($1));
+    }
+    ;
+
+global_decl:
+    INT global_def_list SEMICOLON
+    {
+      $$ = make_unique<frontend::ast::GlobalDeclNode>(frontend::SourceRange::Combine($1, $3), ast::BaseType::INT, std::move(*$2));
+      delete $2;
+    }
+    |
+    FLOAT global_def_list SEMICOLON
+    {
+      $$ = make_unique<frontend::ast::GlobalDeclNode>(frontend::SourceRange::Combine($1, $3), ast::BaseType::FLOAT, std::move(*$2));
+      delete $2;
+    }
+    ;
+
+global_def_list:
+    global_def_list COMMA def
+    {
+      $$ = std::move($1);
+      delete $1;
+      $$.push_back(std::move($3));
+    }
+    |
+    def
+    {
+      $$ = new std::vector<frontend::ASTNodePtr>();
+      $$->emplace_back(std::move($1));
+    }
+    ;
 
 
 %%

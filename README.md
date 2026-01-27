@@ -145,6 +145,7 @@ But I think there is something else needed to pay attention to, mainly focus on 
 And when we need to alloca memory for array variables, we will calculate the total size based on the dimensions stored in ``ArrayType``. For array parameters, we will allocate memory for a pointer to the base type. But in symbol table, we still need to store the array type since it is still an array variable. I suppose this kind of design can make it easier to check types during semantic analysis.
 
 ### Parser
+#### Parsing Design
 For ``Parser`` part, we designed an **abstract base class** that defines a unified interface for parsing. This allows us to integrate different parser implementations (such as Bison or hand-written parsers) seamlessly using the **Adapter Pattern**.
 
 By default, I still use `bison` for syntactic analysis. And since I have separated the lexer and parser, I need to make an adapter to connect them together. While traditionally lexer(Flex) and parser(Bison) are tightly coupled, I want to decouple them for better modularity and flexibility. So I designed a `FlexLexerImpl` class that acts as an adapter between the Flex-generated lexer and our abstract `Lexer` interface. This way, we can easily swap out the lexer implementation if needed without affecting the parser as well as we can also swap out the parser implementation if needed without affecting the lexer.
@@ -160,3 +161,10 @@ And some more details about the overall management of ``AST``:
 1. All AST nodes are **only** managed by ``AstContext``, which is inside ``CompilerContext``. This ensures that the memory management of AST nodes is centralized and consistent.
 2. Each stage that needs to interact with the AST will receive a reference to the same ``CompilerContext`` instance. This allows all stages to access and modify the AST as needed without duplicating code or data structures.
 3. Even though the ``Semantic analysis`` or ``IR generation`` stage may need to either modify or just read the AST, **The resource are still managed by ``AstContext`` inside ``CompilerContext``.** And the resource ownership will never be transferred to these stages.
+
+#### Grammar Design
+When designing the grammar for SYSY language in Bison, since there are a lot of non-terminals in the doc which are not necessary to be defined in our grammar, I decided to simplify the grammar by removing some of the unnecessary non-terminals. Because this change may cause confusion for someone who is reading both the doc and our grammar, I will give some explanations about how I simplify the grammar and combine some non-terminals together:
+1. Since ``const`` is just a identifier for variable declaration, I decided to combine ``const`` and ``var`` declaration into a single non-terminal called ``decl``, which can represent both constant and variable declarations. And we can use attributes in the AST nodes to distinguish between constant and variable declarations. Besides, since we need to identify ``global`` and ``local`` variations, we can deal with global first, then local.
+2. For function definitions, we don't have function declarations and definitions separately, and all functions are defined with their bodies as well as the body can be recognized as a ``block_stmt``, so we can just define a single non-terminal called ``func_def`` to represent function definitions, but it must be followed by a ``block_stmt`` and we don't allow iterative function declarations.
+
+Since then, there is a little difference between our grammar and the doc, mainly focus on declatations and block_stmt.
