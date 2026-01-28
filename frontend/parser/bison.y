@@ -141,7 +141,7 @@
 program:
     compunit
     {
-        $$ = new frontend::ast::RootNode(std::move($1));
+        $$ = new frontend::ast::RootNode(std::move(*$1));
         delete $1;
         driver.GetContext().GetAstContext()->SetRootNode(std::move($$));
     }
@@ -182,14 +182,10 @@ compunit:
 global_decl:
     INT def_list SEMICOLON
     {
-      $$ = make_unique<frontend::ast::GlobalDeclNode>(frontend::SourceRange::Combine($1, $3), ast::BaseType::INT, std::move(*$2));
-      delete $2;
     }
     |
     FLOAT def_list SEMICOLON
     {
-      $$ = make_unique<frontend::ast::GlobalDeclNode>(frontend::SourceRange::Combine($1, $3), ast::BaseType::FLOAT, std::move(*$2));
-      delete $2;
     }
     ;
 
@@ -198,15 +194,21 @@ def_list:
     {
       $$ = std::move($1);
       delete $1;
-      $$.push_back(std::move($3));
+      $$->emplace_back(std::move($3));
     }
     |
     def
     {
-      $$ = new std::vector<frontend::ASTNodePtr>();
+      $$ = new std::vector<frontend::VarDefNodePtr>();
       $$->emplace_back(std::move($1));
     }
     ;
+
+def:
+    IDENTIFIER
+    {
+      
+    }
 
 
 %%

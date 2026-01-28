@@ -25,7 +25,7 @@ class DeclNode : public StmtNode {
  public:
   explicit DeclNode(SourceRange range, TypePtr type, bool is_const = false)
       : StmtNode(range), type_(type), is_const_(is_const) {}
-  ~DeclNode() override = default;
+  ~DeclNode() override;
   auto GetType() const -> TypePtr { return type_; }
   auto IsConst() const -> bool { return is_const_; }
 
@@ -42,7 +42,7 @@ class DeclNode : public StmtNode {
 class Initializer : public ASTNode {
  public:
   explicit Initializer(SourceRange range) : ASTNode(range) {}
-  ~Initializer() override = default;
+  ~Initializer() override;
 };
 
 using InitializerNodePtr = std::unique_ptr<Initializer>;
