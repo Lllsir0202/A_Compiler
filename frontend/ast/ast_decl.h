@@ -4,6 +4,7 @@
 #include <memory>
 #include <vector>
 #include "ast/ast_base.h"
+#include "ast/ast_stmt.h"
 #include "ast/astvisitor.h"
 
 namespace frontend::ast {
@@ -13,14 +14,16 @@ namespace frontend::ast {
  */
 class ExprNode;
 using ExprNodePtr = std::unique_ptr<ExprNode>;
+class StmtNode;
+using StmtNodePtr = std::unique_ptr<StmtNode>;
 
 // We need to define variable declaration nodes to represent variable declarations in the AST.
 // This includes nodes for single variable declarations, array declarations, and possibly initialization.
 // Before implementing, we need to consider every type of variable declaration as well as how to handle ptr and integer.
-class DeclNode : public ASTNode {
+class DeclNode : public StmtNode {
  public:
   explicit DeclNode(SourceRange range, TypePtr type, bool is_const = false)
-      : ASTNode(range), type_(type), is_const_(is_const) {}
+      : StmtNode(range), type_(type), is_const_(is_const) {}
   ~DeclNode() override = default;
   auto GetType() const -> TypePtr { return type_; }
   auto IsConst() const -> bool { return is_const_; }
@@ -41,6 +44,8 @@ class Initializer : public ASTNode {
   ~Initializer() override = default;
 };
 
+using InitializerNodePtr = std::unique_ptr<Initializer>;
+
 /**
  * @brief InitValNode representing a single value initializer
  * e.g., = 5;
@@ -55,12 +60,13 @@ class InitValNode : public VisitAble<InitValNode, Initializer> {
 /**
  * @brief InitListNode representing a list initializer
  * e.g., = {1, 2, 3};
+ * , = {1, {2, 3}, 4};
  */
 class InitListNode : public VisitAble<InitListNode, Initializer> {
  public:
-  explicit InitListNode(SourceRange range, std::vector<ExprNodePtr> init_values)
+  explicit InitListNode(SourceRange range, std::vector<InitializerNodePtr> init_values)
       : VisitAble<InitListNode, Initializer>(range), init_values_(std::move(init_values)) {}
-  std::vector<ExprNodePtr> init_values_;
+  std::vector<InitializerNodePtr> init_values_;
 };
 
 /**
@@ -72,16 +78,16 @@ class InitListNode : public VisitAble<InitListNode, Initializer> {
  */
 class VarDefNode : public VisitAble<VarDefNode, ASTNode> {
  public:
-  explicit VarDefNode(SourceRange range, std::string ident, std::vector<ASTNodePtr> indices = {},
-                      ASTNodePtr init_values = nullptr)
+  explicit VarDefNode(SourceRange range, std::string ident, std::vector<ExprNodePtr> indices = {},
+                      InitializerNodePtr init_values = nullptr)
       : VisitAble<VarDefNode, ASTNode>(range),
         ident_(std::move(ident)),
         indices_(std::move(indices)),
         init_values_(std::move(init_values)) {}
   std::string ident_;
   // indexes for array
-  std::vector<ASTNodePtr> indices_;  // can be empty
-  ASTNodePtr init_values_;           // can be empty
+  std::vector<ExprNodePtr> indices_;  // can be empty
+  InitializerNodePtr init_values_;    // can be empty
 };
 
 using VarDefNodePtr = std::unique_ptr<VarDefNode>;
@@ -114,9 +120,43 @@ class LocalVarDeclNode : public VisitAble<LocalVarDeclNode, DeclNode> {
 };
 
 /**
- * TODO(loki): define function declaration node
+ * @brief Function Parameter Node
+ * Since it is different from variable declaration,
+ * we define a separate node for function parameters
+ */
+class FuncFParamNode : public VisitAble<FuncFParamNode, ASTNode> {
+ public:
+  explicit FuncFParamNode(SourceRange range, TypePtr type, std::string param_name,
+                          std::vector<ExprNodePtr> indices = {})
+      : VisitAble<FuncFParamNode, ASTNode>(range),
+        type_(type),
+        param_name_(std::move(param_name)),
+        indices_(std::move(indices)) {}
+  TypePtr type_;
+  std::string param_name_;
+  std::vector<ExprNodePtr> indices_;  // can be empty
+};
+
+using FuncFParamNodePtr = std::unique_ptr<FuncFParamNode>;
+
+/**
+ * define function declaration node
  * @brief FunctionDeclNode representing a function declaration
  */
+class FuncDefNode : public VisitAble<FuncDefNode, StmtNode> {
+ public:
+  explicit FuncDefNode(SourceRange range, TypePtr return_type, std::string func_name,
+                       std::vector<FuncFParamNodePtr> parameters, StmtNodePtr body)
+      : VisitAble<FuncDefNode, StmtNode>(range),
+        return_type_(return_type),
+        func_name_(std::move(func_name)),
+        parameters_(std::move(parameters)),
+        body_(std::move(body)) {}
 
+  TypePtr return_type_;
+  std::string func_name_;
+  std::vector<FuncFParamNodePtr> parameters_;
+  StmtNodePtr body_;
+};
 }  // namespace frontend::ast
 #endif

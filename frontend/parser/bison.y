@@ -22,6 +22,9 @@
     namespace frontend{
         class BisonParserImpl;
         using ASTNodePtr = std::unique_ptr<ast::ASTNode>;
+        using ExprNodePtr = std::unique_ptr<ast::ExprNode>;
+        using VarDefNodePtr = std::unique_ptr<ast::VarDefNode>;
+        using DeclNodePtr = std::unique_ptr<ast::DeclNode>;
         class ExprNode;
         class StmtNode;
         struct SourceRange;
@@ -126,11 +129,11 @@
 %type <std::vector<frontend::ASTNodePtr>>* compunit
 %type <frontend::ASTNodePtr> stmt
 %type <frontend::ASTNodePtr> expr
-%type <frontend::ASTNodePtr> global_decl
-%type <frontend::ASTNodePtr> decl
+%type <frontend::DeclNodePtr> global_decl
+%type <frontend::DeclNodePtr> decl
 %type <frontend::ASTNodePtr> funcdef
-%type <frontend::ASTNodePtr> def
-%type <std::vector<frontend::ASTNodePtr>>* global_def_list
+%type <frontend::VarDefNodePtr> def
+%type <std::vector<frontend::VarDefNodePtr>>* def_list
 
 
 /* Define grammer here */
@@ -177,21 +180,21 @@ compunit:
     ;
 
 global_decl:
-    INT global_def_list SEMICOLON
+    INT def_list SEMICOLON
     {
       $$ = make_unique<frontend::ast::GlobalDeclNode>(frontend::SourceRange::Combine($1, $3), ast::BaseType::INT, std::move(*$2));
       delete $2;
     }
     |
-    FLOAT global_def_list SEMICOLON
+    FLOAT def_list SEMICOLON
     {
       $$ = make_unique<frontend::ast::GlobalDeclNode>(frontend::SourceRange::Combine($1, $3), ast::BaseType::FLOAT, std::move(*$2));
       delete $2;
     }
     ;
 
-global_def_list:
-    global_def_list COMMA def
+def_list:
+    def_list COMMA def
     {
       $$ = std::move($1);
       delete $1;
