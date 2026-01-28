@@ -39,6 +39,8 @@ class LocalVarDeclNode;
 class LocalVarDefNode;
 class InitListNode;
 class InitValNode;
+class FuncFParamNode;
+class FuncDefNode;
 
 // There are two kinds of visitors: mutable and const visitors
 class ASTVisitor {
@@ -76,6 +78,8 @@ class ASTVisitor {
   virtual void Visit(LocalVarDefNode *local_var_def) = 0;
   virtual void Visit(InitListNode *init_list) = 0;
   virtual void Visit(InitValNode *init_val) = 0;
+  virtual void Visit(FuncFParamNode *func_fparam) = 0;
+  virtual void Visit(FuncDefNode *func_def) = 0;
 };
 
 class ConstASTVisitor {
@@ -113,6 +117,8 @@ class ConstASTVisitor {
   virtual void Visit(const LocalVarDefNode *local_var_def) = 0;
   virtual void Visit(const InitListNode *init_list) = 0;
   virtual void Visit(const InitValNode *init_val) = 0;
+  virtual void Visit(const FuncFParamNode *func_fparam) = 0;
+  virtual void Visit(const FuncDefNode *func_def) = 0;
 };
 
 template <typename Derived, typename Base = ASTNode>
