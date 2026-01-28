@@ -1,6 +1,7 @@
 #ifndef FRONTEND_AST_AST_STMT_H
 #define FRONTEND_AST_AST_STMT_H
 
+#include <memory>
 #include <vector>
 #include "ast/astvisitor.h"
 namespace frontend::ast {
@@ -8,8 +9,12 @@ namespace frontend::ast {
 class StmtNode : public ASTNode {
  public:
   explicit StmtNode(SourceRange range) : ASTNode(range) {}
-  ~StmtNode() override = default;
+  ~StmtNode() override;
 };
+
+using StmtNodePtr = std::unique_ptr<StmtNode>;
+class ExprNode;
+using ExprNodePtr = std::unique_ptr<ExprNode>;
 
 /**
  * @brief BlockStmtNode representing a block statement
@@ -17,9 +22,9 @@ class StmtNode : public ASTNode {
  */
 class BlockStmtNode : public VisitAble<BlockStmtNode, StmtNode> {
  public:
-  explicit BlockStmtNode(SourceRange range, std::vector<ASTNodePtr> block_items)
+  explicit BlockStmtNode(SourceRange range, std::vector<StmtNodePtr> block_items)
       : VisitAble<BlockStmtNode, StmtNode>(range), block_items_(std::move(block_items)) {}
-  std::vector<ASTNodePtr> block_items_;
+  std::vector<StmtNodePtr> block_items_;
 };
 
 /**
@@ -28,21 +33,21 @@ class BlockStmtNode : public VisitAble<BlockStmtNode, StmtNode> {
  */
 class AssignStmtNode : public VisitAble<AssignStmtNode, StmtNode> {
  public:
-  explicit AssignStmtNode(SourceRange range, ASTNodePtr lval, ASTNodePtr expr)
+  explicit AssignStmtNode(SourceRange range, std::unique_ptr<LValExprNode> lval, ExprNodePtr expr)
       : VisitAble<AssignStmtNode, StmtNode>(range), lval_(std::move(lval)), expr_(std::move(expr)) {}
-  ASTNodePtr lval_;
-  ASTNodePtr expr_;
+  std::unique_ptr<LValExprNode> lval_;
+  ExprNodePtr expr_;
 };
 
 /**
- * @brief CommaStmtNode representing a comma-separated statement
- * CommaStmt -> [Exp] ';'
+ * @brief ExprStmtNode representing a expression statement
+ * ExprStmt -> [Exp] ';'
  */
-class CommaStmtNode : public VisitAble<CommaStmtNode, StmtNode> {
+class ExprStmtNode : public VisitAble<ExprStmtNode, StmtNode> {
  public:
-  explicit CommaStmtNode(SourceRange range, ASTNodePtr expr = nullptr)
-      : VisitAble<CommaStmtNode, StmtNode>(range), expr_(std::move(expr)) {}
-  ASTNodePtr expr_;  // can be nullptr
+  explicit ExprStmtNode(SourceRange range, ExprNodePtr expr = nullptr)
+      : VisitAble<ExprStmtNode, StmtNode>(range), expr_(std::move(expr)) {}
+  ExprNodePtr expr_;  // can be nullptr
 };
 
 /**
@@ -51,14 +56,15 @@ class CommaStmtNode : public VisitAble<CommaStmtNode, StmtNode> {
  */
 class IfStmtNode : public VisitAble<IfStmtNode, StmtNode> {
  public:
-  explicit IfStmtNode(SourceRange range, ASTNodePtr condition, ASTNodePtr then_branch, ASTNodePtr else_branch = nullptr)
+  explicit IfStmtNode(SourceRange range, ExprNodePtr condition, StmtNodePtr then_branch,
+                      StmtNodePtr else_branch = nullptr)
       : VisitAble<IfStmtNode, StmtNode>(range),
         condition_(std::move(condition)),
         then_branch_(std::move(then_branch)),
         else_branch_(std::move(else_branch)) {}
-  ASTNodePtr condition_;
-  ASTNodePtr then_branch_;
-  ASTNodePtr else_branch_;  // can be nullptr
+  ExprNodePtr condition_;
+  StmtNodePtr then_branch_;
+  StmtNodePtr else_branch_;  // can be nullptr
 };
 
 /**
@@ -67,10 +73,10 @@ class IfStmtNode : public VisitAble<IfStmtNode, StmtNode> {
  */
 class WhileStmtNode : public VisitAble<WhileStmtNode, StmtNode> {
  public:
-  explicit WhileStmtNode(SourceRange range, ASTNodePtr condition, ASTNodePtr body)
+  explicit WhileStmtNode(SourceRange range, ExprNodePtr condition, StmtNodePtr body)
       : VisitAble<WhileStmtNode, StmtNode>(range), condition_(std::move(condition)), body_(std::move(body)) {}
-  ASTNodePtr condition_;
-  ASTNodePtr body_;
+  ExprNodePtr condition_;
+  StmtNodePtr body_;
 };
 
 /**
@@ -97,9 +103,9 @@ class ContinueStmtNode : public VisitAble<ContinueStmtNode, StmtNode> {
  */
 class ReturnStmtNode : public VisitAble<ReturnStmtNode, StmtNode> {
  public:
-  explicit ReturnStmtNode(SourceRange range, ASTNodePtr expr = nullptr)
+  explicit ReturnStmtNode(SourceRange range, ExprNodePtr expr = nullptr)
       : VisitAble<ReturnStmtNode, StmtNode>(range), expr_(std::move(expr)) {}
-  ASTNodePtr expr_;  // can be nullptr
+  ExprNodePtr expr_;  // can be nullptr
 };
 
 }  // namespace frontend::ast

@@ -4,6 +4,7 @@
 #include <memory>
 #include <vector>
 #include "ast/ast_base.h"
+#include "ast/ast_expr.h"
 #include "ast/ast_stmt.h"
 #include "ast/astvisitor.h"
 
@@ -143,11 +144,11 @@ using FuncFParamNodePtr = std::unique_ptr<FuncFParamNode>;
  * define function declaration node
  * @brief FunctionDeclNode representing a function declaration
  */
-class FuncDefNode : public VisitAble<FuncDefNode, StmtNode> {
+class FuncDefNode : public VisitAble<FuncDefNode, ASTNode> {
  public:
   explicit FuncDefNode(SourceRange range, TypePtr return_type, std::string func_name,
                        std::vector<FuncFParamNodePtr> parameters, StmtNodePtr body)
-      : VisitAble<FuncDefNode, StmtNode>(range),
+      : VisitAble<FuncDefNode, ASTNode>(range),
         return_type_(return_type),
         func_name_(std::move(func_name)),
         parameters_(std::move(parameters)),

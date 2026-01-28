@@ -25,7 +25,7 @@ class FloatLiteralExprNode;
 // Statement nodes
 class BlockStmtNode;
 class AssignStmtNode;
-class CommaStmtNode;
+class ExprStmtNode;
 class IfStmtNode;
 class WhileStmtNode;
 class BreakStmtNode;
@@ -63,7 +63,7 @@ class ASTVisitor {
   // Visit methods for statement nodes
   virtual void Visit(BlockStmtNode *block_stmt) = 0;
   virtual void Visit(AssignStmtNode *assign_stmt) = 0;
-  virtual void Visit(CommaStmtNode *comma_stmt) = 0;
+  virtual void Visit(ExprStmtNode *expr_stmt) = 0;
   virtual void Visit(IfStmtNode *if_stmt) = 0;
   virtual void Visit(WhileStmtNode *while_stmt) = 0;
   virtual void Visit(BreakStmtNode *break_stmt) = 0;
@@ -100,7 +100,7 @@ class ConstASTVisitor {
   // Visit methods for statement nodes
   virtual void Visit(const BlockStmtNode *block_stmt) = 0;
   virtual void Visit(const AssignStmtNode *assign_stmt) = 0;
-  virtual void Visit(const CommaStmtNode *comma_stmt) = 0;
+  virtual void Visit(const ExprStmtNode *expr_stmt) = 0;
   virtual void Visit(const IfStmtNode *if_stmt) = 0;
   virtual void Visit(const WhileStmtNode *while_stmt) = 0;
   virtual void Visit(const BreakStmtNode *break_stmt) = 0;
