@@ -7,6 +7,7 @@
 #include "ast/ast_expr.h"
 #include "ast/ast_stmt.h"
 #include "ast/astvisitor.h"
+#include "token/location.h"
 
 namespace frontend::ast {
 /**
@@ -79,12 +80,13 @@ class InitListNode : public VisitAble<InitListNode, Initializer> {
  */
 class VarDefNode : public VisitAble<VarDefNode, ASTNode> {
  public:
-  explicit VarDefNode(SourceRange range, std::string ident, std::vector<ExprNodePtr> indices = {},
-                      InitializerNodePtr init_values = nullptr)
+  explicit VarDefNode(SourceRange range, std::string ident, InitializerNodePtr init_values,
+                      std::vector<ExprNodePtr> indices = {})
       : VisitAble<VarDefNode, ASTNode>(range),
         ident_(std::move(ident)),
         indices_(std::move(indices)),
         init_values_(std::move(init_values)) {}
+
   std::string ident_;
   // indexes for array
   std::vector<ExprNodePtr> indices_;  // can be empty
@@ -146,8 +148,8 @@ using FuncFParamNodePtr = std::unique_ptr<FuncFParamNode>;
  */
 class FuncDefNode : public VisitAble<FuncDefNode, ASTNode> {
  public:
-  explicit FuncDefNode(SourceRange range, TypePtr return_type, std::string func_name,
-                       std::vector<FuncFParamNodePtr> parameters, StmtNodePtr body)
+  explicit FuncDefNode(SourceRange range, TypePtr return_type, std::string func_name, StmtNodePtr body,
+                       std::vector<FuncFParamNodePtr> parameters = {})
       : VisitAble<FuncDefNode, ASTNode>(range),
         return_type_(return_type),
         func_name_(std::move(func_name)),

@@ -16,25 +16,6 @@
 %code requires {
     #include <string>
     #include <memory>
-    #include "frontend/token/token.h"
-    #include "frontend/ast/ast_base.h"
-
-    namespace frontend{
-        class BisonParserImpl;
-        using ASTNodePtr = std::unique_ptr<ast::ASTNode>;
-        using ExprNodePtr = std::unique_ptr<ast::ExprNode>;
-        using VarDefNodePtr = std::unique_ptr<ast::VarDefNode>;
-        using DeclNodePtr = std::unique_ptr<ast::DeclNode>;
-        class ExprNode;
-        class StmtNode;
-        struct SourceRange;
-    }
-}
-
-/* pass parser instance to Parser and yylex */
-%param { frontend::BisonParserImpl& driver }
-
-%code {
     #include "frontend/parser/bison_parser_impl.h"
     #include "frontend/parser/parser_utils.h"
     #include "frontend/token/token.h"
@@ -44,7 +25,28 @@
     #include "frontend/ast/ast_expr.h"
     #include "frontend/ast/ast_stmt.h"
 
+    namespace frontend{
+        class BisonParserImpl;
+        class ExprNode;
+        class StmtNode;
+        class VarDefNode;
+        class DeclNode;
+        class FuncFParamNode;
+        using ASTNodePtr = std::unique_ptr<ast::ASTNode>;
+        using ExprNodePtr = std::unique_ptr<ast::ExprNode>;
+        using StmtNodePtr = std::unique_ptr<ast::StmtNode>;
+        using VarDefNodePtr = std::unique_ptr<ast::VarDefNode>;
+        using DeclNodePtr = std::unique_ptr<ast::DeclNode>;
+        using FuncFParamNodePtr = std::unique_ptr<ast::FuncFParamNode>;
+        using InitializerNodePtr = std::unique_ptr<ast::Initializer>;
+        struct SourceRange;
+    }
+}
 
+/* pass parser instance to Parser and yylex */
+%param { frontend::BisonParserImpl& driver }
+
+%code {
     // Using rewritten YYLLOC_DEFAULT macro to adapt to SourceRange
     #define YYLLOC_DEFAULT(Res, Rhs, N)                     \
       do                                                    \
@@ -126,14 +128,17 @@
 /* Followed by type definitions */
 /* Define the type of non-terminal symbols */
 %type <frontend::ASTNodePtr> program
-%type <std::vector<frontend::ASTNodePtr>>* compunit
-%type <frontend::ASTNodePtr> stmt
-%type <frontend::ASTNodePtr> expr
+%type <std::vector<frontend::ASTNodePtr>*> compunit
+%type <frontend::StmtNodePtr> stmt
+%type <frontend::ExprNodePtr> expr
 %type <frontend::DeclNodePtr> global_decl
 %type <frontend::DeclNodePtr> decl
 %type <frontend::ASTNodePtr> funcdef
 %type <frontend::VarDefNodePtr> def
-%type <std::vector<frontend::VarDefNodePtr>>* def_list
+%type <std::vector<frontend::VarDefNodePtr>*> def_list
+%type <std::vector<frontend::FuncFParamNodePtr>*> func_fparams
+%type <frontend::FuncFParamNodePtr> func_fparam
+%type <frontend::InitializerNodePtr> initials
 
 
 /* Define grammer here */
@@ -141,7 +146,7 @@
 program:
     compunit
     {
-        $$ = new frontend::ast::RootNode(std::move(*$1));
+        $$ = std::make_unique<frontend::ast::RootNode>(std::move(*$1));
         delete $1;
         driver.GetContext().GetAstContext()->SetRootNode(std::move($$));
     }
@@ -156,14 +161,14 @@ compunit:
     {
       $$ = std::move($1);
       delete $1;
-      $$.push_back(std::move($2));
+      $$->push_back(std::move($2));
     }
     |
     compunit funcdef
     {
       $$ = std::move($1);
       delete $1;
-      $$.push_back(std::move($2));
+      $$->push_back(std::move($2));
     }
     |
     global_decl
@@ -182,12 +187,27 @@ compunit:
 global_decl:
     INT def_list SEMICOLON
     {
-      
+      $$ = std::make_unique<frontend::ast::GlobalVarDeclNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move(*$2));
+      delete $2;
     }
     |
     FLOAT def_list SEMICOLON
     {
+      $$ = std::make_unique<frontend::ast::GlobalVarDeclNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move(*$2));
+      delete $2;
     }
+    |
+    CONST INT def_list SEMICOLON
+    {
+      $$ = std::make_unique<frontend::ast::GlobalVarDeclNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move(*$3), true);
+      delete $3;
+    }
+    |
+    CONST FLOAT def_list SEMICOLON
+    {
+      $$ = std::make_unique<frontend::ast::GlobalVarDeclNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move(*$3), true);
+      delete $3;
+    } 
     ;
 
 def_list:
@@ -208,9 +228,104 @@ def_list:
 def:
     IDENTIFIER
     {
-      
+      $$ = std::make_unique<frontend::ast::VarDefNode>(@$, std::move($1), nullptr);
     }
+    |
+    IDENTIFIER ASSIGN initials
+    {
+      $$ = std::make_unique<frontend::ast::VarDefNode>(@$, std::move($1), std::move($3));
+    }
+    ;
 
+funcdef:
+    VOID IDENTIFIER LPAREN RPAREN stmt
+    {
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetVoidType(), std::move($2), std::move($5));
+    }
+    |
+    INT IDENTIFIER LPAREN RPAREN stmt
+    {
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move($2), std::move($5));
+    }
+    |
+    FLOAT IDENTIFIER LPAREN RPAREN stmt
+    {
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move($2), std::move($5));
+    }
+    |
+    VOID IDENTIFIER LPAREN func_fparams RPAREN stmt
+    {
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetVoidType(), std::move($2), std::move($6), std::move(*$4));
+      delete $4;
+    }
+    |
+    INT IDENTIFIER LPAREN func_fparams RPAREN stmt
+    {
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move($2), std::move($6), std::move(*$4));
+      delete $4;
+    }
+    |
+    FLOAT IDENTIFIER LPAREN func_fparams RPAREN stmt
+    {
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move($2), std::move($6), std::move(*$4));
+      delete $4;
+    }
+    ;
+  
+func_fparams:
+    func_fparams COMMA func_fparam
+    {
+      $$ = std::move($1);
+      delete $1;
+      $$->emplace_back(std::move($3));
+    }
+    |
+    func_fparam
+    {
+      $$ = new std::vector<frontend::FuncFParamNodePtr>();
+      $$->emplace_back(std::move($1));
+    }
+    ;
+  
+func_fparam:
+    INT IDENTIFIER
+    {
+      $$ = std::make_unique<frontend::ast::FuncFParamNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move($2));
+    }
+    |
+    FLOAT IDENTIFIER
+    {
+      $$ = std::make_unique<frontend::ast::FuncFParamNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move($2));
+    }
+    ;
+
+stmt:
+    SEMICOLON
+    {
+      $$ = std::make_unique<frontend::ast::ExprStmtNode>(@$);
+    }
+    ;
+
+expr:
+    /*  */
+    {
+      driver.ReportError(@$, "Expression expected");
+    }
+    ;
+  
+decl:
+    /*  */
+    {
+      driver.ReportError(@$, "Declaration expected");
+    }
+    ;
+
+initials:
+    /*  */
+    {
+      driver.ReportError(@$, "Initializer expected");
+    }
+    ;
 
 %%
 
