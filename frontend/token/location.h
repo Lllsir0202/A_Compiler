@@ -6,11 +6,12 @@
 #include <string>
 
 namespace frontend {
-// 记录源代码位置的结构体
 /**
- * @param file_id 文件ID[[maybe_unused]],因为目前只处理单一文件,所以该字段暂未使用
- * @param line 行号
- * @param column 列号
+ * @brief struct to record location of a token
+ * @param file_id File id[[maybe_unused]], currently not used, reserved for future use when we support multiple files
+ * @param offset the offset of the token in the source code[[maybe_unused]], reserved for multiple files compiling, starting from 0
+ * @param line the line number of the token, starting from 0
+ * @param column the column number of the token, starting from 0
  */
 struct SourceLocation {
   [[maybe_unused]] int32_t file_id_;
@@ -25,7 +26,7 @@ struct SourceLocation {
   SourceLocation(uint32_t offset, uint32_t line, uint32_t column) : offset_(offset), line_(line), column_(column) {}
   friend struct SourceRange;
 
-  // 提供接口用于读取行号和列号(以及文件ID)
+  // Provide a method to get information from the SourceLocation
  public:
   [[maybe_unused]] auto GetOffset() const -> uint32_t { return offset_; }
   auto GetLine() const -> uint32_t { return line_; }
