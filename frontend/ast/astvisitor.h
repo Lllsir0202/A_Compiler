@@ -33,6 +33,7 @@ class ContinueStmtNode;
 class ReturnStmtNode;
 
 // Variable nodes includes decl and initializer
+class VarDefNode;
 class GlobalVarDeclNode;
 class GlobalVarDefNode;
 class LocalVarDeclNode;
@@ -72,6 +73,7 @@ class ASTVisitor {
   virtual void Visit(ContinueStmtNode *continue_stmt) = 0;
   virtual void Visit(ReturnStmtNode *return_stmt) = 0;
   // Visit methods for variable nodes
+  virtual void Visit(VarDefNode *var_def) = 0;
   virtual void Visit(GlobalVarDeclNode *global_var_decl) = 0;
   virtual void Visit(GlobalVarDefNode *global_var_def) = 0;
   virtual void Visit(LocalVarDeclNode *local_var_decl) = 0;
@@ -111,6 +113,7 @@ class ConstASTVisitor {
   virtual void Visit(const ContinueStmtNode *continue_stmt) = 0;
   virtual void Visit(const ReturnStmtNode *return_stmt) = 0;
   // Visit methods for variable nodes
+  virtual void Visit(const VarDefNode *var_def) = 0;
   virtual void Visit(const GlobalVarDeclNode *global_var_decl) = 0;
   virtual void Visit(const GlobalVarDefNode *global_var_def) = 0;
   virtual void Visit(const LocalVarDeclNode *local_var_decl) = 0;

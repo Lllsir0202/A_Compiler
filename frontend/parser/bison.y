@@ -182,6 +182,7 @@ compunit:
 global_decl:
     INT def_list SEMICOLON
     {
+      
     }
     |
     FLOAT def_list SEMICOLON

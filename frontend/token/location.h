@@ -9,7 +9,8 @@ namespace frontend {
 /**
  * @brief struct to record location of a token
  * @param file_id File id[[maybe_unused]], currently not used, reserved for future use when we support multiple files
- * @param offset the offset of the token in the source code[[maybe_unused]], reserved for multiple files compiling, starting from 0
+ * @param offset the offset of the token in the source code[[maybe_unused]], reserved for multiple files compiling,
+ * starting from 0
  * @param line the line number of the token, starting from 0
  * @param column the column number of the token, starting from 0
  */

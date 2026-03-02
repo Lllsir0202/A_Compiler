@@ -8,14 +8,16 @@ namespace frontend::ast {
 class ASTVisitor;
 class ConstASTVisitor;
 
-// We define basic AST Node here
+/**
+ * @brief We define basic AST Node here
+ */
 class ASTNode {
  public:
   // override constructors
   [[maybe_unused]] ASTNode(int line, int column) : line_(line), column_(column) {}
   explicit ASTNode(frontend::SourceRange source_range)
       : line_(source_range.GetBegin().GetLine()), column_(source_range.GetBegin().GetColumn()) {}
-  explicit ASTNode() : line_(0), column_(0) {}
+  [[maybe_unused]] explicit ASTNode() : line_(0), column_(0) {}
   virtual ~ASTNode() = default;
   virtual void Accept(ASTVisitor *visitor) = 0;
   virtual void Accept(ConstASTVisitor *visitor) const = 0;
