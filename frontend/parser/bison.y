@@ -161,14 +161,14 @@ compunit:
     {
       $$ = std::move($1);
       delete $1;
-      $$->push_back(std::move($2));
+      $$->emplace_back(std::move($2));
     }
     |
     compunit funcdef
     {
       $$ = std::move($1);
       delete $1;
-      $$->push_back(std::move($2));
+      $$->emplace_back(std::move($2));
     }
     |
     global_decl
@@ -307,7 +307,32 @@ stmt:
     ;
 
 expr:
-    /*  */
+    expr ADD expr
+    {
+      $$ = std::make_unique<frontend::ast::AddExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::ADD, std::move($1), std::move($3));
+    }
+    |
+    expr SUB expr
+    {
+      $$ = std::make_unique<frontend::ast::SubExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::SUB, std::move($1), std::move($3));
+    }
+    |
+    expr MUL expr
+    {
+      $$ = std::make_unique<frontend::ast::MulExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::MUL, std::move($1), std::move($3));
+    }
+    |
+    expr DIV expr
+    {
+      $$ = std::make_unique<frontend::ast::DivExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::DIV, std::move($1), std::move($3));
+    }
+    |
+    expr MOD expr
+    {
+      $$ = std::make_unique<frontend::ast::ModExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::MOD, std::move($1), std::move($3));
+    }
+    |
+    
     {
       driver.ReportError(@$, "Expression expected");
     }
