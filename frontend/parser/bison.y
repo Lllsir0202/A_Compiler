@@ -107,6 +107,9 @@
 /* Algorithm Operators */
 %token ADD SUB MUL DIV MOD ASSIGN
 
+/* Virtual Terminals, used to set Priority */
+%token UMINUS UPLUS
+
 /* Logical Operators */
 %token AND OR NOT
 
@@ -122,8 +125,15 @@
 %token LCBRACE RCBRACE LSBRACE RSBRACE LPAREN RPAREN SEMICOLON COMMA
 
 /* Then define priority */
+/* Since we don't consider a=b=c, we ignore ASSIGN token directly */
+/* Lowest ones are: && || not */
+%left OR
+%left AND
+%left EQ NEQ
+%left LT GT LE GE
 %left ADD SUB
 %left MUL DIV MOD
+%right NOT UMINUS UPLUS
 
 /* Followed by type definitions */
 /* Define the type of non-terminal symbols */
@@ -356,28 +366,11 @@ expr:
     {
       $$ = std::make_unique<frontend::ast::AddExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::ADD, std::move($1), std::move($3));
     }
-    |
-    expr SUB expr
+    |expr SUB expr
     {
-      $$ = std::make_unique<frontend::ast::SubExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::SUB, std::move($1), std::move($3));
+      $$ = std::make_unique<frontend::ast::AddExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::SUB, std::move($1), std::move($3));
     }
     |
-    expr MUL expr
-    {
-      $$ = std::make_unique<frontend::ast::MulExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::MUL, std::move($1), std::move($3));
-    }
-    |
-    expr DIV expr
-    {
-      $$ = std::make_unique<frontend::ast::DivExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::DIV, std::move($1), std::move($3));
-    }
-    |
-    expr MOD expr
-    {
-      $$ = std::make_unique<frontend::ast::ModExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::MOD, std::move($1), std::move($3));
-    }
-    |
-    
     {
       driver.ReportError(@$, "Expression expected");
     }
