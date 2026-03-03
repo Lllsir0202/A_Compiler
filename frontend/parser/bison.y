@@ -143,6 +143,7 @@
 
 /* Define grammer here */
 %%
+/* Topest unit of a file */
 program:
     compunit
     {
@@ -156,6 +157,7 @@ program:
     }
     ;
 
+/* Every program is a compunint */
 compunit:
     compunit global_decl
     {
@@ -184,7 +186,9 @@ compunit:
     }
     ;
 
+/* Global variable definition */
 global_decl:
+    /* Variable Definition */
     INT def_list SEMICOLON
     {
       $$ = std::make_unique<frontend::ast::GlobalVarDeclNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move(*$2));
@@ -197,6 +201,7 @@ global_decl:
       delete $2;
     }
     |
+    /* Const Variable Definition */
     CONST INT def_list SEMICOLON
     {
       $$ = std::make_unique<frontend::ast::GlobalVarDeclNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move(*$3), true);
@@ -210,7 +215,10 @@ global_decl:
     } 
     ;
 
+/* Since a declaration can have a list of defition */
+/* We import def_list to record multiple definition */
 def_list:
+    /* def_list , def */
     def_list COMMA def
     {
       $$ = std::move($1);
@@ -218,6 +226,7 @@ def_list:
       $$->emplace_back(std::move($3));
     }
     |
+    /* A single definition */
     def
     {
       $$ = new std::vector<frontend::VarDefNodePtr>();
@@ -225,6 +234,8 @@ def_list:
     }
     ;
 
+/* Every definition can have initializer or not */
+/* TODO: Add array definition */
 def:
     IDENTIFIER
     {
@@ -237,7 +248,9 @@ def:
     }
     ;
 
+/* The definition of a function */
 funcdef:
+    /* Function with no paramaters */
     VOID IDENTIFIER LPAREN RPAREN stmt
     {
       $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetVoidType(), std::move($2), std::move($5));
@@ -253,6 +266,7 @@ funcdef:
       $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move($2), std::move($5));
     }
     |
+    /* Functions with paramaters */
     VOID IDENTIFIER LPAREN func_fparams RPAREN stmt
     {
       $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetVoidType(), std::move($2), std::move($6), std::move(*$4));
@@ -272,7 +286,9 @@ funcdef:
     }
     ;
   
+/* The formal paramaters of a function */
 func_fparams:
+    /* func_fparams , func_fparam */
     func_fparams COMMA func_fparam
     {
       $$ = std::move($1);
@@ -280,13 +296,16 @@ func_fparams:
       $$->emplace_back(std::move($3));
     }
     |
+    /* A single formal paramater */
     func_fparam
     {
       $$ = new std::vector<frontend::FuncFParamNodePtr>();
       $$->emplace_back(std::move($1));
     }
     ;
-  
+
+/* A single formal paramater */
+/* TODO: Add array type(and with initializers) */
 func_fparam:
     INT IDENTIFIER
     {
@@ -299,13 +318,16 @@ func_fparam:
     }
     ;
 
+/* Statements */
 stmt:
+    /* Equals to a empty statement, only a single ;*/
     SEMICOLON
     {
       $$ = std::make_unique<frontend::ast::ExprStmtNode>(@$);
     }
     ;
 
+/* Expressions */
 expr:
     expr ADD expr
     {
