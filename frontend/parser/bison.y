@@ -578,5 +578,3 @@ initials:
     ;
 
 %%
-
-/* Error handle and yylex */
