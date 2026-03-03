@@ -250,41 +250,46 @@ def:
     ;
 
 /* The definition of a function */
-/* TODO: change stmt to a stmt_list to ensure it is a std::vector */
 funcdef:
     /* Function with no paramaters */
     VOID IDENTIFIER LPAREN RPAREN LCBRACE stmt_list RCBRACE
     {
-      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetVoidType(), std::move($2), std::move($6));
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetVoidType(), std::move($2), std::move(*$6));
+      delete $6;
     }
     |
     INT IDENTIFIER LPAREN RPAREN LCBRACE stmt_list RCBRACE
     {
-      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move($2), std::move($6));
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move($2), std::move(*$6));
+      delete $6;
     }
     |
     FLOAT IDENTIFIER LPAREN RPAREN LCBRACE stmt_list RCBRACE
     {
-      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move($2), std::move($6));
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move($2), std::move(*$6));
+      delete $6;
     }
     |
     /* Functions with paramaters */
     VOID IDENTIFIER LPAREN func_fparams RPAREN LCBRACE stmt_list RCBRACE
     {
-      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetVoidType(), std::move($2), std::move($7), std::move(*$4));
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetVoidType(), std::move($2), std::move(*$7), std::move(*$4));
       delete $4;
+      delete $7;
     }
     |
     INT IDENTIFIER LPAREN func_fparams RPAREN LCBRACE stmt_list RCBRACE
     {
-      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move($2), std::move($7), std::move(*$4));
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move($2), std::move(*$7), std::move(*$4));
       delete $4;
+      delete $7;
     }
     |
     FLOAT IDENTIFIER LPAREN func_fparams RPAREN LCBRACE stmt_list RCBRACE
     {
-      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move($2), std::move($7), std::move(*$4));
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move($2), std::move(*$7), std::move(*$4));
       delete $4;
+      delete $7;
     }
     ;
   
@@ -320,7 +325,23 @@ func_fparam:
     }
     ;
 
-/* Statements */
+/* Statement list which is a vector of statements */
+stmt_list:
+    stmt_list stmt
+    {
+      $$ = std::move($1);
+      delete $1;
+      $$->emplace_back(std::move($2));
+    }
+    |
+    stmt
+    {
+      $$ = new std::vector<frontend::StmtNodePtr>();
+      $$->emplace_back(std::move($1));
+    }
+    ;
+
+/* Statements include different types of statements */
 stmt:
     /* Equals to a empty statement, only a single ;*/
     SEMICOLON
