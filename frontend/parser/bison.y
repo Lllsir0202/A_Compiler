@@ -407,10 +407,34 @@ expr:
     }
     |
     /* Relational Operator */
-    
-    |
+    expr LT expr
     {
-      driver.ReportError(@$, "Expression expected");
+      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::LT, std::move($1), std::move($3));
+    }
+    |
+    expr GT expr
+    {
+      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::GT, std::move($1), std::move($3));
+    }
+    |
+    expr LE expr
+    {
+      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::LE, std::move($1), std::move($3));
+    }
+    |
+    expr GE expr
+    {
+      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::GE, std::move($1), std::move($3));
+    }
+    |
+    expr EQ expr
+    {
+      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::EQ, std::move($1), std::move($3));
+    }
+    |
+    expr NEQ expr
+    {
+      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::NEQ, std::move($1), std::move($3));
     }
     ;
   
