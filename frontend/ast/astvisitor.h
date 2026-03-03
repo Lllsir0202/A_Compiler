@@ -9,16 +9,10 @@ class ExprNode;  // should not be called directly
 class StmtNode;  // should not be called directly
 
 // Expression nodes
-class AddExprNode;
-class MulExprNode;
+class BinaryExprNode;
 class UnaryExprNode;
 class FuncCallExprNode;
-class PrimaryExprNode;
 class LValExprNode;
-class RelExprNode;
-class EqExprNode;
-class LAndExprNode;
-class LOrExprNode;
 class IntLiteralExprNode;
 class FloatLiteralExprNode;
 
@@ -51,16 +45,10 @@ class ASTVisitor {
   // Visit methods for different AST node types can be declared here
   virtual void Visit(RootNode *root) = 0;
   // Visit methods for expression nodes
-  virtual void Visit(AddExprNode *add_expr) = 0;
-  virtual void Visit(MulExprNode *mul_expr) = 0;
+  virtual void Visit(BinaryExprNode *binary_expr) = 0;
   virtual void Visit(UnaryExprNode *unary_expr) = 0;
   virtual void Visit(FuncCallExprNode *func_call) = 0;
-  virtual void Visit(PrimaryExprNode *primary_expr) = 0;
   virtual void Visit(LValExprNode *lval_expr) = 0;
-  virtual void Visit(RelExprNode *rel_expr) = 0;
-  virtual void Visit(EqExprNode *eq_expr) = 0;
-  virtual void Visit(LAndExprNode *land_expr) = 0;
-  virtual void Visit(LOrExprNode *lor_expr) = 0;
   virtual void Visit(IntLiteralExprNode *int_literal) = 0;
   virtual void Visit(FloatLiteralExprNode *float_literal) = 0;
   // Visit methods for statement nodes
@@ -91,16 +79,10 @@ class ConstASTVisitor {
   // Visit methods for different AST node types can be declared here
   virtual void Visit(const RootNode *root) = 0;
   // Visit methods for expression nodes
-  virtual void Visit(const AddExprNode *add_expr) = 0;
-  virtual void Visit(const MulExprNode *mul_expr) = 0;
+  virtual void Visit(const BinaryExprNode *binary_expr) = 0;
   virtual void Visit(const UnaryExprNode *unary_expr) = 0;
   virtual void Visit(const FuncCallExprNode *func_call) = 0;
-  virtual void Visit(const PrimaryExprNode *primary_expr) = 0;
   virtual void Visit(const LValExprNode *lval_expr) = 0;
-  virtual void Visit(const RelExprNode *rel_expr) = 0;
-  virtual void Visit(const EqExprNode *eq_expr) = 0;
-  virtual void Visit(const LAndExprNode *land_expr) = 0;
-  virtual void Visit(const LOrExprNode *lor_expr) = 0;
   virtual void Visit(const IntLiteralExprNode *int_literal) = 0;
   virtual void Visit(const FloatLiteralExprNode *float_literal) = 0;
   // Visit methods for statement nodes

@@ -26,12 +26,6 @@
     #include "frontend/ast/ast_stmt.h"
 
     namespace frontend{
-        class BisonParserImpl;
-        class ExprNode;
-        class StmtNode;
-        class VarDefNode;
-        class DeclNode;
-        class FuncFParamNode;
         using ASTNodePtr = std::unique_ptr<ast::ASTNode>;
         using ExprNodePtr = std::unique_ptr<ast::ExprNode>;
         using StmtNodePtr = std::unique_ptr<ast::StmtNode>;
@@ -39,7 +33,6 @@
         using DeclNodePtr = std::unique_ptr<ast::DeclNode>;
         using FuncFParamNodePtr = std::unique_ptr<ast::FuncFParamNode>;
         using InitializerNodePtr = std::unique_ptr<ast::Initializer>;
-        struct SourceRange;
     }
 }
 
@@ -364,11 +357,11 @@ stmt:
 expr:
     expr ADD expr
     {
-      $$ = std::make_unique<frontend::ast::AddExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::ADD, std::move($1), std::move($3));
+      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::ADD, std::move($1), std::move($3));
     }
     |expr SUB expr
     {
-      $$ = std::make_unique<frontend::ast::AddExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::SUB, std::move($1), std::move($3));
+      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::SUB, std::move($1), std::move($3));
     }
     |
     {

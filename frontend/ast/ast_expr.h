@@ -35,13 +35,19 @@ class ExprNode : public ASTNode {
 using ExprNodePtr = std::unique_ptr<ExprNode>;
 
 /**
- * @brief AddExp -> MulExp | AddExp {+ -} MulExp
+ * @brief BinaryExp represents binary expressions, including all expressions with two operands, such as AddExp, RelExp,
+ * EqExp, etc. We can use this class to represent all binary expressions, and use operator_ to distinguish between
+ * different binary operators.
+ * @param operator_: the operator of the binary expression, such as +, -, *, /, etc.
+ * @param left_: the left operand of the binary expression
+ * @param right_: the right operand of the binary expression
+ * @note: type of BinaryExp is determined by the type of its operands and the operator
  */
-class AddExprNode : public VisitAble<AddExprNode, ExprNode> {
+class BinaryExprNode : public VisitAble<BinaryExprNode, ExprNode> {
  public:
-  explicit AddExprNode(SourceRange range, TypePtr type, OpCode op, ExprNodePtr left, ExprNodePtr right,
-                       bool is_const = false)
-      : VisitAble<AddExprNode, ExprNode>(range, type, is_const),
+  explicit BinaryExprNode(SourceRange range, TypePtr type, OpCode op, ExprNodePtr left, ExprNodePtr right,
+                          bool is_const = false)
+      : VisitAble<BinaryExprNode, ExprNode>(range, type, is_const),
         operator_(op),
         left_(std::move(left)),
         right_(std::move(right)) {}
@@ -52,23 +58,10 @@ class AddExprNode : public VisitAble<AddExprNode, ExprNode> {
 };
 
 /**
- * @brief MulExp -> UnaryExp | MulExp {* / %} UnaryExp
- */
-class MulExprNode : public VisitAble<MulExprNode, ExprNode> {
- public:
-  explicit MulExprNode(SourceRange range, TypePtr type, OpCode op, ExprNodePtr left, ExprNodePtr right,
-                       bool is_const = false)
-      : VisitAble<MulExprNode, ExprNode>(range, type, is_const),
-        operator_(op),
-        left_(std::move(left)),
-        right_(std::move(right)) {}
-  OpCode operator_;
-  ExprNodePtr left_;
-  ExprNodePtr right_;
-};
-
-/**
- * @brief UnaryExp -> PrimaryExp | {+ - !} UnaryExp
+ * @brief UnaryExp represents all unary expressions, including all expressions with one operand, such as +, -, !
+ * @param operator_: the operator of the unary expression, such as +, -, !, etc.
+ * @param operand_: the operand of the unary expression
+ * @note: type of UnaryExp is determined by the type of its operand
  */
 class UnaryExprNode : public VisitAble<UnaryExprNode, ExprNode> {
  public:
@@ -97,18 +90,10 @@ class FuncCallExprNode : public VisitAble<FuncCallExprNode, ExprNode> {
 };
 
 /**
- * @brief PrimaryExp -> (Exp) | LVal | Number
- */
-class PrimaryExprNode : public VisitAble<PrimaryExprNode, ExprNode> {
- public:
-  explicit PrimaryExprNode(SourceRange range, TypePtr type, ExprNodePtr value, bool is_const = false)
-      : VisitAble<PrimaryExprNode, ExprNode>(range, type, is_const), value_(std::move(value)) {}
-
-  ExprNodePtr value_;
-};
-
-/**
- * @brief LVal -> Ident { [Exp] }
+ * @brief LVal represents the format like Ident { [Exp] }
+ * @param ident_: the identifier of the variable
+ * @param indices_: the indices of the array, if it is an array variable, otherwise it is empty
+ * @note: type of LVal is determined by the type of the variable
  */
 class LValExprNode : public VisitAble<LValExprNode, ExprNode> {
  public:
@@ -133,73 +118,13 @@ class LValExprNode : public VisitAble<LValExprNode, ExprNode> {
 };
 
 /**
- * @brief RelExp -> AddExp | RelExp {< <= > >=} AddExp
- */
-class RelExprNode : public VisitAble<RelExprNode, ExprNode> {
- public:
-  explicit RelExprNode(SourceRange range, TypePtr type, OpCode op, ExprNodePtr left, ExprNodePtr right,
-                       bool is_const = false)
-      : VisitAble<RelExprNode, ExprNode>(range, type, is_const),
-        operator_(op),
-        left_(std::move(left)),
-        right_(std::move(right)) {}
-
-  OpCode operator_;
-  ExprNodePtr left_;
-  ExprNodePtr right_;
-};
-
-/**
- * @brief EqExp -> RelExp | EqExp {== !=} RelExp
- */
-class EqExprNode : public VisitAble<EqExprNode, ExprNode> {
- public:
-  explicit EqExprNode(SourceRange range, TypePtr type, OpCode op, ExprNodePtr left, ExprNodePtr right,
-                      bool is_const = false)
-      : VisitAble<EqExprNode, ExprNode>(range, type, is_const),
-        operator_(op),
-        left_(std::move(left)),
-        right_(std::move(right)) {}
-
-  OpCode operator_;
-  ExprNodePtr left_;
-  ExprNodePtr right_;
-};
-
-/**
- * @brief LAndExp -> EqExp | LAndExp && EqExp
- */
-class LAndExprNode : public VisitAble<LAndExprNode, ExprNode> {
- public:
-  explicit LAndExprNode(SourceRange range, TypePtr type, ExprNodePtr left, ExprNodePtr right, bool is_const = false)
-      : VisitAble<LAndExprNode, ExprNode>(range, type, is_const), left_(std::move(left)), right_(std::move(right)) {}
-
-  OpCode operator_ = OpCode::AND;
-  ExprNodePtr left_;
-  ExprNodePtr right_;
-};
-
-/**
- * @brief LOrExp -> LAndExp | LOrExp || LAndExp
- */
-class LOrExprNode : public VisitAble<LOrExprNode, ExprNode> {
- public:
-  explicit LOrExprNode(SourceRange range, TypePtr type, ExprNodePtr left, ExprNodePtr right, bool is_const = false)
-      : VisitAble<LOrExprNode, ExprNode>(range, type, is_const), left_(std::move(left)), right_(std::move(right)) {}
-
-  OpCode operator_ = OpCode::OR;
-  ExprNodePtr left_;
-  ExprNodePtr right_;
-};
-
-/**
  * @brief Number node representing a numeric literal
  * @note Initially in parser, only these two types are supported: int and float
  * and we will extend them later in semantic analysis phase
  */
 
 /**
- * @brief IntLiteralExprNode representing an integer literal
+ * @brief IntLiteralExprNode represents an integer literal
  */
 class IntLiteralExprNode : public VisitAble<IntLiteralExprNode, ExprNode> {
  public:
@@ -209,7 +134,7 @@ class IntLiteralExprNode : public VisitAble<IntLiteralExprNode, ExprNode> {
 };
 
 /**
- * @brief FloatLiteralExprNode representing a floating-point literal
+ * @brief FloatLiteralExprNode represents a floating-point literal
  */
 
 class FloatLiteralExprNode : public VisitAble<FloatLiteralExprNode, ExprNode> {
