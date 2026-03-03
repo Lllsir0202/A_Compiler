@@ -16,6 +16,13 @@ namespace frontend::ast {
  * @param is_const_: whether the expression is a constant expression
  * @param type_: the type of the expression (int, float, etc.),
  * especially we need to distinguish between int and ptr
+ * @method: GetType(): get the type of the expression
+ * @method: IsConst(): whether the expression is a constant expression
+ * @method: SetType(TypePtr type): set the type of the expression,
+ * used in semantic analysis phase to decide the type of the expression
+ * @method: SetConst(bool is_const): set whether the expression is a constant expression
+ * @method: IsLval(): whether the expression is an lvalue, used in semantic analysis phase to check whether the
+ * expression can be assigned to.
  */
 class ExprNode : public ASTNode {
  public:
@@ -26,7 +33,7 @@ class ExprNode : public ASTNode {
   auto GetType() const -> TypePtr { return type_; }
   auto SetType(TypePtr type) -> void { type_ = type; }
   auto SetConst(bool is_const) -> void { is_const_ = is_const; }
-
+  virtual auto IsLval() const -> bool = 0;
  private:
   TypePtr type_;
   bool is_const_;
@@ -55,6 +62,7 @@ class BinaryExprNode : public VisitAble<BinaryExprNode, ExprNode> {
   OpCode operator_;
   ExprNodePtr left_;
   ExprNodePtr right_;
+  auto IsLval() const -> bool override { return false; }
 };
 
 /**
@@ -69,6 +77,7 @@ class UnaryExprNode : public VisitAble<UnaryExprNode, ExprNode> {
       : VisitAble<UnaryExprNode, ExprNode>(range, type, is_const), operator_(op), operand_(std::move(operand)) {}
   OpCode operator_;
   ExprNodePtr operand_;
+  auto IsLval() const -> bool override { return false; }
 };
 
 /**
@@ -89,6 +98,7 @@ class FuncCallExprNode : public VisitAble<FuncCallExprNode, ExprNode> {
 
   std::string func_name_;
   std::vector<ExprNodePtr> params_;
+  auto IsLval() const -> bool override { return false; }
 };
 
 /**
@@ -114,6 +124,7 @@ class LValExprNode : public VisitAble<LValExprNode, ExprNode> {
   std::string ident_;
   std::vector<ExprNodePtr> indices_;
   auto IsArray() const -> bool { return is_array_; }
+  auto IsLval() const -> bool override { return true; }
 
  private:
   bool is_array_;
@@ -133,6 +144,7 @@ class IntLiteralExprNode : public VisitAble<IntLiteralExprNode, ExprNode> {
   explicit IntLiteralExprNode(SourceRange range, TypePtr type, int value)
       : VisitAble<IntLiteralExprNode, ExprNode>(range, type, true), value_(value) {}
   int value_;
+  auto IsLval() const -> bool override { return false; }
 };
 
 /**
@@ -144,6 +156,7 @@ class FloatLiteralExprNode : public VisitAble<FloatLiteralExprNode, ExprNode> {
   explicit FloatLiteralExprNode(SourceRange range, TypePtr type, float value)
       : VisitAble<FloatLiteralExprNode, ExprNode>(range, type, true), value_(value) {}
   float value_;
+  auto IsLval() const -> bool override { return false; }
 };
 
 }  // namespace frontend::ast

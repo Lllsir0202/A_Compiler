@@ -352,6 +352,21 @@ stmt:
     {
       $$ = std::make_unique<frontend::ast::ExprStmtNode>(@$);
     }
+    |
+    /* Expr ; */
+    expr SEMICOLON
+    {
+      $$ = std::make_unique<frontend::ast::ExprStmtNode>(@$, std::move($1));
+    }
+    |
+    /* AssignStmt: Lval = expr */
+    /* Note that we will use "expr = expr" here, and we will check the left one in semantic analysis */
+    expr ASSIGN expr SEMICOLON
+    {
+      $$ = std::make_unique<frontend::ast::AssignStmtNode>(@$, std::move($1), std::move($3));
+    }
+    |
+    /*  */
     ;
 
 /* Expressions */
@@ -359,84 +374,84 @@ expr:
     /* Algorithm Operator */
     expr ADD expr
     {
-      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::ADD, std::move($1), std::move($3));
+      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), frontend::ast::OpCode::PLUS, std::move($1), std::move($3));
     }
     |
     expr SUB expr
     {
-      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::SUB, std::move($1), std::move($3));
+      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), frontend::ast::OpCode::SUB, std::move($1), std::move($3));
     }
     |
     expr MUL expr
     {
-      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::MUL, std::move($1), std::move($3));
+      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), frontend::ast::OpCode::MUL, std::move($1), std::move($3));
     }
     |
     expr DIV expr
     {
-      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::DIV, std::move($1), std::move($3));
+      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), frontend::ast::OpCode::DIV, std::move($1), std::move($3));
     }
     |
     expr MOD expr
     {
-      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::MOD, std::move($1), std::move($3));
+      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), frontend::ast::OpCode::MOD, std::move($1), std::move($3));
     }
     |
     SUB expr %prec UMINUS
     {
-      $$ = std::make_unique<frontend::ast::UnaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::NEG, std::move($2));
+      $$ = std::make_unique<frontend::ast::UnaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), frontend::ast::OpCode::NEGATIVE, std::move($2));
     }
     |
     ADD expr %prec UPLUS
     {
-      $$ = std::make_unique<frontend::ast::UnaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::POS, std::move($2));
+      $$ = std::make_unique<frontend::ast::UnaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), frontend::ast::OpCode::POSITIVE, std::move($2));
     }
     |
     /* Logical Operator */
     NOT expr
     {
-      $$ = std::make_unique<frontend::ast::UnaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::NOT, std::move($2));
+      $$ = std::make_unique<frontend::ast::UnaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), frontend::ast::OpCode::NOT, std::move($2));
     }
     |
     expr AND expr
     {
-      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::AND, std::move($1), std::move($3));
+      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), frontend::ast::OpCode::AND, std::move($1), std::move($3));
     }
     |
     expr OR expr
     {
-      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::OR, std::move($1), std::move($3));
+      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), frontend::ast::OpCode::OR, std::move($1), std::move($3));
     }
     |
     /* Relational Operator */
     expr LT expr
     {
-      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::LT, std::move($1), std::move($3));
+      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), frontend::ast::OpCode::LESS, std::move($1), std::move($3));
     }
     |
     expr GT expr
     {
-      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::GT, std::move($1), std::move($3));
+      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), frontend::ast::OpCode::GREATER, std::move($1), std::move($3));
     }
     |
     expr LE expr
     {
-      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::LE, std::move($1), std::move($3));
+      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), frontend::ast::OpCode::LEQUAL, std::move($1), std::move($3));
     }
     |
     expr GE expr
     {
-      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::GE, std::move($1), std::move($3));
+      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), frontend::ast::OpCode::GEQUAL, std::move($1), std::move($3));
     }
     |
     expr EQ expr
     {
-      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::EQ, std::move($1), std::move($3));
+      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), frontend::ast::OpCode::EQUAL, std::move($1), std::move($3));
     }
     |
     expr NEQ expr
     {
-      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::NEQ, std::move($1), std::move($3));
+      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), frontend::ast::OpCode::NEQUAL, std::move($1), std::move($3));
     }
     |
     /* Lval */

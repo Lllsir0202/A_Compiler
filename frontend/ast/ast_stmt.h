@@ -30,12 +30,13 @@ class BlockStmtNode : public VisitAble<BlockStmtNode, StmtNode> {
 /**
  * @brief AssignStmtNode representing an assignment statement
  * AssignStmt -> LVal '=' Exp ';'
+ * @note: we use ExprNode here and will check whether it is a LVal in semantic analysis phase.
  */
 class AssignStmtNode : public VisitAble<AssignStmtNode, StmtNode> {
  public:
-  explicit AssignStmtNode(SourceRange range, std::unique_ptr<LValExprNode> lval, ExprNodePtr expr)
+  explicit AssignStmtNode(SourceRange range, std::unique_ptr<ExprNode> lval, ExprNodePtr expr)
       : VisitAble<AssignStmtNode, StmtNode>(range), lval_(std::move(lval)), expr_(std::move(expr)) {}
-  std::unique_ptr<LValExprNode> lval_;
+  std::unique_ptr<ExprNode> lval_;
   ExprNodePtr expr_;
 };
 

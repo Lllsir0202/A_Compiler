@@ -12,14 +12,18 @@ OP_CODE(ASSIGN)
 // =
 OP_CODE(PLUS)
 // +
-OP_CODE(MINUS)
+OP_CODE(SUB)
 // -
-OP_CODE(STAR)
+OP_CODE(MUL)
 // *
 OP_CODE(DIV)
 // /
 OP_CODE(MOD)
 // %
+OP_CODE(POSITIVE)
+// Unary +
+OP_CODE(NEGATIVE)
+// Unary -
 
 // -- Then we need to deal with relation operators --
 OP_CODE(EQUAL)
