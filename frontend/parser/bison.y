@@ -142,6 +142,7 @@
 %type <std::vector<frontend::VarDefNodePtr>*> def_list
 %type <std::vector<frontend::FuncFParamNodePtr>*> func_fparams
 %type <frontend::FuncFParamNodePtr> func_fparam
+%type <std::vector<frontend::ExprNodePtr>*> func_rparams
 %type <frontend::InitializerNodePtr> initials
 
 
@@ -360,7 +361,8 @@ expr:
     {
       $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::ADD, std::move($1), std::move($3));
     }
-    |expr SUB expr
+    |
+    expr SUB expr
     {
       $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::SUB, std::move($1), std::move($3));
     }
@@ -436,8 +438,62 @@ expr:
     {
       $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::NEQ, std::move($1), std::move($3));
     }
+    |
+    /* Lval */
+    /* TODO: Array type */
+    IDENTIFIER
+    {
+      $$ = std::make_unique<frontend::ast::LValExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), std::move($1));
+    }
+    |
+    /* Function call */
+    /* No paramaters */
+    IDENTIFIER LPAREN RPAREN
+    {
+      $$ = std::make_unique<frontend::ast::FuncCallExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), std::move($1));
+    }
+    |
+    /* With paramaters */
+    IDENTIFIER LPAREN func_rparams RPAREN
+    {
+      $$ = std::make_unique<frontend::ast::FuncCallExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), std::move($1), std::move($3));
+    }
+    |
+    /* ( expr ) */
+    LPAREN expr RPAREN
+    {
+      $$ = std::move($2);
+    }
+    |
+    /* Const values */
+    INTCONST
+    {
+      $$ = std::make_unique<frontend::ast::IntLiteralExprNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), $1);
+    }
+    |
+    FLOATCONST
+    {
+      $$ = std::make_unique<frontend::ast::FloatLiteralExprNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), $1);
+    }
     ;
-  
+
+/* FuncRParams represents the Real paramaters in FuncCall */
+func_rparams:
+    /* Note: the paramater is not necessarilt a Lval */
+    func_rparams COMMA expr
+    {
+      $$ = std::move($1);
+      delete $1;
+      $$->emplace_back(std::move($3));
+    }
+    |
+    expr
+    {
+      $$ = new std::vector<frontend::ExprNodePtr>();
+      $$->emplace_back(std::move($1));
+    }
+    ;
+
 decl:
     /*  */
     {

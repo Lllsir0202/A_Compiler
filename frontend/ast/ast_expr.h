@@ -84,6 +84,8 @@ class FuncCallExprNode : public VisitAble<FuncCallExprNode, ExprNode> {
       : VisitAble<FuncCallExprNode, ExprNode>(range, type, is_const),
         func_name_(std::move(func_name)),
         params_(std::move(params)) {}
+  explicit FuncCallExprNode(SourceRange range, TypePtr type, std::string func_name, bool is_const = false)
+      : VisitAble<FuncCallExprNode, ExprNode>(range, type, is_const), func_name_(std::move(func_name)) {}
 
   std::string func_name_;
   std::vector<ExprNodePtr> params_;
