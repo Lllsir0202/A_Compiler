@@ -249,37 +249,38 @@ def:
     ;
 
 /* The definition of a function */
+/* TODO: change stmt to a stmt_list to ensure it is a vector */
 funcdef:
     /* Function with no paramaters */
-    VOID IDENTIFIER LPAREN RPAREN stmt
+    VOID IDENTIFIER LPAREN RPAREN LCBRACE stmt RCBRACE
     {
-      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetVoidType(), std::move($2), std::move($5));
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetVoidType(), std::move($2), std::move($6));
     }
     |
-    INT IDENTIFIER LPAREN RPAREN stmt
+    INT IDENTIFIER LPAREN RPAREN LCBRACE stmt RCBRACE
     {
-      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move($2), std::move($5));
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move($2), std::move($6));
     }
     |
-    FLOAT IDENTIFIER LPAREN RPAREN stmt
+    FLOAT IDENTIFIER LPAREN RPAREN LCBRACE stmt RCBRACE
     {
-      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move($2), std::move($5));
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move($2), std::move($6));
     }
     |
     /* Functions with paramaters */
-    VOID IDENTIFIER LPAREN func_fparams RPAREN stmt
+    VOID IDENTIFIER LPAREN func_fparams RPAREN LCBRACE stmt RCBRACE
     {
-      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetVoidType(), std::move($2), std::move($6), std::move(*$4));
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetVoidType(), std::move($2), std::move($7), std::move(*$4));
       delete $4;
     }
     |
-    INT IDENTIFIER LPAREN func_fparams RPAREN stmt
+    INT IDENTIFIER LPAREN func_fparams RPAREN LCBRACE stmt RCBRACE
     {
-      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move($2), std::move($6), std::move(*$4));
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move($2), std::move($7), std::move(*$4));
       delete $4;
     }
     |
-    FLOAT IDENTIFIER LPAREN func_fparams RPAREN stmt
+    FLOAT IDENTIFIER LPAREN func_fparams RPAREN LCBRACE stmt RCBRACE
     {
       $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move($2), std::move($6), std::move(*$4));
       delete $4;
