@@ -102,6 +102,8 @@
 
 /* Virtual Terminals, used to set Priority */
 %token UMINUS UPLUS
+/* Used in distinguish if and if-else */
+%token THEN
 
 /* Logical Operators */
 %token AND OR NOT
@@ -127,6 +129,13 @@
 %left ADD SUB
 %left MUL DIV MOD
 %right NOT UMINUS UPLUS
+
+/* Let ELSE have a higher priority */
+/* So that when we meet `else` in ifstmt first move 'else' in ifstmt,
+ then move 'if' in ifstmt, and we will not have shift-reduce conflict
+ */
+%left THEN
+%left ELSE
 
 /* Followed by type definitions */
 /* Define the type of non-terminal symbols */
@@ -366,7 +375,52 @@ stmt:
       $$ = std::make_unique<frontend::ast::AssignStmtNode>(@$, std::move($1), std::move($3));
     }
     |
-    /*  */
+    /* BlockStmt: { stmt_list } */
+    LCBRACE stmt_list RCBRACE
+    {
+      $$ = std::make_unique<frontend::ast::BlockStmtNode>(@$, std::move(*$2));
+      delete $2;
+    }
+    |
+    /* IfStmt: IF(cond)[ELSE] */
+    IF LPAREN expr RPAREN stmt %prec THEN
+    {
+      $$ = std::make_unique<frontend::ast::IfStmtNode>(@$, std::move($3), std::move($5));
+    }
+    |
+    IF LPAREN expr RPAREN stmt ELSE stmt
+    {
+      $$ = std::make_unique<frontend::ast::IfStmtNode>(@$, std::move($3), std::move($5), std::move($7));
+    }
+    |
+    /* WhileStmt: while(cond) Stmt */
+    WHILE LPAREN expr RPAREN stmt
+    {
+      $$ = std::make_unique<frontend::ast::WhileStmtNode>(@$, std::move($3), std::move($5));
+    }
+    |
+    /* BreakStmt */
+    BREAK SEMICOLON
+    {
+      $$ = std::make_unique<frontend::ast::BreakStmtNode>(@$);
+    }
+    |
+    /* ContinueStmt */
+    CONTINUE SEMICOLON
+    {
+      $$ = std::make_unique<frontend::ast::ContinueStmtNode>(@$);
+    }
+    |
+    /* ReturnStmt: return [exp]; */
+    RETURN expr SEMICOLON
+    {
+      $$ = std::make_unique<frontend::ast::ReturnStmtNode>(@$, std::move($2));
+    }
+    |
+    RETURN SEMICOLON
+    {
+      $$ = std::make_unique<frontend::ast::ReturnStmtNode>(@$);
+    }
     ;
 
 /* Expressions */

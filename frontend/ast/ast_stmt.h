@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <vector>
+#include "ast/ast_expr.h"
 #include "ast/astvisitor.h"
 namespace frontend::ast {
 // define parent class for all statement nodes
@@ -13,7 +14,6 @@ class StmtNode : public ASTNode {
 };
 
 using StmtNodePtr = std::unique_ptr<StmtNode>;
-class ExprNode;
 using ExprNodePtr = std::unique_ptr<ExprNode>;
 
 /**

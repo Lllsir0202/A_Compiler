@@ -29,7 +29,7 @@ auto static inline ParseArgs(int argc, char *argv[]) -> bool {
           optimization_level = arg[2] - '0';
         } else {
           // invalid -O option
-          std::cerr << "Invalid optimization option: " << arg << std::endl;
+          std::cerr << "Invalid optimization option: " << arg << '\n';
           return false;
         }
       } else if (arg[1] == 'o') {
@@ -45,7 +45,7 @@ auto static inline ParseArgs(int argc, char *argv[]) -> bool {
         stage = arg.substr(1);  // remove leading '-'
       } else {
         // invalid option
-        std::cerr << "Invalid option: " << arg << std::endl;
+        std::cerr << "Invalid option: " << arg << '\n';
         return false;
       }
     } else {
@@ -61,28 +61,27 @@ auto main(int argc, char *argv[]) -> int {
   // Now we use different args to control different Stages
   if (argc <= 1 || !ParseArgs(argc, argv)) {
     std::cerr << "Usage: " << argv[0]
-              << " <input_file> -o <output_file> [-<stage>{lexer, parser, ast, llvm, S/s}] [-O<level>{0,1,2}]"
-              << std::endl;
+              << " <input_file> -o <output_file> [-<stage>{lexer, parser, ast, llvm, S/s}] [-O<level>{0,1,2}]" << '\n';
     return 1;
   }
   // Parser successful
 #ifdef DEBUG
-  std::cout << "Input File: " << file_name << std::endl;
-  std::cout << "Output File: " << output_name << std::endl;
-  std::cout << "Stage: " << stage << std::endl;
-  std::cout << "Optimization Level: " << optimization_level << std::endl;
+  std::cout << "Input File: " << file_name << '\n';
+  std::cout << "Output File: " << output_name << '\n';
+  std::cout << "Stage: " << stage << '\n';
+  std::cout << "Optimization Level: " << optimization_level << '\n';
 #endif
 
   // Apply code to read and write files
   std::ifstream input(file_name);
   if (!input.is_open()) {
-    std::cerr << "Error: Unable to open input file " << file_name << std::endl;
+    std::cerr << "Error: Unable to open input file " << file_name << '\n';
     return 1;
   }
 
   std::ofstream output(output_name);
   if (!output.is_open()) {
-    std::cerr << "Error: Unable to open/create output file " << output_name << std::endl;
+    std::cerr << "Error: Unable to open/create output file " << output_name << '\n';
     return 1;
   }
 
@@ -126,7 +125,7 @@ auto main(int argc, char *argv[]) -> int {
     using frontend::ast::OpCode;
     using frontend::ast::OpCodeToString;
     auto op = OpCode::PLUS;
-    std::cout << "OpCode: " << OpCodeToString(op) << std::endl;
+    std::cout << "OpCode: " << OpCodeToString(op) << '\n';
   }
 #endif
 
@@ -140,15 +139,15 @@ auto main(int argc, char *argv[]) -> int {
                                             "6.022e23", "1e-2", "0x1.6FP03", "0x.6AFP-2"};
     for (const auto &str : test_ints) {
       int value = StringToInt(str);
-      std::cout << "String: " << str << " -> Int: " << value << std::endl;
+      std::cout << "String: " << str << " -> Int: " << value << '\n';
     }
     for (const auto &str : test_floats) {
       float value = StringToFloat(str);
-      std::cout << "String: " << str << " -> Float: " << value << std::endl;
+      std::cout << "String: " << str << " -> Float: " << value << '\n';
     }
   }
 #endif
 
-  // std::cout << "Hello, World!" << std::endl;
+  // std::cout << "Hello, World!" << '\n';
   return 0;
 }

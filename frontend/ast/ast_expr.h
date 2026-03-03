@@ -34,6 +34,7 @@ class ExprNode : public ASTNode {
   auto SetType(TypePtr type) -> void { type_ = type; }
   auto SetConst(bool is_const) -> void { is_const_ = is_const; }
   virtual auto IsLval() const -> bool = 0;
+
  private:
   TypePtr type_;
   bool is_const_;

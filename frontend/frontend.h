@@ -1,6 +1,6 @@
 // We add all necessary includes in frontend.h
 // so we do not need to include them one by one in main.cpp
-
+#pragma once
 #include "ast/ast_base.h"
 #include "ast/ast_expr.h"
 #include "ast/ast_spec.h"
