@@ -355,6 +355,7 @@ stmt:
 
 /* Expressions */
 expr:
+    /* Algorithm Operator */
     expr ADD expr
     {
       $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::ADD, std::move($1), std::move($3));
@@ -363,6 +364,50 @@ expr:
     {
       $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::SUB, std::move($1), std::move($3));
     }
+    |
+    expr MUL expr
+    {
+      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::MUL, std::move($1), std::move($3));
+    }
+    |
+    expr DIV expr
+    {
+      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::DIV, std::move($1), std::move($3));
+    }
+    |
+    expr MOD expr
+    {
+      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::MOD, std::move($1), std::move($3));
+    }
+    |
+    SUB expr %prec UMINUS
+    {
+      $$ = std::make_unique<frontend::ast::UnaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::NEG, std::move($2));
+    }
+    |
+    ADD expr %prec UPLUS
+    {
+      $$ = std::make_unique<frontend::ast::UnaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::POS, std::move($2));
+    }
+    |
+    /* Logical Operator */
+    NOT expr
+    {
+      $$ = std::make_unique<frontend::ast::UnaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::NOT, std::move($2));
+    }
+    |
+    expr AND expr
+    {
+      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::AND, std::move($1), std::move($3));
+    }
+    |
+    expr OR expr
+    {
+      $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), OpCode::OR, std::move($1), std::move($3));
+    }
+    |
+    /* Relational Operator */
+    
     |
     {
       driver.ReportError(@$, "Expression expected");
