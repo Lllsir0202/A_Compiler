@@ -148,7 +148,7 @@ using FuncFParamNodePtr = std::unique_ptr<FuncFParamNode>;
  */
 class FuncDefNode : public VisitAble<FuncDefNode, ASTNode> {
  public:
-  explicit FuncDefNode(SourceRange range, TypePtr return_type, std::string func_name, StmtNodePtr body,
+  explicit FuncDefNode(SourceRange range, TypePtr return_type, std::string func_name, std::vector<StmtNodePtr> body,
                        std::vector<FuncFParamNodePtr> parameters = {})
       : VisitAble<FuncDefNode, ASTNode>(range),
         return_type_(return_type),
@@ -159,7 +159,7 @@ class FuncDefNode : public VisitAble<FuncDefNode, ASTNode> {
   TypePtr return_type_;
   std::string func_name_;
   std::vector<FuncFParamNodePtr> parameters_;
-  StmtNodePtr body_;
+  std::vector<StmtNodePtr> body_;
 };
 }  // namespace frontend::ast
 #endif

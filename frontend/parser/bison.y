@@ -134,6 +134,7 @@
 %type <frontend::DeclNodePtr> global_decl
 %type <frontend::DeclNodePtr> decl
 %type <frontend::ASTNodePtr> funcdef
+%type <std::vector<frontend::StmtNodePtr>*> stmt_list
 %type <frontend::VarDefNodePtr> def
 %type <std::vector<frontend::VarDefNodePtr>*> def_list
 %type <std::vector<frontend::FuncFParamNodePtr>*> func_fparams
@@ -249,40 +250,40 @@ def:
     ;
 
 /* The definition of a function */
-/* TODO: change stmt to a stmt_list to ensure it is a vector */
+/* TODO: change stmt to a stmt_list to ensure it is a std::vector */
 funcdef:
     /* Function with no paramaters */
-    VOID IDENTIFIER LPAREN RPAREN LCBRACE stmt RCBRACE
+    VOID IDENTIFIER LPAREN RPAREN LCBRACE stmt_list RCBRACE
     {
       $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetVoidType(), std::move($2), std::move($6));
     }
     |
-    INT IDENTIFIER LPAREN RPAREN LCBRACE stmt RCBRACE
+    INT IDENTIFIER LPAREN RPAREN LCBRACE stmt_list RCBRACE
     {
       $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move($2), std::move($6));
     }
     |
-    FLOAT IDENTIFIER LPAREN RPAREN LCBRACE stmt RCBRACE
+    FLOAT IDENTIFIER LPAREN RPAREN LCBRACE stmt_list RCBRACE
     {
       $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move($2), std::move($6));
     }
     |
     /* Functions with paramaters */
-    VOID IDENTIFIER LPAREN func_fparams RPAREN LCBRACE stmt RCBRACE
+    VOID IDENTIFIER LPAREN func_fparams RPAREN LCBRACE stmt_list RCBRACE
     {
       $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetVoidType(), std::move($2), std::move($7), std::move(*$4));
       delete $4;
     }
     |
-    INT IDENTIFIER LPAREN func_fparams RPAREN LCBRACE stmt RCBRACE
+    INT IDENTIFIER LPAREN func_fparams RPAREN LCBRACE stmt_list RCBRACE
     {
       $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move($2), std::move($7), std::move(*$4));
       delete $4;
     }
     |
-    FLOAT IDENTIFIER LPAREN func_fparams RPAREN LCBRACE stmt RCBRACE
+    FLOAT IDENTIFIER LPAREN func_fparams RPAREN LCBRACE stmt_list RCBRACE
     {
-      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move($2), std::move($6), std::move(*$4));
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move($2), std::move($7), std::move(*$4));
       delete $4;
     }
     ;

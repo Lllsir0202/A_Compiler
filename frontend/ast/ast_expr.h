@@ -39,8 +39,12 @@ using ExprNodePtr = std::unique_ptr<ExprNode>;
  */
 class AddExprNode : public VisitAble<AddExprNode, ExprNode> {
  public:
-  explicit AddExprNode(SourceRange range, TypePtr type, OpCode op,  ExprNodePtr left, ExprNodePtr right, bool is_const = false)
-      : VisitAble<AddExprNode, ExprNode>(range, type, is_const), operator_(op), left_(std::move(left)), right_(std::move(right)) {}
+  explicit AddExprNode(SourceRange range, TypePtr type, OpCode op, ExprNodePtr left, ExprNodePtr right,
+                       bool is_const = false)
+      : VisitAble<AddExprNode, ExprNode>(range, type, is_const),
+        operator_(op),
+        left_(std::move(left)),
+        right_(std::move(right)) {}
 
   OpCode operator_;
   ExprNodePtr left_;
@@ -52,8 +56,12 @@ class AddExprNode : public VisitAble<AddExprNode, ExprNode> {
  */
 class MulExprNode : public VisitAble<MulExprNode, ExprNode> {
  public:
-  explicit MulExprNode(SourceRange range, TypePtr type, OpCode op, ExprNodePtr left, ExprNodePtr right, bool is_const = false)
-      : VisitAble<MulExprNode, ExprNode>(range, type, is_const), operator_(op), left_(std::move(left)), right_(std::move(right)) {}
+  explicit MulExprNode(SourceRange range, TypePtr type, OpCode op, ExprNodePtr left, ExprNodePtr right,
+                       bool is_const = false)
+      : VisitAble<MulExprNode, ExprNode>(range, type, is_const),
+        operator_(op),
+        left_(std::move(left)),
+        right_(std::move(right)) {}
   OpCode operator_;
   ExprNodePtr left_;
   ExprNodePtr right_;
@@ -129,8 +137,12 @@ class LValExprNode : public VisitAble<LValExprNode, ExprNode> {
  */
 class RelExprNode : public VisitAble<RelExprNode, ExprNode> {
  public:
-  explicit RelExprNode(SourceRange range, TypePtr type, OpCode op, ExprNodePtr left, ExprNodePtr right, bool is_const = false)
-      : VisitAble<RelExprNode, ExprNode>(range, type, is_const), operator_(op), left_(std::move(left)), right_(std::move(right)) {}
+  explicit RelExprNode(SourceRange range, TypePtr type, OpCode op, ExprNodePtr left, ExprNodePtr right,
+                       bool is_const = false)
+      : VisitAble<RelExprNode, ExprNode>(range, type, is_const),
+        operator_(op),
+        left_(std::move(left)),
+        right_(std::move(right)) {}
 
   OpCode operator_;
   ExprNodePtr left_;
@@ -142,8 +154,12 @@ class RelExprNode : public VisitAble<RelExprNode, ExprNode> {
  */
 class EqExprNode : public VisitAble<EqExprNode, ExprNode> {
  public:
-  explicit EqExprNode(SourceRange range, TypePtr type, OpCode op, ExprNodePtr left, ExprNodePtr right, bool is_const = false)
-      : VisitAble<EqExprNode, ExprNode>(range, type, is_const), operator_(op), left_(std::move(left)), right_(std::move(right)) {}
+  explicit EqExprNode(SourceRange range, TypePtr type, OpCode op, ExprNodePtr left, ExprNodePtr right,
+                      bool is_const = false)
+      : VisitAble<EqExprNode, ExprNode>(range, type, is_const),
+        operator_(op),
+        left_(std::move(left)),
+        right_(std::move(right)) {}
 
   OpCode operator_;
   ExprNodePtr left_;
