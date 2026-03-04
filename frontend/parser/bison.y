@@ -637,6 +637,7 @@ funccall:
     {
       $$ = std::make_unique<frontend::ast::FuncCallExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), std::move($1), std::move($3));
     }
+    ;
 
 /* FuncRParams represents the Real paramaters in FuncCall */
 func_rparams:
