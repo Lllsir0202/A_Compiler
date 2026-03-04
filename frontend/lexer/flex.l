@@ -21,6 +21,23 @@ using namespace frontend;
 %%
 
 %{
+    // ---- comment ---- //
+%}
+%{
+    // Signle line comment //    
+%}
+"//".*                                              {this->yycolumn_ = 1;}
+
+%{
+    // Multi-line comment //    
+%}
+"/*"                                                {BEGIN(COMMENT);}
+<COMMENT>"*/"                                       {BEGIN(INITIAL);}
+<COMMENT>.                                          { /* Ignore comment content */ }
+<COMMENT>\n                                         { this->yycolumn_ = 1; }
+
+
+%{
     // ---- Keywords ---- //
 %}
 "const"                                             {return this->MakeToken(TokenType::CONST, yytext, yylineno);}
@@ -77,22 +94,6 @@ using namespace frontend;
 "!"                                                 {return this->MakeToken(TokenType::NOT, yytext, yylineno);}
 "&&"                                                {return this->MakeToken(TokenType::AND, yytext, yylineno);}
 "||"                                                {return this->MakeToken(TokenType::OR, yytext, yylineno);}
-
-%{
-    // ---- comment ---- //
-%}
-%{
-    // Signle line comment //    
-%}
-"//".*                                              {this->yycolumn_ = 1;}
-
-%{
-    // Multi-line comment //    
-%}
-"/*"                                                {BEGIN(COMMENT);}
-<COMMENT>"*/"                                       {BEGIN(INITIAL);}
-<COMMENT>.                                          { /* Ignore comment content */ }
-<COMMENT>\n                                         { this->yycolumn_ = 1; }
 
 %{
     // Error handling for unclosed comment    

@@ -195,15 +195,13 @@ program:
 compunit:
     compunit global_decl
     {
-      $$ = std::move($1);
-      delete $1;
+      $$ = $1;
       $$->emplace_back(std::move($2));
     }
     |
     compunit funcdef
     {
-      $$ = std::move($1);
-      delete $1;
+      $$ = $1;
       $$->emplace_back(std::move($2));
     }
     |
@@ -255,8 +253,7 @@ def_list:
     /* def_list , def */
     def_list COMMA def
     {
-      $$ = std::move($1);
-      delete $1;
+      $$ = $1;
       $$->emplace_back(std::move($3));
     }
     |
@@ -325,8 +322,7 @@ func_fparams:
     /* func_fparams , func_fparam */
     func_fparams COMMA func_fparam
     {
-      $$ = std::move($1);
-      delete $1;
+      $$ = $1;
       $$->emplace_back(std::move($3));
     }
     |
@@ -356,8 +352,7 @@ func_fparam:
 stmt_list:
     stmt_list stmt
     {
-      $$ = std::move($1);
-      delete $1;
+      $$ = $1;
       $$->emplace_back(std::move($2));
     }
     |
@@ -649,8 +644,7 @@ func_rparams:
     /* Note: the paramater is not necessarilt a Lval */
     func_rparams COMMA expr
     {
-      $$ = std::move($1);
-      delete $1;
+      $$ = $1;
       $$->emplace_back(std::move($3));
     }
     |
@@ -711,8 +705,7 @@ initials_list:
     /* initials_list , initials */
     initials_list COMMA initials
     {
-      $$ = std::move($1);
-      delete $1;
+      $$ = $1;
       $$->emplace_back(std::move($3));
     }
     |

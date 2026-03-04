@@ -33,9 +33,6 @@ class BisonParserImpl : public Parser {
 
   // Set member function to provide access to compiler context
   auto GetContext() -> context::CompilerContext &;
-
- private:
-  context::CompilerContext *compiler_context_;
 };
 
 }  // namespace frontend

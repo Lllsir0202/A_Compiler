@@ -4,6 +4,8 @@
 #include <unordered_set>
 #include "context/compiler_context.h"
 #include "frontend/frontend.h"
+#include "parser/bison_parser_impl.h"
+#include "parser/parser.h"
 #include "stages/lexer/lexer_stage.h"
 #include "stages/stage.h"
 
@@ -101,7 +103,7 @@ auto main(int argc, char *argv[]) -> int {
   std::unique_ptr<frontend::Lexer> lexer = std::make_unique<frontend::FlexLexerImpl>(&input);
 
   // From parser stage we would build AST, so we should pass compiler context to each stage
-
+// #define LEXERDEBUG
 #ifdef LEXERDEBUG
   {
     auto token = lexer->GetNextToken();
@@ -148,6 +150,11 @@ auto main(int argc, char *argv[]) -> int {
   }
 #endif
 
+  // Grammar analysis and AST construction
+  // CANNOT define parser before lexer's stage output.
+  auto parser = std::make_unique<frontend::BisonParserImpl>(std::move(lexer));
+  int ret = parser->Parse(compiler_context);
+  return ret;
   // std::cout << "Hello, World!" << '\n';
   return 0;
 }

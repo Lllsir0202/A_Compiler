@@ -14,7 +14,10 @@ class CompilerContext {
   // We can create TypeContext at the beginning since it doesn't depend on anything else
   // and will be used throughout the compilation process.
  public:
-  CompilerContext(std::ifstream *in, std::ofstream *out) : in_(in), out_(out) { type_context_ = new TypeContext(); }
+  CompilerContext(std::ifstream *in, std::ofstream *out) : in_(in), out_(out) {
+    type_context_ = new TypeContext();
+    ast_context_ = new AstContext();
+  }
   ~CompilerContext() {
     delete type_context_;
     delete ast_context_;
@@ -27,7 +30,7 @@ class CompilerContext {
   // First we control types pointer here
   TypeContext *type_context_;
   // Then we need to control ast context here
-  [[maybe_unused]] AstContext *ast_context_;
+  AstContext *ast_context_;
 
   // Using this compiler context to control ALL resources in the compiler
 

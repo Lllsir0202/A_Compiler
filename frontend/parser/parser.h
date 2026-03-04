@@ -23,21 +23,21 @@ class Parser {
    * so we provide a common error reporting function here
    */
   auto ReportError(SourceRange source_range, const std::string &msg) -> void {
-    assert(compiler_context_ != nullptr);
+    assert(compiler_context_ != nullptr && "In parser error reproting, compiler context is not set");
     compiler_context_->ReportError(source_range, msg);
   }
 
  protected:
   // Provide access to the lexer for derived classes
   auto GetLexer() -> Lexer * { return lexer_.get(); }
-
- private:
-  std::unique_ptr<Lexer> lexer_;
   /**
    * @brief We only need to hold a pointer to compiler context while in parsing
    * since in ReportError we will always hold this pointer, so we can imply it in context
    */
   context::CompilerContext *compiler_context_;
+
+ private:
+  std::unique_ptr<Lexer> lexer_;
 };
 }  // namespace frontend
 
