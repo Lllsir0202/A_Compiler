@@ -95,3 +95,6 @@ lexer:
 
 parser:
 	$(PARSER_TOOL) -d -o frontend/parser/$(PARSER_FILE).cpp --defines=frontend/parser/$(PARSER_FILE).h frontend/parser/$(PARSER_FILE).y
+
+parser-example:
+	$(PARSER_TOOL) -Wcounterexamples -d -o frontend/parser/$(PARSER_FILE).cpp --defines=frontend/parser/$(PARSER_FILE).h frontend/parser/$(PARSER_FILE).y 2> counterexamples.output

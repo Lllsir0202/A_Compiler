@@ -121,6 +121,7 @@
 
 /* Then define priority */
 /* Since we don't consider a=b=c, we ignore ASSIGN token directly */
+%left ASSIGN
 /* Lowest ones are: && || not */
 %left OR
 %left AND
@@ -142,7 +143,6 @@
 %type <frontend::ASTNodePtr> program
 %type <std::vector<frontend::ASTNodePtr>*> compunit
 %type <frontend::StmtNodePtr> stmt
-%type <frontend::ExprNodePtr> expr
 %type <frontend::DeclNodePtr> global_decl
 %type <frontend::DeclNodePtr> decl
 %type <frontend::ASTNodePtr> funcdef
@@ -153,6 +153,21 @@
 %type <frontend::FuncFParamNodePtr> func_fparam
 %type <std::vector<frontend::ExprNodePtr>*> func_rparams
 %type <frontend::InitializerNodePtr> initials
+
+/* Following are a list of expressions */
+%type <frontend::ExprNodePtr> expr
+%type <frontend::ExprNodePtr> lval
+%type <frontend::ExprNodePtr> funccall
+
+/* Following are a list of statements */
+%type <frontend::StmtNodePtr> ifstmt
+%type <frontend::StmtNodePtr> whilestmt
+%type <frontend::StmtNodePtr> breakstmt
+%type <frontend::StmtNodePtr> continuestmt
+%type <frontend::StmtNodePtr> returnstmt
+%type <frontend::StmtNodePtr> blockstmt
+%type <frontend::StmtNodePtr> exprstmt
+%type <frontend::StmtNodePtr> assignstmt
 
 
 /* Define grammer here */
@@ -265,44 +280,44 @@ def:
 /* The definition of a function */
 funcdef:
     /* Function with no paramaters */
-    VOID IDENTIFIER LPAREN RPAREN LCBRACE stmt_list RCBRACE
+    VOID IDENTIFIER LPAREN RPAREN blockstmt
     {
-      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetVoidType(), std::move($2), std::move(*$6));
-      delete $6;
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetVoidType(), std::move($2), std::move(*$5));
+      delete $5;
     }
     |
-    INT IDENTIFIER LPAREN RPAREN LCBRACE stmt_list RCBRACE
+    INT IDENTIFIER LPAREN RPAREN blockstmt
     {
-      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move($2), std::move(*$6));
-      delete $6;
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move($2), std::move(*$5));
+      delete $5;
     }
     |
-    FLOAT IDENTIFIER LPAREN RPAREN LCBRACE stmt_list RCBRACE
+    FLOAT IDENTIFIER LPAREN RPAREN blockstmt
     {
-      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move($2), std::move(*$6));
-      delete $6;
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move($2), std::move(*$5));
+      delete $5;
     }
     |
     /* Functions with paramaters */
-    VOID IDENTIFIER LPAREN func_fparams RPAREN LCBRACE stmt_list RCBRACE
+    VOID IDENTIFIER LPAREN func_fparams RPAREN blockstmt
     {
-      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetVoidType(), std::move($2), std::move(*$7), std::move(*$4));
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetVoidType(), std::move($2), std::move(*$6), std::move(*$4));
       delete $4;
-      delete $7;
+      delete $6;
     }
     |
-    INT IDENTIFIER LPAREN func_fparams RPAREN LCBRACE stmt_list RCBRACE
+    INT IDENTIFIER LPAREN func_fparams RPAREN blockstmt
     {
-      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move($2), std::move(*$7), std::move(*$4));
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move($2), std::move(*$6), std::move(*$4));
       delete $4;
-      delete $7;
+      delete $6;
     }
     |
-    FLOAT IDENTIFIER LPAREN func_fparams RPAREN LCBRACE stmt_list RCBRACE
+    FLOAT IDENTIFIER LPAREN func_fparams RPAREN blockstmt
     {
-      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move($2), std::move(*$7), std::move(*$4));
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move($2), std::move(*$6), std::move(*$4));
       delete $4;
-      delete $7;
+      delete $6;
     }
     ;
   
@@ -356,33 +371,118 @@ stmt_list:
 
 /* Statements include different types of statements */
 stmt:
-    /* Equals to a empty statement, only a single ;*/
-    SEMICOLON
+    /* Expression statement: expr; */
+    exprstmt
     {
-      $$ = std::make_unique<frontend::ast::ExprStmtNode>(@$);
-    }
-    |
-    /* Expr ; */
-    expr SEMICOLON
-    {
-      $$ = std::make_unique<frontend::ast::ExprStmtNode>(@$, std::move($1));
+      $$ = std::move($1);
     }
     |
     /* AssignStmt: Lval = expr */
     /* Note that we will use "expr = expr" here, and we will check the left one in semantic analysis */
-    expr ASSIGN expr SEMICOLON
+    assignstmt
     {
-      $$ = std::make_unique<frontend::ast::AssignStmtNode>(@$, std::move($1), std::move($3));
+      $$ = std::move($1);
     }
     |
     /* BlockStmt: { stmt_list } */
+    blockstmt
+    {
+      $$ = std::move($1);
+    }
+    |
+    /* IfStmt: IF(cond)[ELSE] */
+    ifstmt
+    {
+      $$ = std::move($1);
+    }
+    |
+    /* WhileStmt: while(cond) Stmt */
+    whilestmt
+    {
+      $$ = std::move($1);
+    }
+    |
+    /* BreakStmt */
+    breakstmt
+    {
+      $$ = std::move($1);
+    }
+    |
+    /* ContinueStmt */
+    continuestmt
+    {
+      $$ = std::move($1);
+    }
+    |
+    /* ReturnStmt: return [exp]; */
+    returnstmt
+    {
+      $$ = std::move($1);
+    }
+    ;
+
+exprstmt:
+    /* A single SEMICOLON(;), same as empty statement */
+    SEMICOLON
+    {
+      $$ = std::make_unique<frontend::ast::ExprStmtNode>(@$, nullptr);
+    }
+    |
+    expr SEMICOLON
+    {
+      $$ = std::make_unique<frontend::ast::ExprStmtNode>(@$, std::move($1));
+    }
+    ;
+
+assignstmt:
+    /* lval = expr ; */
+    lval ASSIGN expr SEMICOLON
+    {
+      $$ = std::make_unique<frontend::ast::AssignStmtNode>(@$, std::move($1), std::move($3));
+    }
+    ;
+
+blockstmt:
+    /* {stmt_list}(stmt_list can be empty or not) */
     LCBRACE stmt_list RCBRACE
     {
       $$ = std::make_unique<frontend::ast::BlockStmtNode>(@$, std::move(*$2));
       delete $2;
     }
     |
-    /* IfStmt: IF(cond)[ELSE] */
+    LCBRACE RCBRACE
+    {
+      $$ = std::make_unique<frontend::ast::BlockStmtNode>(@$, std::vector<frontend::StmtNodePtr>());
+    }
+    ;
+  
+breakstmt:
+    BREAK SEMICOLON
+    {
+      $$ = std::make_unique<frontend::ast::BreakStmtNode>(@$);
+    }
+    ;
+
+continuestmt:
+    CONTINUE SEMICOLON
+    {
+      $$ = std::make_unique<frontend::ast::ContinueStmtNode>(@$);
+    }
+    ;
+
+returnstmt:
+    RETURN SEMICOLON
+    {
+      $$ = std::make_unique<frontend::ast::ReturnStmtNode>(@$);
+    }
+    |
+    RETURN expr SEMICOLON
+    {
+      $$ = std::make_unique<frontend::ast::ReturnStmtNode>(@$, std::move($2));
+    }
+    ;
+
+ifstmt:
     IF LPAREN expr RPAREN stmt %prec THEN
     {
       $$ = std::make_unique<frontend::ast::IfStmtNode>(@$, std::move($3), std::move($5));
@@ -392,34 +492,12 @@ stmt:
     {
       $$ = std::make_unique<frontend::ast::IfStmtNode>(@$, std::move($3), std::move($5), std::move($7));
     }
-    |
-    /* WhileStmt: while(cond) Stmt */
+    ;
+
+whilestmt:
     WHILE LPAREN expr RPAREN stmt
     {
       $$ = std::make_unique<frontend::ast::WhileStmtNode>(@$, std::move($3), std::move($5));
-    }
-    |
-    /* BreakStmt */
-    BREAK SEMICOLON
-    {
-      $$ = std::make_unique<frontend::ast::BreakStmtNode>(@$);
-    }
-    |
-    /* ContinueStmt */
-    CONTINUE SEMICOLON
-    {
-      $$ = std::make_unique<frontend::ast::ContinueStmtNode>(@$);
-    }
-    |
-    /* ReturnStmt: return [exp]; */
-    RETURN expr SEMICOLON
-    {
-      $$ = std::make_unique<frontend::ast::ReturnStmtNode>(@$, std::move($2));
-    }
-    |
-    RETURN SEMICOLON
-    {
-      $$ = std::make_unique<frontend::ast::ReturnStmtNode>(@$);
     }
     ;
 
@@ -508,30 +586,22 @@ expr:
       $$ = std::make_unique<frontend::ast::BinaryExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), frontend::ast::OpCode::NEQUAL, std::move($1), std::move($3));
     }
     |
-    /* Lval */
-    /* TODO: Array type */
-    IDENTIFIER
-    {
-      $$ = std::make_unique<frontend::ast::LValExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), std::move($1));
-    }
-    |
-    /* Function call */
-    /* No paramaters */
-    IDENTIFIER LPAREN RPAREN
-    {
-      $$ = std::make_unique<frontend::ast::FuncCallExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), std::move($1));
-    }
-    |
-    /* With paramaters */
-    IDENTIFIER LPAREN func_rparams RPAREN
-    {
-      $$ = std::make_unique<frontend::ast::FuncCallExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), std::move($1), std::move($3));
-    }
-    |
     /* ( expr ) */
     LPAREN expr RPAREN
     {
       $$ = std::move($2);
+    }
+    |
+    /* Lval */
+    lval
+    {
+      $$ = std::move($1);
+    }
+    |
+    /* Function call */
+    funccall
+    {
+      $$ = std::move($1);
     }
     |
     /* Const values */
@@ -545,6 +615,27 @@ expr:
       $$ = std::make_unique<frontend::ast::FloatLiteralExprNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), $1);
     }
     ;
+
+lval:
+    /* TODO: Array type */
+    IDENTIFIER
+    {
+      $$ = std::make_unique<frontend::ast::IdentifierExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), std::move($1));
+    }
+    ;
+
+funccall:
+    /* No paramaters */
+    IDENTIFIER LPAREN RPAREN
+    {
+      $$ = std::make_unique<frontend::ast::FuncCallExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), std::move($1));
+    }
+    |
+    /* With paramaters */
+    IDENTIFIER LPAREN func_rparams RPAREN
+    {
+      $$ = std::make_unique<frontend::ast::FuncCallExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), std::move($1), std::move($3));
+    }
 
 /* FuncRParams represents the Real paramaters in FuncCall */
 func_rparams:
