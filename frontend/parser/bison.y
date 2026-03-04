@@ -152,7 +152,12 @@
 %type <std::vector<frontend::FuncFParamNodePtr>*> func_fparams
 %type <frontend::FuncFParamNodePtr> func_fparam
 %type <std::vector<frontend::ExprNodePtr>*> func_rparams
+
+/* Initializer */
+/* initials: represents the topest initializer */
 %type <frontend::InitializerNodePtr> initials
+/* initials_list: represents the list of initializers */
+%type <std::vector<frontend::InitializerNodePtr>*> initials_list
 
 /* Following are a list of expressions */
 %type <frontend::ExprNodePtr> expr
@@ -241,7 +246,7 @@ global_decl:
     {
       $$ = std::make_unique<frontend::ast::GlobalVarDeclNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move(*$3), true);
       delete $3;
-    } 
+    }
     ;
 
 /* Since a declaration can have a list of defition */
@@ -657,18 +662,65 @@ func_rparams:
     ;
 
 decl:
+    /* Variation */
     INT def_list SEMICOLON
     {
       $$ = std::make_unique<frontend::ast::LocalVarDeclNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move(*$2));
       delete $2;
     }
-    ;
-
-initials:
-    /*  */
+    |
+    FLOAT def_list SEMICOLON
     {
-      driver.ReportError(@$, "Initializer expected");
+      $$ = std::make_unique<frontend::ast::LocalVarDeclNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move(*$2));
+      delete $2;
+    }
+    /* Const Variation */
+    |
+    CONST INT def_list SEMICOLON
+    {
+      $$ = std::make_unique<frontend::ast::LocalVarDeclNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move(*$3), true);
+      delete $3;
+    }
+    |
+    CONST FLOAT def_list SEMICOLON
+    {
+      $$ = std::make_unique<frontend::ast::LocalVarDeclNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move(*$3), true);
+      delete $3;
     }
     ;
 
+initials:
+    /* Two kinds of initializer */
+    /* 1. Single value initializer */
+    /* 2. List initializer */
+    /* Single initializer */
+    expr
+    {
+      $$ = std::make_unique<frontend::ast::InitValNode>(@$, std::move($1));
+    }
+    /* List initializer */
+    /* i.e., {1, {1,2}, 3, {{1,2,3}}} */
+    | LSBRACE initials_list RSBRACE
+    {
+      $$ = std::make_unique<frontend::ast::InitListNode>(@$, std::move(*$2));
+      delete $2;
+    }
+    ;
+
+initials_list:
+    /* initials_list , initials */
+    initials_list COMMA initials
+    {
+      $$ = std::move($1);
+      delete $1;
+      $$->emplace_back(std::move($3));
+    }
+    |
+    /* A single initializer */
+    initials
+    {
+      $$ = new std::vector<frontend::InitializerNodePtr>();
+      $$->emplace_back(std::move($1));
+    }
+    ;
 %%
