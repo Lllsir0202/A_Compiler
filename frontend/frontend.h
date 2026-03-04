@@ -1,6 +1,7 @@
 // We add all necessary includes in frontend.h
 // so we do not need to include them one by one in main.cpp
 #include "ast/ast_base.h"
+#include "ast/ast_decl.h"
 #include "ast/ast_spec.h"
 #include "ast/ast_stmt.h"
 #include "ast/ast_utils.h"

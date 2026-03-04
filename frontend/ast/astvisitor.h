@@ -5,8 +5,10 @@
 namespace frontend::ast {
 
 class RootNode;
-class ExprNode;  // should not be called directly
-class StmtNode;  // should not be called directly
+class ExprNode;     // should not be called directly
+class StmtNode;     // should not be called directly
+class Initializer;  // should not be called directly
+class DeclNode;     // should not be called directly
 
 // Expression nodes
 class BinaryExprNode;
@@ -44,6 +46,11 @@ class ASTVisitor {
 
   // Visit methods for different AST node types can be declared here
   virtual void Visit(RootNode *root) = 0;
+  // Should not be called directly, since they are abstract classes
+  virtual void Visit(ExprNode *expr) = 0;
+  virtual void Visit(StmtNode *stmt) = 0;
+  virtual void Visit(Initializer *initializer) = 0;
+  virtual void Visit(DeclNode *decl) = 0;
   // Visit methods for expression nodes
   virtual void Visit(BinaryExprNode *binary_expr) = 0;
   virtual void Visit(UnaryExprNode *unary_expr) = 0;
@@ -78,6 +85,11 @@ class ConstASTVisitor {
 
   // Visit methods for different AST node types can be declared here
   virtual void Visit(const RootNode *root) = 0;
+  // Should not be called directly, since they are abstract classes
+  virtual void Visit(const ExprNode *expr) = 0;
+  virtual void Visit(const StmtNode *stmt) = 0;
+  virtual void Visit(const Initializer *initializer) = 0;
+  virtual void Visit(const DeclNode *decl) = 0;
   // Visit methods for expression nodes
   virtual void Visit(const BinaryExprNode *binary_expr) = 0;
   virtual void Visit(const UnaryExprNode *unary_expr) = 0;

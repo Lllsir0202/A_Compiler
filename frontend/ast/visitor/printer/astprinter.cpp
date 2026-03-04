@@ -1,0 +1,202 @@
+#include "ast/visitor/printer/astprinter.h"
+#include <stdexcept>
+
+namespace frontend::ast {
+// RootNode
+void ASTPrinter::Visit(const RootNode *root) {
+  PrintIndent();
+  *out_ << "RootNode\n";
+  indent_level_++;
+  for (const auto &child : root->GetChildren()) {
+    child->Accept(this);
+  }
+  indent_level_--;
+}
+// Expression nodes
+void ASTPrinter::Visit(const BinaryExprNode *binary_expr) {
+  PrintIndent();
+  *out_ << "BinaryExprNode: " << OpCodeToString(binary_expr->operator_) << "\n";
+  indent_level_++;
+  binary_expr->left_->Accept(this);
+  binary_expr->right_->Accept(this);
+  indent_level_--;
+}
+void ASTPrinter::Visit(const UnaryExprNode *unary_expr) {
+  PrintIndent();
+  *out_ << "UnaryExprNode: " << OpCodeToString(unary_expr->operator_) << "\n";
+  indent_level_++;
+  unary_expr->operand_->Accept(this);
+  indent_level_--;
+}
+void ASTPrinter::Visit(const FuncCallExprNode *func_call) {
+  PrintIndent();
+  *out_ << "FuncCallExprNode: " << func_call->func_name_ << "\n";
+  indent_level_++;
+  for (const auto &param : func_call->params_) {
+    param->Accept(this);
+  }
+  indent_level_--;
+}
+void ASTPrinter::Visit(const LValExprNode *lval_expr) {
+  PrintIndent();
+  *out_ << "LValExprNode: " << lval_expr->ident_ << "\n";
+  indent_level_++;
+  for (const auto &index : lval_expr->indices_) {
+    index->Accept(this);
+  }
+  indent_level_--;
+}
+void ASTPrinter::Visit(const IntLiteralExprNode *int_literal) {
+  PrintIndent();
+  *out_ << "IntLiteralExprNode: " << int_literal->value_ << "\n";
+}
+void ASTPrinter::Visit(const FloatLiteralExprNode *float_literal) {
+  PrintIndent();
+  *out_ << "FloatLiteralExprNode: " << float_literal->value_ << "\n";
+}
+// Statement nodes
+void ASTPrinter::Visit(const BlockStmtNode *block_stmt) {
+  PrintIndent();
+  *out_ << "BlockStmtNode\n";
+  indent_level_++;
+  for (const auto &stmt : block_stmt->block_items_) {
+    stmt->Accept(this);
+  }
+  indent_level_--;
+}
+void ASTPrinter::Visit(const AssignStmtNode *assign_stmt) {
+  PrintIndent();
+  *out_ << "AssignStmtNode\n";
+  indent_level_++;
+  assign_stmt->lval_->Accept(this);
+  assign_stmt->expr_->Accept(this);
+  indent_level_--;
+}
+void ASTPrinter::Visit(const ExprStmtNode *expr_stmt) {
+  PrintIndent();
+  *out_ << "ExprStmtNode\n";
+  indent_level_++;
+  if (expr_stmt->expr_) {
+    expr_stmt->expr_->Accept(this);
+  }
+  indent_level_--;
+}
+void ASTPrinter::Visit(const IfStmtNode *if_stmt) {
+  PrintIndent();
+  *out_ << "IfStmtNode\n";
+  indent_level_++;
+  if_stmt->condition_->Accept(this);
+  if_stmt->then_branch_->Accept(this);
+  if (if_stmt->else_branch_) {
+    if_stmt->else_branch_->Accept(this);
+  }
+  indent_level_--;
+}
+void ASTPrinter::Visit(const WhileStmtNode *while_stmt) {
+  PrintIndent();
+  *out_ << "WhileStmtNode\n";
+  indent_level_++;
+  while_stmt->condition_->Accept(this);
+  while_stmt->body_->Accept(this);
+  indent_level_--;
+}
+void ASTPrinter::Visit([[maybe_unused]] const BreakStmtNode *break_stmt) {
+  PrintIndent();
+  *out_ << "BreakStmtNode\n";
+}
+void ASTPrinter::Visit([[maybe_unused]] const ContinueStmtNode *continue_stmt) {
+  PrintIndent();
+  *out_ << "ContinueStmtNode\n";
+}
+void ASTPrinter::Visit(const ReturnStmtNode *return_stmt) {
+  PrintIndent();
+  *out_ << "ReturnStmtNode\n";
+  indent_level_++;
+  if (return_stmt->expr_) {
+    return_stmt->expr_->Accept(this);
+  }
+  indent_level_--;
+}
+// Variable nodes includes decl and initializer
+void ASTPrinter::Visit(const VarDefNode *var_def) {
+  PrintIndent();
+  *out_ << "VarDefNode: " << var_def->ident_ << "\n";
+  indent_level_++;
+  if (var_def->init_values_) {
+    var_def->init_values_->Accept(this);
+  }
+  indent_level_--;
+}
+void ASTPrinter::Visit(const GlobalVarDeclNode *global_var_decl) {
+  PrintIndent();
+  *out_ << "GlobalVarDeclNode\n";
+  indent_level_++;
+  for (const auto &def : global_var_decl->defs_) {
+    def->Accept(this);
+  }
+  indent_level_--;
+}
+void ASTPrinter::Visit(const LocalVarDeclNode *local_var_decl) {
+  PrintIndent();
+  *out_ << "LocalVarDeclNode\n";
+  indent_level_++;
+  for (const auto &def : local_var_decl->defs_) {
+    def->Accept(this);
+  }
+  indent_level_--;
+}
+void ASTPrinter::Visit(const InitListNode *init_list) {
+  PrintIndent();
+  *out_ << "InitListNode\n";
+  indent_level_++;
+  for (const auto &init_val : init_list->init_values_) {
+    init_val->Accept(this);
+  }
+  indent_level_--;
+}
+void ASTPrinter::Visit(const InitValNode *init_val) {
+  PrintIndent();
+  *out_ << "InitValNode\n";
+  indent_level_++;
+  init_val->value_->Accept(this);
+  indent_level_--;
+}
+
+// Abstract Classes
+void ASTPrinter::Visit([[maybe_unused]] const Initializer *initializer) {
+  throw std::logic_error("Initializer is an abstract class and should not be visited directly");
+}
+void ASTPrinter::Visit([[maybe_unused]] const DeclNode *decl_node) {
+  throw std::logic_error("DeclNode is an abstract class and should not be visited directly");
+}
+void ASTPrinter::Visit([[maybe_unused]] const StmtNode *stmt_node) {
+  throw std::logic_error("StmtNode is an abstract class and should not be visited directly");
+}
+void ASTPrinter::Visit([[maybe_unused]] const ExprNode *expr_node) {
+  throw std::logic_error("ExprNode is an abstract class and should not be visited directly");
+}
+
+// Function nodes
+void ASTPrinter::Visit(const FuncFParamNode *func_fparam) {
+  PrintIndent();
+  *out_ << "FuncFParamNode: " << func_fparam->param_name_ << "\n";
+}
+
+void ASTPrinter::Visit(const FuncDefNode *func_def) {
+  PrintIndent();
+  *out_ << "FuncDefNode: " << func_def->func_name_ << "\n";
+  indent_level_++;
+  for (const auto &param : func_def->parameters_) {
+    param->Accept(this);
+  }
+  func_def->body_->Accept(this);
+  indent_level_--;
+}
+
+void ASTPrinter::PrintIndent() const {
+  for (int i = 0; i < indent_level_; i++) {
+    *out_ << "  ";
+  }
+}
+
+}  // namespace frontend::ast

@@ -1,5 +1,4 @@
 #include <fstream>
-#include <iostream>
 #include <memory>
 #include <unordered_set>
 #include "context/compiler_context.h"
@@ -10,6 +9,9 @@
 #include "stages/stage.h"
 
 #define DEBUG
+#ifdef DEBUG
+#include <iostream>
+#endif
 static std::string file_name;
 static std::string output_name;
 static std::string stage = "llvm";

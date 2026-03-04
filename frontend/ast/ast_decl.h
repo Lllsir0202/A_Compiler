@@ -77,6 +77,9 @@ class InitListNode : public VisitAble<InitListNode, Initializer> {
  * Since we can have multiple variable definitions in one declaration statement
  * and the definitions are all the same in both global and local variable declarations
  * So we combine global and local variable definitions into one node class here.
+ * @param ident_: the identifier of the variable
+ * @param indices_: the indices of the array, if it is an array variable, otherwise it is empty
+ * @param init_values_: the initializer of the variable, can be nullptr
  */
 class VarDefNode : public VisitAble<VarDefNode, ASTNode> {
  public:
@@ -100,6 +103,7 @@ using VarDefNodePtr = std::unique_ptr<VarDefNode>;
  * @brief GlobalVarDeclNode representing a global variable declaration
  * e.g., int a; float b[10];
  * it will only appear in the root node's children
+ * @param defs_: the variable definitions in this declaration
  */
 class GlobalVarDeclNode : public VisitAble<GlobalVarDeclNode, DeclNode> {
  public:
@@ -114,6 +118,7 @@ class GlobalVarDeclNode : public VisitAble<GlobalVarDeclNode, DeclNode> {
  * it will appear in block statements
  * const or not can be determined here
  * and we can have multiple local variable declarations in one statement
+ * @param defs_: the variable definitions in this declaration
  */
 class LocalVarDeclNode : public VisitAble<LocalVarDeclNode, DeclNode> {
  public:
@@ -126,6 +131,8 @@ class LocalVarDeclNode : public VisitAble<LocalVarDeclNode, DeclNode> {
  * @brief Function Parameter Node
  * Since it is different from variable declaration,
  * we define a separate node for function parameters
+ * e.g., int a, float b[10]
+ * @param param_name_: the name of the parameter
  */
 class FuncFParamNode : public VisitAble<FuncFParamNode, ASTNode> {
  public:
@@ -145,6 +152,9 @@ using FuncFParamNodePtr = std::unique_ptr<FuncFParamNode>;
 /**
  * define function declaration node
  * @brief FunctionDeclNode representing a function declaration
+ * @param func_name_: the name of the function
+ * @param parameters_: the parameters of the function
+ * @param body_: the body of the function, represented as a block statement
  */
 class FuncDefNode : public VisitAble<FuncDefNode, ASTNode> {
  public:
