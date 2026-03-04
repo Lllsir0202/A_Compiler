@@ -282,42 +282,36 @@ funcdef:
     /* Function with no paramaters */
     VOID IDENTIFIER LPAREN RPAREN blockstmt
     {
-      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetVoidType(), std::move($2), std::move(*$5));
-      delete $5;
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetVoidType(), std::move($2), std::move($5));
     }
     |
     INT IDENTIFIER LPAREN RPAREN blockstmt
     {
-      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move($2), std::move(*$5));
-      delete $5;
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move($2), std::move($5));
     }
     |
     FLOAT IDENTIFIER LPAREN RPAREN blockstmt
     {
-      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move($2), std::move(*$5));
-      delete $5;
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move($2), std::move($5));
     }
     |
     /* Functions with paramaters */
     VOID IDENTIFIER LPAREN func_fparams RPAREN blockstmt
     {
-      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetVoidType(), std::move($2), std::move(*$6), std::move(*$4));
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetVoidType(), std::move($2), std::move($6), std::move(*$4));
       delete $4;
-      delete $6;
     }
     |
     INT IDENTIFIER LPAREN func_fparams RPAREN blockstmt
     {
-      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move($2), std::move(*$6), std::move(*$4));
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move($2), std::move($6), std::move(*$4));
       delete $4;
-      delete $6;
     }
     |
     FLOAT IDENTIFIER LPAREN func_fparams RPAREN blockstmt
     {
-      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move($2), std::move(*$6), std::move(*$4));
+      $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move($2), std::move($6), std::move(*$4));
       delete $4;
-      delete $6;
     }
     ;
   
@@ -416,6 +410,13 @@ stmt:
     |
     /* ReturnStmt: return [exp]; */
     returnstmt
+    {
+      $$ = std::move($1);
+    }
+    /* A special type of statement */
+    /* Declaration, I think it can be also considered as a statement */
+    |
+    decl
     {
       $$ = std::move($1);
     }
@@ -620,7 +621,7 @@ lval:
     /* TODO: Array type */
     IDENTIFIER
     {
-      $$ = std::make_unique<frontend::ast::IdentifierExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), std::move($1));
+      $$ = std::make_unique<frontend::ast::LValExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), std::move($1));
     }
     ;
 
@@ -655,9 +656,10 @@ func_rparams:
     ;
 
 decl:
-    /*  */
+    INT def_list SEMICOLON
     {
-      driver.ReportError(@$, "Declaration expected");
+      $$ = std::make_unique<frontend::ast::LocalVarDeclNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move(*$2));
+      delete $2;
     }
     ;
 
