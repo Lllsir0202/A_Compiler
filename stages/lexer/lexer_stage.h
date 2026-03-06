@@ -16,12 +16,12 @@ class LexerStage : public Stage {
     this->Collect();
     this->Print();
   }
-  explicit LexerStage(std::unique_ptr<frontend::Lexer> lexer, std::ofstream &outfile)
-      : lexer_(std::move(lexer)), outfile_(std::move(outfile)) {}
+  explicit LexerStage(std::unique_ptr<frontend::Lexer> lexer, std::ofstream &output)
+      : lexer_(std::move(lexer)), output_(std::move(output)) {}
 
  private:
   std::unique_ptr<frontend::Lexer> lexer_;
-  std::ofstream outfile_;
+  std::ofstream output_;
   std::deque<frontend::Token> tokens_;
   size_t max_tokentype_width_ = 9;
   size_t max_lexeme_width_ = 6;

@@ -30,7 +30,7 @@ In order to be more convenient, I divide our compiler into different stages, and
 5. Optimization Stage
 6. Code Generation Stage
 
-And I use ``stages`` namespace to divide it clearly with potential other parts. But to be honest, I only use ``stages`` to do output for each stage, it is just a Print function for each stage.
+And I use ``stages`` namespace to divide it clearly with potential other parts. But to be honest, I only use ``stages`` to do output for each stage, it is just a __Print__ function for each stage.
 
 ### Context
 Before starting design ``parser`` part, I was wondering how to manage all the information and avoid unnecessary repeated codes. Initially I decided to use ``Stages`` to run each part until specific stage, but I found it would lead to a lot of repeated code. So I designed a ``Context`` class to manage all the information needed during compilation. This class holds all data structures and provides methods to access and modify them. This way, each stage can interact with the ``Context`` to get the information it needs without duplicating code. Thus the class ``Stages`` only need to do output for each stage.

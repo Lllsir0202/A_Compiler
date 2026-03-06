@@ -109,9 +109,7 @@ class ConstASTVisitor {
   // Visit methods for variable nodes
   virtual void Visit(const VarDefNode *var_def) = 0;
   virtual void Visit(const GlobalVarDeclNode *global_var_decl) = 0;
-  virtual void Visit(const GlobalVarDefNode *global_var_def) = 0;
   virtual void Visit(const LocalVarDeclNode *local_var_decl) = 0;
-  virtual void Visit(const LocalVarDefNode *local_var_def) = 0;
   virtual void Visit(const InitListNode *init_list) = 0;
   virtual void Visit(const InitValNode *init_val) = 0;
   virtual void Visit(const FuncFParamNode *func_fparam) = 0;

@@ -694,7 +694,7 @@ initials:
     }
     /* List initializer */
     /* i.e., {1, {1,2}, 3, {{1,2,3}}} */
-    | LSBRACE initials_list RSBRACE
+    | LCBRACE initials_list RCBRACE
     {
       $$ = std::make_unique<frontend::ast::InitListNode>(@$, std::move(*$2));
       delete $2;

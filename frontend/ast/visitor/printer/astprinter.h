@@ -9,6 +9,9 @@
 namespace frontend::ast {
 class ASTPrinter : public ConstASTVisitor {
  public:
+  // Constructor
+  explicit ASTPrinter(std::ofstream *out) : out_(out) {}
+  ~ASTPrinter() override { out_ = nullptr; }
   // RootNode
   void Visit(const RootNode *root) override;
   // Should not be called directly, since they are abstract classes

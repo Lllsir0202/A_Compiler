@@ -5,7 +5,10 @@
 #include "ast/ast_spec.h"
 #include "ast/ast_stmt.h"
 #include "ast/ast_utils.h"
-#include "ast/astvisitor.h"
 #include "lexer/flex_lexer_impl.h"
 #include "lexer/lexer.h"
 #include "parser/parser_utils.h"
+
+// Following are visitors
+#include "ast/astvisitor.h"
+#include "ast/visitor/printer/astprinter.h"

@@ -6,6 +6,7 @@
 #include "parser/bison_parser_impl.h"
 #include "parser/parser.h"
 #include "stages/lexer/lexer_stage.h"
+#include "stages/parser/parser_stage.h"
 #include "stages/stage.h"
 
 #define DEBUG
@@ -156,6 +157,12 @@ auto main(int argc, char *argv[]) -> int {
   // CANNOT define parser before lexer's stage output.
   auto parser = std::make_unique<frontend::BisonParserImpl>(std::move(lexer));
   int ret = parser->Parse(compiler_context);
+  if (stage == "parser" && ret == 0) {
+    auto astprinter = std::make_unique<frontend::ast::ASTPrinter>(&output);
+    stage_ptr = std::make_unique<stages::ParserStage>(&compiler_context, std::move(astprinter));
+    stage_ptr->Run();
+    return ret;
+  }
   return ret;
   // std::cout << "Hello, World!" << '\n';
   return 0;

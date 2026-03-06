@@ -51,8 +51,8 @@ auto LexerStage::Collect() -> void {
  */
 auto LexerStage::Print() -> void {
   // First print the header
-  outfile_ << std::left << std::setw(max_tokentype_width_) << "TokenType" << std::setw(max_lexeme_width_) << "Lexeme"
-           << std::setw(max_line_) << "Line" << std::setw(max_column_) << "Column" << "\n\n";
+  output_ << std::left << std::setw(max_tokentype_width_) << "TokenType" << std::setw(max_lexeme_width_) << "Lexeme"
+          << std::setw(max_line_) << "Line" << std::setw(max_column_) << "Column" << "\n\n";
   // Then print all tokens
   while (!tokens_.empty()) {
     auto &token = tokens_.front();
@@ -60,7 +60,7 @@ auto LexerStage::Print() -> void {
       tokens_.pop_front();
       break;
     }
-    token.Print(outfile_, max_tokentype_width_, max_lexeme_width_, max_line_, max_column_);
+    token.Print(output_, max_tokentype_width_, max_lexeme_width_, max_line_, max_column_);
     tokens_.pop_front();
   }
 }
