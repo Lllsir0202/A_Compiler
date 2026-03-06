@@ -38,7 +38,7 @@ class CompilerContext {
    * @brief In the future, we will add input/output stream management here
    * and we will contruct lexer and parser using these streams
    */
-  std::ifstream *in_;
+  [[maybe_unused]] std::ifstream *in_;
   std::ofstream *out_;
 };
 

@@ -16,6 +16,7 @@ void ASTPrinter::Visit(const RootNode *root) {
 void ASTPrinter::Visit(const BinaryExprNode *binary_expr) {
   PrintIndent();
   *out_ << "BinaryExprNode: " << OpCodeToString(binary_expr->operator_) << "\n";
+  *out_ << "Type: " << binary_expr->GetType()->ToString() << "\n";
   indent_level_++;
   binary_expr->left_->Accept(this);
   binary_expr->right_->Accept(this);
@@ -24,6 +25,7 @@ void ASTPrinter::Visit(const BinaryExprNode *binary_expr) {
 void ASTPrinter::Visit(const UnaryExprNode *unary_expr) {
   PrintIndent();
   *out_ << "UnaryExprNode: " << OpCodeToString(unary_expr->operator_) << "\n";
+  *out_ << "Type: " << unary_expr->GetType()->ToString() << "\n";
   indent_level_++;
   unary_expr->operand_->Accept(this);
   indent_level_--;
@@ -31,6 +33,7 @@ void ASTPrinter::Visit(const UnaryExprNode *unary_expr) {
 void ASTPrinter::Visit(const FuncCallExprNode *func_call) {
   PrintIndent();
   *out_ << "FuncCallExprNode: " << func_call->func_name_ << "\n";
+  *out_ << "Type: " << func_call->GetType()->ToString() << "\n";
   indent_level_++;
   for (const auto &param : func_call->params_) {
     param->Accept(this);
@@ -40,6 +43,7 @@ void ASTPrinter::Visit(const FuncCallExprNode *func_call) {
 void ASTPrinter::Visit(const LValExprNode *lval_expr) {
   PrintIndent();
   *out_ << "LValExprNode: " << lval_expr->ident_ << "\n";
+  *out_ << "Type: " << lval_expr->GetType()->ToString() << "\n";
   indent_level_++;
   for (const auto &index : lval_expr->indices_) {
     index->Accept(this);
@@ -134,6 +138,8 @@ void ASTPrinter::Visit(const GlobalVarDeclNode *global_var_decl) {
   } else {
     *out_ << "GlobalVarDeclNode\n";
   }
+  PrintIndent();
+  *out_ << "Type: " << global_var_decl->GetType()->ToString() << "\n";
   indent_level_++;
   for (const auto &def : global_var_decl->defs_) {
     def->Accept(this);
@@ -147,6 +153,8 @@ void ASTPrinter::Visit(const LocalVarDeclNode *local_var_decl) {
   } else {
     *out_ << "LocalVarDeclNode\n";
   }
+  PrintIndent();
+  *out_ << "Type: " << local_var_decl->GetType()->ToString() << "\n";
   indent_level_++;
   for (const auto &def : local_var_decl->defs_) {
     def->Accept(this);

@@ -3,13 +3,16 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 namespace type {
 enum class TypeKind : uint8_t { UNKNOWN, BOOL, INT, FLOAT, VOID, PTR, ARRAY };
 
 class Type {
  public:
   auto GetKind() const -> TypeKind { return kind_; }
+  virtual auto ToString() const -> std::string = 0;
   Type() = delete;
+  virtual ~Type() = default;
 
  protected:
   explicit Type(TypeKind kind) : kind_(kind) {}
@@ -22,6 +25,10 @@ class Type {
  * @brief Unknown type will be used when type haven't been determined yet or error occurs
  */
 class UnknownType : public Type {
+ public:
+  auto ToString() const -> std::string override { return "Unknown"; }
+  ~UnknownType() override = default;
+
  private:
   UnknownType() : Type(TypeKind::UNKNOWN) {}
 
@@ -32,6 +39,10 @@ class UnknownType : public Type {
  * @brief Bool type will be used when condition import logical expressions
  */
 class BooleanType : public Type {
+ public:
+  auto ToString() const -> std::string override { return "Bool"; }
+  ~BooleanType() override = default;
+
  private:
   BooleanType() : Type(TypeKind::BOOL) {}
   friend class TypeFactory;
@@ -41,9 +52,12 @@ class BooleanType : public Type {
  * @brief Int type will be used for integer values
  */
 class IntegerType : public Type {
+ public:
+  auto ToString() const -> std::string override { return "Int"; }
+  ~IntegerType() override = default;
+
  private:
   IntegerType() : Type(TypeKind::INT) {}
-
   friend class TypeFactory;
 };
 
@@ -51,9 +65,12 @@ class IntegerType : public Type {
  * @brief Float type will be used for floating point values
  */
 class FloatType : public Type {
+ public:
+  auto ToString() const -> std::string override { return "Float"; }
+  ~FloatType() override = default;
+
  private:
   FloatType() : Type(TypeKind::FLOAT) {}
-
   friend class TypeFactory;
 };
 
@@ -61,9 +78,12 @@ class FloatType : public Type {
  * @brief Void type will be used for functions with no return value
  */
 class VoidType : public Type {
+ public:
+  auto ToString() const -> std::string override { return "Void"; }
+  ~VoidType() override = default;
+
  private:
   VoidType() : Type(TypeKind::VOID) {}
-
   friend class TypeFactory;
 };
 
@@ -76,7 +96,9 @@ class VoidType : public Type {
  */
 class PtrType : public Type {
  public:
+  auto ToString() const -> std::string override { return "Ptr to " + base_type_->ToString(); }
   auto GetBaseType() const -> Type * { return base_type_; }
+  ~PtrType() override = default;
 
  private:
   explicit PtrType(Type *base_type) : Type(TypeKind::PTR), base_type_(base_type) {}
@@ -91,8 +113,12 @@ class PtrType : public Type {
  */
 class ArrayType : public Type {
  public:
+  auto ToString() const -> std::string override {
+    return "Array of " + element_type_->ToString() + " with size " + std::to_string(size_);
+  }
   auto GetElementType() const -> Type * { return element_type_; }
   auto GetSize() const -> size_t { return size_; }
+  ~ArrayType() override = default;
 
  private:
   explicit ArrayType(Type *element_type, size_t size)
