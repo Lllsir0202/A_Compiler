@@ -178,3 +178,5 @@ When designing the grammar for SYSY language in Bison, since there are a lot of 
    2. a single `{}` which represents an empty body.
 Note that since in SYSY grammar, it is not allowed to have functions which have no body, so I can just use ``{stmt_list}`` to represent the body of the function.
 
+#### Printer
+Since the printer will never change the AST, I will use the ``ConstASTVisitor`` to implement the printer, which ensures that the AST nodes are not modified during the printing process. This way, we can safely traverse the AST and generate a human-readable representation of the source code without worrying about unintended modifications to the AST.
