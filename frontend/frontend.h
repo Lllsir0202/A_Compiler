@@ -7,6 +7,8 @@
 #include "ast/ast_utils.h"
 #include "lexer/flex_lexer_impl.h"
 #include "lexer/lexer.h"
+#include "parser/bison_parser_impl.h"
+#include "parser/parser.h"
 #include "parser/parser_utils.h"
 
 // Following are visitors

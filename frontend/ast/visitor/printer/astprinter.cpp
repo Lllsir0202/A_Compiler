@@ -129,7 +129,11 @@ void ASTPrinter::Visit(const VarDefNode *var_def) {
 }
 void ASTPrinter::Visit(const GlobalVarDeclNode *global_var_decl) {
   PrintIndent();
-  *out_ << "GlobalVarDeclNode\n";
+  if (global_var_decl->IsConst()) {
+    *out_ << "Const GlobalVarDeclNode\n";
+  } else {
+    *out_ << "GlobalVarDeclNode\n";
+  }
   indent_level_++;
   for (const auto &def : global_var_decl->defs_) {
     def->Accept(this);
@@ -138,7 +142,11 @@ void ASTPrinter::Visit(const GlobalVarDeclNode *global_var_decl) {
 }
 void ASTPrinter::Visit(const LocalVarDeclNode *local_var_decl) {
   PrintIndent();
-  *out_ << "LocalVarDeclNode\n";
+  if (local_var_decl->IsConst()) {
+    *out_ << "Const LocalVarDeclNode\n";
+  } else {
+    *out_ << "LocalVarDeclNode\n";
+  }
   indent_level_++;
   for (const auto &def : local_var_decl->defs_) {
     def->Accept(this);

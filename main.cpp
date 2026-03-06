@@ -3,8 +3,6 @@
 #include <unordered_set>
 #include "context/compiler_context.h"
 #include "frontend/frontend.h"
-#include "parser/bison_parser_impl.h"
-#include "parser/parser.h"
 #include "stages/lexer/lexer_stage.h"
 #include "stages/parser/parser_stage.h"
 #include "stages/stage.h"
