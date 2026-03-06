@@ -43,6 +43,7 @@ void ASTPrinter::Visit(const FuncCallExprNode *func_call) {
 void ASTPrinter::Visit(const LValExprNode *lval_expr) {
   PrintIndent();
   *out_ << "LValExprNode: " << lval_expr->ident_ << "\n";
+  PrintIndent();
   *out_ << "Type: " << lval_expr->GetType()->ToString() << "\n";
   indent_level_++;
   for (const auto &index : lval_expr->indices_) {
