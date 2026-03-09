@@ -30,10 +30,12 @@ class ExprNode : public ASTNode {
       : ASTNode(range), type_(type), is_const_(is_const) {}
   ~ExprNode() override;
   auto IsConst() const -> bool { return is_const_; }
+  auto SetConst(bool is_const) -> void { is_const_ = is_const; }
   auto GetType() const -> TypePtr { return type_; }
   auto SetType(TypePtr type) -> void { type_ = type; }
-  auto SetConst(bool is_const) -> void { is_const_ = is_const; }
-  virtual auto IsLval() const -> bool = 0;
+  // Since the expression can be calculated if it is const
+  // we need to add a member variable to store the value
+  // TODO(loki): add a struct
 
  private:
   TypePtr type_;
@@ -63,7 +65,6 @@ class BinaryExprNode : public VisitAble<BinaryExprNode, ExprNode> {
   OpCode operator_;
   ExprNodePtr left_;
   ExprNodePtr right_;
-  auto IsLval() const -> bool override { return false; }
 };
 
 /**
@@ -78,7 +79,6 @@ class UnaryExprNode : public VisitAble<UnaryExprNode, ExprNode> {
       : VisitAble<UnaryExprNode, ExprNode>(range, type, is_const), operator_(op), operand_(std::move(operand)) {}
   OpCode operator_;
   ExprNodePtr operand_;
-  auto IsLval() const -> bool override { return false; }
 };
 
 /**
@@ -99,7 +99,6 @@ class FuncCallExprNode : public VisitAble<FuncCallExprNode, ExprNode> {
 
   std::string func_name_;
   std::vector<ExprNodePtr> params_;
-  auto IsLval() const -> bool override { return false; }
 };
 
 /**
@@ -125,7 +124,6 @@ class LValExprNode : public VisitAble<LValExprNode, ExprNode> {
   std::string ident_;
   std::vector<ExprNodePtr> indices_;
   auto IsArray() const -> bool { return is_array_; }
-  auto IsLval() const -> bool override { return true; }
 
  private:
   bool is_array_;
@@ -145,7 +143,6 @@ class IntLiteralExprNode : public VisitAble<IntLiteralExprNode, ExprNode> {
   explicit IntLiteralExprNode(SourceRange range, TypePtr type, int value)
       : VisitAble<IntLiteralExprNode, ExprNode>(range, type, true), value_(value) {}
   int value_;
-  auto IsLval() const -> bool override { return false; }
 };
 
 /**
@@ -157,7 +154,6 @@ class FloatLiteralExprNode : public VisitAble<FloatLiteralExprNode, ExprNode> {
   explicit FloatLiteralExprNode(SourceRange range, TypePtr type, float value)
       : VisitAble<FloatLiteralExprNode, ExprNode>(range, type, true), value_(value) {}
   float value_;
-  auto IsLval() const -> bool override { return false; }
 };
 
 }  // namespace frontend::ast
