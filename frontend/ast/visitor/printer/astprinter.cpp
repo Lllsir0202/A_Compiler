@@ -46,8 +46,14 @@ void ASTPrinter::Visit(const LValExprNode *lval_expr) {
   PrintIndent();
   *out_ << "Type: " << lval_expr->GetType()->ToString() << "\n";
   indent_level_++;
-  for (const auto &index : lval_expr->indices_) {
-    index->Accept(this);
+  if (!lval_expr->indices_.empty()) {
+    PrintIndent();
+    *out_ << "Indices:\n";
+    indent_level_++;
+    for (const auto &index : lval_expr->indices_) {
+      index->Accept(this);
+    }
+    indent_level_--;
   }
   indent_level_--;
 }
@@ -127,6 +133,15 @@ void ASTPrinter::Visit(const VarDefNode *var_def) {
   PrintIndent();
   *out_ << "VarDefNode: " << var_def->ident_ << "\n";
   indent_level_++;
+  if (!var_def->indices_.empty()) {
+    PrintIndent();
+    *out_ << "Indices:\n";
+    indent_level_++;
+    for (const auto &index : var_def->indices_) {
+      index->Accept(this);
+    }
+    indent_level_--;
+  }
   if (var_def->init_values_) {
     var_def->init_values_->Accept(this);
   }
@@ -197,6 +212,22 @@ void ASTPrinter::Visit([[maybe_unused]] const ExprNode *expr_node) {
 void ASTPrinter::Visit(const FuncFParamNode *func_fparam) {
   PrintIndent();
   *out_ << "FuncFParamNode: " << func_fparam->param_name_ << "\n";
+  indent_level_++;
+  if (!func_fparam->indices_.empty()) {
+    PrintIndent();
+    *out_ << "Indices:\n";
+    indent_level_++;
+    for (const auto &index : func_fparam->indices_) {
+      if (!index) {
+        PrintIndent();
+        *out_ << "Empty index\n";
+        continue;
+      }
+      index->Accept(this);
+    }
+    indent_level_--;
+  }
+  indent_level_--;
 }
 
 void ASTPrinter::Visit(const FuncDefNode *func_def) {

@@ -174,6 +174,11 @@
 %type <frontend::StmtNodePtr> exprstmt
 %type <frontend::StmtNodePtr> assignstmt
 
+/* Following are the definitions about array */
+%type <std::vector<frontend::ExprNodePtr>*> array_indices
+
+/* Following are used to define the parameter */
+%type <std::vector<frontend::ExprNodePtr>*> func_fparam_indices
 
 /* Define grammer here */
 %%
@@ -277,11 +282,41 @@ def:
     {
       $$ = std::make_unique<frontend::ast::VarDefNode>(@$, std::move($1), std::move($3));
     }
+    |
+    /* Array definition */
+    IDENTIFIER array_indices 
+    {
+      $$ = std::make_unique<frontend::ast::VarDefNode>(@$, std::move($1), nullptr, std::move(*$2));
+      delete $2;
+    }
+    |
+    IDENTIFIER array_indices ASSIGN initials
+    {
+      $$ = std::make_unique<frontend::ast::VarDefNode>(@$, std::move($1), std::move($4), std::move(*$2));
+      delete $2;
+    }
+    ;
+
+array_indices:
+    /* array_indices [ expr ] */
+    array_indices LSBRACE expr RSBRACE
+    {
+      $$ = $1;
+      $$->emplace_back(std::move($3));
+    }
+    |
+    /* A single index */
+    /* Note: expr should be a constexpr */
+    LSBRACE expr RSBRACE
+    {
+      $$ = new std::vector<frontend::ExprNodePtr>();
+      $$->emplace_back(std::move($2));
+    }
     ;
 
 /* The definition of a function */
 funcdef:
-    /* Function with no paramaters */
+    /* Function with no parameters */
     VOID IDENTIFIER LPAREN RPAREN blockstmt
     {
       $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetVoidType(), std::move($2), std::move($5));
@@ -297,7 +332,7 @@ funcdef:
       $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move($2), std::move($5));
     }
     |
-    /* Functions with paramaters */
+    /* Functions with parameters */
     VOID IDENTIFIER LPAREN func_fparams RPAREN blockstmt
     {
       $$ = std::make_unique<frontend::ast::FuncDefNode>(@$, driver.GetContext().GetTypeContext()->GetVoidType(), std::move($2), std::move($6), std::move(*$4));
@@ -317,7 +352,7 @@ funcdef:
     }
     ;
   
-/* The formal paramaters of a function */
+/* The formal parameters of a function */
 func_fparams:
     /* func_fparams , func_fparam */
     func_fparams COMMA func_fparam
@@ -326,7 +361,7 @@ func_fparams:
       $$->emplace_back(std::move($3));
     }
     |
-    /* A single formal paramater */
+    /* A single formal parameter */
     func_fparam
     {
       $$ = new std::vector<frontend::FuncFParamNodePtr>();
@@ -334,8 +369,7 @@ func_fparams:
     }
     ;
 
-/* A single formal paramater */
-/* TODO: Add array type(and with initializers) */
+/* A single formal parameter */
 func_fparam:
     INT IDENTIFIER
     {
@@ -345,6 +379,35 @@ func_fparam:
     FLOAT IDENTIFIER
     {
       $$ = std::make_unique<frontend::ast::FuncFParamNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move($2));
+    }
+    |
+    /* Array parameter */
+    INT IDENTIFIER func_fparam_indices
+    {
+      $$ = std::make_unique<frontend::ast::FuncFParamNode>(@$, driver.GetContext().GetTypeContext()->GetPtrType(driver.GetContext().GetTypeContext()->GetIntegerType()), std::move($2), std::move(*$3));
+      delete $3;
+    }
+    |
+    FLOAT IDENTIFIER func_fparam_indices
+    {
+      $$ = std::make_unique<frontend::ast::FuncFParamNode>(@$, driver.GetContext().GetTypeContext()->GetPtrType(driver.GetContext().GetTypeContext()->GetFloatType()), std::move($2), std::move(*$3));
+      delete $3;
+    }
+    ;
+
+func_fparam_indices:
+    /* func_fparam_indices [ expr ] */
+    func_fparam_indices LSBRACE expr RSBRACE
+    {
+      $$ = $1;
+      $$->emplace_back(std::move($3));
+    }
+    |
+    /* The first index is nullptr */
+    LSBRACE RSBRACE
+    {
+      $$ = new std::vector<frontend::ExprNodePtr>();
+      $$->emplace_back(nullptr);
     }
     ;
 
@@ -618,30 +681,36 @@ expr:
     ;
 
 lval:
-    /* TODO: Array type */
     IDENTIFIER
     {
       $$ = std::make_unique<frontend::ast::LValExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), std::move($1));
     }
+    |
+    /* Array Type */
+    IDENTIFIER array_indices
+    {
+      $$ = std::make_unique<frontend::ast::LValExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), std::move($1), std::move(*$2));
+      delete $2;
+    }
     ;
 
 funccall:
-    /* No paramaters */
+    /* No parameters */
     IDENTIFIER LPAREN RPAREN
     {
       $$ = std::make_unique<frontend::ast::FuncCallExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), std::move($1));
     }
     |
-    /* With paramaters */
+    /* With parameters */
     IDENTIFIER LPAREN func_rparams RPAREN
     {
       $$ = std::make_unique<frontend::ast::FuncCallExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), std::move($1), std::move($3));
     }
     ;
 
-/* FuncRParams represents the Real paramaters in FuncCall */
+/* FuncRParams represents the Real parameters in FuncCall */
 func_rparams:
-    /* Note: the paramater is not necessarilt a Lval */
+    /* Note: the parameter is not necessarily a Lval */
     func_rparams COMMA expr
     {
       $$ = $1;
