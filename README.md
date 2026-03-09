@@ -178,5 +178,10 @@ When designing the grammar for SYSY language in Bison, since there are a lot of 
    2. a single `{}` which represents an empty body.
 Note that since in SYSY grammar, it is not allowed to have functions which have no body, so I can just use ``{stmt_list}`` to represent the body of the function.
 
+While adding the parser rules about array definition, I had some trouble about how to handle the array indices, since the array can be defined in two different ways:
+1. In function formal parameters, the array is defined with a single index, such as ``int arr[]``, which represents an array parameter. In this case, I will treat it as a pointer to the base type of the array.
+2. In variable declarations and the left values, the array is defined with multiple indices, such as ``int arr[10][20]``, which represents a multi-dimensional array. In this case, I will treat it as an array type with the specified dimensions.
+3. Note that the declaration of array variables' types will be decided in the semantic analysis stage instead of the parsing stage, since I want to keep the parsing stage focused on syntactic analysis and leave type checking and annotation to the semantic analysis stage. This way, we can keep the responsibilities of each stage clear and avoid mixing concerns. To achieve this, I will not do anything about the symbol table as well.
+
 #### Printer
 Since the printer will never change the AST, I will use the ``ConstASTVisitor`` to implement the printer, which ensures that the AST nodes are not modified during the printing process. This way, we can safely traverse the AST and generate a human-readable representation of the source code without worrying about unintended modifications to the AST.
