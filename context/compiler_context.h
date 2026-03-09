@@ -3,6 +3,7 @@
 
 #include <fstream>
 #include "context/ast_context.h"
+#include "context/symboltable_context.h"
 #include "context/type_context.h"
 namespace context {
 
@@ -17,13 +18,16 @@ class CompilerContext {
   CompilerContext(std::ifstream *in, std::ofstream *out) : in_(in), out_(out) {
     type_context_ = new TypeContext();
     ast_context_ = new AstContext();
+    symboltable_context_ = new SymbolTableContext();
   }
   ~CompilerContext() {
     delete type_context_;
     delete ast_context_;
+    delete symboltable_context_;
   }
   auto GetTypeContext() -> TypeContext * { return type_context_; }
   auto GetAstContext() -> AstContext * { return ast_context_; }
+  auto GetSymbolTableContext() -> SymbolTableContext * { return symboltable_context_; }
   auto ReportError(frontend::SourceRange source_range, const std::string &msg) -> void;
 
  private:
@@ -31,6 +35,8 @@ class CompilerContext {
   TypeContext *type_context_;
   // Then we need to control ast context here
   AstContext *ast_context_;
+  // We need to control symbol table context
+  SymbolTableContext *symboltable_context_;
 
   // Using this compiler context to control ALL resources in the compiler
 
