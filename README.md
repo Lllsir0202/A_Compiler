@@ -185,3 +185,12 @@ While adding the parser rules about array definition, I had some trouble about h
 
 #### Printer
 Since the printer will never change the AST, I will use the ``ConstASTVisitor`` to implement the printer, which ensures that the AST nodes are not modified during the printing process. This way, we can safely traverse the AST and generate a human-readable representation of the source code without worrying about unintended modifications to the AST.
+
+### Semantic Analysis
+To begin with, I will implement the symbol table to manage variable and function declarations, scopes, and types. 
+#### Symbol Table Design
+Since I want to manage all resources in a centralized way(The compiler context), I decided to implement the symbol table as part of the `CompilerContext`. 
+
+Out of the design belief, I implement the ``SymbolTableContext`` class to manage the symbol tables for variables and functions separately. This class provides methods to add and look up symbols, as well as to manage scopes. The symbol table is designed to support nested scopes, which is essential for handling function definitions and blocks.
+
+Since the variable and function are quite different, I decided to manage them separately in the symbol table, and talking about the resource management, since I didn't give any resource ownership to the symbol table, there is no need to worry about memory management in the symbol table.
