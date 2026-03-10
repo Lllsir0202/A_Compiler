@@ -129,7 +129,7 @@ using namespace frontend;
     // demical
     // because we need to distinguish hex and demical
 %}
-[0-9] | [1-9][0-9]+                                 {return this->MakeToken(TokenType::INTCONST, yytext, yylineno);}
+[0-9]|[1-9][0-9]+                                   {return this->MakeToken(TokenType::INTCONST, yytext, yylineno);}
 
 %{
     // hexadecimal    
