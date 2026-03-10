@@ -5,6 +5,7 @@
 #include "ast/ast_base.h"
 #include "ast/ast_utils.h"
 #include "ast/astvisitor.h"
+#include "ast/value/value.h"
 #include "token/location.h"
 namespace frontend::ast {
 /**
@@ -31,11 +32,10 @@ class ExprNode : public ASTNode {
   auto SetConst(bool is_const) -> void { is_const_ = is_const; }
   auto GetType() const -> TypePtr { return type_; }
   auto SetType(TypePtr type) -> void { type_ = type; }
-  // Since the expression can be calculated if it is const
-  // we need to add a member variable to store the value
-  // TODO(loki): add a struct
+  auto GetValue() const -> Value { return value_; }
 
  private:
+  Value value_;
   TypePtr type_;
   bool is_const_;
 };
