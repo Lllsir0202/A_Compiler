@@ -46,6 +46,11 @@ class CompilerContext {
    */
   [[maybe_unused]] std::ifstream *in_;
   std::ofstream *out_;
+
+  /**
+   * @brief Register library functions in the Sysy
+   */
+  auto InitializeLibFunc() -> void;
 };
 
 }  // namespace context

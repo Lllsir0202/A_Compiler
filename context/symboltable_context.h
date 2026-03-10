@@ -93,7 +93,7 @@ class SymbolTableContext {
    * @return true if the variable is added successfully, false if the variable already exists in
    */
   auto AddVar(const std::string &name, type::Type *type, bool is_const = false,
-              const std::vector<std::size_t> &dimensions = {}) -> bool;
+              std::vector<std::size_t> dimensions = {}) -> bool;
 
   /**
    * @brief Add a function to the symbol table
@@ -102,7 +102,7 @@ class SymbolTableContext {
    * @param param_types the parameter types of the function
    * @return true if the function is added successfully, false otherwise
    */
-  auto AddFunc(const std::string &name, type::Type *return_type, std::vector<type::Type *> &param_types) -> bool;
+  auto AddFunc(const std::string &name, type::Type *return_type, std::vector<type::Type *> param_types = {}) -> bool;
 
  private:
   std::vector<std::unordered_map<std::string, symboltable::VarEntry>> var_table_;

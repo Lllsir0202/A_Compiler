@@ -16,16 +16,27 @@ void ASTPrinter::Visit(const RootNode *root) {
 void ASTPrinter::Visit(const BinaryExprNode *binary_expr) {
   PrintIndent();
   *out_ << "BinaryExprNode: " << OpCodeToString(binary_expr->operator_) << "\n";
+  PrintIndent();
   *out_ << "Type: " << binary_expr->GetType()->ToString() << "\n";
+  PrintIndent();
+  *out_ << "Left:\n";
   indent_level_++;
   binary_expr->left_->Accept(this);
+  indent_level_--;
+  PrintIndent();
+  *out_ << "Right:\n";
+  indent_level_++;
   binary_expr->right_->Accept(this);
+  indent_level_--;
   indent_level_--;
 }
 void ASTPrinter::Visit(const UnaryExprNode *unary_expr) {
   PrintIndent();
   *out_ << "UnaryExprNode: " << OpCodeToString(unary_expr->operator_) << "\n";
+  PrintIndent();
   *out_ << "Type: " << unary_expr->GetType()->ToString() << "\n";
+  PrintIndent();
+  *out_ << "Operand:\n";
   indent_level_++;
   unary_expr->operand_->Accept(this);
   indent_level_--;
@@ -33,12 +44,20 @@ void ASTPrinter::Visit(const UnaryExprNode *unary_expr) {
 void ASTPrinter::Visit(const FuncCallExprNode *func_call) {
   PrintIndent();
   *out_ << "FuncCallExprNode: " << func_call->func_name_ << "\n";
+  PrintIndent();
   *out_ << "Type: " << func_call->GetType()->ToString() << "\n";
-  indent_level_++;
-  for (const auto &param : func_call->params_) {
-    param->Accept(this);
+  if (!func_call->params_.empty()) {
+    PrintIndent();
+    *out_ << "Parameters:\n";
+    indent_level_++;
+    for (const auto &param : func_call->params_) {
+      param->Accept(this);
+    }
+    indent_level_--;
+  } else {
+    PrintIndent();
+    *out_ << "Parameters: None\n";
   }
-  indent_level_--;
 }
 void ASTPrinter::Visit(const LValExprNode *lval_expr) {
   PrintIndent();
@@ -79,8 +98,16 @@ void ASTPrinter::Visit(const AssignStmtNode *assign_stmt) {
   PrintIndent();
   *out_ << "AssignStmtNode\n";
   indent_level_++;
+  PrintIndent();
+  *out_ << "LVal:\n";
+  indent_level_++;
   assign_stmt->lval_->Accept(this);
+  indent_level_--;
+  PrintIndent();
+  *out_ << "Expr:\n";
+  indent_level_++;
   assign_stmt->expr_->Accept(this);
+  indent_level_--;
   indent_level_--;
 }
 void ASTPrinter::Visit(const ExprStmtNode *expr_stmt) {
@@ -231,13 +258,40 @@ void ASTPrinter::Visit(const FuncFParamNode *func_fparam) {
 }
 
 void ASTPrinter::Visit(const FuncDefNode *func_def) {
-  PrintIndent();
-  *out_ << "FuncDefNode: " << func_def->func_name_ << "\n";
-  indent_level_++;
-  for (const auto &param : func_def->parameters_) {
-    param->Accept(this);
+  // Print function name
+  {
+    PrintIndent();
+    *out_ << "FuncDefNode: " << func_def->func_name_ << "\n";
   }
-  func_def->body_->Accept(this);
+  // Print return type
+  {
+    indent_level_++;
+    PrintIndent();
+    *out_ << "Return Type: " << func_def->return_type_->ToString() << "\n";
+  }
+  // Print parameters
+  {
+    if (!func_def->parameters_.empty()) {
+      PrintIndent();
+      *out_ << "Parameters:\n";
+      indent_level_++;
+      for (const auto &param : func_def->parameters_) {
+        param->Accept(this);
+      }
+      indent_level_--;
+    } else {
+      PrintIndent();
+      *out_ << "Parameters: None\n";
+    }
+  }
+  // Print body
+  {
+    PrintIndent();
+    *out_ << "Body:\n";
+    indent_level_++;
+    func_def->body_->Accept(this);
+    indent_level_--;
+  }
   indent_level_--;
 }
 
