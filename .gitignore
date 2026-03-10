@@ -21,3 +21,7 @@ frontend/parser/*.cpp
 # Ignore all test files
 test.*
 *.output
+/testcases/
+
+# Ignore Config files
+.vscode/
