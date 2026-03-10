@@ -21,8 +21,6 @@ namespace frontend::ast {
  * @method: SetType(TypePtr type): set the type of the expression,
  * used in semantic analysis phase to decide the type of the expression
  * @method: SetConst(bool is_const): set whether the expression is a constant expression
- * @method: IsLval(): whether the expression is an lvalue, used in semantic analysis phase to check whether the
- * expression can be assigned to.
  */
 class ExprNode : public ASTNode {
  public:

@@ -34,9 +34,9 @@ class BlockStmtNode : public VisitAble<BlockStmtNode, StmtNode> {
  */
 class AssignStmtNode : public VisitAble<AssignStmtNode, StmtNode> {
  public:
-  explicit AssignStmtNode(SourceRange range, std::unique_ptr<ExprNode> lval, ExprNodePtr expr)
+  explicit AssignStmtNode(SourceRange range, ExprNodePtr lval, ExprNodePtr expr)
       : VisitAble<AssignStmtNode, StmtNode>(range), lval_(std::move(lval)), expr_(std::move(expr)) {}
-  std::unique_ptr<ExprNode> lval_;
+  ExprNodePtr lval_;
   ExprNodePtr expr_;
 };
 
