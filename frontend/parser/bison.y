@@ -672,11 +672,13 @@ expr:
     INTCONST
     {
       $$ = std::make_unique<frontend::ast::IntLiteralExprNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), $1);
+      $$->GetValue().SetIntValue($1);
     }
     |
     FLOATCONST
     {
       $$ = std::make_unique<frontend::ast::FloatLiteralExprNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), $1);
+      $$->GetValue().SetFloatValue($1);
     }
     ;
 

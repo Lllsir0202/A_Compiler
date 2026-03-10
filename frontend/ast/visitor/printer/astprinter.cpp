@@ -15,8 +15,10 @@ void ASTPrinter::Visit(const RootNode *root) {
 // Expression nodes
 void ASTPrinter::Visit(const BinaryExprNode *binary_expr) {
   PrintIndent();
-  *out_ << "BinaryExprNode: " << OpCodeToString(binary_expr->operator_);
-  *out_ << "  --Type: " << binary_expr->GetType()->ToString() << "\n";
+  *out_ << "BinaryExprNode: " << OpCodeToString(binary_expr->operator_) << "\n";
+  PrintIndent();
+  *out_ << "  --Type: " << binary_expr->GetType()->ToString() << ", Value: " << binary_expr->GetValue().ToString()
+        << "\n";
   PrintIndent();
   *out_ << "Left:\n";
   indent_level_++;
@@ -30,8 +32,10 @@ void ASTPrinter::Visit(const BinaryExprNode *binary_expr) {
 }
 void ASTPrinter::Visit(const UnaryExprNode *unary_expr) {
   PrintIndent();
-  *out_ << "UnaryExprNode: " << OpCodeToString(unary_expr->operator_);
-  *out_ << "  --Type: " << unary_expr->GetType()->ToString() << "\n";
+  *out_ << "UnaryExprNode: " << OpCodeToString(unary_expr->operator_) << "\n";
+  PrintIndent();
+  *out_ << "  --Type: " << unary_expr->GetType()->ToString() << ", Value: " << unary_expr->GetValue().ToString()
+        << "\n";
   PrintIndent();
   *out_ << "Operand:\n";
   indent_level_++;
@@ -40,8 +44,9 @@ void ASTPrinter::Visit(const UnaryExprNode *unary_expr) {
 }
 void ASTPrinter::Visit(const FuncCallExprNode *func_call) {
   PrintIndent();
-  *out_ << "FuncCallExprNode: " << func_call->func_name_;
-  *out_ << "  --Type: " << func_call->GetType()->ToString() << "\n";
+  *out_ << "FuncCallExprNode: " << func_call->func_name_ << "\n";
+  PrintIndent();
+  *out_ << "  --Type: " << func_call->GetType()->ToString() << ", Value: " << func_call->GetValue().ToString() << "\n";
   if (!func_call->params_.empty()) {
     PrintIndent();
     *out_ << "Parameters:\n";
@@ -57,8 +62,9 @@ void ASTPrinter::Visit(const FuncCallExprNode *func_call) {
 }
 void ASTPrinter::Visit(const LValExprNode *lval_expr) {
   PrintIndent();
-  *out_ << "LValExprNode: " << lval_expr->ident_;
-  *out_ << "  --Type: " << lval_expr->GetType()->ToString() << "\n";
+  *out_ << "LValExprNode: " << lval_expr->ident_ << "\n";
+  PrintIndent();
+  *out_ << "  --Type: " << lval_expr->GetType()->ToString() << ", Value: " << lval_expr->GetValue().ToString() << "\n";
   indent_level_++;
   if (!lval_expr->indices_.empty()) {
     PrintIndent();
@@ -172,10 +178,11 @@ void ASTPrinter::Visit(const VarDefNode *var_def) {
 void ASTPrinter::Visit(const GlobalVarDeclNode *global_var_decl) {
   PrintIndent();
   if (global_var_decl->IsConst()) {
-    *out_ << "Const GlobalVarDeclNode";
+    *out_ << "Const GlobalVarDeclNode\n";
   } else {
-    *out_ << "GlobalVarDeclNode";
+    *out_ << "GlobalVarDeclNode\n";
   }
+  PrintIndent();
   *out_ << "  --Type: " << global_var_decl->GetType()->ToString() << "\n";
   indent_level_++;
   for (const auto &def : global_var_decl->defs_) {
@@ -186,10 +193,11 @@ void ASTPrinter::Visit(const GlobalVarDeclNode *global_var_decl) {
 void ASTPrinter::Visit(const LocalVarDeclNode *local_var_decl) {
   PrintIndent();
   if (local_var_decl->IsConst()) {
-    *out_ << "Const LocalVarDeclNode";
+    *out_ << "Const LocalVarDeclNode\n";
   } else {
-    *out_ << "LocalVarDeclNode";
+    *out_ << "LocalVarDeclNode\n";
   }
+  PrintIndent();
   *out_ << "  --Type: " << local_var_decl->GetType()->ToString() << "\n";
   indent_level_++;
   for (const auto &def : local_var_decl->defs_) {

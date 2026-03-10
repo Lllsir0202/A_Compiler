@@ -32,4 +32,17 @@ auto Value::SetBoolValue(bool bool_value) -> void {
   type_ = ValueType::BOOL;
 }
 
+auto Value::ToString() const -> std::string {
+  switch (type_) {
+    case ValueType::INT:
+      return "Int " + std::to_string(int_value_);
+    case ValueType::FLOAT:
+      return "Float " + std::to_string(float_value_);
+    case ValueType::BOOL:
+      return int_value_ != 0 ? "Bool true" : "Bool false";
+    default:
+      return "UNKNOWN_VALUE";
+  }
+}
+
 }  // namespace frontend::ast

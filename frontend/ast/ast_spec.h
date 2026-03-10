@@ -23,7 +23,8 @@ class RootNode : public VisitAble<RootNode> {
   ~RootNode() override = default;
   // provide methods to manage children but I think there's no need to delete a child.
   [[maybe_unused]] auto AddChild(ASTNodePtr child) -> void { children_.push_back(std::move(child)); }
-  [[maybe_unused]] auto GetChildren() const -> const std::vector<ASTNodePtr> & { return children_; }
+  auto GetChildren() const -> const std::vector<ASTNodePtr> & { return children_; }
+  auto SemanticGetchildren() -> std::vector<ASTNodePtr> & { return children_; }
 
  protected:
   std::vector<ASTNodePtr> children_;

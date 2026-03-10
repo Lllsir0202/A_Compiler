@@ -22,6 +22,7 @@ namespace frontend::ast {
  * @method: SetType(TypePtr type): set the type of the expression,
  * used in semantic analysis phase to decide the type of the expression
  * @method: SetConst(bool is_const): set whether the expression is a constant expression
+ * @note: change value type and the typeptr at the same time in semantic analysis phase
  */
 class ExprNode : public ASTNode {
  public:
@@ -32,7 +33,9 @@ class ExprNode : public ASTNode {
   auto SetConst(bool is_const) -> void { is_const_ = is_const; }
   auto GetType() const -> TypePtr { return type_; }
   auto SetType(TypePtr type) -> void { type_ = type; }
-  auto GetValue() const -> Value { return value_; }
+  auto GetValue() const -> const Value & { return value_; }
+  auto GetValue() -> Value & { return value_; }
+  auto GetValueType() const -> ValueType { return value_.GetType(); }
 
  private:
   Value value_;
