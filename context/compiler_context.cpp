@@ -7,6 +7,12 @@ auto context::CompilerContext::ReportError(frontend::SourceRange source_range, c
   throw std::runtime_error("Compilation error occurred.");
 }
 
+auto context::CompilerContext::ReportError(frontend::ast::ASTNode *node, const std::string &msg) -> void {
+  // We can get the source range from the AST node and call the other ReportError function
+  (*out_) << "Error at Line " << node->GetLine() << ", Column " << node->GetColumn() << ": " << msg << '\n';
+  throw std::runtime_error("Compilation error occurred.");
+}
+
 auto context::CompilerContext::InitializeLibFunc() -> void {
   auto int_type = type_context_->GetIntegerType();
   auto float_type = type_context_->GetFloatType();

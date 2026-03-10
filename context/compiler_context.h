@@ -2,6 +2,7 @@
 #define CONTEXT_COMPILER_CONTEXT_H
 
 #include <fstream>
+#include "ast/ast_base.h"
 #include "context/ast_context.h"
 #include "context/symboltable_context.h"
 #include "context/type_context.h"
@@ -29,6 +30,7 @@ class CompilerContext {
   auto GetAstContext() -> AstContext * { return ast_context_; }
   auto GetSymbolTableContext() -> SymbolTableContext * { return symboltable_context_; }
   auto ReportError(frontend::SourceRange source_range, const std::string &msg) -> void;
+  auto ReportError(frontend::ast::ASTNode *node, const std::string &msg) -> void;
 
  private:
   // First we control types pointer here
