@@ -21,7 +21,11 @@ frontend/parser/*.cpp
 # Ignore all test files
 test.*
 *.output
-/testcases/
+testcases/
 
 # Ignore Config files
 .vscode/
+
+# Since the archicture is different
+# We ignore the librarys
+libs/*.a
