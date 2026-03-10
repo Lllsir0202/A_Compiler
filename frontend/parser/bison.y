@@ -704,7 +704,8 @@ funccall:
     /* With parameters */
     IDENTIFIER LPAREN func_rparams RPAREN
     {
-      $$ = std::make_unique<frontend::ast::FuncCallExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), std::move($1), std::move($3));
+      $$ = std::make_unique<frontend::ast::FuncCallExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), std::move($1), std::move(*$3));
+      delete $3;
     }
     ;
 
