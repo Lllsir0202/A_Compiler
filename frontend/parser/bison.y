@@ -771,6 +771,10 @@ initials:
       $$ = std::make_unique<frontend::ast::InitListNode>(@$, std::move(*$2));
       delete $2;
     }
+    | LCBRACE RCBRACE
+    {
+      $$ = std::make_unique<frontend::ast::InitListNode>(@$);
+    }
     ;
 
 initials_list:

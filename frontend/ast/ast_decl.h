@@ -63,10 +63,11 @@ class InitValNode : public VisitAble<InitValNode, Initializer> {
  * @brief InitListNode representing a list initializer
  * e.g., = {1, 2, 3};
  * , = {1, {2, 3}, 4};
+ * , = {{}, {}, 1};
  */
 class InitListNode : public VisitAble<InitListNode, Initializer> {
  public:
-  explicit InitListNode(SourceRange range, std::vector<InitializerNodePtr> init_values)
+  explicit InitListNode(SourceRange range, std::vector<InitializerNodePtr> init_values = {})
       : VisitAble<InitListNode, Initializer>(range), init_values_(std::move(init_values)) {}
   std::vector<InitializerNodePtr> init_values_;
 };

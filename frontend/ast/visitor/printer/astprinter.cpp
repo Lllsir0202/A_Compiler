@@ -209,6 +209,10 @@ void ASTPrinter::Visit(const InitListNode *init_list) {
   PrintIndent();
   *out_ << "InitListNode\n";
   indent_level_++;
+  if (init_list->init_values_.empty()) {
+    PrintIndent();
+    *out_ << "Empty initializer list\n";
+  }
   for (const auto &init_val : init_list->init_values_) {
     init_val->Accept(this);
   }
