@@ -1,5 +1,7 @@
 #include "frontend/ast/value/value.h"
 #include <cassert>
+#include <cinttypes>
+#include <stdexcept>
 
 namespace frontend::ast {
 auto Value::GetIntValue() const -> int {
@@ -43,6 +45,175 @@ auto Value::ToString() const -> std::string {
     default:
       return "UNKNOWN_VALUE";
   }
+}
+
+auto Value::AsInt() const -> int {
+  if (type_ == ValueType::INT) {
+    return int_value_;
+  }
+  if (type_ == ValueType::FLOAT) {
+    return static_cast<int>(float_value_);
+  }
+  if (type_ == ValueType::BOOL) {
+    return int_value_ != 0 ? 1 : 0;
+  }
+  throw std::runtime_error("Cannot convert UNKNOWN value to int");
+}
+
+auto Value::AsFloat() const -> float {
+  if (type_ == ValueType::FLOAT) {
+    return float_value_;
+  }
+  if (type_ == ValueType::INT) {
+    return static_cast<float>(int_value_);
+  }
+  if (type_ == ValueType::BOOL) {
+    return int_value_ != 0 ? 1.0F : 0.0F;
+  }
+  throw std::runtime_error("Cannot convert UNKNOWN value to float");
+}
+
+auto Value::AsBool() const -> bool {
+  if (type_ == ValueType::BOOL) {
+    return int_value_ != 0;
+  }
+  if (type_ == ValueType::INT) {
+    return int_value_ != 0;
+  }
+  if (type_ == ValueType::FLOAT) {
+    return float_value_ != 0.0F;
+  }
+  throw std::runtime_error("Cannot convert UNKNOWN value to bool");
+}
+
+// Return true if either this or other is a float,
+//  indicating that the result of an operation between them should be a float
+auto Value::NeedFloat(const Value &other) const -> bool {
+  return type_ == ValueType::FLOAT || other.type_ == ValueType::FLOAT;
+}
+
+// override operators for basic arithmetic and logical operations
+
+/**
+ * @brief Arithemtic Operators
+ */
+auto Value::operator+(const Value &other) const -> Value {
+  if (NeedFloat(other)) {
+    return Value(this->AsFloat() + other.AsFloat());
+  }
+  // There is no float involved
+  // Since bool and int will always be a int result
+  // We do not need to consider bool separately
+  return Value(this->AsInt() + other.AsInt());
+}
+
+auto Value::operator-(const Value &other) const -> Value {
+  if (NeedFloat(other)) {
+    return Value(this->AsFloat() - other.AsFloat());
+  }
+  return Value(this->AsInt() - other.AsInt());
+}
+
+auto Value::operator*(const Value &other) const -> Value {
+  if (NeedFloat(other)) {
+    return Value(this->AsFloat() * other.AsFloat());
+  }
+  return Value(this->AsInt() * other.AsInt());
+}
+
+auto Value::operator/(const Value &other) const -> Value {
+  // Need to check if other is zero
+  if (NeedFloat(other)) {
+    float other_float = other.AsFloat();
+    if (other_float == 0.0F) {
+      throw std::runtime_error("Division by zero");
+    }
+    return Value(this->AsFloat() / other_float);
+  }
+  // Even though the divided result maybe a float,
+  // We still return an int here
+  int other_int = other.AsInt();
+  if (other_int == 0) {
+    throw std::runtime_error("Division by zero");
+  }
+  return Value(this->AsInt() / other_int);
+}
+
+auto Value::operator%(const Value &other) const -> Value {
+  // It is not supported for floats
+  if (NeedFloat(other)) {
+    throw std::runtime_error("Modulo operator is not defined for float values");
+  }
+  int other_int = other.AsInt();
+  if (other_int == 0) {
+    throw std::runtime_error("Modulo by zero");
+  }
+  return Value(this->AsInt() % other_int);
+}
+
+// Unary operators
+auto Value::operator-() const -> Value {
+  if (type_ == ValueType::FLOAT) {
+    return Value(-float_value_);
+  }
+  return Value(-int_value_);
+}
+
+auto Value::operator+() const -> Value {
+  // Unary plus does not change the value, but we still need to consider float and int
+  if (type_ == ValueType::FLOAT) {
+    return Value(float_value_);
+  }
+  return Value(int_value_);
+}
+
+auto Value::operator!() const -> Value { return Value(!this->AsBool()); }
+
+// Logical operators
+auto Value::operator&&(const Value &other) const -> Value { return Value(this->AsBool() && other.AsBool()); }
+
+auto Value::operator||(const Value &other) const -> Value { return Value(this->AsBool() || other.AsBool()); }
+
+auto Value::operator==(const Value &other) const -> Value {
+  if (NeedFloat(other)) {
+    return Value(this->AsFloat() == other.AsFloat());
+  }
+  return Value(this->AsInt() == other.AsInt());
+}
+
+auto Value::operator!=(const Value &other) const -> Value {
+  if (NeedFloat(other)) {
+    return Value(this->AsFloat() != other.AsFloat());
+  }
+  return Value(this->AsInt() != other.AsInt());
+}
+
+auto Value::operator<(const Value &other) const -> Value {
+  if (NeedFloat(other)) {
+    return Value(this->AsFloat() < other.AsFloat());
+  }
+  return Value(this->AsInt() < other.AsInt());
+}
+
+auto Value::operator>(const Value &other) const -> Value {
+  if (NeedFloat(other)) {
+    return Value(this->AsFloat() > other.AsFloat());
+  }
+  return Value(this->AsInt() > other.AsInt());
+}
+
+auto Value::operator<=(const Value &other) const -> Value {
+  if (NeedFloat(other)) {
+    return Value(this->AsFloat() <= other.AsFloat());
+  }
+  return Value(this->AsInt() <= other.AsInt());
+}
+
+auto Value::operator>=(const Value &other) const -> Value {
+  if (NeedFloat(other)) {
+    return Value(this->AsFloat() >= other.AsFloat());
+  }
+  return Value(this->AsInt() >= other.AsInt());
 }
 
 }  // namespace frontend::ast

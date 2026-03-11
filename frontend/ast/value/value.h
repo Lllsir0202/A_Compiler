@@ -9,7 +9,7 @@ namespace frontend::ast {
 
 /**
  * @brief ValueType enum to distinguish between different types of values
- * @note In ast phase, we only need to consider int, float and boolen.
+ * @note In ast phase, we only need to consider int, float and boolean.
  */
 enum class ValueType : uint8_t { INT, FLOAT, BOOL, UNKNOWN };
 /**
@@ -34,12 +34,39 @@ class Value {
 
   auto ToString() const -> std::string;
 
+  // Override operators for basic arithmetic and logical operations
+  auto operator+(const Value &other) const -> Value;
+  auto operator-(const Value &other) const -> Value;
+  auto operator*(const Value &other) const -> Value;
+  auto operator/(const Value &other) const -> Value;
+  auto operator%(const Value &other) const -> Value;
+  auto operator-() const -> Value;                     // Unary minus
+  auto operator+() const -> Value;                     // Unary plus
+  auto operator!() const -> Value;                     // Logical NOT
+  auto operator&&(const Value &other) const -> Value;  // Logical AND
+  auto operator||(const Value &other) const -> Value;  // Logical OR
+  auto operator==(const Value &other) const -> Value;  // Equality
+  auto operator!=(const Value &other) const -> Value;  // Inequality
+  auto operator<(const Value &other) const -> Value;   // Less than
+  auto operator>(const Value &other) const -> Value;   // Greater than
+  auto operator<=(const Value &other) const -> Value;  // Less than or equal
+  auto operator>=(const Value &other) const -> Value;  // Greater than
+
  private:
   union {
     int int_value_;
     float float_value_;
   };
   enum ValueType type_;
+
+  /**
+   * @brief Helper function to convert
+   */
+  auto AsInt() const -> int;
+  auto AsFloat() const -> float;
+  auto AsBool() const -> bool;
+
+  auto NeedFloat(const Value &other) const -> bool;
 };
 }  // namespace frontend::ast
 
