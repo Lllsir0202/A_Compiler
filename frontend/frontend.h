@@ -14,3 +14,4 @@
 // Following are visitors
 #include "ast/astvisitor.h"
 #include "ast/visitor/printer/astprinter.h"
+#include "ast/visitor/semantic/sem_analysis.h"

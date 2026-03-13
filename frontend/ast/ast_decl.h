@@ -44,6 +44,7 @@ class Initializer : public ASTNode {
  public:
   explicit Initializer(SourceRange range) : ASTNode(range) {}
   ~Initializer() override;
+  virtual auto IsConst() -> bool = 0;
 };
 
 using InitializerNodePtr = std::unique_ptr<Initializer>;
@@ -57,6 +58,7 @@ class InitValNode : public VisitAble<InitValNode, Initializer> {
   explicit InitValNode(SourceRange range, ExprNodePtr value)
       : VisitAble<InitValNode, Initializer>(range), value_(std::move(value)) {}
   ExprNodePtr value_;
+  auto IsConst() -> bool override { return value_->IsConst(); }
 };
 
 /**
@@ -70,6 +72,14 @@ class InitListNode : public VisitAble<InitListNode, Initializer> {
   explicit InitListNode(SourceRange range, std::vector<InitializerNodePtr> init_values = {})
       : VisitAble<InitListNode, Initializer>(range), init_values_(std::move(init_values)) {}
   std::vector<InitializerNodePtr> init_values_;
+  auto IsConst() -> bool override {
+    for (const auto &init_value : init_values_) {
+      if (!init_value->IsConst()) {
+        return false;
+      }
+    }
+    return true;
+  }
 };
 
 /**

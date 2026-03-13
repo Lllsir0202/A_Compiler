@@ -70,9 +70,7 @@ class ASTVisitor {
   // Visit methods for variable nodes
   virtual void Visit(VarDefNode *var_def) = 0;
   virtual void Visit(GlobalVarDeclNode *global_var_decl) = 0;
-  virtual void Visit(GlobalVarDefNode *global_var_def) = 0;
   virtual void Visit(LocalVarDeclNode *local_var_decl) = 0;
-  virtual void Visit(LocalVarDefNode *local_var_def) = 0;
   virtual void Visit(InitListNode *init_list) = 0;
   virtual void Visit(InitValNode *init_val) = 0;
   virtual void Visit(FuncFParamNode *func_fparam) = 0;

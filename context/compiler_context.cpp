@@ -13,6 +13,11 @@ auto context::CompilerContext::ReportError(frontend::ast::ASTNode *node, const s
   throw std::runtime_error("Compilation error occurred.");
 }
 
+auto context::CompilerContext::ReportError(const std::string &msg) -> void {
+  (*out_) << "Error: " << msg << '\n';
+  throw std::runtime_error("Compilation error occurred.");
+}
+
 auto context::CompilerContext::InitializeLibFunc() -> void {
   auto int_type = type_context_->GetIntegerType();
   auto float_type = type_context_->GetFloatType();

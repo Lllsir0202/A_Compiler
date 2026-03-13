@@ -1,6 +1,7 @@
 #include <fstream>
 #include <memory>
 #include <unordered_set>
+#include "ast/visitor/semantic/sem_analysis.h"
 #include "context/compiler_context.h"
 #include "frontend/frontend.h"
 #include "stages/lexer/lexer_stage.h"
@@ -155,6 +156,11 @@ auto main(int argc, char *argv[]) -> int {
   // CANNOT define parser before lexer's stage output.
   auto parser = std::make_unique<frontend::BisonParserImpl>(std::move(lexer));
   int ret = parser->Parse(compiler_context);
+  auto semantic_analyser = std::make_unique<frontend::ast::SemanticAnalyser>(compiler_context);
+  auto root = compiler_context.GetAstContext()->GetRootNode();
+  if (root != nullptr) {
+    root->Accept(semantic_analyser.get());
+  }
   if (stage == "parser" && ret == 0) {
     auto astprinter = std::make_unique<frontend::ast::ASTPrinter>(&output);
     stage_ptr = std::make_unique<stages::ParserStage>(&compiler_context, std::move(astprinter));

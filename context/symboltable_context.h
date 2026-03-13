@@ -5,6 +5,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include "ast/value/value.h"
 #include "utils/type/type.h"
 
 namespace symboltable {
@@ -17,6 +18,7 @@ struct VarEntry {
   type::Type *type_;
   bool is_const_;
   std::vector<size_t> dimensions_;  // for array variables, store the dimensions of the array
+  
 };
 
 /**
@@ -58,6 +60,7 @@ class SymbolTableContext {
   auto ExitScope() -> void {
     if (!var_table_.empty()) {
       var_table_.pop_back();
+      return;
     }
     // Should never exit the global scope
     throw std::logic_error("Cannot exit global scope");
@@ -90,10 +93,25 @@ class SymbolTableContext {
    * @param type the type of the variable
    * @param is_const whether the variable is const
    * @param dimensions the dimensions of the array if the variable is an array, otherwise it is empty
-   * @return true if the variable is added successfully, false if the variable already exists in
+   * @return true if the variable is added successfully, false if the variable already exists.
    */
-  auto AddVar(const std::string &name, type::Type *type, bool is_const = false,
+  auto AddVar(const std::string &name, type::Type *type = nullptr, bool is_const = false,
               std::vector<std::size_t> dimensions = {}) -> bool;
+
+  /**
+   * @brief Set the members of a variable entry in the symbol table
+   * @param name the name of the variable
+   * @param type the type of the variable
+   * @param is_const whether the variable is const
+   * @param dimensions the dimensions of the array if the variable is an array, otherwise it is empty
+   * @return true if the variable entry is updated successfully, false if the variable does not exist in the symbol
+   * table
+   * @note this method will only update the members in current scope.
+   * Used in Semantic Analysis
+   */
+  auto SetType(const std::string &name, type::Type *type) -> bool;
+  auto SetConst(const std::string &name, bool is_const) -> bool;
+  auto SetDimensions(const std::string &name, std::vector<std::size_t> dimensions) -> bool;
 
   /**
    * @brief Add a function to the symbol table
@@ -104,9 +122,25 @@ class SymbolTableContext {
    */
   auto AddFunc(const std::string &name, type::Type *return_type, std::vector<type::Type *> param_types = {}) -> bool;
 
+  /**
+   * @brief Add a function parameter to the symbol
+   * @param func_entry the function entry of the function parameter belongs to
+   * @param name the name of the function parameter
+   * @param type the type of the function parameter
+   * @return true if the function parameter is added successfully, false otherwise
+   */
+  auto AddFuncParam(symboltable::FuncEntry *func_entry, const std::string &name, type::Type *type) -> bool;
+
  private:
   std::vector<std::unordered_map<std::string, symboltable::VarEntry>> var_table_;
+  // We need to consider the function's parameters
+  // Since they are always defined in the function scope and can be accessed by any part of the function.
+  // It is just defined in function definition
+  std::unordered_map<symboltable::FuncEntry *, std::unordered_map<std::string, symboltable::VarEntry>>
+      func_param_table_;
   std::unordered_map<std::string, symboltable::FuncEntry> func_table_;
+  symboltable::FuncEntry *current_func_ =
+      nullptr;  // Keep track of the current function being processed, used for adding function parameters
 };
 }  // namespace context
 
