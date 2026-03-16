@@ -24,7 +24,7 @@ namespace frontend {
 class BisonParserImpl : public Parser {
  public:
   explicit BisonParserImpl(std::unique_ptr<Lexer> lexer) noexcept : Parser(std::move(lexer)) {}
-  ~BisonParserImpl() override = default;
+  ~BisonParserImpl() override { compiler_context_ = nullptr; };
 
   auto Parse(context::CompilerContext &context) -> int override;
 
