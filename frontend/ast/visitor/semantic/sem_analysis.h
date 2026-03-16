@@ -13,7 +13,12 @@ class SemanticAnalyser : public ASTVisitor {
  public:
   // Constructor
   explicit SemanticAnalyser(context::CompilerContext &compiler_context) : compiler_context_(&compiler_context) {}
-  ~SemanticAnalyser() override { compiler_context_ = nullptr; };
+  ~SemanticAnalyser() override {
+    if (compiler_context_ != nullptr) {
+      compiler_context_->GetSymbolTableContext()->ResetCurrentFunc();
+      compiler_context_ = nullptr;
+    }
+  };
 
   // Provide analyse method to start the semantic analysis process
   auto Analyse() -> int;

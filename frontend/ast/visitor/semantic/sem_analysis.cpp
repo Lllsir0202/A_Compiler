@@ -91,11 +91,13 @@ auto SemanticAnalyser::Analyse() -> int {
     root->Accept(this);
   } catch (const std::runtime_error &e) {
     // Has exception in semantic analysis, return 1 to indicate failure
+    compiler_context_->GetSymbolTableContext()->ResetCurrentFunc();
     compiler_context_ = nullptr;
     return 1;
   }
 
   // succeed to analyse
+  compiler_context_->GetSymbolTableContext()->ResetCurrentFunc();
   compiler_context_ = nullptr;
   return 0;
 }

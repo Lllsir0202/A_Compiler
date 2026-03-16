@@ -131,6 +131,13 @@ class SymbolTableContext {
    */
   auto AddFuncParam(symboltable::FuncEntry *func_entry, const std::string &name, type::Type *type) -> bool;
 
+  /**
+   * @brief Reset the current function being processed.
+   * @note Should only be called when the semantic analysis has terminaled, since it means there is no function being
+   processed.
+   */
+  auto ResetCurrentFunc() -> void { current_func_ = nullptr; }
+
  private:
   std::vector<std::unordered_map<std::string, symboltable::VarEntry>> var_table_;
   // We need to consider the function's parameters
@@ -139,8 +146,9 @@ class SymbolTableContext {
   std::unordered_map<symboltable::FuncEntry *, std::unordered_map<std::string, symboltable::VarEntry>>
       func_param_table_;
   std::unordered_map<std::string, symboltable::FuncEntry> func_table_;
-  symboltable::FuncEntry *current_func_ =
-      nullptr;  // Keep track of the current function being processed, used for adding function parameters
+  symboltable::FuncEntry *current_func_ = nullptr;
+  // Keep track of the current function being processed, used for adding function parameters
+  // When the semantic analyser reach the end, we will reset the member because it means the analysis has terminaled.
 };
 }  // namespace context
 
