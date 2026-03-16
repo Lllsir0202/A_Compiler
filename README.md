@@ -129,8 +129,8 @@ By default, I use `flex` for lexical analysis.
 
 I follow ``ISO/IEC 9899`` to finish all the ``const integer and float`` recognition, and I follow the procedures listed below to do recognition and output:
 1. if user need to output lexer, I will stop at lexer, and output tokens to the specified file;
-2. to be attention, I will transfer owner to ``stages`` module to do output for lexer stage, so I cannot use ``lexer`` and ``ofstream`` after that.
-3. if user do not need to output lexer, I will transfer tokens to parser directly.
+2. to be attention, I will transfer owner to ``stages`` module to do output for lexer stage, so we cannot use ``lexer`` and ``ofstream`` after that.
+3. if user do not need to output lexer, we will transfer tokens to parser directly.
 
 ### AST
 Before starting design ``parser`` part, I need to design the AST structure to represent the syntax tree of the source code. The AST is a hierarchical representation of the program's structure, where each node corresponds to a construct in the source code (e.g., expressions, statements, declarations). But it is still different from IR tree, which is more close to machine code.
@@ -194,3 +194,20 @@ Since I want to manage all resources in a centralized way(The compiler context),
 Out of the design belief, I implement the ``SymbolTableContext`` class to manage the symbol tables for variables and functions separately. This class provides methods to add and look up symbols, as well as to manage scopes. The symbol table is designed to support nested scopes, which is essential for handling function definitions and blocks.
 
 Since the variable and function are quite different, I decided to manage them separately in the symbol table, and talking about the resource management, since I didn't give any resource ownership to the symbol table, there is no need to worry about memory management in the symbol table.
+
+#### Analyzing Process
+Since the analyser needs to modify the AST to annotate nodes with type information, I will use the `ASTVisitor` interface to implement the semantic analysis visitor. This visitor will traverse the AST and perform type checking, scope management, and symbol table updates as needed.
+
+And I would like to just introduce some import details about the semantic analysis process:
+1. When visiting a variable declaration node, the ``Visit`` function will create a new symbol for the variable and add it to the symbol table. And then it will call the ``Visit`` function for each variable definition node, which will check each variable definition and add different information to the symbol table, such as the variable's name, type, and scope.
+
+2. When visiting a function definition node, the ``Visit`` function will create a new symbol for the function and add it to the symbol table. It will alse update the ``current_function`` and then store the information about the function's parameters and return type in the symbol table.  
+   
+   To be idealistic, we should reset the ``current_function`` to nullptr every time we finish analyzing a function definition, but since there is no iterative function definition and we will update the ``current_function`` every time we visit a function definition node, so we can just reset it every time the semantic analysis is terminaled(whether it is terminaled successfully or with exception), which can make the code simpler and easier to maintain.
+
+3. Since we have finished talking about definitions, I would like to talk about expressions. While visiting a expression, it is totally different from visiting a ``constant expression`` and visiting a ``non-constant expression``. For instance, when visiting a constant expression, we need to evaluate the expression and set its value and type in the AST node, which will be used for constant folding in the frontend optimization, however, when visiting a non-constant expression, we only need to check the types of the operands and set the type of the expression node without evaluating it, since it may involve variables whose values are not known at compile time.  
+   
+   Out of the belief of optimal efficiency, I decide to do constant folding during the semantic analysis and for constant variable including constant array type. But to be attention, __the lval of a constant array is not definitely a constant expression__, since it may be used as __a parameter in function calls__ as well as __the index maybe non-constant__.(TODO: How to design this elegantly? >_<)
+
+4. Since the statements are quite different from expressions and declarations, it is much easier to analyze them, and there is not a lot of things needed to be done when visiting a statement node.
+
