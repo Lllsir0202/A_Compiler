@@ -14,6 +14,10 @@ class SemanticAnalyser : public ASTVisitor {
   // Constructor
   explicit SemanticAnalyser(context::CompilerContext &compiler_context) : compiler_context_(&compiler_context) {}
   ~SemanticAnalyser() override { compiler_context_ = nullptr; };
+
+  // Provide analyse method to start the semantic analysis process
+  auto Analyse() -> int;
+
   // RootNode
   void Visit(RootNode *root) override;
   // Should not be called directly, since they are abstract classes

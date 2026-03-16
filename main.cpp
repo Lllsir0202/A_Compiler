@@ -157,9 +157,10 @@ auto main(int argc, char *argv[]) -> int {
   auto parser = std::make_unique<frontend::BisonParserImpl>(std::move(lexer));
   int ret = parser->Parse(compiler_context);
   auto semantic_analyser = std::make_unique<frontend::ast::SemanticAnalyser>(compiler_context);
-  auto root = compiler_context.GetAstContext()->GetRootNode();
-  if (root != nullptr) {
-    root->Accept(semantic_analyser.get());
+  auto success = semantic_analyser->Analyse();
+  if (success != 0) {
+    std::cerr << "Semantic analysis failed with errors.\n";
+    return success;
   }
   if (stage == "parser" && ret == 0) {
     auto astprinter = std::make_unique<frontend::ast::ASTPrinter>(&output);

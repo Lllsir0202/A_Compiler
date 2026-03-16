@@ -5,7 +5,6 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include "ast/value/value.h"
 #include "utils/type/type.h"
 
 namespace symboltable {
@@ -18,7 +17,8 @@ struct VarEntry {
   type::Type *type_;
   bool is_const_;
   std::vector<size_t> dimensions_;  // for array variables, store the dimensions of the array
-  
+  // Represent the initializer of the variable, since there might be no initializer,
+  // I decide to use a optional container to store the initializer
 };
 
 /**

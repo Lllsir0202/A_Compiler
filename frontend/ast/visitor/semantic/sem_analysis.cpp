@@ -82,6 +82,24 @@ inline auto SemanticAnalyser::DecideResultType(OpCode op, ExprNode *operand) -> 
   }
 }
 
+auto SemanticAnalyser::Analyse() -> int {
+  if (compiler_context_ == nullptr) {
+    throw std::logic_error("Compiler context is null");
+  }
+  try {
+    auto root = compiler_context_->GetAstContext()->GetRootNode();
+    root->Accept(this);
+  } catch (const std::runtime_error &e) {
+    // Has exception in semantic analysis, return 1 to indicate failure
+    compiler_context_ = nullptr;
+    return 1;
+  }
+
+  // succeed to analyse
+  compiler_context_ = nullptr;
+  return 0;
+}
+
 // RootNode
 void SemanticAnalyser::Visit(RootNode *root) {
   for (auto &child : root->SemanticGetchildren()) {
@@ -186,6 +204,7 @@ void SemanticAnalyser::Visit(LValExprNode *LVal) {
   }
   auto def_indices = var_def->dimensions_;
   TypePtr result_type = nullptr;
+
   if (!def_indices.empty() && LVal->indices_.size() == def_indices.size()) {
     assert(var_def->type_->GetKind() == type::TypeKind::ARRAY);
     result_type = static_cast<type::ArrayType *>(var_def->type_)->GetElementType();
@@ -201,12 +220,26 @@ void SemanticAnalyser::Visit(LValExprNode *LVal) {
                                    std::to_string(LVal->indices_.size()));
   }
 
+  // Analyze the indices if there are any
+  bool index_is_const = true;
+  for (auto &index : LVal->indices_) {
+    index->Accept(this);
+    if (index->GetType()->GetKind() != type::TypeKind::INT) {
+      compiler_context_->ReportError("array subscript must be an integer");
+    }
+    if (!index->IsConst()) {
+      // Since if there is no index,
+      // the variable will not change the constant attribute
+      index_is_const = false;
+    }
+  }
+
   // Then we can set the type of the LVal expression
   if (result_type != nullptr) {
     LVal->SetType(result_type);
   }
   LVal->SetType(var_def->type_);
-  LVal->SetConst(var_def->is_const_);
+  LVal->SetConst(var_def->is_const_ && index_is_const);
 }
 
 // Then we can visit stmt nodes
