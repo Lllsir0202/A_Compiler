@@ -21,6 +21,12 @@ auto BisonParserImpl::Parse(context::CompilerContext &context) -> int {
     // Handle parsing errors if necessary
     compiler_context_ = nullptr;
     return 1;
+  } catch (const std::logic_error &e) {
+    compiler_context_ = nullptr;
+    return 2;
+  } catch (...) {
+    compiler_context_ = nullptr;
+    return 3;
   }
 
   // Clear the context after parsing

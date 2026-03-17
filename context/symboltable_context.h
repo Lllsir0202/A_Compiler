@@ -146,9 +146,9 @@ class SymbolTableContext {
   std::unordered_map<symboltable::FuncEntry *, std::unordered_map<std::string, symboltable::VarEntry>>
       func_param_table_;
   std::unordered_map<std::string, symboltable::FuncEntry> func_table_;
-  symboltable::FuncEntry *current_func_ = nullptr;
   // Keep track of the current function being processed, used for adding function parameters
   // When the semantic analyser reach the end, we will reset the member because it means the analysis has terminaled.
+  symboltable::FuncEntry *current_func_ = nullptr;
 };
 }  // namespace context
 

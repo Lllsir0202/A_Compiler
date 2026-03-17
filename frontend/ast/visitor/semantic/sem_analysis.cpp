@@ -40,7 +40,6 @@ inline auto SemanticAnalyser::DecideResultType(OpCode op, ExprNode *left, ExprNo
       }
       compiler_context_->ReportError("invalid operand types for arithmetic operator: " + left->GetType()->ToString() +
                                      " and " + right->GetType()->ToString());
-
     case OpCode::MOD:
       if ((lhs_is_int || lhs_is_bool) && (rhs_is_int || rhs_is_bool)) {
         return compiler_context_->GetTypeContext()->GetIntegerType();
@@ -94,6 +93,14 @@ auto SemanticAnalyser::Analyse() -> int {
     compiler_context_->GetSymbolTableContext()->ResetCurrentFunc();
     compiler_context_ = nullptr;
     return 1;
+  } catch (const std::logic_error &e) {
+    compiler_context_->GetSymbolTableContext()->ResetCurrentFunc();
+    compiler_context_ = nullptr;
+    return 2;
+  } catch (...) {
+    compiler_context_->GetSymbolTableContext()->ResetCurrentFunc();
+    compiler_context_ = nullptr;
+    return 3;
   }
 
   // succeed to analyse
@@ -171,6 +178,7 @@ void SemanticAnalyser::Visit(FuncCallExprNode *func_call) {
   auto func_def = compiler_context_->GetSymbolTableContext()->LookupFunc(func_call->func_name_);
   if (func_def == nullptr) {
     compiler_context_->ReportError("function " + func_call->func_name_ + " is not defined");
+    return;
   }
 
   // First visit all parameters
@@ -182,6 +190,7 @@ void SemanticAnalyser::Visit(FuncCallExprNode *func_call) {
     compiler_context_->ReportError("function " + func_call->func_name_ + " expects " +
                                    std::to_string(func_def->param_types_.size()) + " parameters, but got " +
                                    std::to_string(func_call->params_.size()));
+    return;
   }
 
   size_t param_count = func_def->param_types_.size();
@@ -203,6 +212,7 @@ void SemanticAnalyser::Visit(LValExprNode *LVal) {
   auto var_def = compiler_context_->GetSymbolTableContext()->LookupVar(LVal->ident_);
   if (var_def == nullptr) {
     compiler_context_->ReportError("variable " + LVal->ident_ + " is not defined");
+    return;
   }
   auto def_indices = var_def->dimensions_;
   TypePtr result_type = nullptr;
@@ -242,6 +252,19 @@ void SemanticAnalyser::Visit(LValExprNode *LVal) {
   }
   LVal->SetType(var_def->type_);
   LVal->SetConst(var_def->is_const_ && index_is_const);
+
+  /**
+  * We can get the value of the LVal expression
+  * If the LVal has following attributes:
+  * 1. The variable is const
+  * 2. All indices are constant expressions (if has)
+  * 3. The type of the LVal expression is not a pointer type
+  * which means the LVal expression is used in a function call
+
+  * Then we can get the value from the symbol table directly.
+  */
+  // if (LVal->GetType()->GetKind() != type::TypeKind::PTR && LVal->IsConst()) {
+  // }
 }
 
 // Then we can visit stmt nodes
@@ -324,6 +347,7 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
   auto entry = compiler_context_->GetSymbolTableContext()->LookupVar(var_def->ident_);
   if (entry == nullptr) {
     compiler_context_->ReportError(var_def, "variable " + var_def->ident_ + " is not defined");
+    return;
   }
 
   if (!var_def->indices_.empty()) {
@@ -411,6 +435,7 @@ void SemanticAnalyser::Visit(FuncFParamNode *func_fparam) {
     if (index == nullptr) {
       compiler_context_->ReportError(func_fparam,
                                      "only the first dimension of an array parameter can be left unspecified");
+      return;
     }
     index->Accept(this);
     if (index->GetType()->GetKind() != type::TypeKind::INT) {

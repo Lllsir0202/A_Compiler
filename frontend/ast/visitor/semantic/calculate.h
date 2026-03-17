@@ -9,9 +9,9 @@
 #define DEBUG
 
 #ifdef DEBUG
-#define CHECK(cond, msg) \
-  do {                   \
-    assert(cond &&msg);  \
+#define CHECK(cond, msg)     \
+  do {                       \
+    assert((cond) && (msg)); \
   } while (0)
 #else
 #define CHECK(cond, msg) \

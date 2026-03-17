@@ -156,18 +156,17 @@ auto main(int argc, char *argv[]) -> int {
   // CANNOT define parser before lexer's stage output.
   auto parser = std::make_unique<frontend::BisonParserImpl>(std::move(lexer));
   int ret = parser->Parse(compiler_context);
+
   auto semantic_analyser = std::make_unique<frontend::ast::SemanticAnalyser>(compiler_context);
-  auto success = semantic_analyser->Analyse();
-  if (success != 0) {
-    std::cerr << "Semantic analysis failed with errors.\n";
-    return success;
-  }
+  ret = semantic_analyser->Analyse();
+
   if (stage == "parser" && ret == 0) {
     auto astprinter = std::make_unique<frontend::ast::ASTPrinter>(&output);
     stage_ptr = std::make_unique<stages::ParserStage>(&compiler_context, std::move(astprinter));
     stage_ptr->Run();
     return ret;
   }
+
   return ret;
   // std::cout << "Hello, World!" << '\n';
   // return 0;
