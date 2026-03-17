@@ -271,7 +271,6 @@ def_list:
     ;
 
 /* Every definition can have initializer or not */
-/* TODO: Add array definition */
 def:
     IDENTIFIER
     {

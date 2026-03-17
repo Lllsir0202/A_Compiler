@@ -14,7 +14,6 @@ class Token {
   std::string lexeme_;
   // Record information about location
   SourceRange source_range_;
-  // TODO(loki): add a class to store value
 
   // Private constructor
   Token(TokenType type, std::string lexeme, SourceRange &source_range)
