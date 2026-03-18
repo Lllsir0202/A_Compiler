@@ -219,7 +219,8 @@ void SemanticAnalyser::Visit(LValExprNode *LVal) {
   // Since once we finish the Visit of VarDefNode, we will set the variable true
   // if it is not true, which means the variable has not been processed through VarDefNode
   if (!var_def->is_being_defined_) {
-    compiler_context_->ReportError(LVal, "variable (" + LVal->ident_ + ") is not defined");
+    compiler_context_->ReportError(LVal,
+                                   "variable (" + LVal->ident_ + ") is not defined yet, but be used as an initializer");
     return;
   }
   auto def_indices = var_def->dimensions_;
