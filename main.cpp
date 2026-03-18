@@ -4,6 +4,7 @@
 #include "ast/visitor/semantic/sem_analysis.h"
 #include "context/compiler_context.h"
 #include "frontend/frontend.h"
+#include "stages/ast/ast_stage.h"
 #include "stages/lexer/lexer_stage.h"
 #include "stages/parser/parser_stage.h"
 #include "stages/stage.h"
@@ -157,12 +158,24 @@ auto main(int argc, char *argv[]) -> int {
   auto parser = std::make_unique<frontend::BisonParserImpl>(std::move(lexer));
   int ret = parser->Parse(compiler_context);
 
-  auto semantic_analyser = std::make_unique<frontend::ast::SemanticAnalyser>(compiler_context);
-  ret = semantic_analyser->Analyse();
+  if (ret != 0) {
+    std::cerr << "Error: Parsing failed with error code " << ret << '\n';
+    return ret;
+  }
 
   if (stage == "parser" && ret == 0) {
     auto astprinter = std::make_unique<frontend::ast::ASTPrinter>(&output);
     stage_ptr = std::make_unique<stages::ParserStage>(&compiler_context, std::move(astprinter));
+    stage_ptr->Run();
+    return ret;
+  }
+
+  auto semantic_analyser = std::make_unique<frontend::ast::SemanticAnalyser>(compiler_context);
+  ret = semantic_analyser->Analyse();
+
+  if (stage == "ast" && ret == 0) {
+    auto astprinter = std::make_unique<frontend::ast::ASTPrinter>(&output);
+    stage_ptr = std::make_unique<stages::ASTStage>(&compiler_context, std::move(astprinter));
     stage_ptr->Run();
     return ret;
   }

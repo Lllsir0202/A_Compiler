@@ -1,7 +1,4 @@
 #include "utils/flatten/flatten_initializer.h"
-#include <cstddef>
-#include <stdexcept>
-#include "ast/value/value.h"
 #include "frontend/ast/ast_decl.h"
 #include "utils/flatten/initializer.h"
 

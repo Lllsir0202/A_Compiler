@@ -1,6 +1,5 @@
 #ifndef UTILS_FLATTEN_FLATTEN_INITIALIZER_H
 #define UTILS_FLATTEN_FLATTEN_INITIALIZER_H
-#include <vector>
 #include "ast/ast_decl.h"
 #include "utils/flatten/initializer.h"
 namespace frontend::ast {
