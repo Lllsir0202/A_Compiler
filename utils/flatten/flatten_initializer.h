@@ -1,7 +1,8 @@
 #ifndef UTILS_FLATTEN_FLATTEN_INITIALIZER_H
 #define UTILS_FLATTEN_FLATTEN_INITIALIZER_H
+#include <vector>
+#include "ast/ast_decl.h"
 #include "utils/flatten/initializer.h"
-
 namespace frontend::ast {
 class InitValNode;
 class InitListNode;
@@ -14,9 +15,7 @@ namespace flatten {
  * @param init_node: the initializer node to be flattened
  * @return the flattened initializer
  */
-auto FlattenInitializer(const frontend::ast::InitValNode &init_node) -> initializer::Initializer;
-
-auto FlattenInitializer(const frontend::ast::InitListNode &init_node) -> initializer::Initializer;
+auto FlattenInitializer(const frontend::ast::InitListNode *init_node) -> initializer::InitializerPtr;
 
 }  // namespace flatten
 

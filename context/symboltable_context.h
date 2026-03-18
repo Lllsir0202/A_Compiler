@@ -17,8 +17,9 @@ struct VarEntry {
   type::Type *type_;
   bool is_const_;
   std::vector<size_t> dimensions_;  // for array variables, store the dimensions of the array
-  // Represent the initializer of the variable, since there might be no initializer,
-  // I decide to use a optional container to store the initializer
+
+  // Check circular reference, used for semantic analysis
+  bool is_being_defined_ = false;
 };
 
 /**
@@ -44,8 +45,12 @@ namespace context {
  */
 class SymbolTableContext {
  public:
-  SymbolTableContext() = default;
-  ~SymbolTableContext() = default;
+  SymbolTableContext() { var_table_.emplace_back(); }
+  ~SymbolTableContext() {
+    if (!var_table_.empty()) {
+      var_table_.clear();
+    }
+  };
   // provide methods to manage the symbol table, such as adding variables/functions, looking up variables/functions,
   // etc.
 

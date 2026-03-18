@@ -211,7 +211,15 @@ void SemanticAnalyser::Visit(FuncCallExprNode *func_call) {
 void SemanticAnalyser::Visit(LValExprNode *LVal) {
   auto var_def = compiler_context_->GetSymbolTableContext()->LookupVar(LVal->ident_);
   if (var_def == nullptr) {
-    compiler_context_->ReportError("variable " + LVal->ident_ + " is not defined");
+    compiler_context_->ReportError(LVal, "variable (" + LVal->ident_ + ") is not defined");
+    return;
+  }
+  // This case is for circular reference in initializer, e.g., int a = a; int b[1] = {b[0]};
+  // To be a little bit detailed,
+  // Since once we finish the Visit of VarDefNode, we will set the variable true
+  // if it is not true, which means the variable has not been processed through VarDefNode
+  if (!var_def->is_being_defined_) {
+    compiler_context_->ReportError(LVal, "variable (" + LVal->ident_ + ") is not defined");
     return;
   }
   auto def_indices = var_def->dimensions_;
@@ -372,10 +380,20 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
 
   if (var_def->init_values_ != nullptr) {
     var_def->init_values_->Accept(this);
+    // Check whether initializing a const variable with a constant expression
     if (entry->is_const_ && !var_def->init_values_->IsConst()) {
       compiler_context_->ReportError(var_def, "const variable initializer must be a constant expression");
     }
+    // Check whether the initializer is compatible with the variable type
+    if (entry->dimensions_.empty() && !var_def->init_values_->IsScalar()) {
+      compiler_context_->ReportError(var_def, "scalar variable cannot be initialized with a non-scalar initializer");
+    }
+    if (!entry->dimensions_.empty() && var_def->init_values_->IsScalar()) {
+      compiler_context_->ReportError(var_def, "array variable cannot be initialized with a scalar initializer");
+    }
   }
+  // The circular reference will be checked in LValExprNode
+  entry->is_being_defined_ = true;
 }
 
 void SemanticAnalyser::Visit(GlobalVarDeclNode *global_var_decl) {
@@ -423,6 +441,7 @@ void SemanticAnalyser::Visit(FuncDefNode *func_def) {
   if (func_def->body_ != nullptr) {
     func_def->body_->Accept(this);
   }
+  compiler_context_->GetSymbolTableContext()->ResetCurrentFunc();
 }
 
 void SemanticAnalyser::Visit(FuncFParamNode *func_fparam) {

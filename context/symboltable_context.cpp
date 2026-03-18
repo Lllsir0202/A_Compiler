@@ -16,7 +16,7 @@ auto SymbolTableContext::ExistsInCurrentScope(const std::string &name) -> bool {
 
 auto SymbolTableContext::LookupVar(const std::string &name) -> symboltable::VarEntry * {
   // Look up if it exists in formal paramters
-  if (func_param_table_[current_func_].count(name) > 0) {
+  if (current_func_ != nullptr && func_param_table_[current_func_].count(name) > 0) {
     // Return a pointer to the function parameter entry
     return &func_param_table_[current_func_][name];  // Placeholder, replace with actual function parameter entry
   }
@@ -41,7 +41,7 @@ auto SymbolTableContext::LookupFunc(const std::string &name) -> symboltable::Fun
 auto SymbolTableContext::AddVar(const std::string &name, type::Type *type, bool is_const,
                                 std::vector<std::size_t> dimensions) -> bool {
   // Check if the variable already exists in the current function parameters
-  if (func_param_table_[current_func_].count(name) > 0) {
+  if (current_func_ != nullptr && func_param_table_[current_func_].count(name) > 0) {
     return false;  // Variable already exists in the current function parameters
   }
 
