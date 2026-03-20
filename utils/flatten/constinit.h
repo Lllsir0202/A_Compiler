@@ -29,19 +29,6 @@ class ConstInitializer : public Initializer {
   std::optional<float> float_value_;
 };
 
-/**
- * @brief This class represents a constant array initializer
- */
-class ConstArrayInitializer : public Initializer {
- public:
-  auto AddInitializer(InitializerPtr init) -> void;
-  auto GetInitializers() const -> const std::vector<InitializerPtr> & { return init_values_; }
-  auto IsScalar() const -> bool override { return false; }
-
- private:
-  std::vector<InitializerPtr> init_values_;
-};
-
 }  // namespace initializer
 
 #endif

@@ -337,7 +337,18 @@ void SemanticAnalyser::Visit(ReturnStmtNode *return_stmt) {
 }
 
 // Then Declaration nodes
-void SemanticAnalyser::Visit(InitValNode *init_val) { init_val->value_->Accept(this); }
+void SemanticAnalyser::Visit(InitValNode *init_val) {
+  init_val->value_->Accept(this);
+  if (init_val->value_->GetType()->GetKind() == type::TypeKind::UNKNOWN) {
+    compiler_context_->ReportError(init_val, "initializer expression has unknown type");
+  }
+  if (init_val->value_->GetType()->GetKind() == type::TypeKind::PTR) {
+    compiler_context_->ReportError(init_val, "initializer expression cannot be a pointer");
+  }
+  // since the init_val->value_ is an expression
+  // it will only be estimated as a `UNKNOWN` type or a `PTR` type which is not valid
+  // so we don't need to check other cases such as `ARRAY` type
+}
 
 void SemanticAnalyser::Visit(InitListNode *init_list) {
   for (auto &init_val : init_list->init_values_) {
@@ -396,6 +407,21 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
       compiler_context_->ReportError(var_def, "array variable cannot be initialized with a scalar initializer");
     }
   }
+  // If the variable is constant and init_values is all constant or is null
+  // then we can set the value of the variable in the symbol table entry
+  if (entry->is_const_) {
+    if (var_def->init_values_ == nullptr) {
+      // means the init_values is null, we can just set it to zero
+      // TODO(loki): default value set up
+    }
+    // reach here means init_values is not null
+    if (var_def->init_values_->IsConst()) {
+      // to be honest, it must be all constant since it will report error
+      // if we define a constant variable with a non-constant initializer.
+      // TODO(loki): we need to flatten the initializer and get the value
+    }
+  }
+
   // The circular reference will be checked in LValExprNode
   entry->is_being_defined_ = true;
 }
