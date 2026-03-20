@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <string>
+#include "context/compiler_context.h"
 namespace frontend::ast {
 // Since we need to store the value of constant expressions
 // We design this class to store the value.

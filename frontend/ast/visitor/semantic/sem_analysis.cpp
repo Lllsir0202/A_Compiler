@@ -90,14 +90,17 @@ auto SemanticAnalyser::Analyse() -> int {
     root->Accept(this);
   } catch (const std::runtime_error &e) {
     // Has exception in semantic analysis, return 1 to indicate failure
+    compiler_context_->ReportError(e.what());
     compiler_context_->GetSymbolTableContext()->ResetCurrentFunc();
     compiler_context_ = nullptr;
     return 1;
   } catch (const std::logic_error &e) {
+    compiler_context_->ReportError(e.what());
     compiler_context_->GetSymbolTableContext()->ResetCurrentFunc();
     compiler_context_ = nullptr;
     return 2;
   } catch (...) {
+    compiler_context_->ReportError("Unknown error occurred");
     compiler_context_->GetSymbolTableContext()->ResetCurrentFunc();
     compiler_context_ = nullptr;
     return 3;

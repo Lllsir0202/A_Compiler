@@ -1,22 +1,34 @@
 #include "compiler_context.h"
 
 namespace context {
+/**
+ * @brief Report an error with source range and message.
+ * It will alse throw a runtime error to indicate that an error has occurred, and the compilation process should be
+ * terminated.
+ */
 auto context::CompilerContext::ReportError(frontend::SourceRange source_range, const std::string &msg) -> void {
   // Here we can format the error message and output it to the output stream
   (*out_) << "Error at " << source_range.ToString() << ": " << msg << '\n';
   throw std::runtime_error("Compilation error occurred.");
 }
 
+/**
+ * @brief Report an error with source range and message.
+ * It will alse throw a runtime error to indicate that an error has occurred, and the compilation process should be
+ * terminated.
+ */
 auto context::CompilerContext::ReportError(frontend::ast::ASTNode *node, const std::string &msg) -> void {
   // We can get the source range from the AST node and call the other ReportError function
   (*out_) << "Error at Line " << node->GetLine() << ", Column " << node->GetColumn() << ": " << msg << '\n';
   throw std::runtime_error("Compilation error occurred.");
 }
 
-auto context::CompilerContext::ReportError(const std::string &msg) -> void {
-  (*out_) << "Error: " << msg << '\n';
-  throw std::runtime_error("Compilation error occurred.");
-}
+/**
+ * @brief Report an error without source range informatino
+ * @note This function will not throw an exception, since we just use it to print some error messages.
+ * if you want to report an error with source range information, please use the other two ReportError functions.
+ */
+auto context::CompilerContext::ReportError(const std::string &msg) -> void { (*out_) << "Error: " << msg << '\n'; }
 
 auto context::CompilerContext::InitializeLibFunc() -> void {
   auto int_type = type_context_->GetIntegerType();

@@ -3,6 +3,7 @@
 #include "ast/ast_decl.h"
 #include "utils/flatten/initializer.h"
 namespace frontend::ast {
+class Initializer;
 class InitValNode;
 class InitListNode;
 }  // namespace frontend::ast
