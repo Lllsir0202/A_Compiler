@@ -1,38 +1,90 @@
 #ifndef UTILS_FLATTEN_FLATTEN_INITIALIZER_H
 #define UTILS_FLATTEN_FLATTEN_INITIALIZER_H
+#include <cstddef>
+#include <utility>
+#include <vector>
 #include "ast/ast_decl.h"
+#include "context/compiler_context.h"
 #include "utils/flatten/initializer.h"
+#include "utils/flatten/utils.h"
 namespace frontend::ast {
 class Initializer;
 class InitValNode;
 class InitListNode;
 }  // namespace frontend::ast
 
-namespace flatten {
-using LeafHandle = initializer::InitializerPtr(frontend::ast::Initializer *init_node);
+namespace utils::flatten {
 
-/**
- * @brief Flatten the initializer list to a single value, used for constant expression evaluation
- * e.g., int a[2] = {1, 2}; -> int a[2] = 1, 2;
- * @param init_node: the initializer node to be flattened
- * @param cursor: the current position in the initializer list, used for recursive flattening
- * @param dims&: the dimensions of the array, used for calculating the total size of the array
- * @param total_size&: the total size of the array, used for padding
- * @param depth: the current depth of the initializer list
- * @param function_pointer: the function pointer used for figure out how to get the value.
- * @return the flattened initializer
- */
-auto FlattenInitializer(frontend::ast::Initializer *init_node, std::unique_ptr<initializer::ArrayInitializer> &results,
-                        size_t &cursor, const std::vector<int> &dims, const size_t &total_size, size_t depth,
-                        LeafHandle function_pointer) -> void;
+class FlattenHelper {
+  explicit FlattenHelper(context::CompilerContext *compiler_context) : compiler_context_(compiler_context) {}
+  ~FlattenHelper() { compiler_context_ = nullptr; }
+  inline auto GetElement(const utils::flatten::Object &obj) -> Object {
+    if (obj.IsScalar()) {
+      return Object({});
+    }
+    std::vector<int> sub_object = obj.current_initialized_object_;
+    sub_object.pop_back();
+    return Object(sub_object);
+  }
 
-/**
- * @brief handle the initializer list is too deep
- * @use: just get the first scalar initializer in the deep loop
- */
-auto HandleDeepInitializer(frontend::ast::Initializer *init_node,
-                           LeafHandle function_pointer) -> initializer::InitializerPtr;
+  inline auto GetArraySize(const Object &obj) -> int {
+    if (obj.IsScalar()) {
+      return -1;  // means it is a scalar, not an array
+    }
+    return obj.current_initialized_object_.back();
+  }
 
-}  // namespace flatten
+  inline auto MakeSubCursor(frontend::ast::InitListNode *init_list) -> InitCursor {
+    std::vector<frontend::ast::Initializer *> sub_inits;
+    sub_inits.reserve(init_list->init_values_.size());
+    for (const auto &init : init_list->init_values_) {
+      sub_inits.emplace_back(init.get());
+    }
+    return InitCursor(sub_inits);
+  }
+
+  inline auto ZeroFill(const Object &obj, const Address &address, initializer::ArrayInitializer &results) -> void {
+    if (obj.IsScalar()) {
+      results.AddInitializer(nullptr, address);
+    } else {
+      int array_size = GetArraySize(obj);
+      Object sub_obj = GetElement(obj);
+      for (int i = 0; i < array_size; i++) {
+        Address sub_address = address;
+        sub_address.address_.emplace_back(i);
+        ZeroFill(sub_obj, sub_address, results);
+      }
+    }
+  }
+
+  using LeafHandle = initializer::InitializerPtr(frontend::ast::Initializer *init_node);
+
+  void InitObject(const Object &obj, InitCursor &cursor, Address address, initializer::ArrayInitializer &results,
+                  LeafHandle function_pointer);
+
+  /**
+   * @brief Flatten the initializer list to a single value, used for constant expression evaluation
+   * e.g., int a[2] = {1, 2}; -> int a[2] = 1, 2;
+   * @param init_node: the initializer node to be flattened
+   * @param dims&: the dimensions of the array, used for calculating the total size of the array
+   * @param depth: the current depth of the initializer list
+   * @param function_pointer: the function pointer used for figure out how to get the value.
+   * @return the flattened initializer
+   */
+  auto FlattenInitializer(frontend::ast::Initializer *init_node, std::vector<int> &dims,
+                          LeafHandle function_pointer) -> initializer::ArrayInitializer;
+
+  /**
+   * @brief handle the initializer list is too deep
+   * @use: just get the first scalar initializer in the deep loop
+   */
+  auto CastInitializer(frontend::ast::Initializer *init_node,
+                       LeafHandle function_pointer) -> initializer::InitializerPtr;
+
+ private:
+  context::CompilerContext *compiler_context_;
+};
+
+}  // namespace utils::flatten
 
 #endif

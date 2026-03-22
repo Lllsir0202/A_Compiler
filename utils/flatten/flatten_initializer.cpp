@@ -1,10 +1,12 @@
 #include "utils/flatten/flatten_initializer.h"
 #include <cstddef>
 #include <memory>
+#include <stdexcept>
 #include "frontend/ast/ast_decl.h"
 #include "utils/flatten/initializer.h"
+#include "utils/flatten/utils.h"
 
-namespace flatten {
+namespace utils::flatten {
 /**
  * @brief get the first scalar initializer in the deep loop
  * @use: handle the initializer list is too deep, just get the first scalar initializer
@@ -18,8 +20,8 @@ namespace flatten {
  * however, if the initializer is not a list,
  * it has no difference that whether we get the first scalar initializer or not.
  */
-auto HandleDeepInitializer(frontend::ast::Initializer *init_node,
-                           LeafHandle function_pointer) -> initializer::InitializerPtr {
+auto FlattenHelper::CastInitializer(frontend::ast::Initializer *init_node,
+                                    LeafHandle function_pointer) -> initializer::InitializerPtr {
   while (init_node != nullptr && !init_node->IsScalar()) {
     // since the init_node is NOT scalar, it must be an init list
     auto init_list = static_cast<frontend::ast::InitListNode *>(init_node);
@@ -34,64 +36,98 @@ auto HandleDeepInitializer(frontend::ast::Initializer *init_node,
   return function_pointer(init_node);
 }
 
-/**
- * @brief transfer a single initializer node to our specific data type
- * @note this function should only be called when:
- * 1. the initializers are all constant expressions
- * while in the semantic phase
- * 2. initializing a variable in IR stage,
- * since we need to represent the initializer to initialize them physically
- * so we will not do the check in this function,
- * including but not limited to: whether a pointer is a null pointer
- * @note this function will only be called for initlist values
- * since for initval, we can directly evaluate the expression and get the value without flattening
- */
-auto FlattenInitializer([[maybe_unused]] frontend::ast::Initializer *init_node,
-                        std::unique_ptr<initializer::ArrayInitializer> &results, size_t &cursor,
-                        const std::vector<int> &dims, const size_t &total_size, size_t depth,
-                        LeafHandle function_pointer) -> void {
-  if (cursor >= total_size) {
-    throw std::runtime_error("Initializer list is too long, exceeds the total size of the array");
-    return;
-  }
+void FlattenHelper::InitObject(const Object &obj, InitCursor &cursor, Address address,
+                               initializer::ArrayInitializer &results, LeafHandle function_pointer) {
+  // Implementation for initializing the object
+  if (obj.IsScalar()) {
+    // means it has reached the end of the array
+    auto init_node = cursor.Next();
+    if (init_node != nullptr) {
+      if (init_node->IsScalar()) {
+        // means it is a scalar
+        results.AddInitializer(function_pointer(init_node), address);
+      }
+      // means it is an init list, but the array has no more dimension,
+      // so we will just get the first scalar initializer in the init list
+      else {
+        results.AddInitializer(CastInitializer(init_node, function_pointer), address);
+      }
+    } else {
+      // means there is no more initializer, we will just fill the default value
+      /**
+       * @note: while in initializing the results, it is defaultly nullptr which is default value.
+       */
+      results.AddInitializer(nullptr, address);
+    }
 
-  if (depth >= dims.size()) {
-    // means the initializer list is too deep
-    // we will just get the only initializer in the deep loop
-    // use a function to get just the first scalar initializer
-    auto init = HandleDeepInitializer(init_node, function_pointer);
-    results->AddInitializer(std::move(init));
-    cursor++;
-    return;
-  }
+  } else {
+    // it is a list
+    int array_size = GetArraySize(obj);
+    Object sub_obj = GetElement(obj);
 
-  // then deal with the normal case
-  if (init_node->IsScalar()) {
-    // means we have reached the end of the initializer list, we can get the value and return
-    auto init = function_pointer(init_node);
-    results->AddInitializer(std::move(init));
-    cursor++;
-    return;
-  }
-
-  // means the init_node is an init list
-  auto init_list = static_cast<frontend::ast::InitListNode *>(init_node);
-  for (auto &init : init_list->init_values_) {
-    // note that we have entered a new block, so the depth should be added by 1
-    FlattenInitializer(init.get(), results, cursor, dims, total_size, depth + 1, function_pointer);
-  }
-
-  // means the initializer list has finished, we should fill up the default value
-  // padding
-  int sub_block = 1;
-  for (size_t i = depth + 1; i < dims.size(); i++) {
-    sub_block *= dims[i];
-  }
-  int filled = cursor % sub_block;
-  while (filled < sub_block && cursor < total_size) {
-    results->AddInitializer(nullptr);
-    cursor++;
-    filled++;
+    for (int i = 0; i < array_size; i++) {
+      auto init_node = cursor.Peek();
+      if (init_node != nullptr && !init_node->IsScalar()) {
+        // means it is an init list, we will enter the next level of the loop
+        cursor.Next();
+        InitCursor sub_cursor = MakeSubCursor(static_cast<frontend::ast::InitListNode *>(init_node));
+        InitObject(sub_obj, sub_cursor, address[i], results, function_pointer);
+        if (sub_cursor.HasMore()) {
+          compiler_context_->ReportError(init_node, "Too many initializers for array");
+        }
+      } else if (init_node != nullptr) {
+        InitObject(sub_obj, cursor, address[i], results, function_pointer);
+      } else {
+        // means there is no more initializer, we will just fill the default value
+        /**
+         * @note: while in initializing the results, it is defaultly nullptr which is default value.
+         */
+        ZeroFill(sub_obj, address[i], results);
+      }
+    }
   }
 }
-}  // namespace flatten
+
+/**
+ * @brief Flatten the initializer list
+ * @example:
+ * int a[3][3] = { 1, 2, {3, 4}, 5, 6};
+ * typically, we initialize the `a` with the whole initializer list { 1, 2, ...}
+ * then initalizer the a[0] with the pair-of-braces initializer list such as {1,2,3}
+ * but we cannot meet the pair-of-braces initializer list, since we only have the scalar: 1,2
+ * so we need to initializer a[0] with the first 3 initializers: 1, 2, {3, 4}
+ * however, the {3, 4} is not a scalar initializer, so we need to get the first scalar to fill
+ *
+ * which means, we need to start from the a pointer, if there is the pair-of-braces,
+ * then we will initialize the:
+ * topest dimension which in the example is a[0],a[1],a[2] with the following three pair-of-braces.
+ * if there is, we will initialize the a[0][0], a[0][1]... with the scalars in the three pair-of-braces
+ * if there is no any, we will initialize the a[i] with the following `dim` scalars.
+ */
+auto FlattenHelper::FlattenInitializer([[maybe_unused]] frontend::ast::Initializer *init_node, std::vector<int> &dims,
+                                       LeafHandle function_pointer) -> initializer::ArrayInitializer {
+  // Create the results array
+  initializer::ArrayInitializer results;
+  // Create the initial object
+  Object obj(dims);
+
+  // Create the initial cursor
+  std::vector<frontend::ast::Initializer *> init_list;
+  if (!init_node->IsScalar()) {
+    auto init_list_node = static_cast<frontend::ast::InitListNode *>(init_node);
+    for (const auto &init : init_list_node->init_values_) {
+      init_list.emplace_back(init.get());
+    }
+  }
+  InitCursor cursor(init_list);
+  Address address;
+
+  // Initialize the object
+  InitObject(obj, cursor, address, results, function_pointer);
+  if (cursor.HasMore()) {
+    compiler_context_->ReportError(cursor.Peek(), "Too many initializers for array");
+  }
+  // Now the results array has been initialized with the flattened initializer list
+  return results;
+}
+}  // namespace utils::flatten
