@@ -1,5 +1,4 @@
 #include "context/symboltable_context.h"
-#include <cstddef>
 #include <utility>
 
 namespace context {
