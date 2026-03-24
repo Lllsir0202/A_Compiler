@@ -7,12 +7,14 @@
 #include "frontend/ast/ast_spec.h"
 #include "frontend/ast/ast_stmt.h"
 #include "frontend/ast/astvisitor.h"
+#include "utils/flatten/flatten_initializer.h"
 
 namespace frontend::ast {
 class SemanticAnalyser : public ASTVisitor {
  public:
   // Constructor
-  explicit SemanticAnalyser(context::CompilerContext &compiler_context) : compiler_context_(&compiler_context) {}
+  explicit SemanticAnalyser(context::CompilerContext &compiler_context)
+      : compiler_context_(&compiler_context), flatten_helper_(&compiler_context) {}
   ~SemanticAnalyser() override {
     if (compiler_context_ != nullptr) {
       compiler_context_->GetSymbolTableContext()->ResetCurrentFunc();
@@ -58,6 +60,7 @@ class SemanticAnalyser : public ASTVisitor {
 
  private:
   context::CompilerContext *compiler_context_;
+  utils::flatten::FlattenHelper flatten_helper_;
   inline auto DecideResultType(OpCode op, ExprNode *left, ExprNode *right) -> TypePtr;
   inline auto DecideResultType(OpCode op, ExprNode *operand) -> TypePtr;
 };

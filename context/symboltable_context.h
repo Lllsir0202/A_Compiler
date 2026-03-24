@@ -1,10 +1,12 @@
 #ifndef CONTEXT_SYMBOLTABLE_CONTEXT_H
 #define CONTEXT_SYMBOLTABLE_CONTEXT_H
 #include <cstddef>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include "utils/flatten/initializer.h"
 #include "utils/type/type.h"
 
 namespace symboltable {
@@ -16,10 +18,13 @@ struct VarEntry {
   std::string name_;
   type::Type *type_;
   bool is_const_;
-  std::vector<size_t> dimensions_;  // for array variables, store the dimensions of the array
+  std::vector<int> dimensions_;  // for array variables, store the dimensions of the array
 
   // Check circular reference, used for semantic analysis
   bool is_being_defined_ = false;
+
+  // the initializer of the variable, used for semantic analysis
+  std::unique_ptr<initializer::ArrayInitializer> initializer_ = nullptr;
 };
 
 /**
@@ -98,10 +103,11 @@ class SymbolTableContext {
    * @param type the type of the variable
    * @param is_const whether the variable is const
    * @param dimensions the dimensions of the array if the variable is an array, otherwise it is empty
+   * @param initializer the initializer of the variable, used for semantic analysis
    * @return true if the variable is added successfully, false if the variable already exists.
    */
   auto AddVar(const std::string &name, type::Type *type = nullptr, bool is_const = false,
-              std::vector<std::size_t> dimensions = {}) -> bool;
+              std::vector<int> dimensions = {}) -> bool;
 
   /**
    * @brief Set the members of a variable entry in the symbol table
@@ -109,6 +115,7 @@ class SymbolTableContext {
    * @param type the type of the variable
    * @param is_const whether the variable is const
    * @param dimensions the dimensions of the array if the variable is an array, otherwise it is empty
+   * @param initializer the initializer of the variable, used for semantic analysis
    * @return true if the variable entry is updated successfully, false if the variable does not exist in the symbol
    * table
    * @note this method will only update the members in current scope.
@@ -116,7 +123,8 @@ class SymbolTableContext {
    */
   auto SetType(const std::string &name, type::Type *type) -> bool;
   auto SetConst(const std::string &name, bool is_const) -> bool;
-  auto SetDimensions(const std::string &name, std::vector<std::size_t> dimensions) -> bool;
+  auto SetDimensions(const std::string &name, std::vector<int> dimensions) -> bool;
+  auto SetInitializer(const std::string &name, initializer::ArrayInitializer initializer) -> bool;
 
   /**
    * @brief Add a function to the symbol table

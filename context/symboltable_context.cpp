@@ -39,7 +39,7 @@ auto SymbolTableContext::LookupFunc(const std::string &name) -> symboltable::Fun
 }
 
 auto SymbolTableContext::AddVar(const std::string &name, type::Type *type, bool is_const,
-                                std::vector<std::size_t> dimensions) -> bool {
+                                std::vector<int> dimensions) -> bool {
   // Check if the variable already exists in the current function parameters
   if (current_func_ != nullptr && func_param_table_[current_func_].count(name) > 0) {
     return false;  // Variable already exists in the current function parameters
@@ -51,7 +51,7 @@ auto SymbolTableContext::AddVar(const std::string &name, type::Type *type, bool 
   if (ExistsInCurrentScope(name)) {
     return false;  // Variable already exists in the current scope
   }
-  var_table_.back()[name] = {name, type, is_const, std::move(dimensions)};
+  var_table_.back()[name] = symboltable::VarEntry{name, type, is_const, std::move(dimensions)};
   return true;
 }
 
@@ -73,7 +73,7 @@ auto SymbolTableContext::SetConst(const std::string &name, bool is_const) -> boo
   return true;
 }
 
-auto SymbolTableContext::SetDimensions(const std::string &name, std::vector<std::size_t> dimensions) -> bool {
+auto SymbolTableContext::SetDimensions(const std::string &name, std::vector<int> dimensions) -> bool {
   if (!ExistsInCurrentScope(name)) {
     return false;  // Variable does not exist in the current scope
   }

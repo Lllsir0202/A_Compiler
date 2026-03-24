@@ -1,11 +1,13 @@
 #include "frontend/ast/visitor/semantic/sem_analysis.h"
 #include <cstddef>
+#include <memory>
 #include <stdexcept>
 #include "ast/ast_base.h"
 #include "ast/ast_decl.h"
 #include "ast/ast_expr.h"
 #include "ast/ast_stmt.h"
 #include "ast/visitor/semantic/calculate.h"
+#include "utils/flatten/astinit.h"
 #include "utils/type/type.h"
 
 namespace frontend::ast {
@@ -275,8 +277,9 @@ void SemanticAnalyser::Visit(LValExprNode *LVal) {
 
   * Then we can get the value from the symbol table directly.
   */
-  // if (LVal->GetType()->GetKind() != type::TypeKind::PTR && LVal->IsConst()) {
-  // }
+  // TODO(loki): Get initializer for constant variable
+  if (LVal->GetType()->GetKind() != type::TypeKind::PTR && LVal->IsConst()) {
+  }
 }
 
 // Then we can visit stmt nodes
@@ -374,7 +377,7 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
   }
 
   if (!var_def->indices_.empty()) {
-    std::vector<size_t> dimensions;
+    std::vector<int> dimensions;
     size_t total_size = 1;
     for (const auto &index : var_def->indices_) {
       auto value = index->GetValue();
@@ -383,8 +386,8 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
         compiler_context_->ReportError(var_def, "array size must be a positive integer");
       }
       // Then we can store the dimension size
-      dimensions.push_back(static_cast<size_t>(int_value));
-      total_size *= static_cast<size_t>(int_value);
+      dimensions.push_back(static_cast<int>(int_value));
+      total_size *= static_cast<int>(int_value);
     }
     // Reach here means the variable is an array variable, we need to set its type to array type
     auto element_type = entry->type_;
@@ -410,16 +413,17 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
   // If the variable is constant and init_values is all constant or is null
   // then we can set the value of the variable in the symbol table entry
   if (entry->is_const_) {
-    if (var_def->init_values_ == nullptr) {
-      // means the init_values is null, we can just set it to zero
-      // TODO(loki): default value set up
-    }
-    // reach here means init_values is not null
-    if (var_def->init_values_->IsConst()) {
-      // to be honest, it must be all constant since it will report error
-      // if we define a constant variable with a non-constant initializer.
-      // TODO(loki): we need to flatten the initializer and get the value
-    }
+    // means the variable is const, we can set its value in the symbol table entry
+    auto result =
+        flatten_helper_.FlattenInitializer(var_def->init_values_.get(), entry->dimensions_, initializer::HandleInAst);
+    // result is the flattened initializer
+    entry->initializer_ = std::make_unique<initializer::ArrayInitializer>(std::move(result));
+    
+  }
+  // if the entry is not a constant variable
+  else {
+    auto result =
+        flatten_helper_.FlattenInitializer(var_def->init_values_.get(), entry->dimensions_, initializer::CheckInAst);
   }
 
   // The circular reference will be checked in LValExprNode

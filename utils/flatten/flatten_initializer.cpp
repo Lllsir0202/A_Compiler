@@ -1,7 +1,6 @@
 #include "utils/flatten/flatten_initializer.h"
-#include <cstddef>
+#include <algorithm>
 #include <memory>
-#include <stdexcept>
 #include "frontend/ast/ast_decl.h"
 #include "utils/flatten/initializer.h"
 #include "utils/flatten/utils.h"
@@ -9,16 +8,15 @@
 namespace utils::flatten {
 /**
  * @brief get the first scalar initializer in the deep loop
- * @use: handle the initializer list is too deep, just get the first scalar initializer
+ * @use: handle the initializer list which is too deep, just get the first scalar initializer
  * @example:
- * int a[10] = { {{1}}, 2 };
- * when we meet { {{1}}, 2} , it is a init_list, the depth is 0;
- * then enter the first block, it is {{1}}, now depth is 1,
- * but the array only has one dimension, so the {{1}} should legally be 1
- * so we will just get the first scalar initializer in {{1}},
- * which means when the depth >= dims.size(), if the initializer is a list, we will just get the first scalar
- * however, if the initializer is not a list,
- * it has no difference that whether we get the first scalar initializer or not.
+ * in our current design, the object represent which we need to initialize
+ *
+ * for instance, we have an object [3], and the initializer list is {{1, 2}, 3 };
+ * then we will go on to initialize the three object [] with {1, 2}, 3,
+ * but the {1, 2} is not a scalar initializer, which means we need to cast it to a scalar initializer
+ * so over here, we will just get the first scalar initializer in the initial_list,
+ * no matter how deep the initial_list is.
  */
 auto FlattenHelper::CastInitializer(frontend::ast::Initializer *init_node,
                                     LeafHandle function_pointer) -> initializer::InitializerPtr {
@@ -29,6 +27,7 @@ auto FlattenHelper::CastInitializer(frontend::ast::Initializer *init_node,
       init_node = init_list->init_values_[0].get();
       continue;
     }
+    // if it is empty, we can just fill the default value, which is nullptr
     init_node = nullptr;
   }
   // means we have reached the end of the deep loop
@@ -76,6 +75,17 @@ void FlattenHelper::InitObject(const Object &obj, InitCursor &cursor, Address ad
           compiler_context_->ReportError(init_node, "Too many initializers for array");
         }
       } else if (init_node != nullptr) {
+        // if it is not nullptr and it is a scalar
+        /**
+         * @example int a[3][3] = {1, 2, {3, 4}};
+         * when we are initializing the a[0], we will meet the 1, 2, {3, 4}
+         * since `1` is a scalar, we cannot use it to initialize the a[0],
+         * so we will just get the next scalar initializers to initialize the a[0][0], a[0][1] and a[0][2].
+         * over here, the implement which makes it works is :
+         *
+         * take the [10] for example, the sub_obj is the element type of the obj, which is
+         * means
+         */
         InitObject(sub_obj, cursor, address[i], results, function_pointer);
       } else {
         // means there is no more initializer, we will just fill the default value
@@ -103,13 +113,18 @@ void FlattenHelper::InitObject(const Object &obj, InitCursor &cursor, Address ad
  * topest dimension which in the example is a[0],a[1],a[2] with the following three pair-of-braces.
  * if there is, we will initialize the a[0][0], a[0][1]... with the scalars in the three pair-of-braces
  * if there is no any, we will initialize the a[i] with the following `dim` scalars.
+ *
+ * @note: when analysing a variable array in the semantic analysis,
+ * we will use a sepcial function pointer to just check whether the initializer is overflow or not,
+ * since we do not need to ( and cannot as well) get the value of the initializer.
  */
-auto FlattenHelper::FlattenInitializer([[maybe_unused]] frontend::ast::Initializer *init_node, std::vector<int> &dims,
+auto FlattenHelper::FlattenInitializer(frontend::ast::Initializer *init_node, std::vector<int> &dims,
                                        LeafHandle function_pointer) -> initializer::ArrayInitializer {
   // Create the results array
   initializer::ArrayInitializer results;
   // Create the initial object
-  Object obj(dims);
+  auto reversed_dims = std::vector<int>(dims.rbegin(), dims.rend());
+  Object obj(reversed_dims);
 
   // Create the initial cursor
   std::vector<frontend::ast::Initializer *> init_list;
@@ -120,7 +135,7 @@ auto FlattenHelper::FlattenInitializer([[maybe_unused]] frontend::ast::Initializ
     }
   }
   InitCursor cursor(init_list);
-  Address address;
+  Address address(dims);
 
   // Initialize the object
   InitObject(obj, cursor, address, results, function_pointer);

@@ -7,8 +7,7 @@ namespace utils::flatten {
 
 /**
  * @brief Object class: represent the current object which is being initialized
- * @param current_initialized_object: the current object which is being initialized, used for calculating the offset
- * of the initializer list
+ * @param reversed_dimension: pass the dimension of the array, but we need to reverse the dimension,
  */
 class Object {
  public:
@@ -17,6 +16,14 @@ class Object {
 
   auto IsScalar() const -> bool { return current_initialized_object_.empty(); }
 
+  /**
+   * @note: from 0 to n-1, the current_initialized_object represent the index from top to bottom,
+   * which means, for instance, we have an object a[5][10], the current_initialized_object is [5][10] in the beginning,
+   * when we initialize a[0], the current_initialized_object will be [10], which means we are initializing the a[0]
+   * object, and the sub_obj will be the element type of a[0], which is the 10 * size of a[0][0]
+   * @note: so the current_initialized_object should be the reverse of the dimension,
+   * because it can make us easier to pop back and get the sub object
+   */
   std::vector<int> current_initialized_object_;
 };
 
@@ -41,7 +48,7 @@ class InitCursor {
     return nullptr;
   }
 
-  auto HasMore() -> bool { return !init_list_.empty(); }
+  auto HasMore() -> bool { return pos_ < init_list_.size(); }
 
   size_t pos_{};
   std::vector<frontend::ast::Initializer *> init_list_;
@@ -55,7 +62,6 @@ class InitCursor {
 class Address {
  public:
   Address(const Address &other) = default;
-  explicit Address() = default;
   explicit Address(std::vector<int> dims) : dims_(std::move(dims)) {}
 
   auto operator[](size_t index) -> Address {
@@ -78,7 +84,20 @@ class Address {
       linear_address += address_[i] * multiplier;
       multiplier *= dims_[i];
     }
+
     return linear_address;
+  }
+
+  auto ToString() const -> std::string {
+    std::string result = "[";
+    for (size_t i = 0; i < address_.size(); i++) {
+      result += std::to_string(address_[i]);
+      if (i != address_.size() - 1) {
+        result += ", ";
+      }
+    }
+    result += "]";
+    return result;
   }
 
   std::vector<int> address_;

@@ -16,9 +16,12 @@ class InitListNode;
 namespace utils::flatten {
 
 class FlattenHelper {
+ public:
   explicit FlattenHelper(context::CompilerContext *compiler_context) : compiler_context_(compiler_context) {}
   ~FlattenHelper() { compiler_context_ = nullptr; }
-  inline auto GetElement(const utils::flatten::Object &obj) -> Object {
+
+ private:
+  auto GetElement(const utils::flatten::Object &obj) -> Object {
     if (obj.IsScalar()) {
       return Object({});
     }
@@ -27,14 +30,14 @@ class FlattenHelper {
     return Object(sub_object);
   }
 
-  inline auto GetArraySize(const Object &obj) -> int {
+  auto GetArraySize(const Object &obj) -> int {
     if (obj.IsScalar()) {
       return -1;  // means it is a scalar, not an array
     }
     return obj.current_initialized_object_.back();
   }
 
-  inline auto MakeSubCursor(frontend::ast::InitListNode *init_list) -> InitCursor {
+  auto MakeSubCursor(frontend::ast::InitListNode *init_list) -> InitCursor {
     std::vector<frontend::ast::Initializer *> sub_inits;
     sub_inits.reserve(init_list->init_values_.size());
     for (const auto &init : init_list->init_values_) {
@@ -43,7 +46,7 @@ class FlattenHelper {
     return InitCursor(sub_inits);
   }
 
-  inline auto ZeroFill(const Object &obj, const Address &address, initializer::ArrayInitializer &results) -> void {
+  auto ZeroFill(const Object &obj, const Address &address, initializer::ArrayInitializer &results) -> void {
     if (obj.IsScalar()) {
       results.AddInitializer(nullptr, address);
     } else {
@@ -61,7 +64,14 @@ class FlattenHelper {
 
   void InitObject(const Object &obj, InitCursor &cursor, Address address, initializer::ArrayInitializer &results,
                   LeafHandle function_pointer);
+  /**
+   * @brief handle the initializer list is too deep
+   * @use: just get the first scalar initializer in the deep loop
+   */
+  auto CastInitializer(frontend::ast::Initializer *init_node,
+                       LeafHandle function_pointer) -> initializer::InitializerPtr;
 
+ public:
   /**
    * @brief Flatten the initializer list to a single value, used for constant expression evaluation
    * e.g., int a[2] = {1, 2}; -> int a[2] = 1, 2;
@@ -73,13 +83,6 @@ class FlattenHelper {
    */
   auto FlattenInitializer(frontend::ast::Initializer *init_node, std::vector<int> &dims,
                           LeafHandle function_pointer) -> initializer::ArrayInitializer;
-
-  /**
-   * @brief handle the initializer list is too deep
-   * @use: just get the first scalar initializer in the deep loop
-   */
-  auto CastInitializer(frontend::ast::Initializer *init_node,
-                       LeafHandle function_pointer) -> initializer::InitializerPtr;
 
  private:
   context::CompilerContext *compiler_context_;
