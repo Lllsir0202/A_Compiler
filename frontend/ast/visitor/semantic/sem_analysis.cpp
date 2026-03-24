@@ -386,8 +386,8 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
         compiler_context_->ReportError(var_def, "array size must be a positive integer");
       }
       // Then we can store the dimension size
-      dimensions.push_back(static_cast<int>(int_value));
-      total_size *= static_cast<int>(int_value);
+      dimensions.push_back(int_value);
+      total_size *= int_value;
     }
     // Reach here means the variable is an array variable, we need to set its type to array type
     auto element_type = entry->type_;
@@ -418,7 +418,7 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
         flatten_helper_.FlattenInitializer(var_def->init_values_.get(), entry->dimensions_, initializer::HandleInAst);
     // result is the flattened initializer
     entry->initializer_ = std::make_unique<initializer::ArrayInitializer>(std::move(result));
-    
+
   }
   // if the entry is not a constant variable
   else {

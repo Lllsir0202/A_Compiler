@@ -2,10 +2,8 @@
 #define FRONTEND_AST_VISITOR_SEMANTIC_CALCULATE_H
 #include <cassert>
 #include <stdexcept>
-#include "ast/ast_base.h"
 #include "ast/ast_utils.h"
 #include "frontend/ast/ast_expr.h"
-#include "utils/type/type.h"
 #define DEBUG
 
 #ifdef DEBUG
