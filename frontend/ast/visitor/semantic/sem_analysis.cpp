@@ -6,6 +6,7 @@
 #include "ast/ast_decl.h"
 #include "ast/ast_expr.h"
 #include "ast/ast_stmt.h"
+#include "ast/value/value.h"
 #include "ast/visitor/semantic/calculate.h"
 #include "utils/flatten/astinit.h"
 #include "utils/type/type.h"
@@ -278,8 +279,6 @@ void SemanticAnalyser::Visit(LValExprNode *LVal) {
   * Then we can get the value from the symbol table directly.
   */
   // TODO(loki): Get initializer for constant variable
-  if (LVal->GetType()->GetKind() != type::TypeKind::PTR && LVal->IsConst()) {
-  }
 }
 
 // Then we can visit stmt nodes
@@ -412,7 +411,12 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
   }
   // If the variable is constant and init_values is all constant or is null
   // then we can set the value of the variable in the symbol table entry
-  if (entry->is_const_) {
+
+  /**
+   * @cond: if it is a constant variable and need to be flattened,
+   * @then: we will flatten the initializer list and set the value in the symbol table entry
+   */
+  if (entry->is_const_ && !entry->dimensions_.empty()) {
     // means the variable is const, we can set its value in the symbol table entry
     auto result =
         flatten_helper_.FlattenInitializer(var_def->init_values_.get(), entry->dimensions_, initializer::HandleInAst);
@@ -420,10 +424,39 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
     entry->initializer_ = std::make_unique<initializer::ArrayInitializer>(std::move(result));
 
   }
-  // if the entry is not a constant variable
-  else {
+  /**
+   * @cond: if the entry is not a constant variable but is an array variable,
+   * @then: we will check whether the initializer list is overflow or not.
+   */
+  else if (!entry->is_const_ && !entry->dimensions_.empty()) {
     auto result =
         flatten_helper_.FlattenInitializer(var_def->init_values_.get(), entry->dimensions_, initializer::CheckInAst);
+  }
+  /**
+   * @brief: if the variable is a scalar variable
+   */
+  else if (entry->is_const_ && entry->dimensions_.empty()) {
+    if (var_def->init_values_ == nullptr) {
+      compiler_context_->ReportError(var_def, "const scalar variable must be initialized");
+    } else {
+      // means the variable is a const scalar variable, we can set its value in the symbol table entry
+      if (var_def->init_values_ == nullptr) {
+        compiler_context_->ReportError(var_def, "const scalar variable must be initialized");
+      } else {
+        auto init_node = static_cast<frontend::ast::InitValNode *>(var_def->init_values_.get());
+        auto value = init_node->value_->GetValue();
+        auto const_value = std::make_unique<initializer::ConstInitializer>();
+        if (value.GetType() == ValueType::INT || value.GetType() == ValueType::BOOL) {
+          const_value->SetIntValue(value.GetIntValue());
+        } else if (value.GetType() == ValueType::FLOAT) {
+          const_value->SetFloatValue(value.GetFloatValue());
+        } else {
+          compiler_context_->ReportError(
+              var_def, "const scalar variable can only be initialized with an integer or float constant expression");
+        }
+        entry->initializer_ = std::move(const_value);
+      }
+    }
   }
 
   // The circular reference will be checked in LValExprNode

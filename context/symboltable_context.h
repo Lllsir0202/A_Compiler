@@ -23,7 +23,7 @@ struct VarEntry {
   bool is_being_defined_ = false;
 
   // the initializer of the variable, used for semantic analysis
-  std::unique_ptr<initializer::ArrayInitializer> initializer_ = nullptr;
+  initializer::InitializerPtr initializer_ = nullptr;
 };
 
 /**
