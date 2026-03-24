@@ -1,7 +1,5 @@
 #ifndef UTILS_FLATTEN_FLATTEN_INITIALIZER_H
 #define UTILS_FLATTEN_FLATTEN_INITIALIZER_H
-#include <cstddef>
-#include <utility>
 #include <vector>
 #include "ast/ast_decl.h"
 #include "context/compiler_context.h"

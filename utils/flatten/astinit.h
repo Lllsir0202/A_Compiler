@@ -1,7 +1,6 @@
 #ifndef UTILS_FLATTEN_ASTINIT_H
 #define UTILS_FLATTEN_ASTINIT_H
 #include <optional>
-#include <vector>
 #include "utils/flatten/initializer.h"
 
 namespace initializer {
