@@ -352,11 +352,10 @@ void SemanticAnalyser::Visit(LValExprNode *LVal) {
     auto element_type = static_cast<type::ArrayType *>(var_def->type_)->GetElementType();
     result_type = compiler_context_->GetTypeContext()->GetPtrType(element_type);
   }
-  if (def_dims.size() > LVal->indices_.size()) {
-    compiler_context_->ReportError("Too many indices for variable " + LVal->ident_ + ": expected " +
-                                   std::to_string(def_dims.size()) + ", but got " +
-                                   std::to_string(LVal->indices_.size()));
-  }
+  /**
+   * @note: we should allow LVal to be pointer type
+   * since it can be passed as a parameter to a function
+   */
 
   // Analyze the indices if there are any
   bool index_is_const = true;
@@ -391,8 +390,7 @@ void SemanticAnalyser::Visit(LValExprNode *LVal) {
 
   * Then we can get the value from the symbol table directly.
   */
-  // TODO(loki): Get initializer for constant variable
-  if (LVal->IsConst()) {
+  if (LVal->IsConst() && LVal->GetType()->GetKind() != type::TypeKind::PTR) {
     // If it is a constant variable
     // Calculate the linear index if it is an array variable
     if (!def_dims.empty()) {
@@ -478,6 +476,23 @@ void SemanticAnalyser::Visit(AssignStmtNode *assign_stmt) {
   if (assign_stmt->lval_->GetType()->GetKind() == type::TypeKind::PTR ||
       assign_stmt->lval_->GetType()->GetKind() == type::TypeKind::UNKNOWN) {
     compiler_context_->ReportError(assign_stmt, "cannot assign to an array or pointer variable");
+    return;
+  }
+  /**
+   * @cond: left value is a constant variable, which means it is defined with const qualifier
+   */
+  if (assign_stmt->lval_->IsConst()) {
+    // we cannot assign a value to a constant variable
+    compiler_context_->ReportError(assign_stmt->lval_.get(), "cannot assign to a constant variable");
+    return;
+  }
+  /**
+   * @cond: left value is a pointer
+   * since we do not support pointer assignment, we should report error
+   */
+  if (assign_stmt->lval_->GetType()->GetKind() == type::TypeKind::PTR) {
+    compiler_context_->ReportError(assign_stmt, "cannot assign to a pointer variable");
+    return;
   }
 }
 

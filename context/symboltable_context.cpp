@@ -99,7 +99,7 @@ auto SymbolTableContext::AddFuncParam(symboltable::FuncEntry *func_entry, const 
   if (func_param_table_[func_entry].count(name) > 0) {
     return false;  // Function parameter already exists
   }
-  func_param_table_[func_entry][name] = {name, type, false, {}};
+  func_param_table_[func_entry][name] = {name, type, false, {}, true};
   return true;
 }
 
