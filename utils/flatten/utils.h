@@ -50,6 +50,8 @@ class InitCursor {
 
   auto HasMore() -> bool { return pos_ < init_list_.size(); }
 
+  auto MarkAllConsumed() -> void { pos_ = init_list_.size(); }
+
   size_t pos_{};
   std::vector<frontend::ast::Initializer *> init_list_;
 };

@@ -65,6 +65,9 @@ class FlattenHelper {
   /**
    * @brief handle the initializer list is too deep
    * @use: just get the first scalar initializer in the deep loop
+   * @use: cursor will be set to the end of the current init list,
+   * since we have already get the first scalar
+   * initializer in the current init list
    */
   auto CastInitializer(frontend::ast::Initializer *init_node,
                        LeafHandle function_pointer) -> initializer::InitializerPtr;

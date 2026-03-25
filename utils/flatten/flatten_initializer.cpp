@@ -30,7 +30,6 @@ auto FlattenHelper::CastInitializer(frontend::ast::Initializer *init_node,
     init_node = nullptr;
   }
   // means we have reached the end of the deep loop
-  // no matter it is a scalar initializer or a null sbracet
   return function_pointer(init_node);
 }
 
@@ -39,6 +38,7 @@ void FlattenHelper::InitObject(const Object &obj, InitCursor &cursor, Address ad
   // Implementation for initializing the object
   if (obj.IsScalar()) {
     // means it has reached the end of the array
+    // so if the cursor has more initializer, we can just ignore the extra initializer
     auto init_node = cursor.Next();
     if (init_node != nullptr) {
       if (init_node->IsScalar()) {
@@ -48,6 +48,7 @@ void FlattenHelper::InitObject(const Object &obj, InitCursor &cursor, Address ad
       // means it is an init list, but the array has no more dimension,
       // so we will just get the first scalar initializer in the init list
       else {
+        printf("Warning: initializer list is too deep, just get the first scalar initializer\n");
         results.AddInitializer(CastInitializer(init_node, function_pointer), address);
       }
     } else {
@@ -57,6 +58,7 @@ void FlattenHelper::InitObject(const Object &obj, InitCursor &cursor, Address ad
        */
       results.AddInitializer(nullptr, address);
     }
+    cursor.MarkAllConsumed();
 
   } else {
     // it is a list
@@ -70,6 +72,10 @@ void FlattenHelper::InitObject(const Object &obj, InitCursor &cursor, Address ad
         cursor.Next();
         InitCursor sub_cursor = MakeSubCursor(static_cast<frontend::ast::InitListNode *>(init_node));
         InitObject(sub_obj, sub_cursor, address[i], results, function_pointer);
+        printf("Has more? %s\n", sub_cursor.HasMore() ? "true" : "false");
+        printf("i = %d\n", i);
+        printf("cursor pos: %zu\n", sub_cursor.pos_);
+        printf("cursor init list size: %zu\n", sub_cursor.init_list_.size());
         if (sub_cursor.HasMore()) {
           compiler_context_->ReportError(init_node, "Too many initializers for array");
         }
