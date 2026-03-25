@@ -207,7 +207,42 @@ And I would like to just introduce some import details about the semantic analys
 
 3. Since we have finished talking about definitions, I would like to talk about expressions. While visiting a expression, it is totally different from visiting a ``constant expression`` and visiting a ``non-constant expression``. For instance, when visiting a constant expression, we need to evaluate the expression and set its value and type in the AST node, which will be used for constant folding in the frontend optimization, however, when visiting a non-constant expression, we only need to check the types of the operands and set the type of the expression node without evaluating it, since it may involve variables whose values are not known at compile time.  
    
-   Out of the belief of optimal efficiency, I decide to do constant folding during the semantic analysis and for constant variable including constant array type. But to be attention, __the lval of a constant array is not definitely a constant expression__, since it may be used as __a parameter in function calls__ as well as __the index maybe non-constant__.(TODO: How to design this elegantly? >_<)
+   Out of the belief of optimal efficiency, I decide to do constant folding during the semantic analysis and for constant variable including constant array type. But to be attention, __the lval of a constant array is not definitely a constant expression__, since it may be used as __a parameter in function calls__ as well as __the index maybe non-constant__.
 
 4. Since the statements are quite different from expressions and declarations, it is much easier to analyze them, and there is not a lot of things needed to be done when visiting a statement node.
 
+#### Initializer Handling
+Since the initializer can be quite complex, and still out of the belief of optimal efficiency and elegancy, I decide to abstract the initializer handling into a separate class, which is called ``FlattenInitializer``, while the key process of handling initializer is to flatten the initializer list into a one-dimensional vector, which can make it easier to handle and assign values to the corresponding variables.
+
+Inspired by the ISO/IEC 9899 standard, I designed the ``Object`` structure to represent the specific part of the variable which is being initialized, and the ``Address`` structure to represent the sepcific address which is being filled now, as well as designing a list of ``initializer`` class which will be introduced later. To be simple, for instance:
+```c
+int a[2][3] = {{1, 2, 3}, {4, 5, 6}};
+/*
+initially: 
+    object: [3][2](which is the reverse of the dimensions)
+    address: empty
+after handling the total initializer list:
+    object: [3], and will do 2 times of loop to fill the sub_object([3])
+    address: [0], [1] corresponding to the 2 times of loop to fill the two sub_object([3])
+then handling the initializer list separately:
+    for the first list ({1, 2, 3}):
+        object: empty, since there is no more dimension, which also means we should fill the value next time of recursion
+        address: [0], [0], [0] corresponding to the 3 times of loop to fill the 3 elements in the first list
+    for the second list ({4, 5, 6}):
+        it is totally the same as the first list.
+then entering the deepest loop:
+    take the `1` for example:
+        object: empty
+        address: [0][0] corresponding to the address of `a[0][0]`
+        then we will fill the value `1` into the address `a[0][0]`
+    other values are all the same as `1`.
+*/
+```
+
+Then I will introduce some details about the design of the ``Initializer`` classes:
+
+Since I want to abstract the initializer handling to make it easier to be used while in both semantic analysis and IR generation, so I designed a parameter called ``function_pointer`` to indicate the specific behavior of the initializer handling in different stages. By this kind of design, I hope this helper class can be more reusable and flexible, and it can be used in both semantic analysis and IR generation without modifying the core logic of the initializer handling.
+
+Since the scalar and list intializer can be extremely different, I designed a parent class called ``Initializer`` to represent the general initializer, and the symbol table will store the smart pointer of this class. Then using two inheriting classes to represent the scalar initializer and list initializer separately.
+
+In my design, the initializer classes shall work as a intemediate representation of the values, which can make the ``initializer handling`` and the ``AST`` more decoupled,
