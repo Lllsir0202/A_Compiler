@@ -2,12 +2,15 @@
 #define FRONTEND_AST_VISITOR_SEMANTIC_SEM_ANALYSIS_H
 #include "ast/ast_base.h"
 #include "context/compiler_context.h"
+#include "context/symboltable_context.h"
 #include "frontend/ast/ast_decl.h"
 #include "frontend/ast/ast_expr.h"
 #include "frontend/ast/ast_spec.h"
 #include "frontend/ast/ast_stmt.h"
 #include "frontend/ast/astvisitor.h"
+#include "utils/flatten/astinit.h"
 #include "utils/flatten/flatten_initializer.h"
+#include "utils/flatten/initializer.h"
 
 namespace frontend::ast {
 class SemanticAnalyser : public ASTVisitor {
@@ -63,6 +66,14 @@ class SemanticAnalyser : public ASTVisitor {
   utils::flatten::FlattenHelper flatten_helper_;
   inline auto DecideResultType(OpCode op, ExprNode *left, ExprNode *right) -> TypePtr;
   inline auto DecideResultType(OpCode op, ExprNode *operand) -> TypePtr;
+  inline auto Linear(const std::vector<int> &dimensions, const std::vector<int> &indices) -> int;
+  /**
+   * @brief Normalize function will fill the default value,
+   * and will also cast the value to the target type(if needed, the var_def's type) value.
+   * @note override functions to deal with array initializer and a const initializer.
+   */
+  inline auto Normalize(symboltable::VarEntry *entry, std::unique_ptr<initializer::ArrayInitializer> &init) -> void;
+  inline auto Normalize(symboltable::VarEntry *entry, std::unique_ptr<initializer::ConstInitializer> &init) -> void;
 };
 }  // namespace frontend::ast
 #endif

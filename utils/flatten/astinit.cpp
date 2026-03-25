@@ -65,4 +65,19 @@ auto CheckInAst(frontend::ast::Initializer *init_node) -> initializer::Initializ
   }
   throw std::logic_error("Non-scalar initializer cannot be handled in constant expression evaluation");
 }
+
+/**
+ * @brief Helper function , which is used to get the value of the initializer directly
+ * used as a wrapper to pass value to the frontend::ast::Value class
+ */
+auto ConstInitializer::GetValue() const -> frontend::ast::Value {
+  if (int_value_.has_value()) {
+    return frontend::ast::Value(int_value_.value());
+  }
+  if (float_value_.has_value()) {
+    return frontend::ast::Value(float_value_.value());
+  }
+  throw std::logic_error("ConstInitializer does not have a value");
+}
+
 }  // namespace initializer

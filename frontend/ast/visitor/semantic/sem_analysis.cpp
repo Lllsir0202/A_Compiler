@@ -1,6 +1,7 @@
 #include "frontend/ast/visitor/semantic/sem_analysis.h"
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include "ast/ast_base.h"
 #include "ast/ast_decl.h"
@@ -81,6 +82,116 @@ inline auto SemanticAnalyser::DecideResultType(OpCode op, ExprNode *operand) -> 
     default:
       compiler_context_->ReportError("unsupported unary operator");
       return compiler_context_->GetTypeContext()->GetUnknownType();
+  }
+}
+
+/**
+ * @brief Helper function to calculate the linear index of an array element
+ * Base on the dimensions and the indices of the array element.
+ * @example:
+ * For instance, const int a[10] = {1,2,3};
+ * in the initializer list, the value initializer will be {1,2,3,nullptr,...}
+ * then if we want to get the value of [2], we can calculate the linear index as follows:
+ * linear index = 2(index[0]) * dim[0] + 0 * dim[1] + ...
+ */
+auto SemanticAnalyser::Linear(const std::vector<int> &dimensions, const std::vector<int> &indices) -> int {
+  if (dimensions.size() != indices.size()) {
+    throw std::logic_error("Dimensions size and indices size do not match");
+  }
+  int linear_index = 0;
+  int dim_size = 1;
+  for (int i = dimensions.size() - 1; i >= 0; i--) {
+    linear_index += indices[i] * dim_size;
+    dim_size *= dimensions[i];
+  }
+  return linear_index;
+}
+
+/**
+ * @brief Normalize function will fill the default value, which was initially set as nullptr,
+ * and do the cast if needed
+ */
+// override for constant list initializer
+auto SemanticAnalyser::Normalize(symboltable::VarEntry *entry,
+                                 std::unique_ptr<initializer::ArrayInitializer> &init) -> void {
+  // First check the type
+  auto type = entry->type_;
+  // The initialized variable must be an array variable, otherwise it is a logic error
+  if (type->GetKind() != type::TypeKind::ARRAY) {
+    throw std::logic_error("Try to initialize non-array type with list initializers");
+  }
+  auto array_type = static_cast<type::ArrayType *>(type);
+  auto element_type = array_type->GetElementType();
+  auto is_int = element_type->GetKind() == type::TypeKind::INT;
+  auto is_float = element_type->GetKind() == type::TypeKind::FLOAT;
+  for (auto &init_val : init->GetUpdateInitializers()) {
+    if (init_val == nullptr) {
+      if (is_int) {
+        auto new_init = std::make_unique<initializer::ConstInitializer>();
+        new_init->SetIntValue(0);
+        init_val = std::move(new_init);
+      }
+      if (is_float) {
+        auto new_init = std::make_unique<initializer::ConstInitializer>();
+        new_init->SetFloatValue(0.0F);
+        init_val = std::move(new_init);
+      }
+      continue;
+    }
+    if (!init_val->IsScalar()) {
+      compiler_context_->ReportError(
+          "initializer for array element which has been flattened must be a scalar expression");
+      return;
+    }
+    if (!init_val->IsConst()) {
+      compiler_context_->ReportError(
+          "initializer for array element which has been flattened must be a constant expression");
+      return;
+    }
+
+    auto &init_node = static_cast<initializer::ConstInitializer &>(*init_val);
+    if (is_int && init_node.GetIntValue() == std::nullopt) {
+      auto float_value = init_node.GetFloatValue().value();
+      init_node.SetIntValue(static_cast<int>(float_value));
+    }
+    if (is_float && init_node.GetFloatValue() == std::nullopt) {
+      auto int_value = init_node.GetIntValue().value();
+      init_node.SetFloatValue(static_cast<float>(int_value));
+    }
+  }
+}
+
+// override for constant scalar initializer
+auto SemanticAnalyser::Normalize(symboltable::VarEntry *entry,
+                                 std::unique_ptr<initializer::ConstInitializer> &init) -> void {
+  auto type = entry->type_;
+  bool is_int = type->GetKind() == type::TypeKind::INT;
+  bool is_float = type->GetKind() == type::TypeKind::FLOAT;
+  if (!is_int && !is_float) {
+    throw std::logic_error("Try to initialize non-scalar type with scalar initializers");
+  }
+  if (init == nullptr) {
+    /**  Here might cause memory leak
+     * since the unique_ptr originally manage a pointer which is a `nullptr`
+     * we can safely just reset the unique_ptr to a new pointer without worrying about the memory leak
+     */
+    init = std::make_unique<initializer::ConstInitializer>();
+    if (is_int) {
+      init->SetIntValue(0);
+    }
+    if (is_float) {
+      init->SetFloatValue(0.0F);
+    }
+  }
+  if (init->IsConst()) {
+    if (is_int && init->GetIntValue() == std::nullopt) {
+      auto float_value = init->GetFloatValue().value();
+      init->SetIntValue(static_cast<int>(float_value));
+    }
+    if (is_float && init->GetFloatValue() == std::nullopt) {
+      auto int_value = init->GetIntValue().value();
+      init->SetFloatValue(static_cast<float>(int_value));
+    }
   }
 }
 
@@ -229,21 +340,21 @@ void SemanticAnalyser::Visit(LValExprNode *LVal) {
                                    "variable (" + LVal->ident_ + ") is not defined yet, but be used as an initializer");
     return;
   }
-  auto def_indices = var_def->dimensions_;
+  auto def_dims = var_def->dimensions_;
   TypePtr result_type = nullptr;
 
-  if (!def_indices.empty() && LVal->indices_.size() == def_indices.size()) {
+  if (!def_dims.empty() && LVal->indices_.size() == def_dims.size()) {
     assert(var_def->type_->GetKind() == type::TypeKind::ARRAY);
     result_type = static_cast<type::ArrayType *>(var_def->type_)->GetElementType();
   }
-  if (!def_indices.empty() && LVal->indices_.size() < def_indices.size()) {
+  if (!def_dims.empty() && LVal->indices_.size() < def_dims.size()) {
     assert(var_def->type_->GetKind() == type::TypeKind::ARRAY);
     auto element_type = static_cast<type::ArrayType *>(var_def->type_)->GetElementType();
     result_type = compiler_context_->GetTypeContext()->GetPtrType(element_type);
   }
-  if (def_indices.size() > LVal->indices_.size()) {
+  if (def_dims.size() > LVal->indices_.size()) {
     compiler_context_->ReportError("Too many indices for variable " + LVal->ident_ + ": expected " +
-                                   std::to_string(def_indices.size()) + ", but got " +
+                                   std::to_string(def_dims.size()) + ", but got " +
                                    std::to_string(LVal->indices_.size()));
   }
 
@@ -253,6 +364,7 @@ void SemanticAnalyser::Visit(LValExprNode *LVal) {
     index->Accept(this);
     if (index->GetType()->GetKind() != type::TypeKind::INT) {
       compiler_context_->ReportError("array subscript must be an integer");
+      return;
     }
     if (!index->IsConst()) {
       // Since if there is no index,
@@ -264,8 +376,9 @@ void SemanticAnalyser::Visit(LValExprNode *LVal) {
   // Then we can set the type of the LVal expression
   if (result_type != nullptr) {
     LVal->SetType(result_type);
+  } else {
+    LVal->SetType(var_def->type_);
   }
-  LVal->SetType(var_def->type_);
   LVal->SetConst(var_def->is_const_ && index_is_const);
 
   /**
@@ -279,6 +392,73 @@ void SemanticAnalyser::Visit(LValExprNode *LVal) {
   * Then we can get the value from the symbol table directly.
   */
   // TODO(loki): Get initializer for constant variable
+  if (LVal->IsConst()) {
+    // If it is a constant variable
+    // Calculate the linear index if it is an array variable
+    if (!def_dims.empty()) {
+      std::vector<int> indices;
+      // Get the indices value and check whether it is out of bounds or not
+      for (const auto &index : LVal->indices_) {
+        auto value = index->GetValue();
+        /**
+         * @note: Perhaps we can cast the float to integer, however, it is not allowed now.
+         */
+        auto int_value = value.GetIntValue();
+        if (int_value < 0) {
+          compiler_context_->ReportError(LVal, "array subscript cannot be negative");
+          return;
+        }
+        indices.push_back(int_value);
+      }
+      int linear_index = Linear(def_dims, indices);
+      auto array_initializer = static_cast<initializer::ArrayInitializer *>(var_def->initializer_.get());
+      if (array_initializer == nullptr) {
+        compiler_context_->ReportError(LVal, "initializer for array variable is not an array initializer");
+        return;
+      }
+      auto &init_values = array_initializer->GetInitializers();
+      // If the linear index is out of bounds, it is normally impossible
+      if (static_cast<size_t>(linear_index) >= init_values.size()) {
+        compiler_context_->ReportError(LVal, "array subscript out of bounds");
+        return;
+      }
+      // We can get the initializer of the array element now
+      auto initializer = init_values[linear_index].get();
+      if (!initializer->IsScalar()) {
+        compiler_context_->ReportError(
+            LVal, "initializer for array element which has been flattened must be a scalar expression");
+        return;
+      }
+      if (!initializer->IsConst()) {
+        compiler_context_->ReportError(
+            LVal, "initializer for array element which has been flattened must be a constant expression");
+        return;
+      }
+      auto const_initializer = static_cast<initializer::ConstInitializer *>(initializer);
+      LVal->GetValue() = const_initializer->GetValue();
+    }
+    // it is scalar variable, we can get the value directly
+    else {
+      auto initializer = var_def->initializer_.get();
+      // Do some errors handling first
+      if (initializer == nullptr) {
+        compiler_context_->ReportError(LVal, "initializer for scalar variable is null");
+        return;
+      }
+      if (!initializer->IsScalar()) {
+        compiler_context_->ReportError(LVal, "initializer for scalar variable must be a scalar expression");
+        return;
+      }
+      if (!initializer->IsConst()) {
+        compiler_context_->ReportError(LVal, "initializer for scalar variable must be a constant expression");
+        return;
+      }
+
+      // Then we can get the value from the initializer
+      auto const_initializer = static_cast<initializer::ConstInitializer *>(initializer);
+      LVal->GetValue() = const_initializer->GetValue();
+    }
+  }
 }
 
 // Then we can visit stmt nodes
@@ -362,7 +542,8 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
   for (auto &index : var_def->indices_) {
     index->Accept(this);
     if (index->GetType()->GetKind() != type::TypeKind::INT) {
-      compiler_context_->ReportError(var_def, "array size must be an integer");
+      auto msg = "array size must be an integer, but got " + index->GetType()->ToString();
+      compiler_context_->ReportError(var_def, msg);
     }
     if (!index->IsConst()) {
       compiler_context_->ReportError(var_def, "In definition, array size must be a constant expression");
@@ -383,6 +564,7 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
       auto int_value = value.GetIntValue();
       if (int_value <= 0) {
         compiler_context_->ReportError(var_def, "array size must be a positive integer");
+        return;
       }
       // Then we can store the dimension size
       dimensions.push_back(int_value);
@@ -421,7 +603,11 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
     auto result =
         flatten_helper_.FlattenInitializer(var_def->init_values_.get(), entry->dimensions_, initializer::HandleInAst);
     // result is the flattened initializer
-    entry->initializer_ = std::make_unique<initializer::ArrayInitializer>(std::move(result));
+    auto result_ptr = std::make_unique<initializer::ArrayInitializer>(std::move(result));
+    // Then we need to normalize the initializer
+    // First put the result into the RAII wrapper
+    Normalize(entry, result_ptr);
+    entry->initializer_ = std::move(result_ptr);
 
   }
   /**
@@ -429,8 +615,15 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
    * @then: we will check whether the initializer list is overflow or not.
    */
   else if (!entry->is_const_ && !entry->dimensions_.empty()) {
-    auto result =
-        flatten_helper_.FlattenInitializer(var_def->init_values_.get(), entry->dimensions_, initializer::CheckInAst);
+    /**
+     * @brief If the variable is initialize by default,
+     * it will never cause the overflow, so we don't need to check
+     */
+    if (var_def->init_values_ != nullptr) {
+      auto result =
+          flatten_helper_.FlattenInitializer(var_def->init_values_ == nullptr ? nullptr : var_def->init_values_.get(),
+                                             entry->dimensions_, initializer::CheckInAst);
+    }
   }
   /**
    * @brief: if the variable is a scalar variable
@@ -454,6 +647,7 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
           compiler_context_->ReportError(
               var_def, "const scalar variable can only be initialized with an integer or float constant expression");
         }
+        Normalize(entry, const_value);
         entry->initializer_ = std::move(const_value);
       }
     }

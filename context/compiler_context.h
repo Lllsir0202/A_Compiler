@@ -20,6 +20,7 @@ class CompilerContext {
     type_context_ = new TypeContext();
     ast_context_ = new AstContext();
     symboltable_context_ = new SymbolTableContext();
+    InitializeLibFunc();
   }
   ~CompilerContext() {
     delete type_context_;

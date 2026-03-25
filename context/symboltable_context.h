@@ -1,6 +1,5 @@
 #ifndef CONTEXT_SYMBOLTABLE_CONTEXT_H
 #define CONTEXT_SYMBOLTABLE_CONTEXT_H
-#include <memory>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>

@@ -45,6 +45,7 @@ class ArrayInitializer : public Initializer {
     init_values_.emplace_back(std::move(init));
   }
   auto GetInitializers() const -> const std::vector<InitializerPtr> & { return init_values_; }
+  auto GetUpdateInitializers() -> std::vector<InitializerPtr> & { return init_values_; }
   auto IsScalar() const -> bool override { return false; }
   auto IsConst() const -> bool override { throw std::logic_error("ArrayInitializer does not have a constant value"); }
 

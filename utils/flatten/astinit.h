@@ -1,6 +1,7 @@
 #ifndef UTILS_FLATTEN_ASTINIT_H
 #define UTILS_FLATTEN_ASTINIT_H
 #include <optional>
+#include "ast/value/value.h"
 #include "utils/flatten/initializer.h"
 
 namespace initializer {
@@ -24,6 +25,7 @@ class ConstInitializer : public Initializer {
   auto SetFloatValue(float value) -> void;
   auto GetIntValue() const -> std::optional<int>;
   auto GetFloatValue() const -> std::optional<float>;
+  auto GetValue() const -> frontend::ast::Value;
   auto IsScalar() const -> bool override { return true; }
   auto IsConst() const -> bool override { return true; }
 

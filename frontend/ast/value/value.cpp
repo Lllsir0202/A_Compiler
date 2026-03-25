@@ -1,6 +1,5 @@
 #include "frontend/ast/value/value.h"
 #include <cassert>
-#include <cinttypes>
 #include <stdexcept>
 
 namespace frontend::ast {
