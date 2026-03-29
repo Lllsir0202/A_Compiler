@@ -559,7 +559,10 @@ void SemanticAnalyser::Visit(ReturnStmtNode *return_stmt) {
   auto return_type = current_func->return_type_;
   if (return_stmt->expr_ != nullptr) {
     return_stmt->expr_->Accept(this);
-    if (return_type->GetKind() != return_stmt->expr_->GetType()->GetKind()) {
+    // if return type is void, we cannot return a value
+    // or the returned value is a pointer type, which is not allowed
+    if (return_type->GetKind() == type::TypeKind::VOID ||
+        return_stmt->expr_->GetType()->GetKind() == type::TypeKind::PTR) {
       compiler_context_->ReportError(return_stmt, "return type mismatch: expected " + return_type->ToString() +
                                                       ", but got " + return_stmt->expr_->GetType()->ToString());
       return;
