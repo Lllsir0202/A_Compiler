@@ -42,14 +42,16 @@ inline auto SemanticAnalyser::DecideResultType(OpCode op, ExprNode *left, ExprNo
         }
         return compiler_context_->GetTypeContext()->GetIntegerType();
       }
-      compiler_context_->ReportError("invalid operand types for arithmetic operator: " + left->GetType()->ToString() +
-                                     " and " + right->GetType()->ToString());
+      compiler_context_->ReportError(left, "invalid operand types for arithmetic operator: " +
+                                               left->GetType()->ToString() + " and " + right->GetType()->ToString());
+      return compiler_context_->GetTypeContext()->GetUnknownType();
     case OpCode::MOD:
       if ((lhs_is_int || lhs_is_bool) && (rhs_is_int || rhs_is_bool)) {
         return compiler_context_->GetTypeContext()->GetIntegerType();
       }
-      compiler_context_->ReportError("invalid operand types for modulo operator: " + left->GetType()->ToString() +
-                                     " and " + right->GetType()->ToString());
+      compiler_context_->ReportError(left, "invalid operand types for modulo operator: " + left->GetType()->ToString() +
+                                               " and " + right->GetType()->ToString());
+      return compiler_context_->GetTypeContext()->GetUnknownType();
 
     case OpCode::EQUAL:
     case OpCode::NEQUAL:
@@ -118,7 +120,8 @@ auto SemanticAnalyser::Normalize(symboltable::VarEntry *entry,
   auto type = entry->type_;
   // The initialized variable must be an array variable, otherwise it is a logic error
   if (type->GetKind() != type::TypeKind::ARRAY) {
-    throw std::logic_error("Try to initialize non-array type with list initializers");
+    compiler_context_->ReportError("Try to initialize non-array type with array initializers");
+    return;
   }
   auto array_type = static_cast<type::ArrayType *>(type);
   auto element_type = array_type->GetElementType();
@@ -176,7 +179,8 @@ auto SemanticAnalyser::Normalize(symboltable::VarEntry *entry,
   bool is_int = type->GetKind() == type::TypeKind::INT;
   bool is_float = type->GetKind() == type::TypeKind::FLOAT;
   if (!is_int && !is_float) {
-    throw std::logic_error("Try to initialize non-scalar type with scalar initializers");
+    compiler_context_->ReportError("Try to initialize non-scalar type with scalar initializers");
+    return;
   }
   if (init == nullptr) {
     /**  Here might cause memory leak
@@ -341,6 +345,7 @@ void SemanticAnalyser::Visit(FuncCallExprNode *func_call) {
       compiler_context_->ReportError("type mismatch for parameter " + std::to_string(i) + " of function " +
                                      func_call->func_name_ + ": expected " + def->ToString() + ", but got " +
                                      param->GetType()->ToString());
+      return;
     }
   }
 
@@ -374,6 +379,10 @@ void SemanticAnalyser::Visit(LValExprNode *LVal) {
     assert(var_def->type_->GetKind() == type::TypeKind::ARRAY);
     auto element_type = static_cast<type::ArrayType *>(var_def->type_)->GetElementType();
     result_type = compiler_context_->GetTypeContext()->GetPtrType(element_type);
+  }
+  if (!def_dims.empty() && LVal->indices_.size() > def_dims.size()) {
+    compiler_context_->ReportError(LVal, "too many indices for array variable (" + LVal->ident_ + ")");
+    return;
   }
   /**
    * @note: we should allow LVal to be pointer type
@@ -527,6 +536,15 @@ void SemanticAnalyser::Visit(ExprStmtNode *expr_stmt) {
 
 void SemanticAnalyser::Visit(IfStmtNode *if_stmt) {
   if_stmt->condition_->Accept(this);
+  // Assure condition is not ptr or unknown type
+  if (if_stmt->condition_->GetType()->GetKind() == type::TypeKind::UNKNOWN) {
+    compiler_context_->ReportError(if_stmt->condition_.get(), "condition expression has unknown type");
+    return;
+  }
+  if (if_stmt->condition_->GetType()->GetKind() == type::TypeKind::PTR) {
+    compiler_context_->ReportError(if_stmt->condition_.get(), "condition expression cannot be a pointer");
+    return;
+  }
   if (if_stmt->then_branch_ != nullptr) {
     if_stmt->then_branch_->Accept(this);
   }
@@ -574,6 +592,7 @@ void SemanticAnalyser::Visit(ReturnStmtNode *return_stmt) {
   if (return_type->GetKind() != type::TypeKind::VOID) {
     compiler_context_->ReportError(return_stmt,
                                    "return type mismatch: expected " + return_type->ToString() + ", but got void");
+    return;
   }
 }
 
@@ -582,9 +601,11 @@ void SemanticAnalyser::Visit(InitValNode *init_val) {
   init_val->value_->Accept(this);
   if (init_val->value_->GetType()->GetKind() == type::TypeKind::UNKNOWN) {
     compiler_context_->ReportError(init_val, "initializer expression has unknown type");
+    return;
   }
   if (init_val->value_->GetType()->GetKind() == type::TypeKind::PTR) {
     compiler_context_->ReportError(init_val, "initializer expression cannot be a pointer");
+    return;
   }
   // since the init_val->value_ is an expression
   // it will only be estimated as a `UNKNOWN` type or a `PTR` type which is not valid
@@ -603,9 +624,11 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
     if (index->GetType()->GetKind() != type::TypeKind::INT) {
       auto msg = "array size must be an integer, but got " + index->GetType()->ToString();
       compiler_context_->ReportError(var_def, msg);
+      return;
     }
     if (!index->IsConst()) {
       compiler_context_->ReportError(var_def, "In definition, array size must be a constant expression");
+      return;
     }
   }
   // Then we need to calcualte the size and store the dimensions(if has)
@@ -641,13 +664,16 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
     // Check whether initializing a const variable with a constant expression
     if (entry->is_const_ && !var_def->init_values_->IsConst()) {
       compiler_context_->ReportError(var_def, "const variable initializer must be a constant expression");
+      return;
     }
     // Check whether the initializer is compatible with the variable type
     if (entry->dimensions_.empty() && !var_def->init_values_->IsScalar()) {
       compiler_context_->ReportError(var_def, "scalar variable cannot be initialized with a non-scalar initializer");
+      return;
     }
     if (!entry->dimensions_.empty() && var_def->init_values_->IsScalar()) {
       compiler_context_->ReportError(var_def, "array variable cannot be initialized with a scalar initializer");
+      return;
     }
   }
   // If the variable is constant and init_values is all constant or is null
@@ -690,26 +716,27 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
   else if (entry->is_const_ && entry->dimensions_.empty()) {
     if (var_def->init_values_ == nullptr) {
       compiler_context_->ReportError(var_def, "const scalar variable must be initialized");
-    } else {
-      // means the variable is a const scalar variable, we can set its value in the symbol table entry
-      if (var_def->init_values_ == nullptr) {
-        compiler_context_->ReportError(var_def, "const scalar variable must be initialized");
-      } else {
-        auto init_node = static_cast<frontend::ast::InitValNode *>(var_def->init_values_.get());
-        auto value = init_node->value_->GetValue();
-        auto const_value = std::make_unique<initializer::ConstInitializer>();
-        if (value.GetType() == ValueType::INT || value.GetType() == ValueType::BOOL) {
-          const_value->SetIntValue(value.GetIntValue());
-        } else if (value.GetType() == ValueType::FLOAT) {
-          const_value->SetFloatValue(value.GetFloatValue());
-        } else {
-          compiler_context_->ReportError(
-              var_def, "const scalar variable can only be initialized with an integer or float constant expression");
-        }
-        Normalize(entry, const_value);
-        entry->initializer_ = std::move(const_value);
-      }
+      return;
     }
+    // means the variable is a const scalar variable, we can set its value in the symbol table entry
+    if (var_def->init_values_ == nullptr) {
+      compiler_context_->ReportError(var_def, "const scalar variable must be initialized");
+      return;
+    }
+    auto init_node = static_cast<frontend::ast::InitValNode *>(var_def->init_values_.get());
+    auto value = init_node->value_->GetValue();
+    auto const_value = std::make_unique<initializer::ConstInitializer>();
+    if (value.GetType() == ValueType::INT || value.GetType() == ValueType::BOOL) {
+      const_value->SetIntValue(value.GetIntValue());
+    } else if (value.GetType() == ValueType::FLOAT) {
+      const_value->SetFloatValue(value.GetFloatValue());
+    } else {
+      compiler_context_->ReportError(
+          var_def, "const scalar variable can only be initialized with an integer or float constant expression");
+      return;
+    }
+    Normalize(entry, const_value);
+    entry->initializer_ = std::move(const_value);
   }
 
   // The circular reference will be checked in LValExprNode
@@ -723,6 +750,7 @@ void SemanticAnalyser::Visit(GlobalVarDeclNode *global_var_decl) {
     if (!success) {
       compiler_context_->ReportError(var_def.get(),
                                      "variable " + var_def->ident_ + " is already defined in the current scope");
+      return;
     }
     var_def->Accept(this);
   }
@@ -735,6 +763,7 @@ void SemanticAnalyser::Visit(LocalVarDeclNode *local_var_decl) {
     if (!success) {
       compiler_context_->ReportError(var_def.get(),
                                      "variable " + var_def->ident_ + " is already defined in the current scope");
+      return;
     }
     var_def->Accept(this);
   }
@@ -750,6 +779,7 @@ void SemanticAnalyser::Visit(FuncDefNode *func_def) {
       compiler_context_->GetSymbolTableContext()->AddFunc(func_def->func_name_, func_def->return_type_, fparam_types);
   if (!success) {
     compiler_context_->ReportError(func_def, "function " + func_def->func_name_ + " is already defined");
+    return;
   }
   // Add paramaters to the symbol table context.
   auto func_entry = compiler_context_->GetSymbolTableContext()->LookupFunc(func_def->func_name_);
@@ -779,10 +809,12 @@ void SemanticAnalyser::Visit(FuncFParamNode *func_fparam) {
     index->Accept(this);
     if (index->GetType()->GetKind() != type::TypeKind::INT) {
       compiler_context_->ReportError(func_fparam, "array size must be an integer");
+      return;
     }
     if (!index->IsConst()) {
       compiler_context_->ReportError(func_fparam,
                                      "In function parameter definition, array size must be a constant expression");
+      return;
     }
   }
 }

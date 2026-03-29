@@ -8,6 +8,7 @@
 #include "ast/ast_stmt.h"
 #include "ast/astvisitor.h"
 #include "token/location.h"
+#include "type/type.h"
 
 namespace frontend::ast {
 /**
@@ -60,7 +61,7 @@ class InitValNode : public VisitAble<InitValNode, Initializer> {
       : VisitAble<InitValNode, Initializer>(range), value_(std::move(value)) {}
   ExprNodePtr value_;
   auto IsConst() -> bool override { return value_->IsConst(); }
-  auto IsScalar() const -> bool override { return true; }
+  auto IsScalar() const -> bool override { return value_->GetType()->GetKind() != type::TypeKind::PTR; }
 };
 
 /**
