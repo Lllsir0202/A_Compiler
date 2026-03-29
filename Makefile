@@ -1,21 +1,27 @@
 # To begin with, we finish the build of syslib
 .PHONY: librv libarm libs format check-tidy build clean all lexer parser
+.PHONY: check-tidy-frontend check-tidy-backend check-tidy-middleend clean-frontend parser-example
 
 # Lexer and Parser
 -include frontend.mk
+LEXER_SRC := frontend/lexer/$(LEXER_FILE).cpp
+LEXER_HEADER := frontend/lexer/$(LEXER_FILE).h
+PARSER_SRC := frontend/parser/$(PARSER_FILE).cpp
+PARSER_HEADER := frontend/parser/$(PARSER_FILE).h
 
 # Define Src and Include
-DIR := frontend middleend backend stages context utils
+DIR := frontend middleend backend stages context utils pipeline
 BUILD_DIR := objs
 SRC := $(shell find $(DIR) -name '*.cpp') main.cpp
 OBJS := $(SRC:%.cpp=$(BUILD_DIR)/%.o)
-OBJS += $(BUILD_DIR)/frontend/lexer/$(LEXER_FILE).o $(BUILD_DIR)/frontend/parser/$(PARSER_FILE).o
 DEPS := $(OBJS:.o=.d)
 
 INCLUDE := $(shell find $(DIR) -name '*.h')
 CHECK_DIR := $(DIR)
 CHECK_SRC := $(shell find $(CHECK_DIR) -name '*.cpp' -not -name '$(LEXER_FILE).cpp' -not -name '$(PARSER_FILE).cpp')
 CHECK_HEADER := $(shell find $(CHECK_DIR) -name '*.h' -not -name '$(LEXER_FILE).h' -not -name '$(PARSER_FILE).h')
+
+
 # Compile libs
 LIB_PATH := ./libs
 LIB_SRC := $(LIB_PATH)/sylib.c
@@ -35,7 +41,7 @@ GCC := gcc
 CXX := $(CLANGD)
 
 # Build configuration
-INCLUDE_DIRS := -I. -Ifrontend -Imiddleend -Ibackend -Istages -Icontext -I utils
+INCLUDE_DIRS := -I. -Ifrontend -Imiddleend -Ibackend -Istages -Icontext -Iutils
 CXXFLAGS := -std=c++17 -Wall -Wextra $(INCLUDE_DIRS) -O2
 TARGET := bin/compiler
 
@@ -54,12 +60,6 @@ $(BUILD_DIR)/%.o: %.cpp
 	@mkdir -p $(dir $@)
 	@$(CXX) $(CXXFLAGS) -MMD -MP -c $< -o $@
 	@echo "$(CXX) $< to $@"
-
-frontend/lexer/$(LEXER_FILE).cpp: frontend/lexer/$(LEXER_FILE).l
-	$(MAKE) lexer
-
-frontend/parser/$(PARSER_FILE).cpp: frontend/parser/$(PARSER_FILE).y
-	$(MAKE) parser
 
 -include $(DEPS)
 
@@ -82,12 +82,26 @@ check-tidy:
 	@for file in $(CHECK_SRC) $(CHECK_HEADER); do \
 		case "$$file" in \
 			*.cpp) \
-				clang-tidy -quiet $$file -- $(INCLUDE_DIRS) -std=c++17;; \
+				clang-tidy -w -quiet $$file -- $(INCLUDE_DIRS) -std=c++17;; \
 			*.h|*.hpp|*.hh) \
-				clang-tidy -quiet $$file -- $(INCLUDE_DIRS) -std=c++17 -x c++;; \
+				clang-tidy -w -quiet $$file -- $(INCLUDE_DIRS) -std=c++17 -x c++;; \
 		esac; \
 		echo "Checked $$file"; \
 	done
+
+check-tidy-fast:
+	@echo "Running clang-tidy in parallel..."
+	@printf "%s\n" $(CHECK_SRC) $(CHECK_HEADER) | \
+	xargs -P $(shell nproc) -I {} sh -c '\
+		file="{}"; \
+		case "$$file" in \
+			*.cpp) \
+				clang-tidy -quiet $$file -- $(INCLUDE_DIRS) -std=c++17 ;; \
+			*.h|*.hpp|*.hh) \
+				clang-tidy -quiet $$file -- $(INCLUDE_DIRS) -std=c++17 -x c++ ;; \
+		esac; \
+		echo "Checked $$file"; \
+	'
 
 clean:
 	@rm -rf bin
@@ -98,10 +112,10 @@ clean-frontend:
 	@rm -f frontend/lexer/$(LEXER_FILE).cpp frontend/parser/$(PARSER_FILE).cpp frontend/lexer/$(LEXER_FILE).h frontend/parser/$(PARSER_FILE).h
 
 lexer:
-	$(LEXER_TOOL) -d -o frontend/lexer/$(LEXER_FILE).cpp --header-file=frontend/lexer/$(LEXER_FILE).h frontend/lexer/$(LEXER_FILE).l
+	$(LEXER_TOOL) -d -o $(LEXER_SRC) --header-file=$(LEXER_HEADER) frontend/lexer/$(LEXER_FILE).l
 
 parser:
-	$(PARSER_TOOL) -d -o frontend/parser/$(PARSER_FILE).cpp --defines=frontend/parser/$(PARSER_FILE).h frontend/parser/$(PARSER_FILE).y
+	$(PARSER_TOOL) -d -o $(PARSER_SRC) --defines=$(PARSER_HEADER) frontend/parser/$(PARSER_FILE).y
 
 parser-example:
-	$(PARSER_TOOL) -Wcounterexamples -d -o frontend/parser/$(PARSER_FILE).cpp --defines=frontend/parser/$(PARSER_FILE).h frontend/parser/$(PARSER_FILE).y 2> counterexamples.output
+	$(PARSER_TOOL) -Wcounterexamples -d -o $(PARSER_SRC) --defines=$(PARSER_HEADER) frontend/parser/$(PARSER_FILE).y 2> counterexamples.output

@@ -61,8 +61,9 @@ CheckOptions:
   - { key: readability-identifier-naming.UnionCase,           value: CamelCase  }
   - { key: readability-identifier-naming.VariableCase,        value: lower_case }
 WarningsAsErrors: '*'
-HeaderFilterRegex: '/(src|test)/include'
-# AnalyzeTemporaryDtors: true
+HeaderFilterRegex: '^(frontend|middleend|backend|stages|context|utils|pipeline)/.*'
+SystemHeaders: false
+# AnalyzeTemporaryDtors: false
 
 #### Disabled checks and why: #####
 #
