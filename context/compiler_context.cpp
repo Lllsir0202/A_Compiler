@@ -24,11 +24,13 @@ auto context::CompilerContext::ReportError(frontend::ast::ASTNode *node, const s
 }
 
 /**
- * @brief Report an error without source range informatino
- * @note This function will not throw an exception, since we just use it to print some error messages.
- * if you want to report an error with source range information, please use the other two ReportError functions.
+ * @brief Report an error without source range information
+ * @note if you want to report an error with source range information, please use the other two ReportError functions.
  */
-auto context::CompilerContext::ReportError(const std::string &msg) -> void { (*out_) << "Error: " << msg << '\n'; }
+auto context::CompilerContext::ReportError(const std::string &msg) -> void {
+  (*out_) << "Error: " << msg << '\n';
+  throw std::runtime_error("Compilation error occurred.");
+}
 
 auto context::CompilerContext::InitializeLibFunc() -> void {
   auto int_type = type_context_->GetIntegerType();
