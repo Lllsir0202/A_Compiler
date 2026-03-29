@@ -217,6 +217,14 @@ auto SemanticAnalyser::Analyse() -> int {
   try {
     auto root = compiler_context_->GetAstContext()->GetRootNode();
     root->Accept(this);
+    // After visiting the whole AST, we need to make sure that there is a function called main
+    auto main_func = compiler_context_->GetSymbolTableContext()->LookupFunc("main");
+    if (main_func == nullptr) {
+      compiler_context_->ReportError("function main is not defined");
+      compiler_context_->GetSymbolTableContext()->ResetCurrentFunc();
+      compiler_context_ = nullptr;
+      return 2;
+    }
   } catch (const std::runtime_error &e) {
     // Has exception in semantic analysis, return 1 to indicate failure
     compiler_context_->ReportError(e.what());
@@ -543,8 +551,26 @@ void SemanticAnalyser::Visit([[maybe_unused]] ContinueStmtNode *continue_stmt) {
 }
 
 void SemanticAnalyser::Visit(ReturnStmtNode *return_stmt) {
+  auto current_func = compiler_context_->GetSymbolTableContext()->GetCurrentFunc();
+  if (current_func == nullptr) {
+    compiler_context_->ReportError(return_stmt, "return statement is not inside a function");
+    return;
+  }
+  auto return_type = current_func->return_type_;
   if (return_stmt->expr_ != nullptr) {
     return_stmt->expr_->Accept(this);
+    if (return_type->GetKind() != return_stmt->expr_->GetType()->GetKind()) {
+      compiler_context_->ReportError(return_stmt, "return type mismatch: expected " + return_type->ToString() +
+                                                      ", but got " + return_stmt->expr_->GetType()->ToString());
+      return;
+    }
+    return;
+  }
+  // The true return is void
+  // make sure required return type is void
+  if (return_type->GetKind() != type::TypeKind::VOID) {
+    compiler_context_->ReportError(return_stmt,
+                                   "return type mismatch: expected " + return_type->ToString() + ", but got void");
   }
 }
 

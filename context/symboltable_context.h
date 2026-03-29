@@ -149,6 +149,13 @@ class SymbolTableContext {
    */
   auto ResetCurrentFunc() -> void { current_func_ = nullptr; }
 
+  /**
+   * @brief Get the current function being processed.
+   * @return a pointer to the current function entry if there is a function being processed,
+   * @note nullptr might be, but normally it won't be a nullptr when calling this method
+   */
+  auto GetCurrentFunc() -> symboltable::FuncEntry * { return current_func_; }
+
  private:
   std::vector<std::unordered_map<std::string, symboltable::VarEntry>> var_table_;
   // We need to consider the function's parameters
