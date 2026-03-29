@@ -798,6 +798,7 @@ void SemanticAnalyser::Visit(FuncFParamNode *func_fparam) {
   const int dimension_count = func_fparam->indices_.size();
   for (int i = 0; i < dimension_count; i++) {
     auto &index = func_fparam->indices_[i];
+    // TODO(loki): need to record and check dimensions here and rparam
     if (index == nullptr && i == 0) {
       continue;
     }
