@@ -479,7 +479,7 @@ void SemanticAnalyser::Visit(AssignStmtNode *assign_stmt) {
     return;
   }
   /**
-   * @cond: left value is a constant variable, which means it is defined with const qualifier
+   * @cond: left value is a constant variable, which means the assigned value is a constant expression
    */
   if (assign_stmt->lval_->IsConst()) {
     // we cannot assign a value to a constant variable

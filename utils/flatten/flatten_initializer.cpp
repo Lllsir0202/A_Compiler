@@ -48,7 +48,6 @@ void FlattenHelper::InitObject(const Object &obj, InitCursor &cursor, Address ad
       // means it is an init list, but the array has no more dimension,
       // so we will just get the first scalar initializer in the init list
       else {
-        printf("Warning: initializer list is too deep, just get the first scalar initializer\n");
         results.AddInitializer(CastInitializer(init_node, function_pointer), address);
       }
     } else {
@@ -72,10 +71,6 @@ void FlattenHelper::InitObject(const Object &obj, InitCursor &cursor, Address ad
         cursor.Next();
         InitCursor sub_cursor = MakeSubCursor(static_cast<frontend::ast::InitListNode *>(init_node));
         InitObject(sub_obj, sub_cursor, address[i], results, function_pointer);
-        printf("Has more? %s\n", sub_cursor.HasMore() ? "true" : "false");
-        printf("i = %d\n", i);
-        printf("cursor pos: %zu\n", sub_cursor.pos_);
-        printf("cursor init list size: %zu\n", sub_cursor.init_list_.size());
         if (sub_cursor.HasMore()) {
           compiler_context_->ReportError(init_node, "Too many initializers for array");
         }
