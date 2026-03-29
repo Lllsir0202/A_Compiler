@@ -9,6 +9,7 @@ DIR := frontend middleend backend stages context utils
 BUILD_DIR := objs
 SRC := $(shell find $(DIR) -name '*.cpp') main.cpp
 OBJS := $(SRC:%.cpp=$(BUILD_DIR)/%.o)
+OBJS += $(BUILD_DIR)/frontend/lexer/$(LEXER_FILE).o $(BUILD_DIR)/frontend/parser/$(PARSER_FILE).o
 DEPS := $(OBJS:.o=.d)
 
 INCLUDE := $(shell find $(DIR) -name '*.h')
@@ -54,6 +55,12 @@ $(BUILD_DIR)/%.o: %.cpp
 	@$(CXX) $(CXXFLAGS) -MMD -MP -c $< -o $@
 	@echo "$(CXX) $< to $@"
 
+frontend/lexer/$(LEXER_FILE).cpp: frontend/lexer/$(LEXER_FILE).l
+	$(MAKE) lexer
+
+frontend/parser/$(PARSER_FILE).cpp: frontend/parser/$(PARSER_FILE).y
+	$(MAKE) parser
+
 -include $(DEPS)
 
 librv:
@@ -69,7 +76,7 @@ libarm:
 libs: librv libarm
 
 format:
-	@find . -type f \( -name "*.c" -o -name "*.cpp" -o -name "*.h" -o -name "*.hpp" -o -name "*.hh" \) -not -name "sylib.*" -exec $(CLANG_FORMAT) -i {} +
+	@find . -type f \( -name "*.c" -o -name "*.cpp" -o -name "*.h" -o -name "*.hpp" -o -name "*.hh" \) -not -path "./libs" -exec $(CLANG_FORMAT) -i {} +
 
 check-tidy:
 	@for file in $(CHECK_SRC) $(CHECK_HEADER); do \

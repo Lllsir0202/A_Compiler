@@ -150,13 +150,21 @@ auto SemanticAnalyser::Normalize(symboltable::VarEntry *entry,
     }
 
     auto &init_node = static_cast<initializer::ConstInitializer &>(*init_val);
-    if (is_int && init_node.GetIntValue() == std::nullopt) {
-      auto float_value = init_node.GetFloatValue().value();
-      init_node.SetIntValue(static_cast<int>(float_value));
+    // Since we only allow int OR float value, so if float has value,
+    // then integer will definitely be a std::nullopt
+    if (is_float) {
+      auto opt = init_node.GetFloatValue();
+      if (opt.has_value()) {
+        auto float_value = opt.value();
+        init_node.SetIntValue(static_cast<int>(float_value));
+      }
     }
-    if (is_float && init_node.GetFloatValue() == std::nullopt) {
-      auto int_value = init_node.GetIntValue().value();
-      init_node.SetFloatValue(static_cast<float>(int_value));
+    if (is_int) {
+      auto opt = init_node.GetIntValue();
+      if (opt.has_value()) {
+        auto int_value = opt.value();
+        init_node.SetFloatValue(static_cast<float>(int_value));
+      }
     }
   }
 }
@@ -184,13 +192,20 @@ auto SemanticAnalyser::Normalize(symboltable::VarEntry *entry,
     }
   }
   if (init->IsConst()) {
-    if (is_int && init->GetIntValue() == std::nullopt) {
-      auto float_value = init->GetFloatValue().value();
-      init->SetIntValue(static_cast<int>(float_value));
+    // Same as overrided `Normalize`
+    if (is_float) {
+      auto opt = init->GetFloatValue();
+      if (opt.has_value()) {
+        auto float_value = opt.value();
+        init->SetIntValue(static_cast<int>(float_value));
+      }
     }
-    if (is_float && init->GetFloatValue() == std::nullopt) {
-      auto int_value = init->GetIntValue().value();
-      init->SetFloatValue(static_cast<float>(int_value));
+    if (is_int) {
+      auto opt = init->GetIntValue();
+      if (opt.has_value()) {
+        auto int_value = opt.value();
+        init->SetFloatValue(static_cast<float>(int_value));
+      }
     }
   }
 }
