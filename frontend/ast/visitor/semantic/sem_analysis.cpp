@@ -230,6 +230,18 @@ auto SemanticAnalyser::Analyse() -> int {
       compiler_context_ = nullptr;
       return 2;
     }
+    auto main_return_type = main_func->return_type_;
+    if (main_return_type->GetKind() == type::TypeKind::FLOAT) {
+      compiler_context_->ReportWarning("main function should return an integer, but float is found");
+    }
+    if (main_return_type->GetKind() == type::TypeKind::VOID) {
+      compiler_context_->ReportWarning("main function should return an integer, but void is found");
+    }
+    // Maybe we can allow parameters in main function, but we currently disable this feature.
+    if (main_func->param_types_.size() != 0) {
+      compiler_context_->ReportWarning("main function should not have parameters, but " +
+                                       std::to_string(main_func->param_types_.size()) + " are found");
+    }
   } catch (const std::runtime_error &e) {
     // Has exception in semantic analysis, return 1 to indicate failure
     compiler_context_->Print(e.what());

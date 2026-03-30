@@ -45,6 +45,18 @@ auto context::CompilerContext::ReportWarning(frontend::ast::ASTNode *node, const
   }
 }
 
+/**
+ * @brief Report a warning without source range information
+ */
+auto context::CompilerContext::ReportWarning(const std::string &msg) -> void {
+  if (warning_as_error_) {
+    (*out_) << "\33[33mWarning treated as error\033[0m\n";
+    ReportError(msg);
+  } else {
+    printf("\033[33mWarning: %s\033[0m\n", msg.c_str());
+  }
+}
+
 auto context::CompilerContext::InitializeLibFunc() -> void {
   auto int_type = type_context_->GetIntegerType();
   auto float_type = type_context_->GetFloatType();
