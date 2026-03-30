@@ -246,3 +246,21 @@ Since I want to abstract the initializer handling to make it easier to be used w
 Since the scalar and list intializer can be extremely different, I designed a parent class called ``Initializer`` to represent the general initializer, and the symbol table will store the smart pointer of this class. Then using two inheriting classes to represent the scalar initializer and list initializer separately.
 
 In my design, the initializer classes shall work as a intemediate representation of the values, which can make the ``initializer handling`` and the ``AST`` more decoupled,
+
+### To Be Improved
+There are some details which might be improved in the future, and I will list them below:
+1. The error handling in the semantic analysis stage can handle the warnings better
+2. Check the function call arguments in the semantic analysis stage, which might be handled via reorganize the type to check the function call arguments more easily.   
+
+    For instance,
+    ```c
+    int f(int a[][20]) {
+        return a[0][0];
+    }
+    int main() {
+        int b[3][10] = {};
+        return f(b);
+    }
+    ```
+    
+    which should report a warning in dealing with a[][20] and b[3][10], which is different. But to be simple, we will just regard them as the pointer to integer, which is the same. It can be improved in the future.
