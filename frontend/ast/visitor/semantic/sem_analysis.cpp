@@ -1,4 +1,5 @@
 #include "frontend/ast/visitor/semantic/sem_analysis.h"
+#include <climits>
 #include <cstddef>
 #include <memory>
 #include <optional>
@@ -667,8 +668,12 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
     for (const auto &index : var_def->indices_) {
       auto value = index->GetValue();
       auto int_value = value.GetIntValue();
-      if (int_value <= 0) {
-        compiler_context_->ReportError(var_def, "array size must be a positive integer");
+      if (int_value < 0) {
+        compiler_context_->ReportError(var_def, "array size cannot be negative");
+        return;
+      }
+      if (int_value == 0) {
+        compiler_context_->ReportError(var_def, "array size cannot be zero");
         return;
       }
       // Then we can store the dimension size
