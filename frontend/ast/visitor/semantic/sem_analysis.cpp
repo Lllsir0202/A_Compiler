@@ -156,18 +156,24 @@ auto SemanticAnalyser::Normalize(symboltable::VarEntry *entry,
     auto &init_node = static_cast<initializer::ConstInitializer &>(*init_val);
     // Since we only allow int OR float value, so if float has value,
     // then integer will definitely be a std::nullopt
+    /**
+     * @note: if original type is float, and the initializer is an integer, we need to do the convert.
+     */
     if (is_float) {
-      auto opt = init_node.GetFloatValue();
-      if (opt.has_value()) {
-        auto float_value = opt.value();
-        init_node.SetIntValue(static_cast<int>(float_value));
-      }
-    }
-    if (is_int) {
       auto opt = init_node.GetIntValue();
       if (opt.has_value()) {
         auto int_value = opt.value();
         init_node.SetFloatValue(static_cast<float>(int_value));
+      }
+    }
+    /**
+     * @note: if original type is integer, and the initializer is a float, we need to do the convert.
+     */
+    if (is_int) {
+      auto opt = init_node.GetFloatValue();
+      if (opt.has_value()) {
+        auto float_value = opt.value();
+        init_node.SetIntValue(static_cast<int>(float_value));
       }
     }
   }
@@ -195,21 +201,27 @@ auto SemanticAnalyser::Normalize(symboltable::VarEntry *entry,
     if (is_float) {
       init->SetFloatValue(0.0F);
     }
-  }
-  if (init->IsConst()) {
+  } else if (init->IsConst()) {
     // Same as overrided `Normalize`
+    /**
+     * @note: it is doing type convert here
+     * if original type is float, and the initializer is an integer, we need to do the convert.
+     */
     if (is_float) {
-      auto opt = init->GetFloatValue();
-      if (opt.has_value()) {
-        auto float_value = opt.value();
-        init->SetIntValue(static_cast<int>(float_value));
-      }
-    }
-    if (is_int) {
       auto opt = init->GetIntValue();
       if (opt.has_value()) {
         auto int_value = opt.value();
         init->SetFloatValue(static_cast<float>(int_value));
+      }
+    }
+    /**
+     * if original type is integer, and the initializer is a float, we need to do the convert.
+     */
+    if (is_int) {
+      auto opt = init->GetFloatValue();
+      if (opt.has_value()) {
+        auto float_value = opt.value();
+        init->SetIntValue(static_cast<int>(float_value));
       }
     }
   }
@@ -832,7 +844,14 @@ void SemanticAnalyser::Visit(FuncDefNode *func_def) {
         if (index == nullptr) {
           // we indicate the first dimension by assign it with -1, since the first dimension can be left unspecified
           dimensions.push_back(-1);
-        } else {
+          continue;
+        }
+        if (!index->IsConst()) {
+          compiler_context_->ReportError(fparam.get(),
+                                         "In function parameter definition, array size must be a constant expression");
+          return;
+        }
+        if (index != nullptr) {
           auto value = index->GetValue();
           auto int_value = value.GetIntValue();
           if (int_value <= 0) {
