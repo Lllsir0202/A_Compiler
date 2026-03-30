@@ -146,8 +146,8 @@ class SymbolTableContext {
 
   /**
    * @brief Reset the current function being processed.
-   * @note Should only be called when the semantic analysis has terminaled, since it means there is no function being
-   processed.
+   * @note Should only be called when the semantic analysis has terminaled, since it means there is no
+   function being processed.
    */
   auto ResetCurrentFunc() -> void { current_func_ = nullptr; }
 
@@ -161,13 +161,14 @@ class SymbolTableContext {
  private:
   std::vector<std::unordered_map<std::string, symboltable::VarEntry>> var_table_;
   // We need to consider the function's parameters
-  // Since they are always defined in the function scope and can be accessed by any part of the function.
-  // It is just defined in function definition
+  // Since they are always defined in the function scope and can be accessed by any part of the
+  // function. It is just defined in function definition
   std::unordered_map<symboltable::FuncEntry *, std::unordered_map<std::string, symboltable::VarEntry>>
       func_param_table_;
   std::unordered_map<std::string, symboltable::FuncEntry> func_table_;
   // Keep track of the current function being processed, used for adding function parameters
-  // When the semantic analyser reach the end, we will reset the member because it means the analysis has terminaled.
+  // When the semantic analyser reach the end, we will reset the member because it means the analysis
+  // has terminaled.
   symboltable::FuncEntry *current_func_ = nullptr;
 };
 }  // namespace context

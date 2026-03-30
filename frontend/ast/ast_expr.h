@@ -1,6 +1,7 @@
 #ifndef FRONTEND_AST_AST_EXPR_H
 #define FRONTEND_AST_AST_EXPR_H
 
+#include <memory>
 #include <vector>
 #include "ast/ast_base.h"
 #include "ast/ast_utils.h"
@@ -62,7 +63,6 @@ class BinaryExprNode : public VisitAble<BinaryExprNode, ExprNode> {
         operator_(op),
         left_(std::move(left)),
         right_(std::move(right)) {}
-
   OpCode operator_;
   ExprNodePtr left_;
   ExprNodePtr right_;
@@ -97,7 +97,6 @@ class FuncCallExprNode : public VisitAble<FuncCallExprNode, ExprNode> {
         params_(std::move(params)) {}
   explicit FuncCallExprNode(SourceRange range, TypePtr type, std::string func_name, bool is_const = false)
       : VisitAble<FuncCallExprNode, ExprNode>(range, type, is_const), func_name_(std::move(func_name)) {}
-
   std::string func_name_;
   std::vector<ExprNodePtr> params_;
 };
@@ -114,20 +113,11 @@ class LValExprNode : public VisitAble<LValExprNode, ExprNode> {
                         bool is_const = false)
       : VisitAble<LValExprNode, ExprNode>(range, type, is_const),
         ident_(std::move(ident)),
-        indices_(std::move(indices)) {
-    is_array_ = true;
-  }
+        indices_(std::move(indices)) {}
   explicit LValExprNode(SourceRange range, TypePtr type, std::string ident, bool is_const = false)
-      : VisitAble<LValExprNode, ExprNode>(range, type, is_const), ident_(std::move(ident)) {
-    is_array_ = false;
-  }
-
+      : VisitAble<LValExprNode, ExprNode>(range, type, is_const), ident_(std::move(ident)) {}
   std::string ident_;
   std::vector<ExprNodePtr> indices_;
-  auto IsArray() const -> bool { return is_array_; }
-
- private:
-  bool is_array_;
 };
 
 /**

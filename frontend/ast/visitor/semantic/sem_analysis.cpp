@@ -390,13 +390,20 @@ void SemanticAnalyser::Visit(LValExprNode *LVal) {
       compiler_context_->ReportError(LVal, "variable (" + LVal->ident_ + ") is not an array variable, but has indices");
       return;
     }
-  }
-  if (!def_dims.empty() && LVal->indices_.size() < def_dims.size()) {
-    assert(var_def->type_->GetKind() == type::TypeKind::ARRAY || var_def->type_->GetKind() == type::TypeKind::PTR);
-    auto element_type = static_cast<type::ArrayType *>(var_def->type_)->GetElementType();
+  } else if (!def_dims.empty() && LVal->indices_.size() < def_dims.size()) {
+    TypePtr element_type = nullptr;
+    if (var_def->type_->GetKind() == type::TypeKind::ARRAY) {
+      // means a variable defined
+      element_type = static_cast<type::ArrayType *>(var_def->type_)->GetElementType();
+    } else if (var_def->type_->GetKind() == type::TypeKind::PTR) {
+      // means a parameter variable, which is represented as pointer type
+      element_type = static_cast<type::PtrType *>(var_def->type_)->GetBaseType();
+    } else {
+      compiler_context_->ReportError(LVal, "variable (" + LVal->ident_ + ") is not an array variable, but has indices");
+      return;
+    }
     result_type = compiler_context_->GetTypeContext()->GetPtrType(element_type);
-  }
-  if (!def_dims.empty() && LVal->indices_.size() > def_dims.size()) {
+  } else if (!def_dims.empty() && LVal->indices_.size() > def_dims.size()) {
     compiler_context_->ReportError(LVal, "too many indices for array variable (" + LVal->ident_ + ")");
     return;
   }
@@ -410,7 +417,7 @@ void SemanticAnalyser::Visit(LValExprNode *LVal) {
   for (auto &index : LVal->indices_) {
     index->Accept(this);
     if (index->GetType()->GetKind() != type::TypeKind::INT) {
-      compiler_context_->ReportError("array subscript must be an integer");
+      compiler_context_->ReportError(index.get(), "array subscript must be an integer");
       return;
     }
     if (!index->IsConst()) {
@@ -789,7 +796,7 @@ void SemanticAnalyser::Visit(FuncDefNode *func_def) {
   auto fparam_types = std::vector<type::Type *>{};
   for (auto &fparam : func_def->parameters_) {
     fparam->Accept(this);
-    fparam_types.push_back(fparam->type_);
+    fparam_types.emplace_back(fparam->type_);
   }
   auto success =
       compiler_context_->GetSymbolTableContext()->AddFunc(func_def->func_name_, func_def->return_type_, fparam_types);
