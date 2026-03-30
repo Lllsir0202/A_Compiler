@@ -91,15 +91,15 @@ auto SymbolTableContext::AddFunc(const std::string &name, type::Type *return_typ
   return true;
 }
 
-auto SymbolTableContext::AddFuncParam(symboltable::FuncEntry *func_entry, const std::string &name,
-                                      type::Type *type) -> bool {
+auto SymbolTableContext::AddFuncParam(symboltable::FuncEntry *func_entry, const std::string &name, type::Type *type,
+                                      std::vector<int> dimensions) -> bool {
   if (func_entry == nullptr) {
     return false;
   }
   if (func_param_table_[func_entry].count(name) > 0) {
     return false;  // Function parameter already exists
   }
-  func_param_table_[func_entry][name] = {name, type, false, {}, true};
+  func_param_table_[func_entry][name] = {name, type, false, std::move(dimensions), true};
   return true;
 }
 

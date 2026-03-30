@@ -48,6 +48,7 @@ void FlattenHelper::InitObject(const Object &obj, InitCursor &cursor, Address ad
       // means it is an init list, but the array has no more dimension,
       // so we will just get the first scalar initializer in the init list
       else {
+        compiler_context_->ReportWarning(init_node, "Initializing a scalar with a list");
         results.AddInitializer(CastInitializer(init_node, function_pointer), address);
       }
     } else {
@@ -73,6 +74,7 @@ void FlattenHelper::InitObject(const Object &obj, InitCursor &cursor, Address ad
         InitObject(sub_obj, sub_cursor, address[i], results, function_pointer);
         if (sub_cursor.HasMore()) {
           compiler_context_->ReportError(init_node, "Too many initializers for array");
+          return;
         }
       } else if (init_node != nullptr) {
         // if it is not nullptr and it is a scalar

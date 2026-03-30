@@ -138,9 +138,11 @@ class SymbolTableContext {
    * @param func_entry the function entry of the function parameter belongs to
    * @param name the name of the function parameter
    * @param type the type of the function parameter
+   * @param dimensions the dimensions of the parameter if it is an array parameter, otherwise it is empty
    * @return true if the function parameter is added successfully, false otherwise
    */
-  auto AddFuncParam(symboltable::FuncEntry *func_entry, const std::string &name, type::Type *type) -> bool;
+  auto AddFuncParam(symboltable::FuncEntry *func_entry, const std::string &name, type::Type *type,
+                    std::vector<int> dimensions = {}) -> bool;
 
   /**
    * @brief Reset the current function being processed.

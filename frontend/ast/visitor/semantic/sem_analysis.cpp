@@ -224,24 +224,24 @@ auto SemanticAnalyser::Analyse() -> int {
     // After visiting the whole AST, we need to make sure that there is a function called main
     auto main_func = compiler_context_->GetSymbolTableContext()->LookupFunc("main");
     if (main_func == nullptr) {
-      compiler_context_->ReportError("function main is not defined");
+      compiler_context_->Print("function main is not defined");
       compiler_context_->GetSymbolTableContext()->ResetCurrentFunc();
       compiler_context_ = nullptr;
       return 2;
     }
   } catch (const std::runtime_error &e) {
     // Has exception in semantic analysis, return 1 to indicate failure
-    compiler_context_->ReportError(e.what());
+    compiler_context_->Print(e.what());
     compiler_context_->GetSymbolTableContext()->ResetCurrentFunc();
     compiler_context_ = nullptr;
     return 1;
   } catch (const std::logic_error &e) {
-    compiler_context_->ReportError(e.what());
+    compiler_context_->Print(e.what());
     compiler_context_->GetSymbolTableContext()->ResetCurrentFunc();
     compiler_context_ = nullptr;
     return 2;
   } catch (...) {
-    compiler_context_->ReportError("Unknown error occurred");
+    compiler_context_->Print("Unknown error occurred");
     compiler_context_->GetSymbolTableContext()->ResetCurrentFunc();
     compiler_context_ = nullptr;
     return 3;
@@ -371,12 +371,28 @@ void SemanticAnalyser::Visit(LValExprNode *LVal) {
   auto def_dims = var_def->dimensions_;
   TypePtr result_type = nullptr;
 
+  // Since there are two different types of variables
+  /**
+   * @note: we use array to represent those variables which have to alloca memory
+   * @note: we use pointer to represent those variables which represents as a pointer
+   * @note: we deal with parameter variables as Pointer type.
+   */
   if (!def_dims.empty() && LVal->indices_.size() == def_dims.size()) {
-    assert(var_def->type_->GetKind() == type::TypeKind::ARRAY);
-    result_type = static_cast<type::ArrayType *>(var_def->type_)->GetElementType();
+    if (var_def->type_->GetKind() == type::TypeKind::ARRAY) {
+      // Deal with array definition
+      auto array_type = static_cast<type::ArrayType *>(var_def->type_);
+      result_type = array_type->GetElementType();
+    } else if (var_def->type_->GetKind() == type::TypeKind::PTR) {
+      // Deal with parameter variable, which is represented as pointer type
+      auto ptr_type = static_cast<type::PtrType *>(var_def->type_);
+      result_type = ptr_type->GetBaseType();
+    } else {
+      compiler_context_->ReportError(LVal, "variable (" + LVal->ident_ + ") is not an array variable, but has indices");
+      return;
+    }
   }
   if (!def_dims.empty() && LVal->indices_.size() < def_dims.size()) {
-    assert(var_def->type_->GetKind() == type::TypeKind::ARRAY);
+    assert(var_def->type_->GetKind() == type::TypeKind::ARRAY || var_def->type_->GetKind() == type::TypeKind::PTR);
     auto element_type = static_cast<type::ArrayType *>(var_def->type_)->GetElementType();
     result_type = compiler_context_->GetTypeContext()->GetPtrType(element_type);
   }
@@ -784,7 +800,27 @@ void SemanticAnalyser::Visit(FuncDefNode *func_def) {
   // Add paramaters to the symbol table context.
   auto func_entry = compiler_context_->GetSymbolTableContext()->LookupFunc(func_def->func_name_);
   for (auto &fparam : func_def->parameters_) {
-    compiler_context_->GetSymbolTableContext()->AddFuncParam(func_entry, fparam->param_name_, fparam->type_);
+    // Assume there is dimension
+    auto dimensions = std::vector<int>{};
+    if (fparam->type_->GetKind() == type::TypeKind::PTR) {
+      // if it is ptr , we need to record the dimensions
+      for (const auto &index : fparam->indices_) {
+        if (index == nullptr) {
+          // we indicate the first dimension by assign it with -1, since the first dimension can be left unspecified
+          dimensions.push_back(-1);
+        } else {
+          auto value = index->GetValue();
+          auto int_value = value.GetIntValue();
+          if (int_value <= 0) {
+            compiler_context_->ReportError(fparam.get(), "array size must be a positive integer");
+            return;
+          }
+          dimensions.push_back(int_value);
+        }
+      }
+    }
+    compiler_context_->GetSymbolTableContext()->AddFuncParam(func_entry, fparam->param_name_, fparam->type_,
+                                                             dimensions);
   }
 
   // Then we can visit the function body
@@ -798,7 +834,6 @@ void SemanticAnalyser::Visit(FuncFParamNode *func_fparam) {
   const int dimension_count = func_fparam->indices_.size();
   for (int i = 0; i < dimension_count; i++) {
     auto &index = func_fparam->indices_[i];
-    // TODO(loki): need to record and check dimensions here and rparam
     if (index == nullptr && i == 0) {
       continue;
     }
@@ -818,6 +853,9 @@ void SemanticAnalyser::Visit(FuncFParamNode *func_fparam) {
       return;
     }
   }
+  /**
+   * @note we have set it to the true type during parser phase.
+   */
 }
 
 }  // namespace frontend::ast

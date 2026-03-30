@@ -32,6 +32,19 @@ auto context::CompilerContext::ReportError(const std::string &msg) -> void {
   throw std::runtime_error("Compilation error occurred.");
 }
 
+/**
+ * @brief Report a warning with source range and message.
+ * @note refer to clang gcc implement, if set warning as error, we can also throw a runtime error.
+ */
+auto context::CompilerContext::ReportWarning(frontend::ast::ASTNode *node, const std::string &msg) -> void {
+  if (warning_as_error_) {
+    (*out_) << "\33[33mWarning treated as error\033[0m\n";
+    ReportError(node, msg);
+  } else {
+    printf("\033[33mWarning at Line %d, Column %d: %s\033[0m\n", node->GetLine(), node->GetColumn(), msg.c_str());
+  }
+}
+
 auto context::CompilerContext::InitializeLibFunc() -> void {
   auto int_type = type_context_->GetIntegerType();
   auto float_type = type_context_->GetFloatType();
