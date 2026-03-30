@@ -264,3 +264,8 @@ There are some details which might be improved in the future, and I will list th
     ```
     
     which should report a warning in dealing with a[][20] and b[3][10], which is different. But to be simple, we will just regard them as the pointer to integer, which is the same. It can be improved in the future.
+
+## Middleend
+TODO(maybe): since the middleend is still in design, I would like to first talk about some design ideas about the middleend, and I will update the details about the middleend in the future when I have finished the design and implementation of it.
+
+I'm learning about the MLIR, and it seems really elegant and powerful, so I might add it to my compiler as the middleend, which can make the optimization easier and more efficient.
