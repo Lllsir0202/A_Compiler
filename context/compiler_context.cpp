@@ -38,7 +38,7 @@ auto context::CompilerContext::ReportError(const std::string &msg) -> void {
  */
 auto context::CompilerContext::ReportWarning(frontend::ast::ASTNode *node, const std::string &msg) -> void {
   if (warning_as_error_) {
-    (*out_) << "\33[33mWarning treated as error\033[0m\n";
+    (*out_) << "Warning treated as error\n\n";
     ReportError(node, msg);
   } else {
     printf("\033[33mWarning at Line %d, Column %d: %s\033[0m\n", node->GetLine(), node->GetColumn(), msg.c_str());
@@ -50,7 +50,7 @@ auto context::CompilerContext::ReportWarning(frontend::ast::ASTNode *node, const
  */
 auto context::CompilerContext::ReportWarning(const std::string &msg) -> void {
   if (warning_as_error_) {
-    (*out_) << "\33[33mWarning treated as error\033[0m\n";
+    (*out_) << "Warning treated as error\n\n";
     ReportError(msg);
   } else {
     printf("\033[33mWarning: %s\033[0m\n", msg.c_str());

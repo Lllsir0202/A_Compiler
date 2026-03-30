@@ -17,6 +17,8 @@ static std::string file_name;
 static std::string output_name;
 static std::string stage = "llvm";
 static int optimization_level = 0;
+// Mark whether regard warnings as errors, default to false
+static bool warnings_as_errors = false;
 
 static const std::unordered_set<std::string> STAGES = {"lexer", "parser", "ast", "llvm", "S", "s"};
 
@@ -48,6 +50,8 @@ auto static inline ParseArgs(int argc, char *argv[]) -> bool {
       } else if (static_cast<bool>(STAGES.count(arg.substr(1)))) {
         // -stage
         stage = arg.substr(1);  // remove leading '-'
+      } else if (arg == "-Werror" || arg == "--Werror") {
+        warnings_as_errors = true;
       } else {
         // invalid option
         std::cerr << "Invalid option: " << arg << '\n';
@@ -66,7 +70,9 @@ auto main(int argc, char *argv[]) -> int {
   // Now we use different args to control different Stages
   if (argc <= 1 || !ParseArgs(argc, argv)) {
     std::cerr << "Usage: " << argv[0]
-              << " <input_file> -o <output_file> [-<stage>{lexer, parser, ast, llvm, S/s}] [-O<level>{0,1,2}]" << '\n';
+              << " <input_file> -o <output_file> [-<stage>{lexer, parser, ast, llvm, S/s}] [-O<level>{0,1,2}] "
+                 "[--Werror|-Werror]"
+              << '\n';
     return 1;
   }
   // Parser successful
@@ -101,7 +107,7 @@ auto main(int argc, char *argv[]) -> int {
 #endif
 
   // Initialize all members
-  static context::CompilerContext compiler_context(&input, &output);
+  static context::CompilerContext compiler_context(&input, &output, warnings_as_errors);
   std::unique_ptr<stages::Stage> stage_ptr;
   std::unique_ptr<frontend::Lexer> lexer = std::make_unique<frontend::FlexLexerImpl>(&input);
 

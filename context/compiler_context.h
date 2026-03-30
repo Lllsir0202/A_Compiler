@@ -16,7 +16,8 @@ class CompilerContext {
   // We can create TypeContext at the beginning since it doesn't depend on anything else
   // and will be used throughout the compilation process.
  public:
-  CompilerContext(std::ifstream *in, std::ofstream *out) : in_(in), out_(out) {
+  CompilerContext(std::ifstream *in, std::ofstream *out, bool warnings_as_errors = false)
+      : in_(in), out_(out), warning_as_error_(warnings_as_errors) {
     type_context_ = new TypeContext();
     ast_context_ = new AstContext();
     symboltable_context_ = new SymbolTableContext();
@@ -63,7 +64,7 @@ class CompilerContext {
   /**
    * @brief Warning as error flag
    */
-  bool warning_as_error_ = false;
+  bool warning_as_error_;
 };
 
 }  // namespace context
