@@ -50,6 +50,7 @@ void FlattenHelper::InitObject(const Object &obj, InitCursor &cursor, Address ad
       else {
         compiler_context_->ReportWarning(init_node, "Initializing a scalar with a list");
         results.AddInitializer(CastInitializer(init_node, function_pointer), address);
+        cursor.MarkAllConsumed();
       }
     } else {
       // means there is no more initializer, we will just fill the default value
@@ -58,7 +59,6 @@ void FlattenHelper::InitObject(const Object &obj, InitCursor &cursor, Address ad
        */
       results.AddInitializer(nullptr, address);
     }
-    cursor.MarkAllConsumed();
 
   } else {
     // it is a list
