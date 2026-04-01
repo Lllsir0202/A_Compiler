@@ -266,6 +266,6 @@ There are some details which might be improved in the future, and I will list th
     which should report a warning in dealing with a[][20] and b[3][10], which is different. But to be simple, we will just regard them as the pointer to integer, which is the same. It can be improved in the future.
 
 ## Middleend
-TODO(maybe): since the middleend is still in design, I would like to first talk about some design ideas about the middleend, and I will update the details about the middleend in the future when I have finished the design and implementation of it.
-
-I'm learning about the MLIR, and it seems really elegant and powerful, so I might add it to my compiler as the middleend, which can make the optimization easier and more efficient.
+After reading about the ``MLIR tutorial``, I have a little bit understanding about how to design the middleend, and I will introduce some of the design which have not been implemented yet:
+1. Since MLIR provides a lot of information about semantic information, which can be pretty useful for our optimization, especially for the Loop optimization. Inspired by the design belief of ``MLIR``, I will design a multi-layer middleend, which can provide different levels of abstraction for different optimization passes.
+2. Since I would like the different ``Intermediate Representation`` to be more decoupled, I will design a separate class for each IR, which inheriting from a common base class. This way, I suppose adding a pipeline or some similar data structure to manage and control the usage of generating different types of IR can be easier and more flexible.
