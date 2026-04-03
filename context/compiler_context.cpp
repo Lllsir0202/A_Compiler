@@ -98,10 +98,10 @@ auto context::CompilerContext::InitializeLibFunc() -> void {
   // Not deal with now
 
   // void _start_time_();
-  symboltable_context_->AddFunc("_start_time_", void_type, {});
+  symboltable_context_->AddFunc("start_time", void_type, {});
 
   // void _end_time_();
-  symboltable_context_->AddFunc("_end_time_", void_type, {});
+  symboltable_context_->AddFunc("end_time", void_type, {});
 }
 
 }  // namespace context
