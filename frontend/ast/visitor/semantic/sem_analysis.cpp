@@ -477,8 +477,8 @@ void SemanticAnalyser::Visit(LValExprNode *LVal) {
   bool index_is_const = true;
   for (auto &index : LVal->indices_) {
     index->Accept(this);
-    if (index->GetType()->GetKind() != type::TypeKind::INT) {
-      compiler_context_->ReportError(index.get(), "array subscript must be an integer");
+    if (index->GetType()->GetKind() != type::TypeKind::INT && index->GetType()->GetKind() != type::TypeKind::BOOL) {
+      compiler_context_->ReportError(index.get(), "array subscript must be an integer or boolean");
       return;
     }
     if (!index->IsConst()) {
@@ -705,8 +705,8 @@ void SemanticAnalyser::Visit(InitListNode *init_list) {
 void SemanticAnalyser::Visit(VarDefNode *var_def) {
   for (auto &index : var_def->indices_) {
     index->Accept(this);
-    if (index->GetType()->GetKind() != type::TypeKind::INT) {
-      auto msg = "array size must be an integer, but got " + index->GetType()->ToString();
+    if (index->GetType()->GetKind() != type::TypeKind::INT && index->GetType()->GetKind() != type::TypeKind::BOOL) {
+      auto msg = "array size must be an integer or boolean, but got " + index->GetType()->ToString();
       compiler_context_->ReportError(var_def, msg);
       return;
     }
@@ -922,8 +922,8 @@ void SemanticAnalyser::Visit(FuncFParamNode *func_fparam) {
       return;
     }
     index->Accept(this);
-    if (index->GetType()->GetKind() != type::TypeKind::INT) {
-      compiler_context_->ReportError(func_fparam, "array size must be an integer");
+    if (index->GetType()->GetKind() != type::TypeKind::INT && index->GetType()->GetKind() != type::TypeKind::BOOL) {
+      compiler_context_->ReportError(func_fparam, "array size must be an integer or boolean");
       return;
     }
     if (!index->IsConst()) {
