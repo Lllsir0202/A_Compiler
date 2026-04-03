@@ -88,11 +88,11 @@ auto context::CompilerContext::InitializeLibFunc() -> void {
   // void putfloat(float);
   symboltable_context_->AddFunc("putfloat", void_type, {float_type});
 
-  // void putarray(int[], int);
-  symboltable_context_->AddFunc("putarray", void_type, {int_ptr_type, int_type});
+  // void putarray(int, int[]);
+  symboltable_context_->AddFunc("putarray", void_type, {int_type, int_ptr_type});
 
-  // void putfarray(float[], int);
-  symboltable_context_->AddFunc("putfarray", void_type, {float_ptr_type, int_type});
+  // void putfarray(int, float[]);
+  symboltable_context_->AddFunc("putfarray", void_type, {int_type, float_ptr_type});
 
   // void putf(char[], int);
   // Not deal with now
