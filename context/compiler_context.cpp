@@ -97,11 +97,11 @@ auto context::CompilerContext::InitializeLibFunc() -> void {
   // void putf(char[], int);
   // Not deal with now
 
-  // void _start_time_();
+  // void starttime();
   symboltable_context_->AddFunc("starttime", void_type, {});
 
-  // void _end_time_();
-  symboltable_context_->AddFunc("endtime", void_type, {});
+  // void stoptime();
+  symboltable_context_->AddFunc("stoptime", void_type, {});
 }
 
 }  // namespace context
