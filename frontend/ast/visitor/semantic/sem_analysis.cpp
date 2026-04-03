@@ -8,6 +8,7 @@
 #include "ast/ast_decl.h"
 #include "ast/ast_expr.h"
 #include "ast/ast_stmt.h"
+#include "ast/ast_utils.h"
 #include "ast/value/value.h"
 #include "ast/visitor/semantic/calculate.h"
 #include "utils/flatten/astinit.h"
@@ -250,7 +251,7 @@ auto SemanticAnalyser::Analyse() -> int {
       compiler_context_->ReportWarning("main function should return an integer, but void is found");
     }
     // Maybe we can allow parameters in main function, but we currently disable this feature.
-    if (main_func->param_types_.size() != 0) {
+    if (!main_func->param_types_.empty()) {
       compiler_context_->ReportWarning("main function should not have parameters, but " +
                                        std::to_string(main_func->param_types_.size()) + " are found");
     }
@@ -327,6 +328,36 @@ void SemanticAnalyser::Visit(BinaryExprNode *binary_expr) {
   if (binary_expr->left_->IsConst() && binary_expr->right_->IsConst()) {
     FoldNodes(binary_expr, binary_expr->left_.get(), binary_expr->right_.get());
     binary_expr->SetConst(true);
+  }
+  // Consider the case that one of the operands is a constant expression
+  // Check the division by zero for the case that the right operand is a constant expression
+  if (binary_expr->right_->IsConst()) {
+    // Report error while the right operand is zero and can be calculated in compiling
+    if (binary_expr->operator_ == OpCode::DIV) {
+      auto value = binary_expr->right_->GetValue();
+      if (value.GetType() == ValueType::INT) {
+        if (value.GetIntValue() == 0) {
+          // if the rhs is 0, then we should report an error
+          compiler_context_->ReportError(binary_expr->right_.get(), "division by zero");
+          return;
+        }
+      } else if (value.GetType() == ValueType::FLOAT) {
+        if (value.GetFloatValue() == 0.0F) {
+          // if the rhs is 0.0, then we should report an error
+          compiler_context_->ReportError(binary_expr->right_.get(), "division by zero");
+          return;
+        }
+      }
+    }
+    if (binary_expr->operator_ == OpCode::MOD) {
+      auto value = binary_expr->right_->GetValue();
+      // since we have checked the type in DecideResultType,
+      // we are sure that the value must be an integer or a boolean.
+      if (value.GetType() == ValueType::INT && value.GetIntValue() == 0) {
+        compiler_context_->ReportError(binary_expr->right_.get(), "modulo by zero");
+        return;
+      }
+    }
   }
 }
 

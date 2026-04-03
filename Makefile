@@ -82,9 +82,9 @@ check-tidy:
 	@for file in $(CHECK_SRC) $(CHECK_HEADER); do \
 		case "$$file" in \
 			*.cpp) \
-				clang-tidy -w -quiet $$file -- $(INCLUDE_DIRS) -std=c++17;; \
+				clang-tidy -quiet $$file -- $(INCLUDE_DIRS) -std=c++17;; \
 			*.h|*.hpp|*.hh) \
-				clang-tidy -w -quiet $$file -- $(INCLUDE_DIRS) -std=c++17 -x c++;; \
+				clang-tidy -quiet $$file -- $(INCLUDE_DIRS) -std=c++17 -x c++;; \
 		esac; \
 		echo "Checked $$file"; \
 	done
