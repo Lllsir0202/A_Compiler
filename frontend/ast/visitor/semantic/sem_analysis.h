@@ -8,6 +8,7 @@
 #include "frontend/ast/ast_spec.h"
 #include "frontend/ast/ast_stmt.h"
 #include "frontend/ast/astvisitor.h"
+#include "type/type.h"
 #include "utils/flatten/astinit.h"
 #include "utils/flatten/flatten_initializer.h"
 #include "utils/flatten/initializer.h"
@@ -64,6 +65,11 @@ class SemanticAnalyser : public ASTVisitor {
  private:
   context::CompilerContext *compiler_context_;
   utils::flatten::FlattenHelper flatten_helper_;
+  /**
+   * @brief DecideResultType function will decide the result type of a binary expression based on the types of its
+   * operands
+   * @note even though the operands maybe variables, we still need to check the type of the result
+   */
   inline auto DecideResultType(OpCode op, ExprNode *left, ExprNode *right) -> TypePtr;
   inline auto DecideResultType(OpCode op, ExprNode *operand) -> TypePtr;
   inline auto Linear(const std::vector<int> &dimensions, const std::vector<int> &indices) -> int;
@@ -74,6 +80,14 @@ class SemanticAnalyser : public ASTVisitor {
    */
   inline auto Normalize(symboltable::VarEntry *entry, std::unique_ptr<initializer::ArrayInitializer> &init) -> void;
   inline auto Normalize(symboltable::VarEntry *entry, std::unique_ptr<initializer::ConstInitializer> &init) -> void;
+
+  inline auto CheckCast(TypePtr from, TypePtr to) -> bool {
+    bool from_is_basic = from->GetKind() == type::TypeKind::INT || from->GetKind() == type::TypeKind::FLOAT ||
+                         from->GetKind() == type::TypeKind::BOOL;
+    bool to_is_basic = to->GetKind() == type::TypeKind::INT || to->GetKind() == type::TypeKind::FLOAT ||
+                       to->GetKind() == type::TypeKind::BOOL;
+    return (from_is_basic && to_is_basic) || from == to;
+  };
 };
 }  // namespace frontend::ast
 #endif

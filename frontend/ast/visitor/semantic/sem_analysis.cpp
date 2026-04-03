@@ -397,11 +397,16 @@ void SemanticAnalyser::Visit(FuncCallExprNode *func_call) {
   for (size_t i = 0; i < param_count; i++) {
     auto &def = func_def->param_types_[i];
     auto &param = func_call->params_[i];
-    if (def != param->GetType()) {
+    if (!CheckCast(def, param->GetType())) {
       compiler_context_->ReportError("type mismatch for parameter " + std::to_string(i) + " of function " +
                                      func_call->func_name_ + ": expected " + def->ToString() + ", but got " +
                                      param->GetType()->ToString());
       return;
+    }
+    if (def != param->GetType()) {
+      compiler_context_->ReportWarning("Implicit type conversion for parameter " + std::to_string(i) + " of function " +
+                                       func_call->func_name_ + ": expected " + def->ToString() + ", but got " +
+                                       param->GetType()->ToString());
     }
   }
 
