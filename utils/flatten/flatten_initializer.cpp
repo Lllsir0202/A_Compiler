@@ -1,7 +1,5 @@
 #include "utils/flatten/flatten_initializer.h"
-#include <cstddef>
 #include <memory>
-#include "flatten/astinit.h"
 #include "frontend/ast/ast_decl.h"
 #include "utils/flatten/initializer.h"
 #include "utils/flatten/utils.h"
