@@ -589,7 +589,7 @@ void SemanticAnalyser::Visit(AssignStmtNode *assign_stmt) {
   assign_stmt->lval_->Accept(this);
   assign_stmt->expr_->Accept(this);
 
-  if (assign_stmt->lval_->GetType()->GetKind() == type::TypeKind::PTR ||
+  if (assign_stmt->lval_->GetType()->GetKind() == type::TypeKind::VOID ||
       assign_stmt->lval_->GetType()->GetKind() == type::TypeKind::UNKNOWN) {
     compiler_context_->ReportError(assign_stmt, "cannot assign to an array or pointer variable");
     return;
@@ -608,6 +608,16 @@ void SemanticAnalyser::Visit(AssignStmtNode *assign_stmt) {
    */
   if (assign_stmt->lval_->GetType()->GetKind() == type::TypeKind::PTR) {
     compiler_context_->ReportError(assign_stmt, "cannot assign to a pointer variable");
+    return;
+  }
+
+  /**
+   * @cond: right value cannot be a pointer or an unknown type or void
+   */
+  if (assign_stmt->expr_->GetType()->GetKind() == type::TypeKind::PTR ||
+      assign_stmt->expr_->GetType()->GetKind() == type::TypeKind::UNKNOWN ||
+      assign_stmt->expr_->GetType()->GetKind() == type::TypeKind::VOID) {
+    compiler_context_->ReportError(assign_stmt, "cannot assign a pointer or unknown type or void value to a variable");
     return;
   }
 }
@@ -689,6 +699,10 @@ void SemanticAnalyser::Visit(InitValNode *init_val) {
   }
   if (init_val->value_->GetType()->GetKind() == type::TypeKind::PTR) {
     compiler_context_->ReportError(init_val, "initializer expression cannot be a pointer");
+    return;
+  }
+  if (init_val->value_->GetType()->GetKind() == type::TypeKind::VOID) {
+    compiler_context_->ReportError(init_val, "initializer expression cannot be void");
     return;
   }
   // since the init_val->value_ is an expression
