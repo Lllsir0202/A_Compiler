@@ -1,5 +1,7 @@
 #include "utils/flatten/flatten_initializer.h"
+#include <cstddef>
 #include <memory>
+#include "flatten/astinit.h"
 #include "frontend/ast/ast_decl.h"
 #include "utils/flatten/initializer.h"
 #include "utils/flatten/utils.h"
@@ -44,6 +46,10 @@ void FlattenHelper::InitObject(const Object &obj, InitCursor &cursor, Address ad
       if (init_node->IsScalar()) {
         // means it is a scalar
         results.AddInitializer(function_pointer(init_node), address);
+        if (cursor.HasMore()) {
+          compiler_context_->ReportWarning(cursor.Peek(), "Too many initializers for scalar");
+          cursor.MarkAllConsumed();
+        }
       }
       // means it is an init list, but the array has no more dimension,
       // so we will just get the first scalar initializer in the init list
