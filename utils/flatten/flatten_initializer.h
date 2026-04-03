@@ -44,6 +44,12 @@ class FlattenHelper {
     return InitCursor(sub_inits);
   }
 
+  auto MakeSubCursor(frontend::ast::InitValNode *init_val) -> InitCursor {
+    std::vector<frontend::ast::Initializer *> sub_inits;
+    sub_inits.emplace_back(init_val);
+    return InitCursor(sub_inits);
+  }
+
   auto ZeroFill(const Object &obj, const Address &address, initializer::ArrayInitializer &results) -> void {
     if (obj.IsScalar()) {
       results.AddInitializer(nullptr, address);

@@ -92,7 +92,9 @@ void FlattenHelper::InitObject(const Object &obj, InitCursor &cursor, Address ad
          * take the [10] for example, the sub_obj is the element type of the obj, which is
          * means
          */
-        InitObject(sub_obj, cursor, address[i], results, function_pointer);
+        cursor.Next();
+        InitCursor sub_cursor = MakeSubCursor(static_cast<frontend::ast::InitValNode *>(init_node));
+        InitObject(sub_obj, sub_cursor, address[i], results, function_pointer);
       } else {
         // means there is no more initializer, we will just fill the default value
         /**
