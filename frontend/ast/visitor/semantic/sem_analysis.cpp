@@ -606,7 +606,7 @@ void SemanticAnalyser::Visit(AssignStmtNode *assign_stmt) {
 
   if (assign_stmt->lval_->GetType()->GetKind() == type::TypeKind::VOID ||
       assign_stmt->lval_->GetType()->GetKind() == type::TypeKind::UNKNOWN) {
-    compiler_context_->ReportError(assign_stmt, "cannot assign to an array or pointer variable");
+    compiler_context_->ReportError(assign_stmt, "cannot assign to a void or unknown variable");
     return;
   }
   /**
