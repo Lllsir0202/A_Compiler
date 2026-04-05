@@ -17,7 +17,7 @@ class Pipeline {
   // option: arguments passed by command line
   option::Option option_;
   // context: store all the information during compilation
-  context::CompilerContext *compiler_context_;
+  [[maybe_unused]] context::CompilerContext *compiler_context_;
   // stage_ptr: pointer to the stage we aim to run
   std::unique_ptr<stages::Stage> stage_ptr_;
 };
