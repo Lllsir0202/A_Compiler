@@ -23,6 +23,7 @@ test.*
 test
 *.output
 testcases/
+testoutputs/
 
 # Ignore Config files
 .vscode/

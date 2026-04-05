@@ -104,7 +104,7 @@ class SemanticAnalyser : public ASTVisitor {
     return false;
   }
 
-#define Debug
+// #define Debug
 #ifdef Debug
   std::ofstream debug_file_{"normalized_initializer.txt", std::ios::out};
 #endif

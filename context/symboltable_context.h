@@ -23,6 +23,9 @@ struct VarEntry {
 
   // the initializer of the variable, used for semantic analysis
   initializer::InitializerPtr initializer_ = nullptr;
+
+  // Mark whether the variable is a global variable
+  bool is_global_ = false;
 };
 
 /**

@@ -178,7 +178,7 @@ auto SemanticAnalyser::Normalize(symboltable::VarEntry *entry,
       }
     }
   }
-#define Debug
+// #define Debug
 #ifdef Debug
 
   debug_file_ << "Normalized initializer for variable " << entry->name_ << ":\n";

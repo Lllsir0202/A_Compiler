@@ -20,20 +20,27 @@ auto SymbolTableContext::ExistsInCurrentScope(const std::string &name) -> bool {
 }
 
 auto SymbolTableContext::LookupVar(const std::string &name) -> symboltable::VarEntry * {
+  symboltable::VarEntry *return_entry = nullptr;
+
   // Look up from the innermost scope to the outermost scope
   for (auto it = var_table_.rbegin(); it != var_table_.rend(); ++it) {
     auto &scope = *it;
     if (scope.count(name) > 0) {
-      return &scope[name];
+      return_entry = &scope[name];
+      break;  // Found the variable, stop searching
     }
   }
 
+  // if not found or found in global scope, look up if it exists in function parameters
+  bool not_found_or_in_global_scope = return_entry == nullptr || return_entry->is_global_;
+
   // Look up if it exists in formal paramters
-  if (current_func_ != nullptr && func_param_table_[current_func_].count(name) > 0) {
+  if (not_found_or_in_global_scope && current_func_ != nullptr && func_param_table_[current_func_].count(name) > 0) {
     // Return a pointer to the function parameter entry
-    return &func_param_table_[current_func_][name];  // Placeholder, replace with actual function parameter entry
+    return_entry = &func_param_table_[current_func_][name];
   }
-  return nullptr;  // Not found
+  // return not found or the variable entry found in the scopes or function parameters
+  return return_entry;  // Not found
 }
 
 auto SymbolTableContext::LookupFunc(const std::string &name) -> symboltable::FuncEntry * {
@@ -63,6 +70,9 @@ auto SymbolTableContext::AddVar(const std::string &name, type::Type *type, bool 
     return false;  // Variable already exists in the current scope
   }
   var_table_.back()[name] = symboltable::VarEntry{name, type, is_const, std::move(dimensions)};
+  if (var_table_.size() == 1) {
+    var_table_.back()[name].is_global_ = true;  // Mark as global variable if it's in the global scope
+  }
   return true;
 }
 
