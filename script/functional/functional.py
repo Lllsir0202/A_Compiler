@@ -42,7 +42,7 @@ def add_returncode(file, ret):
 
 def execute_ast(input, output, opt):
     """run AST-related commands"""
-    result = execute(["timeout", "10", "../bin/compiler", input, "-ast", "-o", output, opt])
+    result = execute(["timeout", "10", "../../bin/compiler", input, "-ast", "-o", output, opt])
     if result.returncode != 0:
         print(f"\033[93mCompile Error on \033[0m{input}")
         return 0
@@ -52,7 +52,7 @@ def execute_ast(input, output, opt):
 
 def execute_ir(input, output, opt, stdin, stdout, testout):
     """run IR-related commands"""
-    result = execute(["timeout", "10", "./bin/compiler", input, "-llvm", "-o", output, opt])
+    result = execute(["timeout", "10", "../../bin/compiler", input, "-llvm", "-o", output, opt])
     if result.returncode != 0:
         print(f"\033[93mCompile Error on \033[0m{input}")
         return 0
@@ -94,7 +94,7 @@ def execute_ir(input, output, opt, stdin, stdout, testout):
 
 def execute_asm(input, output, opt, stdin, stdout, testout):
     """run assembly-related commands"""
-    result = execute(["timeout", "60", "./bin/compiler", input, "-S", "-o", output, opt])
+    result = execute(["timeout", "60", "../../bin/compiler", input, "-S", "-o", output, opt])
     if result.returncode != 0:
         print(f"\033[93mCompile Error on \033[0m{input}")
         return 0
@@ -137,8 +137,8 @@ def execute_asm(input, output, opt, stdin, stdout, testout):
 def main():
     """parse arguments and execute tests"""
     parser = argparse.ArgumentParser()
-    parser.add_argument('input_folder', default='../testcases/functional_recover/h_functional')
-    parser.add_argument('output_folder', default='../test_output/functional_recover/h_functional')
+    parser.add_argument('input_folder')
+    parser.add_argument('output_folder')
     parser.add_argument('opt_level', type=int, default=0)
     parser.add_argument('step', default="llvm")
     args = parser.parse_args()
