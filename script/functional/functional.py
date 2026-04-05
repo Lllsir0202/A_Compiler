@@ -46,7 +46,7 @@ def execute_ast(input, output, opt):
     if result.returncode != 0:
         print(f"\033[93mCompile Error on \033[0m{input}")
         return 0
-    print(f"\033[92mAccept \033[0m{input}")
+    # print(f"\033[92mAccept \033[0m{input}")
     return 1
     
 
