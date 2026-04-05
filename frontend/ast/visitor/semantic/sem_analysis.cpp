@@ -324,40 +324,36 @@ void SemanticAnalyser::Visit(BinaryExprNode *binary_expr) {
 
   auto result_type = DecideResultType(binary_expr->operator_, binary_expr->left_.get(), binary_expr->right_.get());
   binary_expr->SetType(result_type);
-  // Then we need to calculate the value if both operands are constant
-  if (binary_expr->left_->IsConst() && binary_expr->right_->IsConst()) {
-    FoldNodes(binary_expr, binary_expr->left_.get(), binary_expr->right_.get());
-    binary_expr->SetConst(true);
-  }
+
+  auto all_const = binary_expr->left_->IsConst() && binary_expr->right_->IsConst();
+  auto right_const_only = !binary_expr->left_->IsConst() && binary_expr->right_->IsConst();
+
   // Consider the case that one of the operands is a constant expression
   // Check the division by zero for the case that the right operand is a constant expression
-  if (binary_expr->right_->IsConst()) {
+  if (right_const_only) {
     // Report error while the right operand is zero and can be calculated in compiling
     if (binary_expr->operator_ == OpCode::DIV) {
       auto value = binary_expr->right_->GetValue();
-      if (value.GetType() == ValueType::INT) {
-        if (value.GetIntValue() == 0) {
-          // if the rhs is 0, then we should report an error
-          compiler_context_->ReportError(binary_expr->right_.get(), "division by zero");
-          return;
-        }
-      } else if (value.GetType() == ValueType::FLOAT) {
-        if (value.GetFloatValue() == 0.0F) {
-          // if the rhs is 0.0, then we should report an error
-          compiler_context_->ReportError(binary_expr->right_.get(), "division by zero");
-          return;
-        }
+      if (CheckZero(value)) {
+        compiler_context_->ReportError(binary_expr->right_.get(), "division by zero");
+        return;
       }
     }
     if (binary_expr->operator_ == OpCode::MOD) {
       auto value = binary_expr->right_->GetValue();
       // since we have checked the type in DecideResultType,
       // we are sure that the value must be an integer or a boolean.
-      if (value.GetType() == ValueType::INT && value.GetIntValue() == 0) {
+      if (CheckZero(value)) {
         compiler_context_->ReportError(binary_expr->right_.get(), "modulo by zero");
         return;
       }
     }
+  }
+
+  // Then we need to calculate the value if both operands are constant
+  if (all_const) {
+    FoldNodes(binary_expr, binary_expr->left_.get(), binary_expr->right_.get());
+    binary_expr->SetConst(true);
   }
 }
 

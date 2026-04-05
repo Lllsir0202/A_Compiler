@@ -81,13 +81,27 @@ class SemanticAnalyser : public ASTVisitor {
   inline auto Normalize(symboltable::VarEntry *entry, std::unique_ptr<initializer::ArrayInitializer> &init) -> void;
   inline auto Normalize(symboltable::VarEntry *entry, std::unique_ptr<initializer::ConstInitializer> &init) -> void;
 
-  inline auto CheckCast(TypePtr from, TypePtr to) -> bool {
+  auto CheckCast(TypePtr from, TypePtr to) -> bool {
     bool from_is_basic = from->GetKind() == type::TypeKind::INT || from->GetKind() == type::TypeKind::FLOAT ||
                          from->GetKind() == type::TypeKind::BOOL;
     bool to_is_basic = to->GetKind() == type::TypeKind::INT || to->GetKind() == type::TypeKind::FLOAT ||
                        to->GetKind() == type::TypeKind::BOOL;
     return (from_is_basic && to_is_basic) || from == to;
   };
+
+  auto CheckZero(Value &value) -> bool {
+    if (value.GetType() == ValueType::INT) {
+      return value.GetIntValue() == 0;
+    }
+    if (value.GetType() == ValueType::FLOAT) {
+      return value.GetFloatValue() == 0.0F;
+    }
+    if (value.GetType() == ValueType::BOOL) {
+      return !value.GetBoolValue();
+    }
+    compiler_context_->ReportError("Unsupported value type for zero check");
+    return false;
+  }
 };
 }  // namespace frontend::ast
 #endif

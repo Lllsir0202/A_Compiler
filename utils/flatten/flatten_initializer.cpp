@@ -37,6 +37,7 @@ void FlattenHelper::InitObject(const Object &obj, InitCursor &cursor, Address ad
                                initializer::ArrayInitializer &results, LeafHandle function_pointer) {
   // Implementation for initializing the object
   if (obj.IsScalar()) {
+    printf("Initializing a scalar with address: %s\n", address.ToString().c_str());
     // means it has reached the end of the array
     // so if the cursor has more initializer, we can just ignore the extra initializer
     auto init_node = cursor.Next();
@@ -44,15 +45,15 @@ void FlattenHelper::InitObject(const Object &obj, InitCursor &cursor, Address ad
       if (init_node->IsScalar()) {
         // means it is a scalar
         results.AddInitializer(function_pointer(init_node), address);
-        if (cursor.HasMore()) {
-          compiler_context_->ReportWarning(cursor.Peek(), "Too many initializers for scalar");
+        if (cursor.initializing_scalar_with_list_) {
           cursor.MarkAllConsumed();
+          compiler_context_->ReportWarning(init_node, "Initializing a scalar with a list of values");
         }
       }
       // means it is an init list, but the array has no more dimension,
       // so we will just get the first scalar initializer in the init list
       else {
-        compiler_context_->ReportWarning(init_node, "Initializing a scalar with a list");
+        compiler_context_->ReportWarning(init_node, "Initializing a scalar with a list of lists");
         results.AddInitializer(CastInitializer(init_node, function_pointer), address);
         cursor.MarkAllConsumed();
       }
@@ -75,6 +76,9 @@ void FlattenHelper::InitObject(const Object &obj, InitCursor &cursor, Address ad
         // means it is an init list, we will enter the next level of the loop
         cursor.Next();
         InitCursor sub_cursor = MakeSubCursor(static_cast<frontend::ast::InitListNode *>(init_node));
+        if (sub_obj.IsScalar()) {
+          sub_cursor.initializing_scalar_with_list_ = true;
+        }
         InitObject(sub_obj, sub_cursor, address[i], results, function_pointer);
         if (sub_cursor.HasMore()) {
           compiler_context_->ReportError(init_node, "Too many initializers for array");
@@ -92,9 +96,7 @@ void FlattenHelper::InitObject(const Object &obj, InitCursor &cursor, Address ad
          * take the [10] for example, the sub_obj is the element type of the obj, which is
          * means
          */
-        cursor.Next();
-        InitCursor sub_cursor = MakeSubCursor(static_cast<frontend::ast::InitValNode *>(init_node));
-        InitObject(sub_obj, sub_cursor, address[i], results, function_pointer);
+        InitObject(sub_obj, cursor, address[i], results, function_pointer);
       } else {
         // means there is no more initializer, we will just fill the default value
         /**

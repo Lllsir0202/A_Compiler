@@ -54,6 +54,12 @@ class InitCursor {
 
   size_t pos_{};
   std::vector<frontend::ast::Initializer *> init_list_;
+  /**
+   * @brief Mark whether initializing a scalar with a list
+   * @then: true: mark all consumed, and report a warning
+   * @then: false: do nothing
+   */
+  bool initializing_scalar_with_list_{false};
 };
 
 /**
