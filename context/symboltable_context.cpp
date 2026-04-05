@@ -3,9 +3,15 @@
 
 namespace context {
 auto SymbolTableContext::ExistsInCurrentScope(const std::string &name) -> bool {
-  if (func_param_table_[current_func_].count(name) > 0) {
+  /**
+   * @cond: function parameter will be seen as in the first scope
+   * since the first scope is for global variables,
+   * and the second scope is for function parameters
+   */
+  if (current_func_ != nullptr && func_param_table_[current_func_].count(name) > 0 && var_table_.size() == 2) {
     return true;  // Variable exists in the current function parameters
   }
+
   if (var_table_.empty()) {
     return false;  // No scopes available
   }
@@ -14,18 +20,18 @@ auto SymbolTableContext::ExistsInCurrentScope(const std::string &name) -> bool {
 }
 
 auto SymbolTableContext::LookupVar(const std::string &name) -> symboltable::VarEntry * {
-  // Look up if it exists in formal paramters
-  if (current_func_ != nullptr && func_param_table_[current_func_].count(name) > 0) {
-    // Return a pointer to the function parameter entry
-    return &func_param_table_[current_func_][name];  // Placeholder, replace with actual function parameter entry
-  }
-
   // Look up from the innermost scope to the outermost scope
   for (auto it = var_table_.rbegin(); it != var_table_.rend(); ++it) {
     auto &scope = *it;
     if (scope.count(name) > 0) {
       return &scope[name];
     }
+  }
+
+  // Look up if it exists in formal paramters
+  if (current_func_ != nullptr && func_param_table_[current_func_].count(name) > 0) {
+    // Return a pointer to the function parameter entry
+    return &func_param_table_[current_func_][name];  // Placeholder, replace with actual function parameter entry
   }
   return nullptr;  // Not found
 }
@@ -40,7 +46,13 @@ auto SymbolTableContext::LookupFunc(const std::string &name) -> symboltable::Fun
 auto SymbolTableContext::AddVar(const std::string &name, type::Type *type, bool is_const,
                                 std::vector<int> dimensions) -> bool {
   // Check if the variable already exists in the current function parameters
-  if (current_func_ != nullptr && func_param_table_[current_func_].count(name) > 0) {
+  /**
+   * @note: function parameter will be seen as in the first scope,
+   * and since then, the same name variable cannot be defined in the function body
+   * but it can be defined in the inner scope of the function body
+   * which means the same name variable can be defined while the var_table.size() > 1
+   */
+  if (current_func_ != nullptr && func_param_table_[current_func_].count(name) > 0 && var_table_.size() == 2) {
     return false;  // Variable already exists in the current function parameters
   }
 

@@ -48,6 +48,9 @@ namespace context {
  */
 class SymbolTableContext {
  public:
+  /**
+   * @brief Global variable table in the beginning.
+   */
   SymbolTableContext() { var_table_.emplace_back(); }
   ~SymbolTableContext() {
     if (!var_table_.empty()) {
