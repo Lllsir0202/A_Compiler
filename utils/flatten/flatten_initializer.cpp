@@ -92,8 +92,16 @@ void FlattenHelper::InitObject(const Object &obj, InitCursor &cursor, Address ad
          * so we will just get the next scalar initializers to initialize the a[0][0], a[0][1] and a[0][2].
          * over here, the implement which makes it works is :
          *
-         * take the [10] for example, the sub_obj is the element type of the obj, which is
-         * means
+         * take the [3] for example, the sub_obj is the element type of the obj, which is
+         * means:
+         * for the first loop, we will initialize a[0], a[1] and a[2]
+         * then move on to the a[0] initialization, since the a[0] is a list, and meet a scalar,
+         * so we will just get the next 3 scalar initializers to initialize the a[0],
+         * in implementation, it represents that a[0][0-2] will be initialized with none subcursor,
+         * rather the same cursor as the a[0]
+         *
+         * and we will not set the cursor as ``initializing_scalar_with_list_``
+         * because we did not setup a new cursor for the a[0].
          */
         InitObject(sub_obj, cursor, address[i], results, function_pointer);
       } else {

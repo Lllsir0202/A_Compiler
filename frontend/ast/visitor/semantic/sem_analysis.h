@@ -1,6 +1,10 @@
 #ifndef FRONTEND_AST_VISITOR_SEMANTIC_SEM_ANALYSIS_H
 #define FRONTEND_AST_VISITOR_SEMANTIC_SEM_ANALYSIS_H
+
+// #define Debug
+#ifdef Debug
 #include <fstream>
+#endif
 #include "ast/ast_base.h"
 #include "context/compiler_context.h"
 #include "context/symboltable_context.h"
@@ -104,7 +108,6 @@ class SemanticAnalyser : public ASTVisitor {
     return false;
   }
 
-// #define Debug
 #ifdef Debug
   std::ofstream debug_file_{"normalized_initializer.txt", std::ios::out};
 #endif
