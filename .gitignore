@@ -30,3 +30,6 @@ testcases/
 # Since the archicture is different
 # We ignore the librarys
 libs/*.a
+
+# Ignore the normalized initializer output file
+normalized_initializer.txt

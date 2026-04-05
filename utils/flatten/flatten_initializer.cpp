@@ -37,7 +37,6 @@ void FlattenHelper::InitObject(const Object &obj, InitCursor &cursor, Address ad
                                initializer::ArrayInitializer &results, LeafHandle function_pointer) {
   // Implementation for initializing the object
   if (obj.IsScalar()) {
-    printf("Initializing a scalar with address: %s\n", address.ToString().c_str());
     // means it has reached the end of the array
     // so if the cursor has more initializer, we can just ignore the extra initializer
     auto init_node = cursor.Next();

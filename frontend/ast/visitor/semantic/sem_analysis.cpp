@@ -178,6 +178,25 @@ auto SemanticAnalyser::Normalize(symboltable::VarEntry *entry,
       }
     }
   }
+#define Debug
+#ifdef Debug
+
+  debug_file_ << "Normalized initializer for variable " << entry->name_ << ":\n";
+  for (auto &init_val : init->GetInitializers()) {
+    if (init_val == nullptr) {
+      debug_file_ << "nullptr\n";
+    } else if (init_val->IsConst()) {
+      auto &const_init = static_cast<initializer::ConstInitializer &>(*init_val);
+      if (const_init.GetIntValue().has_value()) {
+        debug_file_ << "int: " << const_init.GetIntValue().value() << "\n";
+      } else if (const_init.GetFloatValue().has_value()) {
+        debug_file_ << "float: " << const_init.GetFloatValue().value() << "\n";
+      }
+    } else {
+      debug_file_ << "non-const initializer\n";
+    }
+  }
+#endif
 }
 
 // override for constant scalar initializer
