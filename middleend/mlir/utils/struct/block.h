@@ -1,0 +1,18 @@
+#ifndef MIDDLEND_MLIR_UTILS_STRUCT_BLOCK_H
+#define MIDDLEND_MLIR_UTILS_STRUCT_BLOCK_H
+#include <vector>
+
+namespace middleend::mlir {
+class Operation;
+class Value;
+class Block {
+ public:
+  // The vector of arguments is needed for i.e. while(i < 10 || j < 20)
+  std::vector<Value *> arguments_;  // the arguments of this block
+  // The vector of operations in the block
+  std::vector<Operation *> operations_;  // the operations in this block
+};
+
+}  // namespace middleend::mlir
+
+#endif
