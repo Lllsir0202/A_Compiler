@@ -1,6 +1,6 @@
 #ifndef MIDDLEEND_IRBASE_IRVISITOR_H
 #define MIDDLEEND_IRBASE_IRVISITOR_H
-#include "middleend/IRbase/ir.h"
+#include "middleend/irbase/ir.h"
 namespace middleend {
 class IRVisitor {
  public:

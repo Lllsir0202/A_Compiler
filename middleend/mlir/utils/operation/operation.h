@@ -12,9 +12,7 @@ class Region;
  * it will provide common interface for all sorts of operations
  * @member:
  * - operands: the operands of this operation, which are values
- * - result: the result of the operation, which is a value
- * and for SYSY language, we only have one result for each operation
- * -
+ * - results: the results of the operation, which are values
  */
 class Operation {
  public:
@@ -22,13 +20,15 @@ class Operation {
   std::vector<Value *> operands_;  // the operands of this operation
   // Result of the operation, can be a nullptr if the operation has no result
   // especially for statements
-  Value *result_;  // the result of the operation, which is a value
+  std::vector<Value *> results_;  // the results of the operation
 
   // Region of the operation
   [[maybe_unused]] std::vector<Region *> regions_;  // the regions of this operation, which are blocks
 
   // Print the name of a operation
   virtual auto Name() const -> std::string = 0;
+  // Get the dialect name of the operation
+  virtual auto DialectName() const -> std::string = 0;
 };
 
 }  // namespace middleend::mlir
