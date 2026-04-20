@@ -266,6 +266,12 @@ There are some details which might be improved in the future, and I will list th
     which should report a warning in dealing with a[][20] and b[3][10], which is different. But to be simple, we will just regard them as the pointer to integer, which is the same. It can be improved in the future.
 
 ## Middleend
-After reading about the ``MLIR tutorial``, I have a little bit understanding about how to design the middleend, and I will introduce some of the design which have not been implemented yet:
-1. Since MLIR provides a lot of information about semantic information, which can be pretty useful for our optimization, especially for the Loop optimization. Inspired by the design belief of ``MLIR``, I will design a multi-layer middleend, which can provide different levels of abstraction for different optimization passes.
-2. Since I would like the different ``Intermediate Representation`` to be more decoupled, I will design a separate class for each IR, which inheriting from a common base class. This way, I suppose adding a pipeline or some similar data structure to manage and control the usage of generating different types of IR can be easier and more flexible.
+Since the `llvm::mlir` is pretty impressive, I suppose it will be of great functionality and efficiency if we use it as our middleend IR,
+which can make the IR contain more semantic information so that the optimization is supposed to be more efficient and easier to be implemented. Moreover, it can be extremely convenient to do more optimizations in the future comparing to the traditional IR, i.e. `llvm::ir`.
+
+The basic design of the middleend is as follows:
+
+We will first transfer the AST to MLIR, since the MLIR is based on 
+__dialect__, we will begin with designing a basic dialect which called `base`, and it will contain the basic operations and we will do some optimizations including and not limited to: polyhedral optimization, 
+dialect conversion and so on. Then after that, we will transfer the `base` dialect(or some higher level dialect) to the lower intermediate representation module, which is designed to generate the ``llvmir``.
+Based on the llvmir module, we will do some more optimizations. 

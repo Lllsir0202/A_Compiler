@@ -8,10 +8,8 @@ namespace context {
  * and it will be used as the resource manager for IR
  */
 class IRContext {
-    public:
-
-    private:
-        
+ public:
+ private:
 };
 
 }  // namespace context

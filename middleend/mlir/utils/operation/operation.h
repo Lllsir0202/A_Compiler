@@ -16,6 +16,11 @@ class Region;
  */
 class Operation {
  public:
+  // Print the name of a operation
+  virtual auto Name() const -> std::string = 0;
+  // Get the dialect name of the operation
+  virtual auto DialectName() const -> std::string = 0;
+
   // Operands of the operation
   std::vector<Value *> operands_;  // the operands of this operation
   // Result of the operation, can be a nullptr if the operation has no result
@@ -23,12 +28,20 @@ class Operation {
   std::vector<Value *> results_;  // the results of the operation
 
   // Region of the operation
-  [[maybe_unused]] std::vector<Region *> regions_;  // the regions of this operation, which are blocks
+  std::vector<Region *> regions_;  // the regions of this operation, which are blocks
+};
 
-  // Print the name of a operation
-  virtual auto Name() const -> std::string = 0;
-  // Get the dialect name of the operation
-  virtual auto DialectName() const -> std::string = 0;
+/**
+ * @brief In MLIR, the module is the top-level operation
+ * it is also a operation, and it will be dealt as if it is a operation.
+ */
+class ModuleOp : public Operation {
+ public:
+  auto Name() const -> std::string override { return "module"; }
+  auto DialectName() const -> std::string override { return "builtin"; }
+
+  ModuleOp();
+  static auto Create() -> ModuleOp * { return new ModuleOp(); }
 };
 
 }  // namespace middleend::mlir
