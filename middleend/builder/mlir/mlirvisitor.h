@@ -11,7 +11,6 @@ namespace middleend {
  */
 class MLIRVisitor : public IRVisitor {
  public:
-  explicit MLIRVisitor(context::CompilerContext *compiler_context) : IRVisitor(compiler_context) {}
   ~MLIRVisitor() override { compiler_context_ = nullptr; }
 
   // RootNode
@@ -46,6 +45,16 @@ class MLIRVisitor : public IRVisitor {
   // Function nodes
   void Visit(const frontend::ast::FuncFParamNode *func_fparam) override;
   void Visit(const frontend::ast::FuncDefNode *func_def) override;
+
+ private:
+  /**
+   * @brief Since the MLIRVisitor is tightly coupled with the MLIRBuilder,
+   * and there shall be no other class need to call the Visit functions of this class,
+   * so we can just set the constructor to private
+   * and let the MLIRBuilder be the friend class of this class.
+   */
+  explicit MLIRVisitor(context::CompilerContext *compiler_context) : IRVisitor(compiler_context) {}
+  friend class MLIRBuilder;
 };
 
 }  // namespace middleend

@@ -12,7 +12,7 @@ class IRVisitor : public frontend::ast::ConstASTVisitor {
  protected:
   explicit IRVisitor(context::CompilerContext *context) : compiler_context_(context) {}
 
-  [[maybe_unused]] context::CompilerContext *compiler_context_;
+  context::CompilerContext *compiler_context_;
 };
 
 }  // namespace middleend

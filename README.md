@@ -269,6 +269,9 @@ There are some details which might be improved in the future, and I will list th
 Since the `llvm::mlir` is pretty impressive, I suppose it will be of great functionality and efficiency if we use it as our middleend IR,
 which can make the IR contain more semantic information so that the optimization is supposed to be more efficient and easier to be implemented. Moreover, it can be extremely convenient to do more optimizations in the future comparing to the traditional IR, i.e. `llvm::ir`.
 
+Since in the middleend the basic structure of the IR is like a diagram, 
+it is not convenient to use the smart pointer to manage the resource, so I will use the raw pointer to manage the operations and values in the middleend. However, in order to avoid memory leaks, I will centralize the resource management in the context, which means the deconstruction of the context will be responsible for releasing all the resources in the middleend and the operations will never call `delete` by themselves.
+
 The basic design of the middleend is as follows:
 
 We will first transfer the AST to MLIR, since the MLIR is based on 

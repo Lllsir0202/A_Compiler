@@ -53,9 +53,6 @@ class Value {
   }
   auto ReplaceAllUsesWith(Value *new_value) -> void;
   static auto Create() -> Value * { return new Value(); }
-
- private:
-  Value();
 };
 
 }  // namespace middleend::mlir

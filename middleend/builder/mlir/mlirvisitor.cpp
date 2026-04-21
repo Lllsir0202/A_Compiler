@@ -2,6 +2,11 @@
 
 namespace middleend {
 // TODO(loki): implement the MLIRVisitor::Visitor functions to generate MLIR IR
+/**
+ * @brief This file is the implementation of the MLIRVisitor class,
+ * which will be used to traverse the AST and generate the MLIR IR.
+ */
+
 // RootNode
 void MLIRVisitor::Visit([[maybe_unused]] const frontend::ast::RootNode *root) {}
 // Should not be called directly, since they are abstract classes
