@@ -20,6 +20,7 @@ class BaseOps : public Operation {
    * @brief Get the name of the dialect, which is "base"
    */
   auto DialectName() const -> std::string override { return DIALECT_NAME; }
+  auto Emit([[maybe_unused]] std::ofstream *out) const -> void override;
 
  private:
   static const std::string DIALECT_NAME;

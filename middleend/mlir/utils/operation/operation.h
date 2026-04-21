@@ -1,5 +1,6 @@
 #ifndef MIDDLEEND_MLIR_UTILS_OPERATION_OPERATION_H
 #define MIDDLEEND_MLIR_UTILS_OPERATION_OPERATION_H
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -20,6 +21,8 @@ class Operation {
   virtual auto Name() const -> std::string = 0;
   // Get the dialect name of the operation
   virtual auto DialectName() const -> std::string = 0;
+  virtual ~Operation();
+  virtual auto Emit(std::ofstream *out) const -> void = 0;
 
   // Operands of the operation
   std::vector<Value *> operands_;  // the operands of this operation
@@ -39,9 +42,19 @@ class ModuleOp : public Operation {
  public:
   auto Name() const -> std::string override { return "module"; }
   auto DialectName() const -> std::string override { return "builtin"; }
+  auto Emit(std::ofstream *out) const -> void override;
+  static auto Create() -> ModuleOp * {
+    auto moduleop = new ModuleOp();
+    /**
+     * @brief initialize the module operation
+     */
+    moduleop->SetUp();
+    return moduleop;
+  }
 
+ private:
   ModuleOp();
-  static auto Create() -> ModuleOp * { return new ModuleOp(); }
+  auto SetUp() -> void;
 };
 
 }  // namespace middleend::mlir

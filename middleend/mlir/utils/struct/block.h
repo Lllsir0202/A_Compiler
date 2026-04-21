@@ -1,5 +1,6 @@
 #ifndef MIDDLEND_MLIR_UTILS_STRUCT_BLOCK_H
 #define MIDDLEND_MLIR_UTILS_STRUCT_BLOCK_H
+#include <fstream>
 #include <vector>
 
 namespace middleend::mlir {
@@ -7,6 +8,9 @@ class Operation;
 class Value;
 class Block {
  public:
+  ~Block();
+  // Emit the block
+  auto Emit(std::ofstream *out) const -> void;
   // The vector of arguments is needed for i.e. while(i < 10 || j < 20)
   std::vector<Value *> arguments_;  // the arguments of this block
   // The vector of operations in the block

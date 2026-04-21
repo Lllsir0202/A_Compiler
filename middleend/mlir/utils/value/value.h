@@ -2,6 +2,7 @@
 #define MIDDLEEND_MLIR_UTILS_VALUE_VALUE_H
 
 #include <cstddef>
+#include <fstream>
 #include <string>
 #include <vector>
 namespace middleend::mlir {
@@ -43,7 +44,7 @@ class Value {
   }
 
   auto AddUse(Operation *op, std::size_t index) -> void { uses_.emplace_back(new Use{op, index}); }
-  auto RemoveUse(Operation *op) -> void {
+  [[maybe_unused]] auto RemoveUse(Operation *op) -> void {
     for (auto it = uses_.begin(); it != uses_.end(); ++it) {
       if ((*it)->operation_ == op) {
         uses_.erase(it);
@@ -53,6 +54,8 @@ class Value {
   }
   auto ReplaceAllUsesWith(Value *new_value) -> void;
   static auto Create() -> Value * { return new Value(); }
+
+  auto Emit(std::ofstream *out) const -> void { *out << name_ << num_; }
 };
 
 }  // namespace middleend::mlir
