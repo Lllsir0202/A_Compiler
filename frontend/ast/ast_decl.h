@@ -109,6 +109,11 @@ class VarDefNode : public VisitAble<VarDefNode, ASTNode> {
   // indexes for array
   std::vector<ExprNodePtr> indices_;  // can be empty
   InitializerNodePtr init_values_;    // can be empty
+
+  /**
+   * @brief symbol_id_ is used to get a var_entry in IR phase.
+   */
+  size_t symbol_id_;  // used to get a var_entry in IR phase.
 };
 
 using VarDefNodePtr = std::unique_ptr<VarDefNode>;

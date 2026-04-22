@@ -26,7 +26,7 @@ auto SymbolTableContext::LookupVar(const std::string &name) -> symboltable::VarE
   for (auto it = var_table_.rbegin(); it != var_table_.rend(); ++it) {
     auto &scope = *it;
     if (scope.count(name) > 0) {
-      return_entry = &scope[name];
+      return_entry = scope[name];
       break;  // Found the variable, stop searching
     }
   }
@@ -69,9 +69,12 @@ auto SymbolTableContext::AddVar(const std::string &name, type::Type *type, bool 
   if (ExistsInCurrentScope(name)) {
     return false;  // Variable already exists in the current scope
   }
-  var_table_.back()[name] = symboltable::VarEntry{name, type, is_const, std::move(dimensions)};
+  auto entry = new symboltable::VarEntry{name, type, is_const, std::move(dimensions)};
+  entry->symbol_id_ = entries_.size();  // Generate symbol id based on the size of entries
+  entries_.emplace_back(entry);
+  var_table_.back()[name] = entry;
   if (var_table_.size() == 1) {
-    var_table_.back()[name].is_global_ = true;  // Mark as global variable if it's in the global scope
+    var_table_.back()[name]->is_global_ = true;  // Mark as global variable if it's in the global scope
   }
   return true;
 }

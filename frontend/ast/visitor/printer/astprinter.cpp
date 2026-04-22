@@ -65,6 +65,8 @@ void ASTPrinter::Visit(const LValExprNode *lval_expr) {
   *out_ << "LValExprNode: " << lval_expr->ident_ << "\n";
   PrintIndent();
   *out_ << "  --Type: " << lval_expr->GetType()->ToString() << ", Value: " << lval_expr->GetValue().ToString() << "\n";
+  PrintIndent();
+  *out_ << "  --Symbol ID: " << lval_expr->symbol_id_ << "\n";
   indent_level_++;
   if (!lval_expr->indices_.empty()) {
     PrintIndent();
@@ -160,6 +162,8 @@ void ASTPrinter::Visit(const ReturnStmtNode *return_stmt) {
 void ASTPrinter::Visit(const VarDefNode *var_def) {
   PrintIndent();
   *out_ << "VarDefNode: " << var_def->ident_ << "\n";
+  PrintIndent();
+  *out_ << "  --Symbol ID: " << var_def->symbol_id_ << "\n";
   indent_level_++;
   if (!var_def->indices_.empty()) {
     PrintIndent();

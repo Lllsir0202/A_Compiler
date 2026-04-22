@@ -1,6 +1,7 @@
 #ifndef FRONTEND_AST_AST_EXPR_H
 #define FRONTEND_AST_AST_EXPR_H
 
+#include <cstddef>
 #include <memory>
 #include <vector>
 #include "ast/ast_base.h"
@@ -118,6 +119,10 @@ class LValExprNode : public VisitAble<LValExprNode, ExprNode> {
       : VisitAble<LValExprNode, ExprNode>(range, type, is_const), ident_(std::move(ident)) {}
   std::string ident_;
   std::vector<ExprNodePtr> indices_;
+  /**
+   * @brief symbol_id_ is used to get a var_entry in IR phase.
+   */
+  size_t symbol_id_;
 };
 
 /**

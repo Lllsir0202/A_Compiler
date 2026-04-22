@@ -510,7 +510,7 @@ void SemanticAnalyser::Visit(LValExprNode *LVal) {
     LVal->SetType(var_def->type_);
   }
   LVal->SetConst(var_def->is_const_ && index_is_const);
-
+  LVal->symbol_id_ = var_def->symbol_id_;
   /**
   * We can get the value of the LVal expression
   * If the LVal has following attributes:
@@ -793,6 +793,9 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
       return;
     }
   }
+  // Set the symbol_id for vardef node
+  var_def->symbol_id_ = entry->symbol_id_;
+
   // If the variable is constant and init_values is all constant or is null
   // then we can set the value of the variable in the symbol table entry
 

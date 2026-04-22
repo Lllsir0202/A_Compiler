@@ -26,6 +26,14 @@ struct VarEntry {
 
   // Mark whether the variable is a global variable
   bool is_global_ = false;
+
+  /**
+   * Store the symbol id for the variable
+   * Even though we can get the symbol id through the size of vector
+   * I suppose it is more clear to generate the symbol id
+   * when adding the entry to the symbol table.
+   */
+  size_t symbol_id_ = -1;
 };
 
 /**
@@ -58,6 +66,10 @@ class SymbolTableContext {
   ~SymbolTableContext() {
     if (!var_table_.empty()) {
       var_table_.clear();
+    }
+    // Clear all resources in entries
+    for (auto entry : entries_) {
+      delete entry;
     }
   };
   // provide methods to manage the symbol table, such as adding variables/functions, looking up variables/functions,
@@ -173,7 +185,7 @@ class SymbolTableContext {
   /**
    * @brief Get the global variable table
    */
-  auto GetGlobalVars() -> std::unordered_map<std::string, symboltable::VarEntry> & {
+  auto GetGlobalVars() -> std::unordered_map<std::string, symboltable::VarEntry *> & {
     if (var_table_.empty()) {
       throw std::logic_error("Variable table should never be empty");
     }
@@ -185,8 +197,18 @@ class SymbolTableContext {
    */
   auto GetFuncs() -> std::unordered_map<std::string, symboltable::FuncEntry> & { return func_table_; }
 
+  /**
+   * @brief Get the variable entries via symbol id, used in IR phase
+   */
+  auto GetVarEntryById(size_t symbol_id) -> symboltable::VarEntry * {
+    if (symbol_id >= entries_.size()) {
+      throw std::logic_error("Invalid symbol id");
+    }
+    return entries_[symbol_id];
+  }
+
  private:
-  std::vector<std::unordered_map<std::string, symboltable::VarEntry>> var_table_;
+  std::vector<std::unordered_map<std::string, symboltable::VarEntry *>> var_table_;
   // We need to consider the function's parameters
   // Since they are always defined in the function scope and can be accessed by any part of the
   // function. It is just defined in function definition
@@ -197,6 +219,13 @@ class SymbolTableContext {
   // When the semantic analyser reach the end, we will reset the member because it means the analysis
   // has terminaled.
   symboltable::FuncEntry *current_func_ = nullptr;
+
+  /**
+   * Followings are the methods used in IR phase.
+   */
+
+  // Record the variable entries to be reused.
+  std::vector<symboltable::VarEntry *> entries_;
 };
 }  // namespace context
 
