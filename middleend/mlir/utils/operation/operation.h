@@ -28,7 +28,7 @@ class Operation {
   std::vector<Value *> operands_;  // the operands of this operation
   // Result of the operation, can be a nullptr if the operation has no result
   // especially for statements
-  std::vector<Value *> results_;  // the results of the operation
+  std::vector<Value *> results_;  // the results of the operation, NORMALLY only one
 
   // Region of the operation
   std::vector<Region *> regions_;  // the regions of this operation, which are blocks

@@ -34,6 +34,7 @@ class CompilerContext {
   auto GetTypeContext() -> TypeContext * { return type_context_; }
   auto GetAstContext() -> AstContext * { return ast_context_; }
   auto GetSymbolTableContext() -> SymbolTableContext * { return symboltable_context_; }
+  auto GetIRContext() -> IRContext * { return ir_context_; }
   auto ReportError(frontend::SourceRange source_range, const std::string &msg) -> void;
   auto ReportError(frontend::ast::ASTNode *node, const std::string &msg) -> void;
   auto ReportError(const std::string &msg) -> void;

@@ -34,11 +34,11 @@ class Use {
  */
 class Value {
  public:
-  Operation *op_;                      // the operation that produces this value
-  [[maybe_unused]] std::size_t num_;   // the number for output, i.e. %1 = base.add %0, %0
-  [[maybe_unused]] std::string name_;  // the name of this value
-  std::vector<Use *> uses_;            // all operations that use this value as operand
-  type::Type *type_;                   // the type of this value
+  Operation *op_;            // the operation that produces this value
+  std::size_t num_;          // the number for output, i.e. %1 = base.add %0, %0
+  std::string name_;         // the name of this value
+  std::vector<Use *> uses_;  // all operations that use this value as operand
+  type::Type *type_;         // the type of this value
   ~Value() {
     for (auto use : uses_) {
       delete use;
@@ -57,7 +57,11 @@ class Value {
   auto ReplaceAllUsesWith(Value *new_value) -> void;
   static auto Create() -> Value * { return new Value(); }
 
-  auto Emit(std::ofstream *out) const -> void { *out << "%" << num_; }
+  /**
+   * @brief Emit the value to the output stream
+   * i.e. %x1, %y2, etc.
+   */
+  auto Emit(std::ofstream *out) const -> void { *out << "%" << name_ << num_; }
 
  private:
   Value() = default;
