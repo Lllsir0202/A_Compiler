@@ -30,7 +30,7 @@ class IRBuilder {
     root->Accept(visitor);
   }
 
- private:
+ protected:
   std::unique_ptr<IRVisitor> visitor_;
   context::CompilerContext *compiler_context_;
 };

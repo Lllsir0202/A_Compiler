@@ -4,18 +4,19 @@
 #include <unordered_map>
 #include <vector>
 #include "middleend/mlir/utils/value/value.h"
+#include "mlir/utils/operation/operation.h"
+#include "mlir/utils/struct/block.h"
 #include "symboltable_context.h"
 
 namespace context {
 /**
- * @brief Since the IR can be totally different among different IRs,
- * we will provide a context for the IR,
- * which will be used to manage the resources of the IR,
+ * @brief This class is used to create and manage value
+ * as well as creating operations
  */
-class MLIRContext {
+class MLIRResourceContext {
  public:
-  MLIRContext() = default;
-  ~MLIRContext() {
+  MLIRResourceContext() = default;
+  ~MLIRResourceContext() {
     for (auto value : values_) {
       delete value;
     }
@@ -27,6 +28,15 @@ class MLIRContext {
     auto value = middleend::mlir::Value::Create();
     values_.emplace_back(value);
     return value;
+  }
+
+  /**
+   * @brief Get a new operation
+   */
+  template <typename OperationType, typename... Args>
+  auto CreateOperation(Args &&...args) -> OperationType * {
+    auto operation = OperationType::Create(std::forward<Args>(args)...);
+    return operation;
   }
 
   /**
@@ -62,6 +72,79 @@ class MLIRContext {
   // used for distinguishing different variables with the same name
   std::unordered_map<symboltable::VarEntry *, middleend::mlir::Value *>
       var_map_;  // map from variable entries to values
+};
+
+/**
+ * @brief This class is used to record build state of the MLIR,
+ * such as the current block for inserting operations, etc.
+ */
+class MLIRStateContext {
+ public:
+  auto SetInsertPoint(middleend::mlir::Block *block) -> void { current_block_ = block; }
+  auto GetInsertPoint() -> middleend::mlir::Block * { return current_block_; }
+
+ private:
+  middleend::mlir::Block *current_block_ = nullptr;  // the current block for inserting operations
+};
+
+/**
+ * @brief Since the IR can be totally different among different IRs,
+ * we will provide a context for the IR,
+ * which will be used to manage the resources of the IR,
+ */
+class MLIRContext {
+ public:
+  MLIRContext() {
+    resource_context_ = new MLIRResourceContext();
+    state_context_ = new MLIRStateContext();
+  }
+  ~MLIRContext() {
+    delete resource_context_;
+    delete state_context_;
+    // Since the module operation will not be destroyed by other operations,
+    // we shall call delete while the MLIRContext is destroyed,
+    // so that the memory of the module operation can be released.
+    delete module_op_;
+  }
+  /**
+   * @brief Get the resource context of the MLIR, which can be used to create values and operations
+   */
+  auto GetResourceContext() -> MLIRResourceContext * { return resource_context_; }
+
+  /**
+   * @brief Get the state context of the MLIR, which can be used to manage the build state of the MLIR
+   */
+  auto GetStateContext() -> MLIRStateContext * { return state_context_; }
+
+  /**
+   * @brief Provide interfaces to directly create or get something
+   * it would be too too too long to write
+   * `compiler_context_->GetIRContext()->GetMLIRContext()->GetResourceContext()->CreateValue()`
+   */
+  auto CreateValue() -> middleend::mlir::Value * { return resource_context_->CreateValue(); }
+
+  template <typename OperationType, typename... Args>
+  auto CreateOperation(Args &&...args) -> OperationType * {
+    return resource_context_->CreateOperation<OperationType>(std::forward<Args>(args)...);
+  }
+
+  auto GetModuleOp() -> middleend::mlir::Operation * {
+    if (module_op_ == nullptr) {
+      throw std::runtime_error("Module operation has not been created yet.");
+    }
+    return module_op_;
+  }
+
+  auto SetModuleOp(middleend::mlir::Operation *module_op) -> void { module_op_ = module_op; }
+
+  auto SetInsertPoint(middleend::mlir::Block *block) -> void { state_context_->SetInsertPoint(block); }
+  auto GetInsertPoint() -> middleend::mlir::Block * { return state_context_->GetInsertPoint(); }
+
+ private:
+  MLIRResourceContext *resource_context_;
+  MLIRStateContext *state_context_;
+  // the module operation of the MLIR, which is the top-level operation
+  middleend::mlir::Operation *module_op_ = nullptr;
 };
 
 }  // namespace context

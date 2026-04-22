@@ -53,7 +53,7 @@ class ModuleOp : public Operation {
   }
 
  private:
-  ModuleOp();
+  ModuleOp() = default;
   auto SetUp() -> void;
 };
 
