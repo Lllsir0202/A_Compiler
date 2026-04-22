@@ -1,0 +1,53 @@
+#ifndef MIDDLEEND_MLIR_DIALECT_ARITHM_UNARYOP_H
+#define MIDDLEEND_MLIR_DIALECT_ARITHM_UNARYOP_H
+#include "middleend/builder/mlir/mlirbuilder.h"
+#include "middleend/mlir/dialect/arithm/basic.h"
+#include "middleend/mlir/utils/value/value.h"
+
+namespace middleend::mlir::arithm {
+/**
+ * @brief Since most of the binary operations have the same structure,
+ * we can use a macro to define these binary operations
+ */
+#define DEFINE_UNARY_OP(NAME)                                                      \
+  class NAME##Op : public ArithmOps {                                              \
+   public:                                                                         \
+    static auto Create(MLIRBuilder *builder, mlir::Value *operand) -> NAME##Op * { \
+      auto op = new NAME##Op();                                                    \
+      op->SetUp(builder, operand);                                                 \
+      return op;                                                                   \
+    }                                                                              \
+    auto GetOperand() -> mlir::Value * { return operand_; }                        \
+    auto GetRes() -> mlir::Value * { return res_; }                                \
+    auto Emit(std::ofstream *out) const -> void override {                         \
+      /* Implementation for emitting the operation */                              \
+      res_->Emit(out);                                                             \
+      *out << " = " << Name() << " ";                                              \
+      operand_->Emit(out);                                                         \
+      *out << " , ";                                                               \
+      operand_->Emit(out);                                                             \
+      *out << "\n";                                                                \
+    }                                                                              \
+                                                                                   \
+   private:                                                                        \
+    NAME##Op() : ArithmOps(#NAME) {}                                               \
+    auto SetUp(MLIRBuilder *builder, mlir::Value *operand) -> void {               \
+      /* NAME##Op has one operand and one result */                                \
+      operands_.reserve(1);                                                        \
+      results_.reserve(1);                                                         \
+      operands_.emplace_back(operand);                                             \
+      operand_ = operand;                                                          \
+      auto res = builder->GetMLIRContext()->CreateValue();                         \
+      results_.emplace_back(res);                                                  \
+      res_ = res;                                                                  \
+    }                                                                              \
+    mlir::Value *operand_;                                                         \
+    mlir::Value *res_;                                                             \
+  };
+
+DEFINE_UNARY_OP(Neg)
+DEFINE_UNARY_OP(Not)
+
+}  // namespace middleend::mlir::arithm
+
+#endif

@@ -26,6 +26,7 @@ class MLIRResourceContext {
    */
   auto CreateValue() -> middleend::mlir::Value * {
     auto value = middleend::mlir::Value::Create();
+    value->num_ = value_num_++;
     values_.emplace_back(value);
     return value;
   }
@@ -67,6 +68,7 @@ class MLIRResourceContext {
 
  private:
   std::vector<middleend::mlir::Value *> values_;  // all values created by this builder, used for memory management
+  size_t value_num_ = 0;                          // for generating unique value numbers, i.e. %0, %1, etc.
   std::unordered_map<std::string, size_t> name_count_map_;
   // map from variable name to the num,
   // used for distinguishing different variables with the same name
@@ -82,9 +84,46 @@ class MLIRStateContext {
  public:
   auto SetInsertPoint(middleend::mlir::Block *block) -> void { current_block_ = block; }
   auto GetInsertPoint() -> middleend::mlir::Block * { return current_block_; }
+  auto PushValue(middleend::mlir::Value *value) -> void { value_stack_.emplace_back(value); }
+  auto PopValue() -> middleend::mlir::Value * {
+    if (value_stack_.empty()) {
+      throw std::runtime_error("Value stack is empty.");
+    }
+    auto value = value_stack_.back();
+    value_stack_.pop_back();
+    return value;
+  }
 
  private:
   middleend::mlir::Block *current_block_ = nullptr;  // the current block for inserting operations
+  /**
+   * @brief The value stack is used for building expressions,
+   * since the building of expressions is usually in post-order traversal,
+   * we can push the values of the sub-expressions into the stack,
+   * and then pop them when we need to build the parent expression.
+   * @example
+   * For example, for the expression "a + b * c",
+   * we will first visit the sub-expression "b * c",
+   * and push the value of "b" and "c" into the stack,
+   * and then we will visit the parent expression "a + (b * c)",
+   * and pop the value of "b" and "c" from the stack to build the value of "b * c", and then push the value of "b * c"
+   * into the stack, and then we will pop the value of "a" and "b * c" from the stack to build the value of "a + (b *
+   * c)", and then push the value of "a + (b * c)" into the stack.
+   * @note
+   * Since the value stack is only used for building expressions,
+   * we can just put it in the state context, and it will be automatically cleared after building an expression.
+   */
+  std::vector<middleend::mlir::Value *> value_stack_;
+
+  /**
+   * @brief need to store the information for control flow building,
+   * @example
+   * i.e.
+   * while(cond) {
+   *   // loop body
+   * }
+   * need: iteration variable,
+   */
 };
 
 /**
