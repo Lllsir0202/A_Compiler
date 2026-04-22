@@ -164,6 +164,27 @@ class SymbolTableContext {
    */
   auto GetCurrentFunc() -> symboltable::FuncEntry * { return current_func_; }
 
+  // Following methods are used for intermediate representation,
+  // since we need to get the information of the global variables
+  // and the function parameters when generating the IR.
+  // and we have checked the semantic correctness, so it is safe to directly
+  // generate the global variables
+
+  /**
+   * @brief Get the global variable table
+   */
+  auto GetGlobalVars() -> std::unordered_map<std::string, symboltable::VarEntry> & {
+    if (var_table_.empty()) {
+      throw std::logic_error("Variable table should never be empty");
+    }
+    return var_table_.front();
+  }
+
+  /**
+   * @brief Get the function entry table
+   */
+  auto GetFuncs() -> std::unordered_map<std::string, symboltable::FuncEntry> & { return func_table_; }
+
  private:
   std::vector<std::unordered_map<std::string, symboltable::VarEntry>> var_table_;
   // We need to consider the function's parameters

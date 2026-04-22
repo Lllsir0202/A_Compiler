@@ -1,6 +1,7 @@
 #ifndef CONTEXT_IR_CONTEXT_H
 #define CONTEXT_IR_CONTEXT_H
 
+#include "mlir_context.h"
 namespace context {
 /**
  * @brief IRContext is the context for the intermediate representation
@@ -9,7 +10,12 @@ namespace context {
  */
 class IRContext {
  public:
+  IRContext() { mlir_context_ = new MLIRContext(); }
+  ~IRContext() { delete mlir_context_; }
+  auto GetMLIRContext() -> MLIRContext * { return mlir_context_; }
+
  private:
+  MLIRContext *mlir_context_;
 };
 
 }  // namespace context

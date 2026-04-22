@@ -4,6 +4,7 @@
 #include <fstream>
 #include "ast/ast_base.h"
 #include "context/ast_context.h"
+#include "context/ir_context.h"
 #include "context/symboltable_context.h"
 #include "context/type_context.h"
 namespace context {
@@ -22,11 +23,13 @@ class CompilerContext {
     ast_context_ = new AstContext();
     symboltable_context_ = new SymbolTableContext();
     InitializeLibFunc();
+    ir_context_ = new IRContext();
   }
   ~CompilerContext() {
     delete type_context_;
     delete ast_context_;
     delete symboltable_context_;
+    delete ir_context_;
   }
   auto GetTypeContext() -> TypeContext * { return type_context_; }
   auto GetAstContext() -> AstContext * { return ast_context_; }
@@ -45,6 +48,9 @@ class CompilerContext {
   AstContext *ast_context_;
   // We need to control symbol table context
   SymbolTableContext *symboltable_context_;
+
+  // we will use the ircontext to control the resources of the IR
+  IRContext *ir_context_;
 
   // Using this compiler context to control ALL resources in the compiler
 
