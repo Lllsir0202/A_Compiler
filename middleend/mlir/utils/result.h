@@ -1,11 +1,12 @@
 #ifndef MIDDLEEND_MLIR_UTILS_RESULT_H
 #define MIDDLEEND_MLIR_UTILS_RESULT_H
 
+#include <cstdint>
 namespace middleend::mlir {
 
 class Result {
  private:
-  enum class ResultType { Success, Failure };
+  enum class ResultType : uint8_t { Success, Failure };
 
  public:
   explicit Result(ResultType type) : type_(type) {}

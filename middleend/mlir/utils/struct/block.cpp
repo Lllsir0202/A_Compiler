@@ -28,13 +28,15 @@ auto Block::Emit(std::ofstream *out) const -> void {
   *out << "block (";
   for (auto argument : arguments_) {
     argument->Emit(out);
-    *out << " ";
+    if (argument != arguments_.back()) {
+      *out << ", ";
+    }
   }
-  *out << ") {" << std::endl;
+  *out << ") {\n";
   for (auto op : operations_) {
     op->Emit(out);
   }
-  *out << "}" << std::endl;
+  *out << "}\n";
 }
 
 }  // namespace middleend::mlir

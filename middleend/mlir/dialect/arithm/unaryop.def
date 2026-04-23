@@ -10,13 +10,13 @@
       op->SetUp(builder, operand);                                                 \
       return op;                                                                   \
     }                                                                              \
-    auto GetOperand() -> mlir::Value * { return operand_; }                        \
-    auto GetRes() -> mlir::Value * { return res_; }                                \
+    auto GetOperand() -> mlir::Value * { return operands_[0]; }                    \
+    auto GetRes() -> mlir::Value * { return results_[0]; }                         \
     auto Emit(std::ofstream *out) const -> void override {                         \
       /* Implementation for emitting the operation */                              \
-      res_->Emit(out);                                                             \
+      results_[0]->Emit(out);                                                      \
       *out << " = " << Name() << " ";                                              \
-      operand_->Emit(out);                                                         \
+      operands_[0]->Emit(out);                                                     \
       *out << "\n";                                                                \
     }                                                                              \
                                                                                    \
@@ -27,11 +27,7 @@
       operands_.reserve(1);                                                        \
       results_.reserve(1);                                                         \
       operands_.emplace_back(operand);                                             \
-      operand_ = operand;                                                          \
       auto res = builder->GetMLIRContext()->CreateValue();                         \
       results_.emplace_back(res);                                                  \
-      res_ = res;                                                                  \
     }                                                                              \
-    mlir::Value *operand_;                                                         \
-    mlir::Value *res_;                                                             \
   };

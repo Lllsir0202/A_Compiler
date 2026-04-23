@@ -9,7 +9,7 @@ namespace middleend::mlir::base {
  */
 class BaseOps : public Operation {
  public:
-  explicit BaseOps(std::string operator_name) : operator_name_(std::move(operator_name)) {}
+  ~BaseOps() override = default;
   /**
    * @brief Get the name of the operation,
    * which is like the format of "dialect_name.operator_name", e.g. "base.add"
@@ -21,6 +21,9 @@ class BaseOps : public Operation {
    */
   auto DialectName() const -> std::string override { return DIALECT_NAME; }
   auto Emit([[maybe_unused]] std::ofstream *out) const -> void override;
+
+ protected:
+  explicit BaseOps(std::string operator_name) : operator_name_(std::move(operator_name)) {}
 
  private:
   static const std::string DIALECT_NAME;

@@ -21,5 +21,4 @@ DEFINE_BINARY_OP(GreaterEqual)
 DEFINE_BINARY_OP(And)
 DEFINE_BINARY_OP(Or)
 }  // namespace middleend::mlir::arithm
-
 #endif

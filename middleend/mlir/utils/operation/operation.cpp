@@ -39,11 +39,11 @@ auto ModuleOp::Emit(std::ofstream *out) const -> void {
    *       }
    * }
    */
-  *out << this->DialectName() << " {" << std::endl;
+  *out << this->DialectName() << " {\n";
   for (auto region : regions_) {
     region->Emit(out);
   }
-  *out << "}" << std::endl;
+  *out << "}\n";
 }
 
 }  // namespace middleend::mlir

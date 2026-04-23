@@ -19,11 +19,11 @@ Region::~Region() {
  * it will emit the blocks in the region
  */
 auto Region::Emit(std::ofstream *out) const -> void {
-  *out << "region {" << std::endl;
+  *out << "region {\n";
   for (auto block : blocks_) {
     block->Emit(out);
   }
-  *out << "}" << std::endl;
+  *out << "}\n";
 }
 
 }  // namespace middleend::mlir

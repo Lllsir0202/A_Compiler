@@ -9,7 +9,7 @@ namespace middleend::mlir::arithm {
  */
 class ArithmOps : public Operation {
  public:
-  explicit ArithmOps(std::string operator_name) : operator_name_(std::move(operator_name)) {}
+  ~ArithmOps() override = default;
   /**
    * @brief Get the name of the operation,
    * which is like the format of "dialect_name.operator_name", e.g. "arithm.add"
@@ -27,6 +27,9 @@ class ArithmOps : public Operation {
    */
   auto IsCommutative() const -> bool { return operator_name_ == "add" || operator_name_ == "mul"; }
 
+ protected:
+  explicit ArithmOps(std::string operator_name) : operator_name_(std::move(operator_name)) {}
+
  private:
   static const std::string DIALECT_NAME;
   std::string operator_name_;
@@ -35,5 +38,4 @@ class ArithmOps : public Operation {
 const std::string ArithmOps::DIALECT_NAME = "arithm";
 
 }  // namespace middleend::mlir::arithm
-
 #endif

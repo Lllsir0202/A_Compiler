@@ -5,21 +5,22 @@
 #define DEFINE_BINARY_OP(NAME)                                                                   \
   class NAME##Op : public ArithmOps {                                                            \
    public:                                                                                       \
+    ~NAME##Op() override = default;                                                              \
     static auto Create(MLIRBuilder *builder, mlir::Value *lhs, mlir::Value *rhs) -> NAME##Op * { \
       auto op = new NAME##Op();                                                                  \
       op->SetUp(builder, lhs, rhs);                                                              \
       return op;                                                                                 \
     }                                                                                            \
-    auto GetLHS() -> mlir::Value * { return lhs_; }                                              \
-    auto GetRHS() -> mlir::Value * { return rhs_; }                                              \
-    auto GetRes() -> mlir::Value * { return res_; }                                              \
+    auto GetLHS() -> mlir::Value * { return operands_[0]; }                                      \
+    auto GetRHS() -> mlir::Value * { return operands_[1]; }                                      \
+    auto GetRes() -> mlir::Value * { return results_[0]; }                                       \
     auto Emit(std::ofstream *out) const -> void override {                                       \
       /* Implementation for emitting the operation */                                            \
-      res_->Emit(out);                                                                           \
+      results_[0]->Emit(out);                                                                    \
       *out << " = " << Name() << " ";                                                            \
-      lhs_->Emit(out);                                                                           \
+      operands_[0]->Emit(out);                                                                   \
       *out << " , ";                                                                             \
-      rhs_->Emit(out);                                                                           \
+      operands_[1]->Emit(out);                                                                   \
       *out << "\n";                                                                              \
     }                                                                                            \
                                                                                                  \
@@ -27,17 +28,15 @@
     NAME##Op() : ArithmOps(#NAME) {}                                                             \
     auto SetUp(MLIRBuilder *builder, mlir::Value *lhs, mlir::Value *rhs) -> void {               \
       /* NAME##Op has two operands and one result */                                             \
+      /* check type of result */                                                                 \
+      if (lhs->type_ != rhs->type_) {                                                            \
+        throw std::logic_error("LHS and RHS should be the same type");                           \
+      }                                                                                          \
       operands_.reserve(2);                                                                      \
       results_.reserve(1);                                                                       \
       operands_.emplace_back(lhs);                                                               \
       operands_.emplace_back(rhs);                                                               \
-      lhs_ = lhs;                                                                                \
-      rhs_ = rhs;                                                                                \
       auto res = builder->GetMLIRContext()->CreateValue();                                       \
       results_.emplace_back(res);                                                                \
-      res_ = res;                                                                                \
     }                                                                                            \
-    mlir::Value *lhs_;                                                                           \
-    mlir::Value *rhs_;                                                                           \
-    mlir::Value *res_;                                                                           \
   };
