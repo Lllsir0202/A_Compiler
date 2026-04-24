@@ -62,9 +62,9 @@ class MLIRVisitor : public IRVisitor {
   friend class MLIRBuilder;
 
   // Helper functions for handing out operator
-  inline auto HandleBinaryOperator(frontend::ast::BinaryExprNode *binary_expr,
+  inline auto HandleBinaryOperator(mlir::Value *lhs, mlir::Value *rhs, frontend::ast::BinaryExprNode *binary_expr,
                                    context::CompilerContext *compiler_context) -> mlir::Value *;
-  inline auto HandleUnaryOperator(frontend::ast::UnaryExprNode *unary_expr,
+  inline auto HandleUnaryOperator(mlir::Value *operand, frontend::ast::UnaryExprNode *unary_expr,
                                   context::CompilerContext *compiler_context) -> mlir::Value *;
   utils::flatten::FlattenHelper flatten_helper_;
 };

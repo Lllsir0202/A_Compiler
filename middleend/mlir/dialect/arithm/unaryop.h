@@ -38,7 +38,11 @@ class ConstOp : public ArithmOps {
   auto Emit(std::ofstream *out) const -> void override {
     results_[0]->Emit(out);
     *out << " = " << Name() << " ";
-    operands_[0]->Emit(out);
+    if (std::holds_alternative<int>(const_value_)) {
+      *out << std::get<int>(const_value_);
+    } else if (std::holds_alternative<float>(const_value_)) {
+      *out << std::get<float>(const_value_);
+    }
     *out << "\n";
   }
 
@@ -76,7 +80,7 @@ class CastOp : public ArithmOps {
     return op;
   }
   auto GetOperand() -> mlir::Value * { return operands_[0]; }
-  auto GetResult() -> mlir::Value * { return results_[0]; }
+  auto GetRes() -> mlir::Value * { return results_[0]; }
   auto GetFromType() -> type::Type * { return from_type_; }
   auto GetToType() -> type::Type * { return to_type_; }
 

@@ -6,6 +6,7 @@
 #include "middleend/mlir/dialect/var/var.h"
 #include "middleend/mlir/utils/operation/operation.h"
 #include "middleend/mlir/utils/struct/region.h"
+#include "mlir/dialect/arithm/unaryop.h"
 #include "mlir/utils/value/value.h"
 #include "utils/flatten/mlirinit.h"
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()
@@ -17,7 +18,8 @@ namespace middleend {
 /**
  * @brief The Helper functions for handing out operators
  */
-inline auto MLIRVisitor::HandleBinaryOperator(frontend::ast::BinaryExprNode *binary_expr,
+inline auto MLIRVisitor::HandleBinaryOperator(mlir::Value *lhs, mlir::Value *rhs,
+                                              frontend::ast::BinaryExprNode *binary_expr,
                                               context::CompilerContext *compiler_context) -> mlir::Value * {
   mlir::Value *result = nullptr;
   switch (binary_expr->operator_) {
@@ -39,7 +41,8 @@ inline auto MLIRVisitor::HandleBinaryOperator(frontend::ast::BinaryExprNode *bin
 }
 
 #include "middleend/builder/mlir/unary_handler.def"
-inline auto MLIRVisitor::HandleUnaryOperator(frontend::ast::UnaryExprNode *unary_expr,
+
+inline auto MLIRVisitor::HandleUnaryOperator(mlir::Value *operand, frontend::ast::UnaryExprNode *unary_expr,
                                              context::CompilerContext *compiler_context) -> mlir::Value * {
   /**
    * @brief Since the unary positive is the same as doing nothing,
@@ -87,23 +90,54 @@ void MLIRVisitor::Visit(frontend::ast::BinaryExprNode *binary_expr) {
   lhs->Accept(this);
   auto rhs = binary_expr->right_.get();
   rhs->Accept(this);
+  auto type = binary_expr->GetType();
+
+  auto lhs_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(lhs);
+  auto rhs_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(rhs);
+  // Do cast to ensure the type of the left and right operands,
+  // are the same with the type we decided in the semantic analysis phase.
+  if (lhs->GetType() != type) {
+    auto cast_op =
+        GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), lhs_value, lhs->GetType(), type);
+    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
+    lhs_value = cast_op->GetRes();
+  }
+  if (rhs->GetType() != type) {
+    auto cast_op =
+        GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), rhs_value, rhs->GetType(), type);
+    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
+    rhs_value = cast_op->GetRes();
+  }
+
   /**
    * @brief we use the map to get value from the ExprNode*,
    * since every expression node will ONLY generate one value,
    * so we can just use the expression node as the key to get the value from the map, and then we can use the value to
    * build the operation for this binary expression
    */
-  auto res = HandleBinaryOperator(binary_expr, compiler_context_);
+  auto res = HandleBinaryOperator(lhs_value, rhs_value, binary_expr, compiler_context_);
   GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(binary_expr, res);
 }
 void MLIRVisitor::Visit(frontend::ast::UnaryExprNode *unary_expr) {
   auto operand = unary_expr->operand_.get();
   operand->Accept(this);
+
+  auto operand_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(operand);
+  auto type = unary_expr->GetType();
+
+  // Do cast to ensure the type of the operand,
+  if (type != operand->GetType()) {
+    auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), operand_value,
+                                                                             operand->GetType(), type);
+    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
+    operand_value = cast_op->GetRes();
+  }
+
   /**
    * @brief the operand has been visited,
    * and the result of the operand shall be stored in the MLIR StateContext,
    * also it should be the top value */
-  auto res = HandleUnaryOperator(unary_expr, compiler_context_);
+  auto res = HandleUnaryOperator(operand_value, unary_expr, compiler_context_);
   GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(unary_expr, res);
 }
 void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::FuncCallExprNode *func_call) {}
