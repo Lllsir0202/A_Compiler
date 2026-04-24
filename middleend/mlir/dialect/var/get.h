@@ -9,9 +9,9 @@ namespace middleend::mlir::var {
  */
 class VarGetOp : public VarOps {
  public:
-  static auto Create(context::MLIRContext *context, std::vector<Value *> &indices) -> VarGetOp * {
+  static auto Create(context::MLIRContext *context, Value *ptr, std::vector<Value *> indices = {}) -> VarGetOp * {
     auto op = new VarGetOp();
-    op->SetUp(context, indices);
+    op->SetUp(context, ptr, std::move(indices));
     return op;
   }
 
@@ -39,13 +39,16 @@ class VarGetOp : public VarOps {
 
  private:
   VarGetOp() : VarOps("get"){};
-  auto SetUp(context::MLIRContext *context, std::vector<Value *> &indices) -> void {
+  auto SetUp(context::MLIRContext *context, Value *ptr, std::vector<Value *> indices = {}) -> void {
     operands_.reserve(indices.size());
     results_.reserve(1);
+    ptr_ = ptr;
     operands_ = std::move(indices);
     auto res = context->CreateValue();
     results_.emplace_back(res);
   }
+  // The accessed location of the variable
+  Value *ptr_;
 };
 
 }  // namespace middleend::mlir::var

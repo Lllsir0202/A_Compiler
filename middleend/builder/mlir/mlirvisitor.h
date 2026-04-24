@@ -1,5 +1,6 @@
 #ifndef MIDDLEEND_BUILDER_MLIR_MLIRVISITOR_H
 #define MIDDLEEND_BUILDER_MLIR_MLIRVISITOR_H
+#include "ast/ast_expr.h"
 #include "compiler_context.h"
 #include "flatten/flatten_initializer.h"
 #include "middleend/builder/irvisitor.h"
@@ -61,9 +62,9 @@ class MLIRVisitor : public IRVisitor {
   friend class MLIRBuilder;
 
   // Helper functions for handing out operator
-  inline auto HandleBinaryOperator(frontend::ast::OpCode op_code,
+  inline auto HandleBinaryOperator(frontend::ast::BinaryExprNode *binary_expr,
                                    context::CompilerContext *compiler_context) -> mlir::Value *;
-  inline auto HandleUnaryOperator(frontend::ast::OpCode op_code,
+  inline auto HandleUnaryOperator(frontend::ast::UnaryExprNode *unary_expr,
                                   context::CompilerContext *compiler_context) -> mlir::Value *;
   utils::flatten::FlattenHelper flatten_helper_;
 };
