@@ -1,15 +1,15 @@
 #ifndef MIDDLEEND_MLIR_DIALECT_VAR_SET_H
 #define MIDDLEEND_MLIR_DIALECT_VAR_SET_H
 
-#include "builder/mlir/mlirbuilder.h"
 #include "mlir/dialect/var/basic.h"
+#include "mlir_context.h"
 namespace middleend::mlir::var {
 
 class VarSetOp : public VarOps {
  public:
-  static auto Create(MLIRBuilder *builder, Value *ptr, Value *new_value) -> VarSetOp * {
+  static auto Create(context::MLIRContext *context, Value *ptr, Value *new_value) -> VarSetOp * {
     auto op = new VarSetOp();
-    op->SetUp(builder, ptr, new_value);
+    op->SetUp(context, ptr, new_value);
     return op;
   }
 
@@ -33,12 +33,12 @@ class VarSetOp : public VarOps {
 
  private:
   VarSetOp() : VarOps("set") {}
-  auto SetUp(MLIRBuilder *builder, Value *ptr, Value *new_value) -> void {
+  auto SetUp(context::MLIRContext *context, Value *ptr, Value *new_value) -> void {
     operands_.reserve(2);
     results_.reserve(1);
     operands_.emplace_back(ptr);
     operands_.emplace_back(new_value);
-    auto res = builder->GetMLIRContext()->CreateValue();
+    auto res = context->CreateValue();
     results_.emplace_back(res);
   }
 };

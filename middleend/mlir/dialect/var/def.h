@@ -1,9 +1,9 @@
 #ifndef MIDDLEEND_MLIR_DIALECT_VAR_DEF_H
 #define MIDDLEEND_MLIR_DIALECT_VAR_DEF_H
 #include <fstream>
-#include "builder/mlir/mlirbuilder.h"
 #include "middleend/mlir/dialect/var/basic.h"
 #include "mlir/utils/value/value.h"
+#include "mlir_context.h"
 
 namespace middleend::mlir::var {
 /**
@@ -16,10 +16,10 @@ namespace middleend::mlir::var {
  */
 class VarDefOp : public VarOps {
  public:
-  static auto Create(MLIRBuilder *builder, std::vector<Value *> &dimensions, std::vector<Value *> &inits,
-                     bool is_global = false) -> VarDefOp * {
+  static auto Create(context::MLIRContext *context, std::vector<int> &dimensions, std::vector<Value *> &inits,
+                     bool is_global = false, bool is_const = false) -> VarDefOp * {
     auto op = new VarDefOp();
-    op->SetUp(builder, dimensions, inits, is_global);
+    op->SetUp(context, dimensions, inits, is_global, is_const);
     return op;
   }
 
@@ -32,14 +32,18 @@ class VarDefOp : public VarOps {
     results_[0]->Emit(out);
     *out << "[";
     for (const auto &dim : dimensions_) {
-      dim->Emit(out);
+      *out << dim;
       if (dim != dimensions_.back()) {
         *out << ", ";
       }
     }
     *out << "] = " << Name() << " ";
     for (const auto &init : operands_) {
-      init->Emit(out);
+      if (init != nullptr) {
+        init->Emit(out);
+      } else {
+        *out << "default_init";
+      }
       if (init != operands_.back()) {
         *out << ", ";
       }
@@ -49,19 +53,21 @@ class VarDefOp : public VarOps {
 
  private:
   VarDefOp() : VarOps("def") {}
-  auto SetUp(MLIRBuilder *builder, std::vector<Value *> &dimensions, std::vector<Value *> &inits,
-             bool is_global) -> void {
+  auto SetUp(context::MLIRContext *context, std::vector<int> &dimensions, std::vector<Value *> &inits, bool is_global,
+             bool is_const) -> void {
     operands_.reserve(inits.size());
     dimensions_.reserve(dimensions.size());
     results_.reserve(1);
     operands_ = std::move(inits);
     dimensions_ = std::move(dimensions);
-    auto res = builder->GetMLIRContext()->CreateValue();
+    auto res = context->CreateValue();
     results_.emplace_back(res);
     is_global_ = is_global;
+    is_const_ = is_const;
   }
   bool is_global_;
-  std::vector<Value *> dimensions_;
+  bool is_const_;
+  std::vector<int> dimensions_;
 };
 
 }  // namespace middleend::mlir::var

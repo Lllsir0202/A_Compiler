@@ -63,6 +63,11 @@ class Value {
    */
   auto Emit(std::ofstream *out) const -> void { *out << "%" << name_ << num_; }
 
+  /**
+   * @brief Set the type of this value
+   */
+  auto SetType(type::Type *type) -> void { type_ = type; }
+
  private:
   Value() = default;
 };

@@ -1,5 +1,6 @@
 #ifndef MIDDLEEND_MLIR_DIALECT_ARITHM_UNARYOP_H
 #define MIDDLEEND_MLIR_DIALECT_ARITHM_UNARYOP_H
+#include <variant>
 #include "context/mlir_context.h"
 #include "middleend/mlir/dialect/arithm/basic.h"
 #include "middleend/mlir/utils/value/value.h"
@@ -17,7 +18,12 @@ DEFINE_UNARY_OP(Not)
  */
 class ConstOp : public ArithmOps {
  public:
-  static auto Create(context::MLIRContext *context, mlir::Value *value) {
+  static auto Create(context::MLIRContext *context, int value) {
+    auto op = new ConstOp();
+    op->SetUp(context, value);
+    return op;
+  }
+  static auto Create(context::MLIRContext *context, float value) {
     auto op = new ConstOp();
     op->SetUp(context, value);
     return op;
@@ -26,7 +32,7 @@ class ConstOp : public ArithmOps {
    * Since we might need to use and change the value and result of the operation
    * we should not make them const
    */
-  auto GetValue() -> mlir::Value * { return operands_[0]; }
+  auto GetValue() -> std::variant<int, float> { return const_value_; }
   auto GetResult() -> mlir::Value * { return results_[0]; }
 
   auto Emit(std::ofstream *out) const -> void override {
@@ -38,13 +44,20 @@ class ConstOp : public ArithmOps {
 
  private:
   ConstOp() : ArithmOps("const") {}
-  auto SetUp(context::MLIRContext *context, mlir::Value *value) -> void {
-    operands_.reserve(1);
+  auto SetUp(context::MLIRContext *context, int value) -> void {
+    const_value_ = value;
     results_.reserve(1);
-    operands_.emplace_back(value);
     auto res = context->CreateValue();
     results_.emplace_back(res);
   };
+  auto SetUp(context::MLIRContext *context, float value) -> void {
+    const_value_ = value;
+    results_.reserve(1);
+    auto res = context->CreateValue();
+    results_.emplace_back(res);
+  };
+  ;
+  std::variant<int, float> const_value_;
 };
 
 /**

@@ -1,7 +1,7 @@
 #ifndef MIDDLEEND_MLIR_DIALECT_VAR_GET_H
 #define MIDDLEEND_MLIR_DIALECT_VAR_GET_H
-#include "middleend/builder/mlir/mlirbuilder.h"
 #include "middleend/mlir/dialect/var/basic.h"
+#include "mlir_context.h"
 namespace middleend::mlir::var {
 /**
  * @brief This operation is used to get the value of a variable defined before,
@@ -9,9 +9,9 @@ namespace middleend::mlir::var {
  */
 class VarGetOp : public VarOps {
  public:
-  static auto Create(MLIRBuilder *builder, std::vector<Value *> &indices) -> VarGetOp * {
+  static auto Create(context::MLIRContext *context, std::vector<Value *> &indices) -> VarGetOp * {
     auto op = new VarGetOp();
-    op->SetUp(builder, indices);
+    op->SetUp(context, indices);
     return op;
   }
 
@@ -39,11 +39,11 @@ class VarGetOp : public VarOps {
 
  private:
   VarGetOp() : VarOps("get"){};
-  auto SetUp(MLIRBuilder *builder, std::vector<Value *> &indices) -> void {
+  auto SetUp(context::MLIRContext *context, std::vector<Value *> &indices) -> void {
     operands_.reserve(indices.size());
     results_.reserve(1);
     operands_ = std::move(indices);
-    auto res = builder->GetMLIRContext()->CreateValue();
+    auto res = context->CreateValue();
     results_.emplace_back(res);
   }
 };

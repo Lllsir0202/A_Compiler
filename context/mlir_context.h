@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <unordered_map>
 #include <vector>
+#include "ast/ast_expr.h"
 #include "middleend/mlir/utils/value/value.h"
 #include "mlir/utils/operation/operation.h"
 #include "mlir/utils/struct/block.h"
@@ -66,6 +67,26 @@ class MLIRResourceContext {
     return nullptr;  // Not found
   }
 
+  /**
+   * @brief Map an expression node to a value
+   */
+  auto MapExprToValue(frontend::ast::ExprNode *expr_node, middleend::mlir::Value *value) -> void {
+    expr_map_[expr_node] = value;
+  }
+
+  /**
+   * @brief Get the value mapped to an expression node
+   */
+  auto GetValueFromExpr(frontend::ast::ExprNode *expr_node) -> middleend::mlir::Value * {
+    if (expr_node == nullptr) {
+      return nullptr;
+    }
+    if (expr_map_.count(expr_node) > 0) {
+      return expr_map_[expr_node];
+    }
+    return nullptr;  // Not found
+  }
+
  private:
   std::vector<middleend::mlir::Value *> values_;  // all values created by this builder, used for memory management
   size_t value_num_ = 0;                          // for generating unique value numbers, i.e. %0, %1, etc.
@@ -74,6 +95,11 @@ class MLIRResourceContext {
   // used for distinguishing different variables with the same name
   std::unordered_map<symboltable::VarEntry *, middleend::mlir::Value *>
       var_map_;  // map from variable entries to values
+
+  /**
+   * @brief This map is used to record the mapping from expression nodes to values
+   */
+  std::unordered_map<frontend::ast::ExprNode *, middleend::mlir::Value *> expr_map_;
 };
 
 /**

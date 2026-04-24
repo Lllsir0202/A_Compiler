@@ -1,7 +1,9 @@
 #ifndef MIDDLEEND_BUILDER_MLIR_MLIRVISITOR_H
 #define MIDDLEEND_BUILDER_MLIR_MLIRVISITOR_H
 #include "compiler_context.h"
+#include "flatten/flatten_initializer.h"
 #include "middleend/builder/irvisitor.h"
+#include "mlir/utils/value/value.h"
 
 namespace middleend {
 /**
@@ -15,37 +17,37 @@ class MLIRVisitor : public IRVisitor {
   ~MLIRVisitor() override { compiler_context_ = nullptr; }
 
   // RootNode
-  void Visit(const frontend::ast::RootNode *root) override;
+  void Visit(frontend::ast::RootNode *root) override;
   // Should not be called directly, since they are abstract classes
-  void Visit(const frontend::ast::ExprNode *expr) override;
-  void Visit(const frontend::ast::StmtNode *stmt) override;
-  void Visit(const frontend::ast::Initializer *initializer) override;
-  void Visit(const frontend::ast::DeclNode *decl) override;
+  void Visit(frontend::ast::ExprNode *expr) override;
+  void Visit(frontend::ast::StmtNode *stmt) override;
+  void Visit(frontend::ast::Initializer *initializer) override;
+  void Visit(frontend::ast::DeclNode *decl) override;
   // Expression nodes
-  void Visit(const frontend::ast::BinaryExprNode *binary_expr) override;
-  void Visit(const frontend::ast::UnaryExprNode *unary_expr) override;
-  void Visit(const frontend::ast::FuncCallExprNode *func_call) override;
-  void Visit(const frontend::ast::LValExprNode *lval_expr) override;
-  void Visit(const frontend::ast::IntLiteralExprNode *int_literal) override;
-  void Visit(const frontend::ast::FloatLiteralExprNode *float_literal) override;
+  void Visit(frontend::ast::BinaryExprNode *binary_expr) override;
+  void Visit(frontend::ast::UnaryExprNode *unary_expr) override;
+  void Visit(frontend::ast::FuncCallExprNode *func_call) override;
+  void Visit(frontend::ast::LValExprNode *lval_expr) override;
+  void Visit(frontend::ast::IntLiteralExprNode *int_literal) override;
+  void Visit(frontend::ast::FloatLiteralExprNode *float_literal) override;
   // Statement nodes
-  void Visit(const frontend::ast::BlockStmtNode *block_stmt) override;
-  void Visit(const frontend::ast::AssignStmtNode *assign_stmt) override;
-  void Visit(const frontend::ast::ExprStmtNode *expr_stmt) override;
-  void Visit(const frontend::ast::IfStmtNode *if_stmt) override;
-  void Visit(const frontend::ast::WhileStmtNode *while_stmt) override;
-  void Visit(const frontend::ast::BreakStmtNode *break_stmt) override;
-  void Visit(const frontend::ast::ContinueStmtNode *continue_stmt) override;
-  void Visit(const frontend::ast::ReturnStmtNode *return_stmt) override;
+  void Visit(frontend::ast::BlockStmtNode *block_stmt) override;
+  void Visit(frontend::ast::AssignStmtNode *assign_stmt) override;
+  void Visit(frontend::ast::ExprStmtNode *expr_stmt) override;
+  void Visit(frontend::ast::IfStmtNode *if_stmt) override;
+  void Visit(frontend::ast::WhileStmtNode *while_stmt) override;
+  void Visit(frontend::ast::BreakStmtNode *break_stmt) override;
+  void Visit(frontend::ast::ContinueStmtNode *continue_stmt) override;
+  void Visit(frontend::ast::ReturnStmtNode *return_stmt) override;
   // Variable nodes includes decl and initializer
-  void Visit(const frontend::ast::VarDefNode *var_def) override;
-  void Visit(const frontend::ast::GlobalVarDeclNode *global_var_decl) override;
-  void Visit(const frontend::ast::LocalVarDeclNode *local_var_decl) override;
-  void Visit(const frontend::ast::InitListNode *init_list) override;
-  void Visit(const frontend::ast::InitValNode *init_val) override;
+  void Visit(frontend::ast::VarDefNode *var_def) override;
+  void Visit(frontend::ast::GlobalVarDeclNode *global_var_decl) override;
+  void Visit(frontend::ast::LocalVarDeclNode *local_var_decl) override;
+  void Visit(frontend::ast::InitListNode *init_list) override;
+  void Visit(frontend::ast::InitValNode *init_val) override;
   // Function nodes
-  void Visit(const frontend::ast::FuncFParamNode *func_fparam) override;
-  void Visit(const frontend::ast::FuncDefNode *func_def) override;
+  void Visit(frontend::ast::FuncFParamNode *func_fparam) override;
+  void Visit(frontend::ast::FuncDefNode *func_def) override;
 
  private:
   /**
@@ -54,12 +56,16 @@ class MLIRVisitor : public IRVisitor {
    * so we can just set the constructor to private
    * and let the MLIRBuilder be the friend class of this class.
    */
-  explicit MLIRVisitor(context::CompilerContext *compiler_context) : IRVisitor(compiler_context) {}
+  explicit MLIRVisitor(context::CompilerContext *compiler_context)
+      : IRVisitor(compiler_context), flatten_helper_(compiler_context) {}
   friend class MLIRBuilder;
 
   // Helper functions for handing out operator
-  inline auto HandleBinaryOperator(frontend::ast::OpCode op_code, context::CompilerContext *compiler_context) -> void;
-  inline auto HandleUnaryOperator(frontend::ast::OpCode op_code, context::CompilerContext *compiler_context) -> void;
+  inline auto HandleBinaryOperator(frontend::ast::OpCode op_code,
+                                   context::CompilerContext *compiler_context) -> mlir::Value *;
+  inline auto HandleUnaryOperator(frontend::ast::OpCode op_code,
+                                  context::CompilerContext *compiler_context) -> mlir::Value *;
+  utils::flatten::FlattenHelper flatten_helper_;
 };
 
 }  // namespace middleend

@@ -5,7 +5,7 @@
 
 namespace middleend {
 
-class IRVisitor : public frontend::ast::ConstASTVisitor {
+class IRVisitor : public frontend::ast::ASTVisitor {
  public:
   ~IRVisitor() override = default;
 
