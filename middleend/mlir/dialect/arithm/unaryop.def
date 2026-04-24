@@ -2,32 +2,32 @@
  * @brief Since most of the binary operations have the same structure,
  * we can use a macro to define these binary operations
  */
-#define DEFINE_UNARY_OP(NAME)                                                      \
-  class NAME##Op : public ArithmOps {                                              \
-   public:                                                                         \
-    static auto Create(MLIRBuilder *builder, mlir::Value *operand) -> NAME##Op * { \
-      auto op = new NAME##Op();                                                    \
-      op->SetUp(builder, operand);                                                 \
-      return op;                                                                   \
-    }                                                                              \
-    auto GetOperand() -> mlir::Value * { return operands_[0]; }                    \
-    auto GetRes() -> mlir::Value * { return results_[0]; }                         \
-    auto Emit(std::ofstream *out) const -> void override {                         \
-      /* Implementation for emitting the operation */                              \
-      results_[0]->Emit(out);                                                      \
-      *out << " = " << Name() << " ";                                              \
-      operands_[0]->Emit(out);                                                     \
-      *out << "\n";                                                                \
-    }                                                                              \
-                                                                                   \
-   private:                                                                        \
-    NAME##Op() : ArithmOps(#NAME) {}                                               \
-    auto SetUp(MLIRBuilder *builder, mlir::Value *operand) -> void {               \
-      /* NAME##Op has one operand and one result */                                \
-      operands_.reserve(1);                                                        \
-      results_.reserve(1);                                                         \
-      operands_.emplace_back(operand);                                             \
-      auto res = builder->GetMLIRContext()->CreateValue();                         \
-      results_.emplace_back(res);                                                  \
-    }                                                                              \
+#define DEFINE_UNARY_OP(NAME)                                                               \
+  class NAME##Op : public ArithmOps {                                                       \
+   public:                                                                                  \
+    static auto Create(context::MLIRContext *context, mlir::Value *operand) -> NAME##Op * { \
+      auto op = new NAME##Op();                                                             \
+      op->SetUp(context, operand);                                                          \
+      return op;                                                                            \
+    }                                                                                       \
+    auto GetOperand() -> mlir::Value * { return operands_[0]; }                             \
+    auto GetRes() -> mlir::Value * { return results_[0]; }                                  \
+    auto Emit(std::ofstream *out) const -> void override {                                  \
+      /* Implementation for emitting the operation */                                       \
+      results_[0]->Emit(out);                                                               \
+      *out << " = " << Name() << " ";                                                       \
+      operands_[0]->Emit(out);                                                              \
+      *out << "\n";                                                                         \
+    }                                                                                       \
+                                                                                            \
+   private:                                                                                 \
+    NAME##Op() : ArithmOps(#NAME) {}                                                        \
+    auto SetUp(context::MLIRContext *context, mlir::Value *operand) -> void {               \
+      /* NAME##Op has one operand and one result */                                         \
+      operands_.reserve(1);                                                                 \
+      results_.reserve(1);                                                                  \
+      operands_.emplace_back(operand);                                                      \
+      auto res = context->CreateValue();                                                    \
+      results_.emplace_back(res);                                                           \
+    }                                                                                       \
   };

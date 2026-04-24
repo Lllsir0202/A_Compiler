@@ -1,5 +1,6 @@
 #ifndef MIDDLEEND_BUILDER_MLIR_MLIRVISITOR_H
 #define MIDDLEEND_BUILDER_MLIR_MLIRVISITOR_H
+#include "compiler_context.h"
 #include "middleend/builder/irvisitor.h"
 
 namespace middleend {
@@ -55,6 +56,10 @@ class MLIRVisitor : public IRVisitor {
    */
   explicit MLIRVisitor(context::CompilerContext *compiler_context) : IRVisitor(compiler_context) {}
   friend class MLIRBuilder;
+
+  // Helper functions for handing out operator
+  inline auto HandleBinaryOperator(frontend::ast::OpCode op_code, context::CompilerContext *compiler_context) -> void;
+  inline auto HandleUnaryOperator(frontend::ast::OpCode op_code, context::CompilerContext *compiler_context) -> void;
 };
 
 }  // namespace middleend

@@ -13,7 +13,7 @@ class Block {
   auto Emit(std::ofstream *out) const -> void;
 
   // Interface to add an operation to the block
-  // auto AddOperation(Operation *op) -> void { operations_.emplace_back(op); }
+  auto AddOperation(Operation *op) -> void { operations_.emplace_back(op); }
 
   // The vector of arguments is needed for i.e. while(i < 10 || j < 20)
   std::vector<Value *> arguments_;  // the arguments of this block

@@ -1,8 +1,9 @@
 #ifndef MIDDLEEND_MLIR_DIALECT_ARITHM_UNARYOP_H
 #define MIDDLEEND_MLIR_DIALECT_ARITHM_UNARYOP_H
-#include "middleend/builder/mlir/mlirbuilder.h"
+#include "context/mlir_context.h"
 #include "middleend/mlir/dialect/arithm/basic.h"
 #include "middleend/mlir/utils/value/value.h"
+#include "mlir_context.h"
 
 namespace middleend::mlir::arithm {
 
@@ -16,9 +17,9 @@ DEFINE_UNARY_OP(Not)
  */
 class ConstOp : public ArithmOps {
  public:
-  static auto Create(MLIRBuilder *builder, mlir::Value *value) {
+  static auto Create(context::MLIRContext *context, mlir::Value *value) {
     auto op = new ConstOp();
-    op->SetUp(builder, value);
+    op->SetUp(context, value);
     return op;
   }
   /**
@@ -37,11 +38,11 @@ class ConstOp : public ArithmOps {
 
  private:
   ConstOp() : ArithmOps("const") {}
-  auto SetUp(MLIRBuilder *builder, mlir::Value *value) -> void {
+  auto SetUp(context::MLIRContext *context, mlir::Value *value) -> void {
     operands_.reserve(1);
     results_.reserve(1);
     operands_.emplace_back(value);
-    auto res = builder->GetMLIRContext()->CreateValue();
+    auto res = context->CreateValue();
     results_.emplace_back(res);
   };
 };
@@ -56,9 +57,9 @@ class ConstOp : public ArithmOps {
  */
 class CastOp : public ArithmOps {
  public:
-  static auto Create(MLIRBuilder *builder, mlir::Value *operand, type::Type *from, type::Type *to) {
+  static auto Create(context::MLIRContext *context, mlir::Value *operand, type::Type *from, type::Type *to) {
     auto op = new CastOp();
-    op->SetUp(builder, operand, from, to);
+    op->SetUp(context, operand, from, to);
     return op;
   }
   auto GetOperand() -> mlir::Value * { return operands_[0]; }
@@ -75,13 +76,13 @@ class CastOp : public ArithmOps {
 
  private:
   CastOp() : ArithmOps("cast") {}
-  auto SetUp(MLIRBuilder *builder, mlir::Value *operand, type::Type *from, type::Type *to) -> void {
+  auto SetUp(context::MLIRContext *context, mlir::Value *operand, type::Type *from, type::Type *to) -> void {
     operands_.reserve(1);
     results_.reserve(1);
     operands_.emplace_back(operand);
     from_type_ = from;
     to_type_ = to;
-    auto res = builder->GetMLIRContext()->CreateValue();
+    auto res = context->CreateValue();
     results_.emplace_back(res);
   }
   type::Type *from_type_;

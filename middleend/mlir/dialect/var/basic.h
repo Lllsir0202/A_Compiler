@@ -17,7 +17,7 @@ class VarOps : public Operation {
    * @brief Get the name of the dialect, which is "arithm"
    */
   auto DialectName() const -> std::string override { return DIALECT_NAME; }
-  auto Emit(std::ofstream *out) const -> void override;
+  auto Emit(std::ofstream *out) const -> void override = 0;
 
  protected:
   explicit VarOps(std::string operator_name) : operator_name_(std::move(operator_name)) {}

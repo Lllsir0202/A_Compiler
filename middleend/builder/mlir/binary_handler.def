@@ -1,0 +1,12 @@
+/**
+ * @brief the macro definition for handling binary operators in MLIR visitor
+ */
+#define BINARY_OPERATOR_HANDLER(op_code, op_name)                                                                \
+  case frontend::ast::OpCode::op_code: {                                                                         \
+    auto rhs = GET_MLIR_CONTEXT()->GetStateContext()->PopValue();                                                \
+    auto lhs = GET_MLIR_CONTEXT()->GetStateContext()->PopValue();                                                \
+    auto result =                                                                                                \
+        GET_MLIR_CONTEXT()->CreateOperation<middleend::mlir::arithm::op_name##Op>(GET_MLIR_CONTEXT(), lhs, rhs); \
+    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(result);                                                  \
+    GET_MLIR_CONTEXT()->GetStateContext()->PushValue(result->GetRes());                                          \
+  } break;

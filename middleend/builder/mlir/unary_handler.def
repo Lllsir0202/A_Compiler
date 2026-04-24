@@ -1,0 +1,11 @@
+/**
+ * @brief the macro definition for handling unary operators in MLIR visitor
+ */
+#define UNARY_OPERATOR_HANDLER(op_code, op_name)                                                                \
+  case frontend::ast::OpCode::op_code: {                                                                        \
+    auto operand = GET_MLIR_CONTEXT()->GetStateContext()->PopValue();                                           \
+    auto result =                                                                                               \
+        GET_MLIR_CONTEXT()->CreateOperation<middleend::mlir::arithm::op_name##Op>(GET_MLIR_CONTEXT(), operand); \
+    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(result);                                                 \
+    GET_MLIR_CONTEXT()->GetStateContext()->PushValue(result->GetRes());                                         \
+  } break;

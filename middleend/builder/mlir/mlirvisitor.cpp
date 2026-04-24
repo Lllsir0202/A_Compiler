@@ -1,9 +1,52 @@
 #include "middleend/builder/mlir/mlirvisitor.h"
+#include <map>
+#include "ast/ast_utils.h"
 #include "frontend/ast/ast_spec.h"
+#include "middleend/mlir/dialect/arithm/binaryop.h"
+#include "middleend/mlir/dialect/arithm/unaryop.h"
 #include "middleend/mlir/utils/operation/operation.h"
 #include "middleend/mlir/utils/struct/region.h"
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()
 namespace middleend {
+
+#include "middleend/builder/mlir/binary_handler.def"
+/**
+ * @brief The Helper functions for handing out operators
+ */
+inline auto MLIRVisitor::HandleBinaryOperator(frontend::ast::OpCode op_code,
+                                              context::CompilerContext *compiler_context) -> void {
+  switch (op_code) {
+    BINARY_OPERATOR_HANDLER(PLUS, Add)
+    BINARY_OPERATOR_HANDLER(SUB, Sub)
+    BINARY_OPERATOR_HANDLER(MUL, Mul)
+    BINARY_OPERATOR_HANDLER(DIV, Div)
+    BINARY_OPERATOR_HANDLER(MOD, Mod)
+    BINARY_OPERATOR_HANDLER(LESS, Less)
+    BINARY_OPERATOR_HANDLER(LEQUAL, LessEqual)
+    BINARY_OPERATOR_HANDLER(GREATER, Greater)
+    BINARY_OPERATOR_HANDLER(GEQUAL, GreaterEqual)
+    BINARY_OPERATOR_HANDLER(AND, And)
+    BINARY_OPERATOR_HANDLER(OR, Or)
+    default:
+      compiler_context->ReportError("Unsupported binary operator.");
+  }
+}
+
+#include "middleend/builder/mlir/unary_handler.def"
+inline auto MLIRVisitor::HandleUnaryOperator(frontend::ast::OpCode op_code,
+                                             context::CompilerContext *compiler_context) -> void {
+  /**
+   * @brief Since the unary positive is the same as doing nothing,
+   * we will just do nothing when we encounter a unary positive operator
+   */
+  switch (op_code) {
+    UNARY_OPERATOR_HANDLER(NOT, Not)
+    UNARY_OPERATOR_HANDLER(NEGATIVE, Neg)
+    default:
+      compiler_context->ReportError("Unsupported unary operator.");
+  }
+}
+
 // TODO(loki): implement the MLIRVisitor::Visitor functions to generate MLIR IR
 /**
  * @brief This file is the implementation of the MLIRVisitor class,
@@ -31,8 +74,30 @@ void MLIRVisitor::Visit([[maybe_unused]] const frontend::ast::DeclNode *decl) {
   compiler_context_->ReportError("DeclNode: Should not visit an abstract declaration node directly.");
 }
 // Expression nodes
-void MLIRVisitor::Visit([[maybe_unused]] const frontend::ast::BinaryExprNode *binary_expr) {}
-void MLIRVisitor::Visit([[maybe_unused]] const frontend::ast::UnaryExprNode *unary_expr) {}
+void MLIRVisitor::Visit([[maybe_unused]] const frontend::ast::BinaryExprNode *binary_expr) {
+  auto lhs = binary_expr->left_.get();
+  lhs->Accept(this);
+  auto rhs = binary_expr->right_.get();
+  rhs->Accept(this);
+  /**
+   * @brief the lhs and rhs has been visited,
+   * since the lhs is visited first, then the rhs,
+   * so the top will be the rhs.
+   * @example:
+   * a + b -> visit(a) -> push a -> visit(b) -> push b
+   * in stack : bottom ->[a, b]<- top
+   * so get value should be: rhs = pop , lhs = pop
+   */
+  HandleBinaryOperator(binary_expr->operator_, compiler_context_);
+}
+void MLIRVisitor::Visit([[maybe_unused]] const frontend::ast::UnaryExprNode *unary_expr) {
+  auto operand = unary_expr->operand_.get();
+  operand->Accept(this);
+  /** * @brief the operand has been visited,
+   * and the result of the operand shall be stored in the MLIR StateContext,
+   * also it should be the top value */
+  HandleUnaryOperator(unary_expr->operator_, compiler_context_);
+}
 void MLIRVisitor::Visit([[maybe_unused]] const frontend::ast::FuncCallExprNode *func_call) {}
 void MLIRVisitor::Visit([[maybe_unused]] const frontend::ast::LValExprNode *lval_expr) {}
 void MLIRVisitor::Visit([[maybe_unused]] const frontend::ast::IntLiteralExprNode *int_literal) {}
