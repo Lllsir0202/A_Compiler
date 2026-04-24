@@ -6,8 +6,6 @@
 #include "middleend/mlir/dialect/var/var.h"
 #include "middleend/mlir/utils/operation/operation.h"
 #include "middleend/mlir/utils/struct/region.h"
-#include "mlir/dialect/var/def.h"
-#include "mlir/dialect/var/get.h"
 #include "mlir/utils/value/value.h"
 #include "utils/flatten/mlirinit.h"
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()
@@ -229,22 +227,22 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
       GET_MLIR_CONTEXT(), dimensions, init_values, entry->is_global_, entry->is_const_);
   GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, var_def_op->GetRes());
 }
-void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::GlobalVarDeclNode *global_var_decl) {
+void MLIRVisitor::Visit(frontend::ast::GlobalVarDeclNode *global_var_decl) {
   for (const auto &var_def : global_var_decl->defs_) {
     var_def->Accept(this);
   }
 }
-void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::LocalVarDeclNode *local_var_decl) {
+void MLIRVisitor::Visit(frontend::ast::LocalVarDeclNode *local_var_decl) {
   for (const auto &var_def : local_var_decl->defs_) {
     var_def->Accept(this);
   }
 }
-void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::InitListNode *init_list) {
+void MLIRVisitor::Visit(frontend::ast::InitListNode *init_list) {
   for (const auto &init_val : init_list->init_values_) {
     init_val->Accept(this);
   }
 }
-void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::InitValNode *init_val) { init_val->value_->Accept(this); }
+void MLIRVisitor::Visit(frontend::ast::InitValNode *init_val) { init_val->value_->Accept(this); }
 // Function nodes
 void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::FuncFParamNode *func_fparam) {}
 void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::FuncDefNode *func_def) {}

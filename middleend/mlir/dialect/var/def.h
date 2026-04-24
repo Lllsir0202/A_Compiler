@@ -37,7 +37,14 @@ class VarDefOp : public VarOps {
         *out << ", ";
       }
     }
-    *out << "] = " << Name() << " ";
+    *out << "] = ";
+    if (is_global_) {
+      *out << "global ";
+    }
+    if (is_const_) {
+      *out << "const ";
+    }
+    *out << Name() << " ";
     for (const auto &init : operands_) {
       if (init != nullptr) {
         init->Emit(out);
