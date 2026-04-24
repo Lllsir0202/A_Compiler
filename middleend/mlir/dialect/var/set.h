@@ -13,6 +13,9 @@ class VarSetOp : public VarOps {
     return op;
   }
 
+  /**
+   * @brief The set operation will just store the value to the pointer
+   */
   auto GetPtr() -> Value * { return operands_[0]; }
   auto GetNewValue() -> Value * { return operands_[1]; }
   /**

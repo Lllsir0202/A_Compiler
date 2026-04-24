@@ -16,9 +16,10 @@ namespace middleend::mlir::var {
  */
 class VarDefOp : public VarOps {
  public:
-  static auto Create(MLIRBuilder *builder, std::vector<Value *> &inits) -> VarDefOp * {
+  static auto Create(MLIRBuilder *builder, std::vector<Value *> &dimensions, std::vector<Value *> &inits,
+                     bool is_global = false) -> VarDefOp * {
     auto op = new VarDefOp();
-    op->SetUp(builder, inits);
+    op->SetUp(builder, dimensions, inits, is_global);
     return op;
   }
 
@@ -26,10 +27,17 @@ class VarDefOp : public VarOps {
   auto GetRes() -> Value * { return results_[0]; }
   auto Emit(std::ofstream *out) const -> void override {
     /**
-     * @example: %res = var.def %init1, %init2, ...
+     * @example: %res[%dim1, %dim2, ...] = var.def %init1, %init2, ...
      */
     results_[0]->Emit(out);
-    *out << " = " << Name() << " ";
+    *out << "[";
+    for (const auto &dim : dimensions_) {
+      dim->Emit(out);
+      if (dim != dimensions_.back()) {
+        *out << ", ";
+      }
+    }
+    *out << "] = " << Name() << " ";
     for (const auto &init : operands_) {
       init->Emit(out);
       if (init != operands_.back()) {
@@ -41,13 +49,19 @@ class VarDefOp : public VarOps {
 
  private:
   VarDefOp() : VarOps("def") {}
-  auto SetUp(MLIRBuilder *builder, std::vector<Value *> &inits) -> void {
+  auto SetUp(MLIRBuilder *builder, std::vector<Value *> &dimensions, std::vector<Value *> &inits,
+             bool is_global) -> void {
     operands_.reserve(inits.size());
+    dimensions_.reserve(dimensions.size());
     results_.reserve(1);
     operands_ = std::move(inits);
+    dimensions_ = std::move(dimensions);
     auto res = builder->GetMLIRContext()->CreateValue();
     results_.emplace_back(res);
+    is_global_ = is_global;
   }
+  bool is_global_;
+  std::vector<Value *> dimensions_;
 };
 
 }  // namespace middleend::mlir::var

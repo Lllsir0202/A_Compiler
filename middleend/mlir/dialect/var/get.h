@@ -15,6 +15,11 @@ class VarGetOp : public VarOps {
     return op;
   }
 
+  /**
+   * @brief Since the operation of getting a variable can be
+   * accessing an array element, thus it will need a list of indices to
+   * specify which element to access, and the result of this operation will be the res_
+   */
   auto GetIndices() -> std::vector<Value *> & { return operands_; }
   auto GetRes() -> Value * { return results_[0]; }
   auto Emit(std::ofstream *out) const -> void override {

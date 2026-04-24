@@ -1,6 +1,5 @@
 #ifndef MIDDLEEND_MLIR_DIALECT_ARITHM_UNARYOP_H
 #define MIDDLEEND_MLIR_DIALECT_ARITHM_UNARYOP_H
-#include <cassert>
 #include "middleend/builder/mlir/mlirbuilder.h"
 #include "middleend/mlir/dialect/arithm/basic.h"
 #include "middleend/mlir/utils/value/value.h"

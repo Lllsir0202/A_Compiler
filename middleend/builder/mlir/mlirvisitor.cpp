@@ -1,4 +1,5 @@
 #include "middleend/builder/mlir/mlirvisitor.h"
+#include "frontend/ast/ast_spec.h"
 #include "middleend/mlir/utils/operation/operation.h"
 #include "middleend/mlir/utils/struct/region.h"
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()
@@ -14,6 +15,7 @@ void MLIRVisitor::Visit([[maybe_unused]] const frontend::ast::RootNode *root) {
   // Create the module operation, which is the top-level operation in MLIR
   auto module_op = GET_MLIR_CONTEXT()->CreateOperation<middleend::mlir::ModuleOp>();
   GET_MLIR_CONTEXT()->SetInsertPoint(module_op->regions_[0]->blocks_[0]);
+  root->Accept(this);
 }
 // Should not be called directly, since they are abstract classes
 void MLIRVisitor::Visit([[maybe_unused]] const frontend::ast::ExprNode *expr) {
