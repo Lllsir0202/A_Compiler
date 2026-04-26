@@ -38,5 +38,6 @@
       operands_.emplace_back(rhs);                                                                        \
       auto res = context->CreateValue();                                                                  \
       results_.emplace_back(res);                                                                         \
+      res->op_ = this;                                                                                    \
     }                                                                                                     \
   };

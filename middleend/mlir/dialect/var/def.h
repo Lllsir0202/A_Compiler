@@ -71,6 +71,7 @@ class VarDefOp : public VarOps {
     results_.emplace_back(res);
     is_global_ = is_global;
     is_const_ = is_const;
+    res->op_ = this;
   }
   bool is_global_;
   bool is_const_;

@@ -84,7 +84,6 @@ inline auto MLIRVisitor::HandleLValExpr(frontend::ast::LValExprNode *lval_expr, 
     auto type = entry->type_;
     /* Add use and set operation which generates the result */
     ptr->AddUse(var_get_op, 0);
-    var_get_op->GetRes()->op_ = var_get_op;
 
     var_get_op->GetRes()->SetType(type);
   } else {
@@ -107,7 +106,6 @@ inline auto MLIRVisitor::HandleLValExpr(frontend::ast::LValExprNode *lval_expr, 
     for (const auto &index_value : indices) {
       index_value->AddUse(var_get_op, i++);
     }
-    var_get_op->GetRes()->op_ = var_get_op;
   }
   if (get_ptr) {
     GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(lval_expr, var_get_op->GetRes());
@@ -120,7 +118,6 @@ inline auto MLIRVisitor::HandleLValExpr(frontend::ast::LValExprNode *lval_expr, 
   GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(var_get_value_op);
   GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(lval_expr, var_get_value_op->GetRes());
   var_get_op->GetRes()->AddUse(var_get_value_op, 0);
-  var_get_value_op->GetRes()->op_ = var_get_value_op;
   // Since we will never get the value of an array(or pointer) type LVal expression,
   // the type of the var.get operation should be the same as the type of the lval expression,
   // which has been calculated in the semantic analysis phase.
@@ -275,7 +272,6 @@ void MLIRVisitor::Visit(frontend::ast::AssignStmtNode *assign_stmt) {
   // Create a var.set operation to set the value of the variables
   auto var_set_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarSetOp>(GET_MLIR_CONTEXT(), lval_ptr, value);
   GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(var_set_op);
-  var_set_op->GetRes()->op_ = var_set_op;
   // It should not generate any value, even though I set the result
   var_set_op->GetRes()->SetType(GET_TYPE_CONTEXT()->GetUnknownType());
   // Add use for the value and pointer
@@ -358,6 +354,10 @@ void MLIRVisitor::Visit(frontend::ast::InitValNode *init_val) { init_val->value_
 void MLIRVisitor::Visit(frontend::ast::FuncFParamNode *func_fparam) {
   auto value = GET_MLIR_CONTEXT()->CreateValue();
   value->SetType(func_fparam->type_);
+  auto entry = GET_SYMBOLTABLE_CONTEXT()->GetVarEntryById(func_fparam->symbol_id_);
+  // We regard the function parameter as a local variable,
+  // so we can just map the entry to the value
+  GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, value);
 }
 
 void MLIRVisitor::Visit(frontend::ast::FuncDefNode *func_def) {
@@ -371,9 +371,21 @@ void MLIRVisitor::Visit(frontend::ast::FuncDefNode *func_def) {
    *   }
    * }
    */
+  std::vector<mlir::Value *> args;
   for (const auto &param : func_def->parameters_) {
     param->Accept(this);
+    auto entry = GET_SYMBOLTABLE_CONTEXT()->GetVarEntryById(param->symbol_id_);
+    auto value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromVar(entry);
+    args.emplace_back(value);
   }
+
+  auto func_def_op = GET_MLIR_CONTEXT()->CreateOperation<middleend::mlir::func::FuncDefOp>(
+      GET_MLIR_CONTEXT(), func_def->func_name_, args, func_def->return_type_);
+  GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(func_def_op);
+  GET_MLIR_CONTEXT()->SetCurrentRegion(func_def_op->regions_[0]);
+  GET_MLIR_CONTEXT()->SetInsertPoint(func_def_op->regions_[0]->blocks_[0]);
+
+  // Add use and set operation which generates the result
 }
 
 }  // namespace middleend

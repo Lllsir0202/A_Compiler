@@ -40,6 +40,7 @@ class VarGetValOp : public VarOps {
     operands_.emplace_back(ptr);
     auto res = context->CreateValue();
     results_.emplace_back(res);
+    res->op_ = this;
   }
 };
 

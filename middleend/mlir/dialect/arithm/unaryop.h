@@ -53,12 +53,14 @@ class ConstOp : public ArithmOps {
     results_.reserve(1);
     auto res = context->CreateValue();
     results_.emplace_back(res);
+    res->op_ = this;
   };
   auto SetUp(context::MLIRContext *context, float value) -> void {
     const_value_ = value;
     results_.reserve(1);
     auto res = context->CreateValue();
     results_.emplace_back(res);
+    res->op_ = this;
   };
   ;
   std::variant<int, float> const_value_;
@@ -101,6 +103,7 @@ class CastOp : public ArithmOps {
     to_type_ = to;
     auto res = context->CreateValue();
     results_.emplace_back(res);
+    res->op_ = this;
   }
   type::Type *from_type_;
   type::Type *to_type_;

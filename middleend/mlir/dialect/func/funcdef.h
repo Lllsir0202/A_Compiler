@@ -3,6 +3,7 @@
 
 #include "context/mlir_context.h"
 #include "middleend/mlir/dialect/func/basic.h"
+#include "mlir/utils/struct/region.h"
 #include "mlir/utils/value/value.h"
 namespace middleend::mlir::func {
 class FuncDefOp : public FuncOps {
@@ -16,13 +17,15 @@ class FuncDefOp : public FuncOps {
 
   auto Emit(std::ofstream *out) const -> void override {
     *out << "func.func " << name_ << "(";
-    for (size_t i = 0; i < args_.size(); ++i) {
-      args_[i]->Emit(out);
-      if (i != args_.size() - 1) {
+    for (size_t i = 0; i < operands_.size(); ++i) {
+      operands_[i]->Emit(out);
+      if (i != operands_.size() - 1) {
         *out << ", ";
       }
     }
-    *out << ") -> " << return_type_->ToString() << " {\n";
+    *out << ") -> ";
+    results_[0]->Emit(out);
+    *out << " {\n";
     // Emit the body of the function
     for (auto region : regions_) {
       region->Emit(out);
@@ -30,17 +33,43 @@ class FuncDefOp : public FuncOps {
     *out << "}\n";
   }
 
+  /**
+   * @brief Interface to get the name of the function
+   */
+  auto GetName() const -> std::string { return name_; }
+
+  /**
+   * @brief Interface to get the return type of the function
+   */
+  auto GetReturnType() const -> type::Type * { return results_[0]->GetType(); }
+
+  /**
+   * @brief Interface to get the arguments of the function
+   */
+  auto GetArguments() const -> std::vector<mlir::Value *> { return operands_; }
+
+  /**
+   * @brief Interface to get the return value
+   */
+  auto GetRes() -> mlir::Value * { return results_[0]; }
+
  private:
   FuncDefOp() : FuncOps("def"){};
-  auto SetUp([[maybe_unused]] context::MLIRContext *context, const std::string &name, std::vector<mlir::Value *> &args,
+  auto SetUp(context::MLIRContext *context, const std::string &name, std::vector<mlir::Value *> &args,
              type::Type *return_type) -> void {
+    // Generate the block and region
+    regions_.emplace_back(new Region());
+    regions_[0]->blocks_.emplace_back(new Block());
     name_ = name;
-    args_ = std::move(args);
-    return_type_ = return_type;
+    operands_.reserve(args.size());
+    results_.reserve(1);
+    operands_ = std::move(args);
+    auto res = context->CreateValue();
+    res->SetType(return_type);
+    results_.emplace_back(res);
+    res->op_ = this;
   };
   std::string name_;
-  std::vector<mlir::Value *> args_;
-  type::Type *return_type_;
 };
 
 }  // namespace middleend::mlir::func

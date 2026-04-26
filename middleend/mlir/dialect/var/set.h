@@ -40,6 +40,7 @@ class VarSetOp : public VarOps {
     operands_.emplace_back(new_value);
     auto res = context->CreateValue();
     results_.emplace_back(res);
+    res->op_ = this;
   }
 };
 

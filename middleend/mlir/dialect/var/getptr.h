@@ -54,6 +54,7 @@ class VarGetPtrOp : public VarOps {
     operands_.insert(operands_.end(), indices.begin(), indices.end());
     auto res = context->CreateValue();
     results_.emplace_back(res);
+    res->op_ = this;
   }
 };
 }  // namespace middleend::mlir::var
