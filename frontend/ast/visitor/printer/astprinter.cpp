@@ -248,6 +248,10 @@ void ASTPrinter::Visit([[maybe_unused]] const ExprNode *expr_node) {
 void ASTPrinter::Visit(const FuncFParamNode *func_fparam) {
   PrintIndent();
   *out_ << "FuncFParamNode: " << func_fparam->param_name_ << "\n";
+  PrintIndent();
+  *out_ << "  --Type: " << func_fparam->type_->ToString() << "\n";
+  PrintIndent();
+  *out_ << "  --Symbol ID: " << func_fparam->symbol_id_ << "\n";
   indent_level_++;
   if (!func_fparam->indices_.empty()) {
     PrintIndent();

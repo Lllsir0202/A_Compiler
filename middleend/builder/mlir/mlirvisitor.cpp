@@ -4,6 +4,7 @@
 #include "ast/ast_utils.h"
 #include "frontend/ast/ast_spec.h"
 #include "middleend/mlir/dialect/arithm/arithm.h"
+#include "middleend/mlir/dialect/func/func.h"
 #include "middleend/mlir/dialect/var/var.h"
 #include "middleend/mlir/utils/operation/operation.h"
 #include "middleend/mlir/utils/struct/region.h"
@@ -354,7 +355,25 @@ void MLIRVisitor::Visit(frontend::ast::InitListNode *init_list) {
 }
 void MLIRVisitor::Visit(frontend::ast::InitValNode *init_val) { init_val->value_->Accept(this); }
 // Function nodes
-void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::FuncFParamNode *func_fparam) {}
-void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::FuncDefNode *func_def) {}
+void MLIRVisitor::Visit(frontend::ast::FuncFParamNode *func_fparam) {
+  auto value = GET_MLIR_CONTEXT()->CreateValue();
+  value->SetType(func_fparam->type_);
+}
+
+void MLIRVisitor::Visit(frontend::ast::FuncDefNode *func_def) {
+  /**
+   * @brief A funcdef operation should be like:
+   * @example:
+   * func @func_name (arg1_type, arg2_type, ...) -> return_type
+   * region {
+   *   block {
+   *     operations
+   *   }
+   * }
+   */
+  for (const auto &param : func_def->parameters_) {
+    param->Accept(this);
+  }
+}
 
 }  // namespace middleend

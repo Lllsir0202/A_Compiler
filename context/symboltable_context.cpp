@@ -1,4 +1,5 @@
 #include "context/symboltable_context.h"
+#include <cstddef>
 #include <utility>
 
 namespace context {
@@ -117,18 +118,18 @@ auto SymbolTableContext::AddFunc(const std::string &name, type::Type *return_typ
 }
 
 auto SymbolTableContext::AddFuncParam(symboltable::FuncEntry *func_entry, const std::string &name, type::Type *type,
-                                      std::vector<int> dimensions) -> bool {
+                                      std::vector<int> dimensions) -> size_t {
   if (func_entry == nullptr) {
-    return false;
+    return -1;
   }
   if (func_param_table_[func_entry].count(name) > 0) {
-    return false;  // Function parameter already exists
+    return -1;  // Function parameter already exists
   }
   auto param_entry = new symboltable::VarEntry{name, type, false, std::move(dimensions), true};
   param_entry->symbol_id_ = entries_.size();  // Generate symbol id based on the size of entries
   entries_.emplace_back(param_entry);
   func_param_table_[func_entry][name] = param_entry;
-  return true;
+  return param_entry->symbol_id_;
 }
 
 }  // namespace context

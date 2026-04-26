@@ -1,6 +1,8 @@
 #ifndef MIDDLEEND_MLIR_DIALECT_FUNC_BASIC_H
 #define MIDDLEEND_MLIR_DIALECT_FUNC_BASIC_H
 
+#include <utility>
+
 #include "middleend/mlir/utils/operation/operation.h"
 namespace middleend::mlir::func {
 class FuncOps : public Operation {
@@ -17,6 +19,9 @@ class FuncOps : public Operation {
    */
   auto DialectName() const -> std::string override { return DIALECT_NAME; }
   auto Emit(std::ofstream *out) const -> void override = 0;
+
+ protected:
+  explicit FuncOps(std::string operator_name) : operator_name_(std::move(operator_name)) {}
 
  private:
   static const std::string DIALECT_NAME;

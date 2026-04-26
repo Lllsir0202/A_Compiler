@@ -165,6 +165,7 @@ class FuncFParamNode : public VisitAble<FuncFParamNode, ASTNode> {
   TypePtr type_;
   std::string param_name_;
   std::vector<ExprNodePtr> indices_;  // can be empty
+  size_t symbol_id_;                  // used to get a var_entry in IR phase.
 };
 
 using FuncFParamNodePtr = std::unique_ptr<FuncFParamNode>;

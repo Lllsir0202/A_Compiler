@@ -930,8 +930,9 @@ void SemanticAnalyser::Visit(FuncDefNode *func_def) {
         }
       }
     }
-    compiler_context_->GetSymbolTableContext()->AddFuncParam(func_entry, fparam->param_name_, fparam->type_,
-                                                             dimensions);
+    auto symbol_id = compiler_context_->GetSymbolTableContext()->AddFuncParam(func_entry, fparam->param_name_,
+                                                                              fparam->type_, dimensions);
+    fparam->symbol_id_ = symbol_id;
   }
 
   // Then we can visit the function body
@@ -953,6 +954,10 @@ void SemanticAnalyser::Visit(FuncFParamNode *func_fparam) {
                                      "only the first dimension of an array parameter can be left unspecified");
       return;
     }
+    // if (index != nullptr && i == 0) {
+    //   compiler_context_->ReportError(func_fparam, "the first dimension of an array parameter cannot be specified");
+    //   return;
+    // }
     index->Accept(this);
     if (index->GetType()->GetKind() != type::TypeKind::INT && index->GetType()->GetKind() != type::TypeKind::BOOL) {
       compiler_context_->ReportError(func_fparam, "array size must be an integer or boolean");

@@ -3,12 +3,12 @@
 #include <cstddef>
 #include <unordered_map>
 #include <vector>
-#include "ast/ast_expr.h"
+#include "context/symboltable_context.h"
+#include "frontend/ast/ast_expr.h"
+#include "middleend/mlir/utils/operation/operation.h"
+#include "middleend/mlir/utils/struct/block.h"
+#include "middleend/mlir/utils/struct/region.h"
 #include "middleend/mlir/utils/value/value.h"
-#include "mlir/utils/operation/operation.h"
-#include "mlir/utils/struct/block.h"
-#include "mlir/utils/struct/region.h"
-#include "symboltable_context.h"
 
 namespace context {
 /**
@@ -55,6 +55,7 @@ class MLIRResourceContext {
     }
     var_map_[var_entry] = value;
     value->num_ = name_count_map_[var_entry->name_];
+    value_num_--;  // Decrement the global value number since we are reusing the same variable name
     value->name_ = var_entry->name_;
   }
 
