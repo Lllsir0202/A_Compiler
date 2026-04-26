@@ -183,12 +183,14 @@ void MLIRVisitor::Visit(frontend::ast::BinaryExprNode *binary_expr) {
     auto cast_op =
         GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), lhs_value, lhs->GetType(), type);
     GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
+    lhs_value->AddUse(cast_op, 0);
     lhs_value = cast_op->GetRes();
   }
   if (rhs->GetType() != type) {
     auto cast_op =
         GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), rhs_value, rhs->GetType(), type);
     GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
+    rhs_value->AddUse(cast_op, 0);
     rhs_value = cast_op->GetRes();
   }
 
@@ -214,6 +216,7 @@ void MLIRVisitor::Visit(frontend::ast::UnaryExprNode *unary_expr) {
     auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), operand_value,
                                                                              operand->GetType(), type);
     GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
+    operand_value->AddUse(cast_op, 0);
     operand_value = cast_op->GetRes();
   }
 
@@ -255,6 +258,7 @@ void MLIRVisitor::Visit(frontend::ast::FuncCallExprNode *func_call) {
         auto param_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(param);
         auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), param_value,
                                                                                  param->GetType(), type);
+        param_value->AddUse(cast_op, 0);
         GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
         param_value = cast_op->GetRes();
       }
