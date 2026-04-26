@@ -342,7 +342,33 @@ void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::IfStmtNode *if_stmt) {}
 void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::WhileStmtNode *while_stmt) {}
 void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::BreakStmtNode *break_stmt) {}
 void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::ContinueStmtNode *continue_stmt) {}
-void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::ReturnStmtNode *return_stmt) {}
+void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::ReturnStmtNode *return_stmt) {
+  auto expr = return_stmt->expr_.get();
+  // Get defined return type
+  auto type = GET_MLIR_CONTEXT()->GetCurrentFuncDefOp()->GetReturnType();
+
+  if (expr != nullptr) {
+    expr->Accept(this);
+    auto value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(expr);
+    if (type != expr->GetType()) {
+      // Need to do cast to ensure the type of the return value
+      auto value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(expr);
+      auto cast_op =
+          GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), value, expr->GetType(), type);
+      value->AddUse(cast_op, 0);
+      GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
+      value = cast_op->GetRes();
+    }
+    auto return_op = GET_MLIR_CONTEXT()->CreateOperation<middleend::mlir::func::ReturnOp>(GET_MLIR_CONTEXT(),
+                                                                                          value->GetType(), value);
+    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(return_op);
+    value->AddUse(return_op, 0);
+  } else {
+    auto return_op = GET_MLIR_CONTEXT()->CreateOperation<middleend::mlir::func::ReturnOp>(
+        GET_MLIR_CONTEXT(), GET_TYPE_CONTEXT()->GetVoidType());
+    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(return_op);
+  }
+}
 // Variable nodes includes decl and initializer
 void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
   // Since the variable definition has been checked and stored in semantic phase
