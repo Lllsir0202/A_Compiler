@@ -11,6 +11,7 @@
 #include "mlir/dialect/arithm/unaryop.h"
 #include "mlir/utils/struct/block.h"
 #include "mlir/utils/value/value.h"
+#include "type/type.h"
 #include "utils/flatten/mlirinit.h"
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()
 #define GET_TYPE_CONTEXT() compiler_context_->GetTypeContext()
@@ -225,7 +226,35 @@ void MLIRVisitor::Visit(frontend::ast::UnaryExprNode *unary_expr) {
   GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(unary_expr, res);
 }
 
-void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::FuncCallExprNode *func_call) {}
+void MLIRVisitor::Visit(frontend::ast::FuncCallExprNode *func_call) {
+  auto func_name = func_call->func_name_;
+  std::vector<mlir::Value *> params;
+  /**
+   * @brief Since the func.call is similar to the funcdef,
+   * but note that:
+   * @note: if the param is a pointer(in parser, we regard the parameter with dimensions as a pointer),
+   * we cannot directly get the value of the parameter, since the value of the parameter is actually a pointer
+   * we need to get the pointer of the parameter, and then we can use the pointer to build the func.call operation
+   */
+  for (const auto &param : func_call->params_) {
+    if(param->GetType()-> GetKind() == type::TypeKind::PTR) {
+      auto param_value = HandleLValExpr(static_cast<frontend::ast::LValExprNode *>(param.get()), true);
+      params.emplace_back(param_value);
+    } else {
+      param->Accept(this);
+      auto param_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(param.get());
+      params.emplace_back(param_value);
+    }
+  }
+  auto return_type = func_call->GetType();
+  auto func_call_op = GET_MLIR_CONTEXT()->CreateOperation<middleend::mlir::func::FuncCallOp>(
+      GET_MLIR_CONTEXT(), func_name, params, return_type);
+  GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(func_call_op);
+  // Add use for the arguments
+  for (size_t i = 0; i < params.size(); ++i) {
+    params[i]->AddUse(func_call_op, i);
+  }
+}
 
 void MLIRVisitor::Visit(frontend::ast::LValExprNode *lval_expr) {
   auto res = HandleLValExpr(lval_expr, false);
@@ -385,7 +414,12 @@ void MLIRVisitor::Visit(frontend::ast::FuncDefNode *func_def) {
   GET_MLIR_CONTEXT()->SetCurrentRegion(func_def_op->regions_[0]);
   GET_MLIR_CONTEXT()->SetInsertPoint(func_def_op->regions_[0]->blocks_[0]);
 
-  // Add use and set operation which generates the result
+  // Add use for the arguments
+  for (size_t i = 0; i < args.size(); ++i) {
+    args[i]->AddUse(func_def_op, i);
+  }
+  // Visit the body of the function
+  func_def->body_->Accept(this);
 }
 
 }  // namespace middleend

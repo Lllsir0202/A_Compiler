@@ -16,16 +16,15 @@ class FuncDefOp : public FuncOps {
   }
 
   auto Emit(std::ofstream *out) const -> void override {
-    *out << "func.func " << name_ << "(";
+    results_[0]->Emit(out);
+    *out << Name() << "@" << name_ << "(";
     for (size_t i = 0; i < operands_.size(); ++i) {
       operands_[i]->Emit(out);
       if (i != operands_.size() - 1) {
         *out << ", ";
       }
     }
-    *out << ") -> ";
-    results_[0]->Emit(out);
-    *out << " {\n";
+    *out << ") {\n";
     // Emit the body of the function
     for (auto region : regions_) {
       region->Emit(out);
