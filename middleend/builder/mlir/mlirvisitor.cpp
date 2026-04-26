@@ -148,19 +148,24 @@ void MLIRVisitor::Visit(frontend::ast::RootNode *root) {
     child->Accept(this);
   }
 }
+
 // Should not be called directly, since they are abstract classes
 void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::ExprNode *expr) {
   compiler_context_->ReportError("ExprNode: Should not visit an abstract expression node directly.");
 }
+
 void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::StmtNode *stmt) {
   compiler_context_->ReportError("StmtNode: Should not visit an abstract statement node directly.");
 }
+
 void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::Initializer *initializer) {
   compiler_context_->ReportError("Initializer: Should not visit an abstract initializer node directly.");
 }
+
 void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::DeclNode *decl) {
   compiler_context_->ReportError("DeclNode: Should not visit an abstract declaration node directly.");
 }
+
 // Expression nodes
 void MLIRVisitor::Visit(frontend::ast::BinaryExprNode *binary_expr) {
   auto lhs = binary_expr->left_.get();
@@ -221,7 +226,9 @@ void MLIRVisitor::Visit(frontend::ast::UnaryExprNode *unary_expr) {
   res->SetType(type);
   GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(unary_expr, res);
 }
+
 void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::FuncCallExprNode *func_call) {}
+
 void MLIRVisitor::Visit(frontend::ast::LValExprNode *lval_expr) {
   auto res = HandleLValExpr(lval_expr, false);
   if (res == nullptr) {
@@ -237,6 +244,7 @@ void MLIRVisitor::Visit(frontend::ast::IntLiteralExprNode *int_literal) {
   // Map the result of the const operation with the int literal ExprNode*
   GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(int_literal, const_op->GetResult());
 }
+
 void MLIRVisitor::Visit(frontend::ast::FloatLiteralExprNode *float_literal) {
   auto const_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), float_literal->value_);
   GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(const_op);
@@ -244,16 +252,17 @@ void MLIRVisitor::Visit(frontend::ast::FloatLiteralExprNode *float_literal) {
   // Map the result of the const operation with the float literal ExprNode*
   GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(float_literal, const_op->GetResult());
 }
+
 // Statement nodes
 void MLIRVisitor::Visit(frontend::ast::BlockStmtNode *block_stmt) {
-  auto current_region = GET_MLIR_CONTEXT()->GetCurrentRegion();
-  auto new_block = new mlir::Block();
-  current_region->AddBlock(new_block);
-  GET_MLIR_CONTEXT()->SetInsertPoint(new_block);
+  // The block is different from the block in MLIR.
+  // So we don't need to create a new block for the block statement,
+  // we can just visit all the statements in the block statement directly
   for (const auto &stmt : block_stmt->block_items_) {
     stmt->Accept(this);
   }
 }
+
 void MLIRVisitor::Visit(frontend::ast::AssignStmtNode *assign_stmt) {
   auto &lval = assign_stmt->lval_;
   auto &expr = assign_stmt->expr_;
@@ -272,7 +281,18 @@ void MLIRVisitor::Visit(frontend::ast::AssignStmtNode *assign_stmt) {
   lval_ptr->AddUse(var_set_op, 0);
   value->AddUse(var_set_op, 1);
 }
-void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::ExprStmtNode *expr_stmt) {}
+
+void MLIRVisitor::Visit(frontend::ast::ExprStmtNode *expr_stmt) {
+  // Just visit the expression, and ignore the result
+  auto expr = expr_stmt->expr_.get();
+  // if the expression is null, which in source code is just a semicolon,
+  // we can just ignore it
+  if (expr == nullptr) {
+    return;
+  }
+  expr->Accept(this);
+}
+
 void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::IfStmtNode *if_stmt) {}
 void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::WhileStmtNode *while_stmt) {}
 void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::BreakStmtNode *break_stmt) {}

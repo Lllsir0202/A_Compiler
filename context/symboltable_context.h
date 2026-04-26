@@ -212,7 +212,7 @@ class SymbolTableContext {
   // We need to consider the function's parameters
   // Since they are always defined in the function scope and can be accessed by any part of the
   // function. It is just defined in function definition
-  std::unordered_map<symboltable::FuncEntry *, std::unordered_map<std::string, symboltable::VarEntry>>
+  std::unordered_map<symboltable::FuncEntry *, std::unordered_map<std::string, symboltable::VarEntry *>>
       func_param_table_;
   std::unordered_map<std::string, symboltable::FuncEntry> func_table_;
   // Keep track of the current function being processed, used for adding function parameters

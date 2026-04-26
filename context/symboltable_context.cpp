@@ -37,7 +37,7 @@ auto SymbolTableContext::LookupVar(const std::string &name) -> symboltable::VarE
   // Look up if it exists in formal paramters
   if (not_found_or_in_global_scope && current_func_ != nullptr && func_param_table_[current_func_].count(name) > 0) {
     // Return a pointer to the function parameter entry
-    return_entry = &func_param_table_[current_func_][name];
+    return_entry = func_param_table_[current_func_][name];
   }
   // return not found or the variable entry found in the scopes or function parameters
   return return_entry;  // Not found
@@ -124,7 +124,10 @@ auto SymbolTableContext::AddFuncParam(symboltable::FuncEntry *func_entry, const 
   if (func_param_table_[func_entry].count(name) > 0) {
     return false;  // Function parameter already exists
   }
-  func_param_table_[func_entry][name] = {name, type, false, std::move(dimensions), true};
+  auto param_entry = new symboltable::VarEntry{name, type, false, std::move(dimensions), true};
+  param_entry->symbol_id_ = entries_.size();  // Generate symbol id based on the size of entries
+  entries_.emplace_back(param_entry);
+  func_param_table_[func_entry][name] = param_entry;
   return true;
 }
 
