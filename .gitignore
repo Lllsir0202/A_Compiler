@@ -19,7 +19,7 @@ frontend/parser/*.cpp
 !frontend/parser/parser.cpp
 !frontend/parser/*_impl.cpp
 # Ignore all test files
-test.*
+test*.*
 test
 *.output
 testcases/

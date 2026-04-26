@@ -36,10 +36,16 @@ class IfOp : public SCFOps {
   IfOp() : SCFOps("if") {}
   auto SetUp([[maybe_unused]] context::MLIRContext *context, mlir::Value *condition, mlir::Region *then_region,
              mlir::Region *else_region) -> void {
+    operands_.reserve(1);
+    results_.reserve(1);
+    auto res = context->CreateValue();
+    results_.emplace_back(res);
     operands_.emplace_back(condition);
     regions_.emplace_back(then_region);
+    then_region->AddBlock(new Block());
     if (else_region != nullptr) {
       regions_.emplace_back(else_region);
+      else_region->AddBlock(new Block());
     }
   }
 };
