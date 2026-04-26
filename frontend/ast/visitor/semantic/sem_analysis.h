@@ -108,6 +108,23 @@ class SemanticAnalyser : public ASTVisitor {
     return false;
   }
 
+  // Loop stack to simply check whether the break and continue statement is in a loop or not
+  std::vector<StmtNode *> loop_stack_;
+
+  // Whether in a loop
+  auto InLoop() -> bool { return !loop_stack_.empty(); }
+  /**
+   * @brief Interfaces to add while to loop stack and pop while from loop stack
+   */
+  auto PushLoop(StmtNode *stmt) -> void { loop_stack_.emplace_back(stmt); }
+  auto PopLoop() -> void {
+    if (!loop_stack_.empty()) {
+      loop_stack_.pop_back();
+    } else {
+      compiler_context_->ReportError("Loop stack underflow: no loop to pop");
+    }
+  }
+
 #ifdef Debug
   std::ofstream debug_file_{"normalized_initializer.txt", std::ios::out};
 #endif

@@ -342,7 +342,7 @@ void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::IfStmtNode *if_stmt) {}
 void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::WhileStmtNode *while_stmt) {}
 void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::BreakStmtNode *break_stmt) {}
 void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::ContinueStmtNode *continue_stmt) {}
-void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::ReturnStmtNode *return_stmt) {
+void MLIRVisitor::Visit(frontend::ast::ReturnStmtNode *return_stmt) {
   auto expr = return_stmt->expr_.get();
   // Get defined return type
   auto type = GET_MLIR_CONTEXT()->GetCurrentFuncDefOp()->GetReturnType();
@@ -369,6 +369,7 @@ void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::ReturnStmtNode *return_s
     GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(return_op);
   }
 }
+
 // Variable nodes includes decl and initializer
 void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
   // Since the variable definition has been checked and stored in semantic phase

@@ -663,18 +663,28 @@ void SemanticAnalyser::Visit(IfStmtNode *if_stmt) {
 }
 
 void SemanticAnalyser::Visit(WhileStmtNode *while_stmt) {
+  PushLoop(while_stmt);
   while_stmt->condition_->Accept(this);
   if (while_stmt->body_ != nullptr) {
     while_stmt->body_->Accept(this);
   }
+  PopLoop();
 }
 
 void SemanticAnalyser::Visit([[maybe_unused]] BreakStmtNode *break_stmt) {
   // No need to do anything for break statement
+  if (!InLoop()) {
+    compiler_context_->ReportError(break_stmt, "break statement is not inside a loop");
+    return;
+  }
 }
 
 void SemanticAnalyser::Visit([[maybe_unused]] ContinueStmtNode *continue_stmt) {
   // No need to do anything for continue statement
+  if (!InLoop()) {
+    compiler_context_->ReportError(continue_stmt, "continue statement is not inside a loop");
+    return;
+  }
 }
 
 void SemanticAnalyser::Visit(ReturnStmtNode *return_stmt) {
