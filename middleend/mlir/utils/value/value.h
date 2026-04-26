@@ -67,6 +67,10 @@ class Value {
    * @brief Set the type of this value
    */
   auto SetType(type::Type *type) -> void { type_ = type; }
+  /**
+   * @brief Get the type of this value
+   */
+  auto GetType() -> type::Type * { return type_; }
 
  private:
   Value() = default;

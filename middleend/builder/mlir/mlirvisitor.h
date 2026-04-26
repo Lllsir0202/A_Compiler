@@ -66,6 +66,17 @@ class MLIRVisitor : public IRVisitor {
                                    context::CompilerContext *compiler_context) -> mlir::Value *;
   inline auto HandleUnaryOperator(mlir::Value *operand, frontend::ast::UnaryExprNode *unary_expr,
                                   context::CompilerContext *compiler_context) -> mlir::Value *;
+
+  // Helper function for handling the lval expression
+  /**
+   * @brief Since the lval expression shall be handled differently in different positions,
+   * so we can just provide a helper function to handle the lval expression
+   * @param get_ptr whether we want to get the pointer of the variable, which is used for assignment
+   * defaults to false.
+   * @return the value of the lval expression, which can be either the pointer or the value of the variable
+   */
+  inline auto HandleLValExpr(frontend::ast::LValExprNode *lval_expr, bool get_ptr = false) -> mlir::Value *;
+
   utils::flatten::FlattenHelper flatten_helper_;
 };
 
