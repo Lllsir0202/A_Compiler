@@ -236,13 +236,28 @@ void MLIRVisitor::Visit(frontend::ast::FuncCallExprNode *func_call) {
    * we cannot directly get the value of the parameter, since the value of the parameter is actually a pointer
    * we need to get the pointer of the parameter, and then we can use the pointer to build the func.call operation
    */
-  for (const auto &param : func_call->params_) {
-    if(param->GetType()-> GetKind() == type::TypeKind::PTR) {
-      auto param_value = HandleLValExpr(static_cast<frontend::ast::LValExprNode *>(param.get()), true);
+  auto func_def_op = GET_MLIR_CONTEXT()->GetCurrentFuncDefOp();
+  auto defined_types = func_def_op->GetArguments();
+  for (size_t i = 0; i < func_call->params_.size(); ++i) {
+    auto param = func_call->params_[i].get();
+    auto type = defined_types[i]->GetType();
+    if (param->GetType()->GetKind() == type::TypeKind::PTR) {
+      // Since if the param is ptr and is not the same as the defined type,
+      // it must be a mistake, so we do not need to worry about the cast.
+      auto param_value = HandleLValExpr(static_cast<frontend::ast::LValExprNode *>(param), true);
       params.emplace_back(param_value);
     } else {
       param->Accept(this);
-      auto param_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(param.get());
+      auto param_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(param);
+
+      if (param->GetType() != type) {
+        // Need to do cast to ensure the type of the parameter
+        auto param_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(param);
+        auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), param_value,
+                                                                                 param->GetType(), type);
+        GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
+        param_value = cast_op->GetRes();
+      }
       params.emplace_back(param_value);
     }
   }
@@ -418,6 +433,8 @@ void MLIRVisitor::Visit(frontend::ast::FuncDefNode *func_def) {
   for (size_t i = 0; i < args.size(); ++i) {
     args[i]->AddUse(func_def_op, i);
   }
+  // Set current function definition
+  GET_MLIR_CONTEXT()->SetCurrentFuncDefOp(func_def_op);
   // Visit the body of the function
   func_def->body_->Accept(this);
 }

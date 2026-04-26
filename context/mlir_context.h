@@ -10,6 +10,9 @@
 #include "middleend/mlir/utils/struct/region.h"
 #include "middleend/mlir/utils/value/value.h"
 
+namespace middleend::mlir::func {
+class FuncDefOp;
+}
 namespace context {
 /**
  * @brief This class is used to create and manage value
@@ -122,11 +125,22 @@ class MLIRStateContext {
   auto SetCurrentRegion(middleend::mlir::Region *region) -> void { current_region_ = region; }
   auto GetCurrentRegion() -> middleend::mlir::Region * { return current_region_; }
 
+  /**
+   * @brief Interface to set and get the current function definition operation, which is used for control flow building
+   */
+  auto SetCurrentFuncDefOp(middleend::mlir::func::FuncDefOp *func_def_op) -> void {
+    current_func_def_op_ = func_def_op;
+  }
+  auto GetCurrentFuncDefOp() -> middleend::mlir::func::FuncDefOp * { return current_func_def_op_; }
+
  private:
   middleend::mlir::Block *current_block_ = nullptr;  // the current block for inserting operations
 
   middleend::mlir::Region *current_region_ =
       nullptr;  // the current region for inserting blocks, which is used for control flow building
+
+  middleend::mlir::func::FuncDefOp *current_func_def_op_ =
+      nullptr;  // the current function definition operation, which is used for control flow building
 
   /**
    * @brief need to store the information for control flow building,
@@ -196,6 +210,10 @@ class MLIRContext {
   auto GetInsertPoint() -> middleend::mlir::Block * { return state_context_->GetInsertPoint(); }
   auto SetCurrentRegion(middleend::mlir::Region *region) -> void { state_context_->SetCurrentRegion(region); }
   auto GetCurrentRegion() -> middleend::mlir::Region * { return state_context_->GetCurrentRegion(); }
+  auto SetCurrentFuncDefOp(middleend::mlir::func::FuncDefOp *func_def_op) -> void {
+    state_context_->SetCurrentFuncDefOp(func_def_op);
+  }
+  auto GetCurrentFuncDefOp() -> middleend::mlir::func::FuncDefOp * { return state_context_->GetCurrentFuncDefOp(); }
 
  private:
   MLIRResourceContext *resource_context_;
