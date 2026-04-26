@@ -7,6 +7,7 @@
 #include "middleend/mlir/utils/value/value.h"
 #include "mlir/utils/operation/operation.h"
 #include "mlir/utils/struct/block.h"
+#include "mlir/utils/struct/region.h"
 #include "symboltable_context.h"
 
 namespace context {
@@ -108,38 +109,23 @@ class MLIRResourceContext {
  */
 class MLIRStateContext {
  public:
+  /**
+   * @brief Interface to set and get the current block for inserting operations.
+   */
   auto SetInsertPoint(middleend::mlir::Block *block) -> void { current_block_ = block; }
   auto GetInsertPoint() -> middleend::mlir::Block * { return current_block_; }
-  auto PushValue(middleend::mlir::Value *value) -> void { value_stack_.emplace_back(value); }
-  auto PopValue() -> middleend::mlir::Value * {
-    if (value_stack_.empty()) {
-      throw std::runtime_error("Value stack is empty.");
-    }
-    auto value = value_stack_.back();
-    value_stack_.pop_back();
-    return value;
-  }
+
+  /**
+   * @brief Interface to set and get the current region for inserting blocks.
+   */
+  auto SetCurrentRegion(middleend::mlir::Region *region) -> void { current_region_ = region; }
+  auto GetCurrentRegion() -> middleend::mlir::Region * { return current_region_; }
 
  private:
   middleend::mlir::Block *current_block_ = nullptr;  // the current block for inserting operations
-  /**
-   * @brief The value stack is used for building expressions,
-   * since the building of expressions is usually in post-order traversal,
-   * we can push the values of the sub-expressions into the stack,
-   * and then pop them when we need to build the parent expression.
-   * @example
-   * For example, for the expression "a + b * c",
-   * we will first visit the sub-expression "b * c",
-   * and push the value of "b" and "c" into the stack,
-   * and then we will visit the parent expression "a + (b * c)",
-   * and pop the value of "b" and "c" from the stack to build the value of "b * c", and then push the value of "b * c"
-   * into the stack, and then we will pop the value of "a" and "b * c" from the stack to build the value of "a + (b *
-   * c)", and then push the value of "a + (b * c)" into the stack.
-   * @note
-   * Since the value stack is only used for building expressions,
-   * we can just put it in the state context, and it will be automatically cleared after building an expression.
-   */
-  std::vector<middleend::mlir::Value *> value_stack_;
+
+  middleend::mlir::Region *current_region_ =
+      nullptr;  // the current region for inserting blocks, which is used for control flow building
 
   /**
    * @brief need to store the information for control flow building,
@@ -202,8 +188,13 @@ class MLIRContext {
 
   auto SetModuleOp(middleend::mlir::Operation *module_op) -> void { module_op_ = module_op; }
 
+  /**
+   * @brief Quick interfaces to set and get
+   */
   auto SetInsertPoint(middleend::mlir::Block *block) -> void { state_context_->SetInsertPoint(block); }
   auto GetInsertPoint() -> middleend::mlir::Block * { return state_context_->GetInsertPoint(); }
+  auto SetCurrentRegion(middleend::mlir::Region *region) -> void { state_context_->SetCurrentRegion(region); }
+  auto GetCurrentRegion() -> middleend::mlir::Region * { return state_context_->GetCurrentRegion(); }
 
  private:
   MLIRResourceContext *resource_context_;

@@ -7,6 +7,8 @@
 #include "middleend/mlir/utils/operation/operation.h"
 #include "middleend/mlir/utils/struct/region.h"
 #include "mlir/dialect/arithm/unaryop.h"
+#include "mlir/dialect/var/get.h"
+#include "mlir/utils/struct/block.h"
 #include "mlir/utils/value/value.h"
 #include "utils/flatten/mlirinit.h"
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()
@@ -15,6 +17,7 @@
 namespace middleend {
 
 #include "middleend/builder/mlir/binary_handler.def"
+
 /**
  * @brief The Helper functions for handing out operators
  */
@@ -69,7 +72,13 @@ void MLIRVisitor::Visit(frontend::ast::RootNode *root) {
   // Create the module operation, which is the top-level operation in MLIR
   auto module_op = GET_MLIR_CONTEXT()->CreateOperation<middleend::mlir::ModuleOp>();
   GET_MLIR_CONTEXT()->SetInsertPoint(module_op->regions_[0]->blocks_[0]);
-  root->Accept(this);
+  GET_MLIR_CONTEXT()->SetCurrentRegion(module_op->regions_[0]);
+  /**
+   * @brief Visit all children
+   */
+  for (const auto &child : root->GetChildren()) {
+    child->Accept(this);
+  }
 }
 // Should not be called directly, since they are abstract classes
 void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::ExprNode *expr) {
@@ -90,6 +99,8 @@ void MLIRVisitor::Visit(frontend::ast::BinaryExprNode *binary_expr) {
   lhs->Accept(this);
   auto rhs = binary_expr->right_.get();
   rhs->Accept(this);
+
+  /* Get the type of the binary expression */
   auto type = binary_expr->GetType();
 
   auto lhs_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(lhs);
@@ -116,6 +127,7 @@ void MLIRVisitor::Visit(frontend::ast::BinaryExprNode *binary_expr) {
    * build the operation for this binary expression
    */
   auto res = HandleBinaryOperator(lhs_value, rhs_value, binary_expr, compiler_context_);
+  res->SetType(type);
   GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(binary_expr, res);
 }
 void MLIRVisitor::Visit(frontend::ast::UnaryExprNode *unary_expr) {
@@ -138,6 +150,7 @@ void MLIRVisitor::Visit(frontend::ast::UnaryExprNode *unary_expr) {
    * and the result of the operand shall be stored in the MLIR StateContext,
    * also it should be the top value */
   auto res = HandleUnaryOperator(operand_value, unary_expr, compiler_context_);
+  res->SetType(type);
   GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(unary_expr, res);
 }
 void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::FuncCallExprNode *func_call) {}
@@ -153,13 +166,18 @@ void MLIRVisitor::Visit(frontend::ast::LValExprNode *lval_expr) {
   }
   // Since the variable is defined, we can get its value from the symbol table entry
   auto ptr = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromVar(entry);
+  mlir::var::VarGetOp *var_get_op = nullptr;
   // if the variable is a array
   if (entry->dimensions_.empty()) {
     // Not an array variable, we can directly get the value from the symbol table entry
-    auto var_get_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetOp>(GET_MLIR_CONTEXT(), ptr);
+    var_get_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetOp>(GET_MLIR_CONTEXT(), ptr);
     GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(var_get_op);
     GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(lval_expr, var_get_op->GetRes());
     auto type = entry->type_;
+    /* Add use and set operation which generates the result */
+    ptr->AddUse(var_get_op, 0);
+    var_get_op->GetRes()->op_ = var_get_op;
+
     var_get_op->GetRes()->SetType(type);
   } else {
     // Is an array
@@ -169,7 +187,7 @@ void MLIRVisitor::Visit(frontend::ast::LValExprNode *lval_expr) {
       auto index_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(index.get());
       indices.emplace_back(index_value);
     }
-    auto var_get_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetOp>(GET_MLIR_CONTEXT(), ptr, indices);
+    var_get_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetOp>(GET_MLIR_CONTEXT(), ptr, indices);
     GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(var_get_op);
     GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(lval_expr, var_get_op->GetRes());
     auto type = entry->type_;
@@ -181,7 +199,15 @@ void MLIRVisitor::Visit(frontend::ast::LValExprNode *lval_expr) {
       type = static_cast<type::PtrType *>(type)->GetBaseType();
     }
     var_get_op->GetRes()->SetType(type);
+    /* Add use and set operation which generates the result */
+    ptr->AddUse(var_get_op, 0);
+    int i = 1;
+    for (const auto &index_value : indices) {
+      index_value->AddUse(var_get_op, i++);
+    }
+    var_get_op->GetRes()->op_ = var_get_op;
   }
+  GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(lval_expr, var_get_op->GetRes());
 }
 
 void MLIRVisitor::Visit(frontend::ast::IntLiteralExprNode *int_literal) {
@@ -200,6 +226,10 @@ void MLIRVisitor::Visit(frontend::ast::FloatLiteralExprNode *float_literal) {
 }
 // Statement nodes
 void MLIRVisitor::Visit(frontend::ast::BlockStmtNode *block_stmt) {
+  auto current_region = GET_MLIR_CONTEXT()->GetCurrentRegion();
+  auto new_block = new mlir::Block();
+  current_region->AddBlock(new_block);
+  GET_MLIR_CONTEXT()->SetInsertPoint(new_block);
   for (const auto &stmt : block_stmt->block_items_) {
     stmt->Accept(this);
   }

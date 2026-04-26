@@ -7,4 +7,9 @@
     GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(op);                                                            \
     GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(binary_expr, op->GetRes());                               \
     result = op->GetRes();                                                                                             \
+    /* Set the operation of the result value*/                                                                         \
+    result->op_ = op;                                                                                                  \
+    /* Add uses for the operands */                                                                                    \
+    lhs->AddUse(op, 0);                                                                                                \
+    rhs->AddUse(op, 1);                                                                                                \
   } break;

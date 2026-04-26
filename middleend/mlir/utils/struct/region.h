@@ -12,6 +12,7 @@ class Region {
    * @brief print the region
    */
   auto Emit(std::ofstream *out) const -> void;
+  auto AddBlock(Block *block) -> void { blocks_.emplace_back(block); }
   // The region is used to represent the control flow of the program.
   std::vector<Block *> blocks_;
 };

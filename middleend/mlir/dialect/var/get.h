@@ -28,6 +28,7 @@ class VarGetOp : public VarOps {
      */
     results_[0]->Emit(out);
     *out << " = " << Name() << " ";
+    ptr_->Emit(out);
     for (const auto &index : operands_) {
       index->Emit(out);
       if (index != operands_.back()) {
