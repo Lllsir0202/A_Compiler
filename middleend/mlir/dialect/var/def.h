@@ -49,13 +49,14 @@ class VarDefOp : public VarOps {
       *out << "const ";
     }
     *out << Name() << " " << "init: ";
-    for (const auto &init : operands_) {
+    for (size_t i = 0; i < operands_.size(); ++i) {
+      auto init = operands_[i];
       if (init != nullptr) {
         init->Emit(out);
       } else {
-        *out << "default_init";
+        *out << "d_i";
       }
-      if (init != operands_.back()) {
+      if (i != operands_.size() - 1) {
         *out << ", ";
       }
     }

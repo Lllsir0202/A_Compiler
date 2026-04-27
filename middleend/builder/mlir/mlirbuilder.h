@@ -9,8 +9,8 @@
 namespace middleend {
 class MLIRBuilder : public IRBuilder {
  public:
-  explicit MLIRBuilder(context::CompilerContext *compiler_context)
-      : IRBuilder(std::unique_ptr<IRVisitor>(new MLIRVisitor(compiler_context)), compiler_context) {}
+  explicit MLIRBuilder(context::CompilerContext &compiler_context)
+      : IRBuilder(std::unique_ptr<IRVisitor>(new MLIRVisitor(compiler_context)), &compiler_context) {}
   ~MLIRBuilder() override = default;
 
  private:

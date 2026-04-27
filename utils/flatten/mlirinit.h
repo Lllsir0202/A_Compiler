@@ -25,7 +25,7 @@ class MLIRInitializer : public Initializer {
   auto IsConst() const -> bool override { return false; }
 
  private:
-  frontend::ast::ExprNode *value_;
+  frontend::ast::ExprNode *value_ = nullptr;
 };
 
 auto HandleInIR(frontend::ast::Initializer *init_node) -> InitializerPtr;

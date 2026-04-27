@@ -428,12 +428,26 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
 
     for (const auto &result : results.GetInitializers()) {
       auto init = static_cast<initializer::MLIRInitializer *>(result.get());
+      // Since when the init is default initializer,
+      // the value in MLIRInitializer is nullptr,
+      // we can just set the init value to nullptr in this case
+      if (init == nullptr) {
+        init_values.emplace_back(nullptr);
+        continue;
+      }
       auto value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(init->GetValue());
       if (value == nullptr) {
         compiler_context_->ReportError(init->GetValue(), "Failed to get value from initializer expression.");
         return;
       }
-      if (value->GetType() != entry->type_) {
+      auto type = entry->type_;
+      // Get the element type of the array
+      // Since we need to make sure that the type of the initiaizer
+      // same as the element type of the array.
+      if (type->GetKind() == type::TypeKind::ARRAY) {
+        type = static_cast<type::ArrayType *>(type)->GetElementType();
+      }
+      if (value->GetType() != type) {
         auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), value,
                                                                                  value->GetType(), entry->type_);
         value->AddUse(cast_op, 0);

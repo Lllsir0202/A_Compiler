@@ -10,7 +10,7 @@ class IRVisitor : public frontend::ast::ASTVisitor {
   ~IRVisitor() override = default;
 
  protected:
-  explicit IRVisitor(context::CompilerContext *context) : compiler_context_(context) {}
+  explicit IRVisitor(context::CompilerContext &context) : compiler_context_(&context) {}
 
   context::CompilerContext *compiler_context_;
 };

@@ -1,5 +1,4 @@
 #include "utils/flatten/mlirinit.h"
-#include <exception>
 #include <stdexcept>
 #include "ast/ast_decl.h"
 #include "flatten/initializer.h"
@@ -10,7 +9,7 @@ namespace initializer {
  * and the ExprNode* will be stored in the MLIRInitializer, which will be used for
  * get the result of which operation generate the result.
  */
-auto HandleInIR(frontend::ast::Initializer *init_node) -> InitializerPtr {
+auto HandleInIR(frontend::ast::Initializer *init_node) -> initializer::InitializerPtr {
   auto mlir_init = std::make_unique<MLIRInitializer>();
   if (init_node == nullptr) {
     // means there is default initializer

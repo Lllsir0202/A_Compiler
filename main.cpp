@@ -193,7 +193,7 @@ auto main(int argc, char *argv[]) -> int {
     return ret;
   }
 
-  auto mlir_builder = std::make_unique<middleend::MLIRBuilder>(&compiler_context);
+  auto mlir_builder = std::make_unique<middleend::MLIRBuilder>(compiler_context);
   ret = mlir_builder->Build();
 
   if (ret != 0) {

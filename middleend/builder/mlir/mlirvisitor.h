@@ -57,8 +57,8 @@ class MLIRVisitor : public IRVisitor {
    * so we can just set the constructor to private
    * and let the MLIRBuilder be the friend class of this class.
    */
-  explicit MLIRVisitor(context::CompilerContext *compiler_context)
-      : IRVisitor(compiler_context), flatten_helper_(compiler_context) {}
+  explicit MLIRVisitor(context::CompilerContext &compiler_context)
+      : IRVisitor(compiler_context), flatten_helper_(&compiler_context) {}
   friend class MLIRBuilder;
 
   // Helper functions for handing out operator
