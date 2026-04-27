@@ -278,3 +278,21 @@ We will first transfer the AST to MLIR, since the MLIR is based on
 __dialect__, we will begin with designing a basic dialect which called `base`, and it will contain the basic operations and we will do some optimizations including and not limited to: polyhedral optimization, 
 dialect conversion and so on. Then after that, we will transfer the `base` dialect(or some higher level dialect) to the lower intermediate representation module, which is designed to generate the ``llvmir``.
 Based on the llvmir module, we will do some more optimizations. 
+
+Since the `base` dialect is designed to be transfered to the `llvmir` module, it is relatively hard to be optimized with semantic information, so I design the middleend as following procedures:
+1. Transfer the AST to the high-level dialect, which is NOT based on the block and control flow graph, and it is more close to the AST structure, which can make it easier to utilize the semantic information in the AST to do optimizations.
+2. Do optimizations based on the high-level dialect.
+3. Transfer the high-level dialect to the `base` dialect, which is based on the block and control flow graph, and it is more close to the structure of the machine code, which can make it easier to generate efficient code.
+4. Transfer the `base` dialect to the `llvmir` module, then do some generic optimizations based on the `llvmir` module.
+
+### High-Level Dialect
+Since we would like the dialect to contain as much semantic information as possible, I would like to design the high-level dialect which is like the format in `llvm-project`. However, of course, simplified and modified to fit our needs. 
+In my design, we divide the high-level dialect into different specific dialects, which are divided based on the different usage of the operations.
+
+Currently, we have designed the following dialects:
+1. `arith` dialect: this dialect contains the basic arithmetic operations, such as addition, subtraction, multiplication, division, and so on.
+2. `func` dialect: this dialect contains the function definition and call operations, which can represent the function definitions and function calls in the source code.
+3. `scf` dialect: this dialect contains the control flow operations, such as if-else, while loop, for loop, and so on.
+4. `var` dialect: since we don't want to import memory load and store operations too early, we design the `var` dialect to represent get and set operations for variables, which can be optimized in the high-level dialect and then transferred to the `base` dialect to generate memory load and store operations.
+
+With no doubt, we need to do pattern match and rewrite to do optimizations, so in the future, we probably import more dialects such as `math` dialect to recognize and represent normal math functions, and then we can do some optimizations based on the math properties of these functions.
