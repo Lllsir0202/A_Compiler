@@ -1,5 +1,6 @@
 #ifndef MIDDLEEND_MLIR_DIALECT_VAR_DEF_H
 #define MIDDLEEND_MLIR_DIALECT_VAR_DEF_H
+#include <cstddef>
 #include <fstream>
 #include "middleend/mlir/dialect/var/basic.h"
 #include "mlir/utils/value/value.h"
@@ -31,15 +32,11 @@ class VarDefOp : public VarOps {
      */
     PrintIndent(out);
     results_[0]->Emit(out);
+    *out << " ";
     if (!dimensions_.empty()) {
-      *out << "[";
       for (const auto &dim : dimensions_) {
-        *out << dim;
-        if (dim != dimensions_.back()) {
-          *out << ", ";
-        }
+        *out << "[" << dim << "]";
       }
-      *out << "] ";
     }
     *out << " = ";
     if (is_global_) {

@@ -96,7 +96,7 @@ inline auto MLIRVisitor::HandleLValExpr(frontend::ast::LValExprNode *lval_expr, 
       auto index_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(index.get());
       indices.emplace_back(index_value);
     }
-    var_get_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetPtrOp>(GET_MLIR_CONTEXT(), ptr);
+    var_get_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetPtrOp>(GET_MLIR_CONTEXT(), ptr, indices);
     GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(var_get_op);
     GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(lval_expr, var_get_op->GetRes());
     // The type of the lval expression has been calculated in the semantic analysis phase.
@@ -567,6 +567,8 @@ void MLIRVisitor::Visit(frontend::ast::FuncDefNode *func_def) {
   GET_MLIR_CONTEXT()->SetCurrentRegion(top_region);
   // Exit a funcdef, set current function definition to nullptr
   GET_MLIR_CONTEXT()->SetCurrentFuncDefOp(nullptr);
+  // ConstOp cannot be shared between different functions
+  GET_MLIR_CONTEXT()->GetResourceContext()->ResetConstOps();
 }
 
 }  // namespace middleend

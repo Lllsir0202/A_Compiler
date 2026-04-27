@@ -129,6 +129,11 @@ class MLIRResourceContext {
     const_map_[const_value] = const_op;
   }
 
+  /**
+   * @brief Reset const operations
+   */
+  auto ResetConstOps() -> void { const_map_.clear(); }
+
  private:
   std::vector<middleend::mlir::Value *> values_;  // all values created by this builder, used for memory management
   size_t value_num_ = 0;                          // for generating unique value numbers, i.e. %0, %1, etc.
