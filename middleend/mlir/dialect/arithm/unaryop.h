@@ -34,7 +34,7 @@ class ConstOp : public ArithmOps {
    * we should not make them const
    */
   auto GetValue() -> std::variant<int, float> { return const_value_; }
-  auto GetResult() -> mlir::Value * { return results_[0]; }
+  auto GetRes() -> mlir::Value * { return results_[0]; }
 
   auto Emit(std::ofstream *out) -> void override {
     PrintIndent(out);

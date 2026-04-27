@@ -254,7 +254,6 @@ void MLIRVisitor::Visit(frontend::ast::FuncCallExprNode *func_call) {
     } else {
       param->Accept(this);
       auto param_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(param);
-      printf("param type: %s, defined type: %s\n", param->GetType()->ToString().c_str(), type->ToString().c_str());
       if (param->GetType() != type) {
         // Need to do cast to ensure the type of the parameter
         auto param_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(param);
@@ -288,19 +287,35 @@ void MLIRVisitor::Visit(frontend::ast::LValExprNode *lval_expr) {
 }
 
 void MLIRVisitor::Visit(frontend::ast::IntLiteralExprNode *int_literal) {
+  auto existing_const_op =
+      GET_MLIR_CONTEXT()->GetResourceContext()->GetConstOpFromConstValue(std::to_string(int_literal->value_));
+  if (existing_const_op != nullptr) {
+    GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(int_literal, existing_const_op->GetRes());
+    return;
+  }
   auto const_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), int_literal->value_);
   GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(const_op);
-  const_op->GetResult()->SetType(GET_TYPE_CONTEXT()->GetIntegerType());
+  const_op->GetRes()->SetType(GET_TYPE_CONTEXT()->GetIntegerType());
+  // Map constant value to the constant operation
+  GET_MLIR_CONTEXT()->GetResourceContext()->SetConstOpForConstValue(std::to_string(int_literal->value_), const_op);
   // Map the result of the const operation with the int literal ExprNode*
-  GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(int_literal, const_op->GetResult());
+  GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(int_literal, const_op->GetRes());
 }
 
 void MLIRVisitor::Visit(frontend::ast::FloatLiteralExprNode *float_literal) {
+  auto existing_const_op =
+      GET_MLIR_CONTEXT()->GetResourceContext()->GetConstOpFromConstValue(std::to_string(float_literal->value_));
+  if (existing_const_op != nullptr) {
+    GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(float_literal, existing_const_op->GetRes());
+    return;
+  }
   auto const_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), float_literal->value_);
   GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(const_op);
-  const_op->GetResult()->SetType(GET_TYPE_CONTEXT()->GetFloatType());
+  const_op->GetRes()->SetType(GET_TYPE_CONTEXT()->GetFloatType());
+  // Map constant value to the constant operation
+  GET_MLIR_CONTEXT()->GetResourceContext()->SetConstOpForConstValue(std::to_string(float_literal->value_), const_op);
   // Map the result of the const operation with the float literal ExprNode*
-  GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(float_literal, const_op->GetResult());
+  GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(float_literal, const_op->GetRes());
 }
 
 // Statement nodes
@@ -386,11 +401,9 @@ void MLIRVisitor::Visit(frontend::ast::ReturnStmtNode *return_stmt) {
 void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
   // Since the variable definition has been checked and stored in semantic phase
   // The dimensions have been calculated
-  printf("visit var def\n");
   if (var_def->init_values_) {
     var_def->init_values_->Accept(this);
   }
-  printf("finished visiting initializer\n");
 
   /**
    * @brief variable definition, we have stored the symbolId

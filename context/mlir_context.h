@@ -13,6 +13,9 @@
 namespace middleend::mlir::func {
 class FuncDefOp;
 }
+namespace middleend::mlir::arithm {
+class ConstOp;
+}
 namespace context {
 /**
  * @brief This class is used to create and manage value
@@ -109,6 +112,23 @@ class MLIRResourceContext {
     return nullptr;  // Not found
   }
 
+  /**
+   * @brief Get the constant operation from the string representation of the constant value
+   */
+  auto GetConstOpFromConstValue(const std::string &const_value) -> middleend::mlir::arithm::ConstOp * {
+    if (const_map_.count(const_value) > 0) {
+      return const_map_[const_value];
+    }
+    return nullptr;  // Not found
+  }
+
+  /**
+   * @brief Set the constant operation for a constant value
+   */
+  auto SetConstOpForConstValue(const std::string &const_value, middleend::mlir::arithm::ConstOp *const_op) -> void {
+    const_map_[const_value] = const_op;
+  }
+
  private:
   std::vector<middleend::mlir::Value *> values_;  // all values created by this builder, used for memory management
   size_t value_num_ = 0;                          // for generating unique value numbers, i.e. %0, %1, etc.
@@ -128,6 +148,15 @@ class MLIRResourceContext {
    * since we don't allow function overloading.
    */
   std::unordered_map<std::string, middleend::mlir::func::FuncDefOp *> func_map_;
+
+  /**
+   * @brief Since the constant operation can be reused, we can also store the mapping from constant value to the
+   * constant operation
+   * @note: since the constant value can be of different types, we can use the string representation of the constant
+   * value as the key of the map, and then we can get the corresponding constant operation from the map, so that we can
+   * reuse the constant operation if the same constant value appears again.
+   */
+  std::unordered_map<std::string, middleend::mlir::arithm::ConstOp *> const_map_;
 };
 
 /**
