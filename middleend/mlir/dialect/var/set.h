@@ -28,6 +28,7 @@ class VarSetOp : public VarOps {
     results_[0]->Emit(out);
     *out << " = " << Name() << " ";
     operands_[0]->Emit(out);
+    *out << ", ";
     operands_[1]->Emit(out);
     *out << "\n";
   }

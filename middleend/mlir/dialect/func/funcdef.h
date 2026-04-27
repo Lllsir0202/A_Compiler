@@ -8,7 +8,7 @@
 namespace middleend::mlir::func {
 class FuncDefOp : public FuncOps {
  public:
-  static auto Create(context::MLIRContext *context, const std::string &name, std::vector<mlir::Value *> &args,
+  static auto Create(context::MLIRContext *context, const std::string &name, std::vector<mlir::Value *> args,
                      type::Type *return_type) -> FuncDefOp * {
     auto func_def_op = new FuncDefOp();
     func_def_op->SetUp(context, name, args, return_type);

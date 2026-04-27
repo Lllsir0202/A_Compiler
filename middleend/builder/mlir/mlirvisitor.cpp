@@ -256,7 +256,7 @@ void MLIRVisitor::Visit(frontend::ast::FuncCallExprNode *func_call) {
       auto param_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(param);
       if (param->GetType() != type) {
         // Need to do cast to ensure the type of the parameter
-        auto param_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(param);
+        param_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(param);
         auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), param_value,
                                                                                  param->GetType(), type);
         param_value->AddUse(cast_op, 0);
@@ -379,7 +379,7 @@ void MLIRVisitor::Visit(frontend::ast::ReturnStmtNode *return_stmt) {
     }
     if (type != expr->GetType()) {
       // Need to do cast to ensure the type of the return value
-      auto value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(expr);
+      value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(expr);
       auto cast_op =
           GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), value, expr->GetType(), type);
       value->AddUse(cast_op, 0);
