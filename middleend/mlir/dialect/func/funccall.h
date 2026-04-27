@@ -5,7 +5,7 @@
 namespace middleend::mlir::func {
 class FuncCallOp : public FuncOps {
  public:
-  static auto Create(context::MLIRContext *context, const std::string &name, std::vector<mlir::Value *> &args,
+  static auto Create(context::MLIRContext *context, const std::string &name, std::vector<mlir::Value *> args,
                      type::Type *return_type) -> FuncCallOp * {
     auto func_call_op = new FuncCallOp();
     func_call_op->SetUp(context, name, args, return_type);
@@ -22,8 +22,18 @@ class FuncCallOp : public FuncOps {
         *out << ", ";
       }
     }
-    *out << "\n";
+    *out << ")\n";
   }
+
+  /**
+   * @brief Get the result of the function call
+   */
+  auto GetRes() -> mlir::Value * { return results_[0]; }
+  auto GetName() -> std::string { return name_; }
+  /**
+   * @brief Get the operands of the function call operation, which are the arguments of the function call
+   */
+  auto GetOperands() -> std::vector<mlir::Value *> { return operands_; }
 
  private:
   FuncCallOp() : FuncOps("call"){};

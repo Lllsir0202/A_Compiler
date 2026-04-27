@@ -31,7 +31,7 @@
       /* NAME##Op has two operands and one result */                                                      \
       /* check type of result */                                                                          \
       if (lhs->type_ != rhs->type_) {                                                                     \
-        throw std::logic_error("LHS and RHS should be the same type");                                    \
+        throw std::logic_error("BinaryOp: LHS and RHS should be the same type");                          \
       }                                                                                                   \
       operands_.reserve(2);                                                                               \
       results_.reserve(1);                                                                                \

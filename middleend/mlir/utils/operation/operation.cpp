@@ -35,6 +35,23 @@ auto ModuleOp::SetUp() -> void {
   regions_.emplace_back(region);
 }
 
+auto ModuleOp::GetBlock() -> Block * {
+  if (regions_.empty()) {
+    throw std::runtime_error("Module operation has no region.");
+  }
+  if (regions_[0]->blocks_.empty()) {
+    throw std::runtime_error("Region has no block.");
+  }
+  return regions_[0]->blocks_[0];
+}
+
+auto ModuleOp::GetRegion() -> Region * {
+  if (regions_.empty()) {
+    throw std::runtime_error("Module operation has no region.");
+  }
+  return regions_[0];
+}
+
 auto ModuleOp::Emit(std::ofstream *out) -> void {
   /**
    * @brief A moduleop is the top-level operation in a program

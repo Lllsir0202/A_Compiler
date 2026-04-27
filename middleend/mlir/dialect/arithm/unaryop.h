@@ -90,9 +90,9 @@ class CastOp : public ArithmOps {
 
   auto Emit(std::ofstream *out) -> void override {
     PrintIndent(out);
-    operands_[0]->Emit(out);
-    *out << " = " << Name() << " ";
     results_[0]->Emit(out);
+    *out << " = " << Name() << " ";
+    operands_[0]->Emit(out);
     *out << " : " << from_type_->ToString() << " to " << to_type_->ToString() << "\n";
   };
 
@@ -107,6 +107,7 @@ class CastOp : public ArithmOps {
     auto res = context->CreateValue();
     results_.emplace_back(res);
     res->op_ = this;
+    res->type_ = to;
   }
   type::Type *from_type_;
   type::Type *to_type_;

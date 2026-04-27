@@ -31,21 +31,24 @@ class VarDefOp : public VarOps {
      */
     PrintIndent(out);
     results_[0]->Emit(out);
-    *out << "[";
-    for (const auto &dim : dimensions_) {
-      *out << dim;
-      if (dim != dimensions_.back()) {
-        *out << ", ";
+    if (!dimensions_.empty()) {
+      *out << "[";
+      for (const auto &dim : dimensions_) {
+        *out << dim;
+        if (dim != dimensions_.back()) {
+          *out << ", ";
+        }
       }
+      *out << "] ";
     }
-    *out << "] = ";
+    *out << " = ";
     if (is_global_) {
       *out << "global ";
     }
     if (is_const_) {
       *out << "const ";
     }
-    *out << Name() << " ";
+    *out << Name() << " " << "init: ";
     for (const auto &init : operands_) {
       if (init != nullptr) {
         init->Emit(out);

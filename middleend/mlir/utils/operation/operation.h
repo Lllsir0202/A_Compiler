@@ -3,6 +3,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include "mlir/utils/struct/block.h"
 
 namespace middleend::mlir {
 class Value;
@@ -57,6 +58,13 @@ class ModuleOp : public Operation {
     moduleop->SetUp();
     return moduleop;
   }
+
+  /**
+   * @brief the module operation will always have only one region and one block
+   */
+  auto GetBlock() -> Block *;
+
+  auto GetRegion() -> Region *;
 
  private:
   ModuleOp() = default;

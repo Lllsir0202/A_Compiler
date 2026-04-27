@@ -92,6 +92,23 @@ class MLIRResourceContext {
     return nullptr;  // Not found
   }
 
+  /**
+   * @brief Set the mapping from function name to function definition operation.
+   */
+  auto MapFuncToFuncDefOp(const std::string &func_name, middleend::mlir::func::FuncDefOp *func_def_op) -> void {
+    func_map_[func_name] = func_def_op;
+  }
+
+  /**
+   * @brief Get the function definition operation mapped to a function name
+   */
+  auto GetFuncDefOpFromFuncName(const std::string &func_name) -> middleend::mlir::func::FuncDefOp * {
+    if (func_map_.count(func_name) > 0) {
+      return func_map_[func_name];
+    }
+    return nullptr;  // Not found
+  }
+
  private:
   std::vector<middleend::mlir::Value *> values_;  // all values created by this builder, used for memory management
   size_t value_num_ = 0;                          // for generating unique value numbers, i.e. %0, %1, etc.
@@ -105,6 +122,12 @@ class MLIRResourceContext {
    * @brief This map is used to record the mapping from expression nodes to values
    */
   std::unordered_map<frontend::ast::ExprNode *, middleend::mlir::Value *> expr_map_;
+
+  /**
+   * @brief Get the funcdef_op from the func_name(std:;string),
+   * since we don't allow function overloading.
+   */
+  std::unordered_map<std::string, middleend::mlir::func::FuncDefOp *> func_map_;
 };
 
 /**
@@ -194,14 +217,14 @@ class MLIRContext {
     return resource_context_->CreateOperation<OperationType>(std::forward<Args>(args)...);
   }
 
-  auto GetModuleOp() -> middleend::mlir::Operation * {
+  auto GetModuleOp() -> middleend::mlir::ModuleOp * {
     if (module_op_ == nullptr) {
       throw std::runtime_error("Module operation has not been created yet.");
     }
     return module_op_;
   }
 
-  auto SetModuleOp(middleend::mlir::Operation *module_op) -> void { module_op_ = module_op; }
+  auto SetModuleOp(middleend::mlir::ModuleOp *module_op) -> void { module_op_ = module_op; }
 
   /**
    * @brief Quick interfaces to set and get
@@ -219,7 +242,7 @@ class MLIRContext {
   MLIRResourceContext *resource_context_;
   MLIRStateContext *state_context_;
   // the module operation of the MLIR, which is the top-level operation
-  middleend::mlir::Operation *module_op_ = nullptr;
+  middleend::mlir::ModuleOp *module_op_ = nullptr;
 };
 
 }  // namespace context

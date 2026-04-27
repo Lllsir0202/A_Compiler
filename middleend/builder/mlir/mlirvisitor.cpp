@@ -1,5 +1,6 @@
 #include "middleend/builder/mlir/mlirvisitor.h"
 #include <cstddef>
+#include "ast/ast_decl.h"
 #include "ast/ast_expr.h"
 #include "ast/ast_utils.h"
 #include "frontend/ast/ast_spec.h"
@@ -240,7 +241,7 @@ void MLIRVisitor::Visit(frontend::ast::FuncCallExprNode *func_call) {
    * we cannot directly get the value of the parameter, since the value of the parameter is actually a pointer
    * we need to get the pointer of the parameter, and then we can use the pointer to build the func.call operation
    */
-  auto func_def_op = GET_MLIR_CONTEXT()->GetCurrentFuncDefOp();
+  auto func_def_op = GET_MLIR_CONTEXT()->GetResourceContext()->GetFuncDefOpFromFuncName(func_name);
   auto defined_types = func_def_op->GetArguments();
   for (size_t i = 0; i < func_call->params_.size(); ++i) {
     auto param = func_call->params_[i].get();
@@ -253,7 +254,7 @@ void MLIRVisitor::Visit(frontend::ast::FuncCallExprNode *func_call) {
     } else {
       param->Accept(this);
       auto param_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(param);
-
+      printf("param type: %s, defined type: %s\n", param->GetType()->ToString().c_str(), type->ToString().c_str());
       if (param->GetType() != type) {
         // Need to do cast to ensure the type of the parameter
         auto param_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(param);
@@ -269,7 +270,9 @@ void MLIRVisitor::Visit(frontend::ast::FuncCallExprNode *func_call) {
   auto return_type = func_call->GetType();
   auto func_call_op = GET_MLIR_CONTEXT()->CreateOperation<middleend::mlir::func::FuncCallOp>(
       GET_MLIR_CONTEXT(), func_name, params, return_type);
+  func_call_op->GetRes()->SetType(return_type);
   GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(func_call_op);
+  GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(func_call, func_call_op->GetRes());
   // Add use for the arguments
   for (size_t i = 0; i < params.size(); ++i) {
     params[i]->AddUse(func_call_op, i);
@@ -351,6 +354,10 @@ void MLIRVisitor::Visit(frontend::ast::ReturnStmtNode *return_stmt) {
   if (expr != nullptr) {
     expr->Accept(this);
     auto value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(expr);
+    if (value == nullptr) {
+      compiler_context_->ReportError(expr, "Failed to get value from return expression.");
+      return;
+    }
     if (type != expr->GetType()) {
       // Need to do cast to ensure the type of the return value
       auto value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(expr);
@@ -386,25 +393,50 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
    */
   auto symbol_id = var_def->symbol_id_;
   auto entry = GET_SYMBOLTABLE_CONTEXT()->GetVarEntryById(symbol_id);
-  // Since the definition of a variable, if it has a dimension,
-  // the dimensions have been calculated in the semantic phase, and stored in the VarEntry,
-  // So we can just get the dimensions from the VarEntry, and use it to create the var.def
-  auto dimensions = entry->dimensions_;
-
-  /**
-   * initialize the variable
-   */
-  printf("start flatten initializer\n");
-  auto results = flatten_helper_.FlattenInitializer(var_def->init_values_.get(), dimensions, initializer::HandleInIR);
-  printf("result size is %zu", results.GetInitializers().size());
 
   // Results are a list of exprnode*, we use the map to get the corresponding value in MLIR,
   // and then we will create the initializer operation to initialize the variable
   std::vector<mlir::Value *> init_values;
-  for (const auto &result : results.GetInitializers()) {
-    auto init = static_cast<initializer::MLIRInitializer *>(result.get());
-    auto value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(init->GetValue());
-    init_values.emplace_back(value);
+  std::vector<int> dimensions = {};
+
+  if (!entry->dimensions_.empty()) {  // Since the definition of a variable, if it has a dimension,
+    // the dimensions have been calculated in the semantic phase, and stored in the VarEntry,
+    // So we can just get the dimensions from the VarEntry, and use it to create the var.def
+    dimensions = entry->dimensions_;
+
+    /**
+     * initialize the variable
+     */
+    auto results = flatten_helper_.FlattenInitializer(var_def->init_values_.get(), dimensions, initializer::HandleInIR);
+
+    for (const auto &result : results.GetInitializers()) {
+      auto init = static_cast<initializer::MLIRInitializer *>(result.get());
+      auto value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(init->GetValue());
+      if (value->GetType() != entry->type_) {
+        auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), value,
+                                                                                 value->GetType(), entry->type_);
+        value->AddUse(cast_op, 0);
+        GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
+        value = cast_op->GetRes();
+      }
+      init_values.emplace_back(value);
+    }
+  } else {
+    // If the variable is not an array, just get the value
+    if (var_def->init_values_) {
+      auto init = static_cast<frontend::ast::InitValNode *>(var_def->init_values_.get());
+      auto value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(init->value_.get());
+      if (value->GetType() != entry->type_) {
+        auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), value,
+                                                                                 value->GetType(), entry->type_);
+        value->AddUse(cast_op, 0);
+        GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
+        value = cast_op->GetRes();
+      }
+      init_values.emplace_back(value);
+    } else {
+      init_values.emplace_back(nullptr);
+    }
   }
 
   /**
@@ -415,15 +447,17 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
   auto var_def_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarDefOp>(
       GET_MLIR_CONTEXT(), dimensions, init_values, entry->is_global_, entry->is_const_);
   GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, var_def_op->GetRes());
+  GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(var_def_op);
 }
+
 void MLIRVisitor::Visit(frontend::ast::GlobalVarDeclNode *global_var_decl) {
   for (const auto &var_def : global_var_decl->defs_) {
     var_def->Accept(this);
   }
 }
+
 void MLIRVisitor::Visit(frontend::ast::LocalVarDeclNode *local_var_decl) {
   for (const auto &var_def : local_var_decl->defs_) {
-    printf("visit local var def\n");
     var_def->Accept(this);
   }
 }
@@ -465,7 +499,13 @@ void MLIRVisitor::Visit(frontend::ast::FuncDefNode *func_def) {
   auto func_def_op = GET_MLIR_CONTEXT()->CreateOperation<middleend::mlir::func::FuncDefOp>(
       GET_MLIR_CONTEXT(), func_def->func_name_, args, func_def->return_type_);
 
+  // map func_name to the operation, used in function call
+  GET_MLIR_CONTEXT()->GetResourceContext()->MapFuncToFuncDefOp(func_def->func_name_, func_def_op);
+
   GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(func_def_op);
+
+  // set new insert point and current region to the block
+  // in the region of the function definition operation,
   GET_MLIR_CONTEXT()->SetCurrentRegion(func_def_op->regions_[0]);
   GET_MLIR_CONTEXT()->SetInsertPoint(func_def_op->regions_[0]->blocks_[0]);
 
@@ -477,7 +517,13 @@ void MLIRVisitor::Visit(frontend::ast::FuncDefNode *func_def) {
   GET_MLIR_CONTEXT()->SetCurrentFuncDefOp(func_def_op);
   // Visit the body of the function
   func_def->body_->Accept(this);
-  printf("finshed");
+  // Exit a funcdef, should get back to the module_op block
+  auto top_region = GET_MLIR_CONTEXT()->GetModuleOp()->GetRegion();
+  auto top_block = GET_MLIR_CONTEXT()->GetModuleOp()->GetBlock();
+  GET_MLIR_CONTEXT()->SetInsertPoint(top_block);
+  GET_MLIR_CONTEXT()->SetCurrentRegion(top_region);
+  // Exit a funcdef, set current function definition to nullptr
+  GET_MLIR_CONTEXT()->SetCurrentFuncDefOp(nullptr);
 }
 
 }  // namespace middleend
