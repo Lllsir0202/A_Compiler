@@ -3,6 +3,7 @@
 #include "middleend/mlir/utils/operation/operation.h"
 
 namespace middleend::mlir {
+
 auto Value::ReplaceAllUsesWith(Value *new_value) -> void {
   for (auto use : uses_) {
     auto op = use->operation_;

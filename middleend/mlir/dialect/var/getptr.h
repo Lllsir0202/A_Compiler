@@ -28,10 +28,11 @@ class VarGetPtrOp : public VarOps {
   }
   auto GetPtr() -> Value * { return operands_[0]; }
   auto GetRes() -> Value * { return results_[0]; }
-  auto Emit(std::ofstream *out) const -> void override {
+  auto Emit(std::ofstream *out) -> void override {
     /**
      * @example: %res = var.getptr %index1, %index2, ...
      */
+    PrintIndent(out);
     results_[0]->Emit(out);
     *out << " = " << Name() << " ptr ";
     operands_[0]->Emit(out);

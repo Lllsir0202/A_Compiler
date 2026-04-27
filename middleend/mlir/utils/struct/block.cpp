@@ -15,6 +15,12 @@ Block::~Block() {
   }
 }
 
+auto Block::PrintIndent(std::ofstream *out) const -> void {
+  for (int i = 0; i < indent_level_; ++i) {
+    *out << "  ";
+  }
+}
+
 /**
  * @brief emit the block
  * it will emit the operations in the block
@@ -24,7 +30,8 @@ Block::~Block() {
  *    op2
  * }
  */
-auto Block::Emit(std::ofstream *out) const -> void {
+auto Block::Emit(std::ofstream *out) -> void {
+  PrintIndent(out);
   *out << "block (";
   for (auto argument : arguments_) {
     argument->Emit(out);
@@ -33,9 +40,13 @@ auto Block::Emit(std::ofstream *out) const -> void {
     }
   }
   *out << ") {\n";
+  indent_level_++;
   for (auto op : operations_) {
+    op->SetIndentLevel(indent_level_);
     op->Emit(out);
   }
+  indent_level_--;
+  PrintIndent(out);
   *out << "}\n";
 }
 

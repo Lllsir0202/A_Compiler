@@ -9,6 +9,7 @@
 namespace middleend::mlir::arithm {
 
 #include "middleend/mlir/dialect//arithm/unaryop.def"
+
 DEFINE_UNARY_OP(Neg)
 DEFINE_UNARY_OP(Not)
 
@@ -35,7 +36,8 @@ class ConstOp : public ArithmOps {
   auto GetValue() -> std::variant<int, float> { return const_value_; }
   auto GetResult() -> mlir::Value * { return results_[0]; }
 
-  auto Emit(std::ofstream *out) const -> void override {
+  auto Emit(std::ofstream *out) -> void override {
+    PrintIndent(out);
     results_[0]->Emit(out);
     *out << " = " << Name() << " ";
     if (std::holds_alternative<int>(const_value_)) {
@@ -86,7 +88,8 @@ class CastOp : public ArithmOps {
   auto GetFromType() -> type::Type * { return from_type_; }
   auto GetToType() -> type::Type * { return to_type_; }
 
-  auto Emit(std::ofstream *out) const -> void override {
+  auto Emit(std::ofstream *out) -> void override {
+    PrintIndent(out);
     operands_[0]->Emit(out);
     *out << " = " << Name() << " ";
     results_[0]->Emit(out);

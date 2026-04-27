@@ -18,7 +18,7 @@ class FuncOps : public Operation {
    * @brief Get the name of the dialect, which is "func"
    */
   auto DialectName() const -> std::string override { return DIALECT_NAME; }
-  auto Emit(std::ofstream *out) const -> void override = 0;
+  auto Emit(std::ofstream *out) -> void override = 0;
 
  protected:
   explicit FuncOps(std::string operator_name) : operator_name_(std::move(operator_name)) {}

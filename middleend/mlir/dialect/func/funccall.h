@@ -12,7 +12,8 @@ class FuncCallOp : public FuncOps {
     return func_call_op;
   }
 
-  auto Emit(std::ofstream *out) const -> void override {
+  auto Emit(std::ofstream *out) -> void override {
+    PrintIndent(out);
     results_[0]->Emit(out);
     *out << " = " << Name() << "@" << name_ << "(";
     for (size_t i = 0; i < operands_.size(); ++i) {

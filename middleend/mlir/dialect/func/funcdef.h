@@ -15,9 +15,10 @@ class FuncDefOp : public FuncOps {
     return func_def_op;
   }
 
-  auto Emit(std::ofstream *out) const -> void override {
+  auto Emit(std::ofstream *out) -> void override {
+    PrintIndent(out);
     results_[0]->Emit(out);
-    *out << Name() << "@" << name_ << "(";
+    *out << " = " << Name() << "@" << name_ << "(";
     for (size_t i = 0; i < operands_.size(); ++i) {
       operands_[i]->Emit(out);
       if (i != operands_.size() - 1) {
@@ -25,10 +26,14 @@ class FuncDefOp : public FuncOps {
       }
     }
     *out << ") {\n";
+    IncreaseIndent();
     // Emit the body of the function
     for (auto region : regions_) {
+      region->indent_level_ = indent_level_;
       region->Emit(out);
     }
+    DecreaseIndent();
+    PrintIndent(out);
     *out << "}\n";
   }
 

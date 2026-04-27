@@ -25,10 +25,11 @@ class VarDefOp : public VarOps {
 
   auto GetInits() -> std::vector<Value *> & { return operands_; }
   auto GetRes() -> Value * { return results_[0]; }
-  auto Emit(std::ofstream *out) const -> void override {
+  auto Emit(std::ofstream *out) -> void override {
     /**
      * @example: %res[%dim1, %dim2, ...] = var.def %init1, %init2, ...
      */
+    PrintIndent(out);
     results_[0]->Emit(out);
     *out << "[";
     for (const auto &dim : dimensions_) {

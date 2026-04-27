@@ -2,7 +2,6 @@
 #include "middleend/mlir/utils/struct/block.h"
 #include "middleend/mlir/utils/struct/region.h"
 namespace middleend::mlir {
-
 Operation::~Operation() {
   /**
    * @brief The destructor of the operation
@@ -12,6 +11,15 @@ Operation::~Operation() {
    */
   for (auto region : regions_) {
     delete region;
+  }
+}
+
+/**
+ * @brief Used for formating the output of the operation
+ */
+auto Operation::PrintIndent(std::ofstream *out) const -> void {
+  for (int i = 0; i < indent_level_; ++i) {
+    *out << "  ";
   }
 }
 
@@ -27,7 +35,7 @@ auto ModuleOp::SetUp() -> void {
   regions_.emplace_back(region);
 }
 
-auto ModuleOp::Emit(std::ofstream *out) const -> void {
+auto ModuleOp::Emit(std::ofstream *out) -> void {
   /**
    * @brief A moduleop is the top-level operation in a program
    * i.e.
@@ -39,10 +47,15 @@ auto ModuleOp::Emit(std::ofstream *out) const -> void {
    *       }
    * }
    */
-  *out << this->DialectName() << " {\n";
+  PrintIndent(out);
+  *out << this->Name() << " {\n";
+  IncreaseIndent();
   for (auto region : regions_) {
+    region->indent_level_ = indent_level_;
     region->Emit(out);
   }
+  DecreaseIndent();
+  PrintIndent(out);
   *out << "}\n";
 }
 

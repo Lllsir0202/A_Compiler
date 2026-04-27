@@ -2,8 +2,10 @@
 #include <memory>
 #include <unordered_set>
 #include "ast/visitor/semantic/sem_analysis.h"
+#include "builder/mlir/mlirbuilder.h"
 #include "context/compiler_context.h"
 #include "frontend/frontend.h"
+#include "mlir/mlir_stage.h"
 #include "stages/ast/ast_stage.h"
 #include "stages/lexer/lexer_stage.h"
 #include "stages/parser/parser_stage.h"
@@ -179,9 +181,28 @@ auto main(int argc, char *argv[]) -> int {
   auto semantic_analyser = std::make_unique<frontend::ast::SemanticAnalyser>(compiler_context);
   ret = semantic_analyser->Analyse();
 
+  if (ret != 0) {
+    std::cerr << "Error: Semantic analysis failed with error code " << ret << '\n';
+    return ret;
+  }
+
   if (stage == "ast" && ret == 0) {
     auto astprinter = std::make_unique<frontend::ast::ASTPrinter>(&output);
     stage_ptr = std::make_unique<stages::ASTStage>(&compiler_context, std::move(astprinter));
+    stage_ptr->Run();
+    return ret;
+  }
+
+  auto mlir_builder = std::make_unique<middleend::MLIRBuilder>(&compiler_context);
+  ret = mlir_builder->Build();
+
+  if (ret != 0) {
+    std::cerr << "Error: MLIR building failed with error code " << ret << '\n';
+    return ret;
+  }
+
+  if (stage == "llvm" && ret == 0) {
+    stage_ptr = std::make_unique<stages::MLIRStage>(&compiler_context);
     stage_ptr->Run();
     return ret;
   }

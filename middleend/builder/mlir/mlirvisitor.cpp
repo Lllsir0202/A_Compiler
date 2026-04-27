@@ -138,6 +138,7 @@ inline auto MLIRVisitor::HandleLValExpr(frontend::ast::LValExprNode *lval_expr, 
 void MLIRVisitor::Visit(frontend::ast::RootNode *root) {
   // Create the module operation, which is the top-level operation in MLIR
   auto module_op = GET_MLIR_CONTEXT()->CreateOperation<middleend::mlir::ModuleOp>();
+  GET_MLIR_CONTEXT()->SetModuleOp(module_op);
   GET_MLIR_CONTEXT()->SetInsertPoint(module_op->regions_[0]->blocks_[0]);
   GET_MLIR_CONTEXT()->SetCurrentRegion(module_op->regions_[0]);
   /**
@@ -374,7 +375,11 @@ void MLIRVisitor::Visit(frontend::ast::ReturnStmtNode *return_stmt) {
 void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
   // Since the variable definition has been checked and stored in semantic phase
   // The dimensions have been calculated
-  var_def->init_values_->Accept(this);
+  printf("visit var def\n");
+  if (var_def->init_values_) {
+    var_def->init_values_->Accept(this);
+  }
+  printf("finished visiting initializer\n");
 
   /**
    * @brief variable definition, we have stored the symbolId
@@ -389,7 +394,9 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
   /**
    * initialize the variable
    */
+  printf("start flatten initializer\n");
   auto results = flatten_helper_.FlattenInitializer(var_def->init_values_.get(), dimensions, initializer::HandleInIR);
+  printf("result size is %zu", results.GetInitializers().size());
 
   // Results are a list of exprnode*, we use the map to get the corresponding value in MLIR,
   // and then we will create the initializer operation to initialize the variable
@@ -416,6 +423,7 @@ void MLIRVisitor::Visit(frontend::ast::GlobalVarDeclNode *global_var_decl) {
 }
 void MLIRVisitor::Visit(frontend::ast::LocalVarDeclNode *local_var_decl) {
   for (const auto &var_def : local_var_decl->defs_) {
+    printf("visit local var def\n");
     var_def->Accept(this);
   }
 }
@@ -456,6 +464,7 @@ void MLIRVisitor::Visit(frontend::ast::FuncDefNode *func_def) {
 
   auto func_def_op = GET_MLIR_CONTEXT()->CreateOperation<middleend::mlir::func::FuncDefOp>(
       GET_MLIR_CONTEXT(), func_def->func_name_, args, func_def->return_type_);
+
   GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(func_def_op);
   GET_MLIR_CONTEXT()->SetCurrentRegion(func_def_op->regions_[0]);
   GET_MLIR_CONTEXT()->SetInsertPoint(func_def_op->regions_[0]->blocks_[0]);
@@ -468,6 +477,7 @@ void MLIRVisitor::Visit(frontend::ast::FuncDefNode *func_def) {
   GET_MLIR_CONTEXT()->SetCurrentFuncDefOp(func_def_op);
   // Visit the body of the function
   func_def->body_->Accept(this);
+  printf("finshed");
 }
 
 }  // namespace middleend

@@ -6,6 +6,7 @@
 namespace middleend::mlir::arithm {
 
 #include "middleend/mlir/dialect/arithm/binaryop.def"
+
 DEFINE_BINARY_OP(Add)
 DEFINE_BINARY_OP(Sub)
 DEFINE_BINARY_OP(Mul)

@@ -14,7 +14,7 @@ class IfOp : public SCFOps {
     return op;
   }
 
-  auto Emit(std::ofstream *out) const -> void override {
+  auto Emit(std::ofstream *out) -> void override {
     *out << Name() << " ";
     operands_[0]->Emit(out);
     *out << " {\n";

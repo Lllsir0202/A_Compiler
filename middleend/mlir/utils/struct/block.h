@@ -10,7 +10,8 @@ class Block {
  public:
   ~Block();
   // Emit the block
-  auto Emit(std::ofstream *out) const -> void;
+  auto Emit(std::ofstream *out) -> void;
+  auto PrintIndent(std::ofstream *out) const -> void;
 
   // Interface to add an operation to the block
   auto AddOperation(Operation *op) -> void { operations_.emplace_back(op); }
@@ -19,6 +20,7 @@ class Block {
   std::vector<Value *> arguments_;  // the arguments of this block
   // The vector of operations in the block
   std::vector<Operation *> operations_;  // the operations in this block
+  int indent_level_ = 0;                 // the indent level of this block, which is used for printing
 };
 
 }  // namespace middleend::mlir

@@ -22,7 +22,7 @@ class Operation {
   // Get the dialect name of the operation
   virtual auto DialectName() const -> std::string = 0;
   virtual ~Operation();
-  virtual auto Emit(std::ofstream *out) const -> void = 0;
+  virtual auto Emit(std::ofstream *out) -> void = 0;
 
   // Operands of the operation
   std::vector<Value *> operands_;  // the operands of this operation
@@ -32,6 +32,12 @@ class Operation {
 
   // Region of the operation
   std::vector<Region *> regions_;  // the regions of this operation, which are blocks
+
+  auto PrintIndent(std::ofstream *out) const -> void;
+  auto IncreaseIndent() -> void { indent_level_++; }
+  auto DecreaseIndent() -> void { indent_level_--; }
+  auto SetIndentLevel(int level) -> void { indent_level_ = level; }
+  int indent_level_;  // the indent level of this operation, which is used for printing
 };
 
 /**
@@ -42,7 +48,7 @@ class ModuleOp : public Operation {
  public:
   auto Name() const -> std::string override { return "module"; }
   auto DialectName() const -> std::string override { return "builtin"; }
-  auto Emit(std::ofstream *out) const -> void override;
+  auto Emit(std::ofstream *out) -> void override;
   static auto Create() -> ModuleOp * {
     auto moduleop = new ModuleOp();
     /**

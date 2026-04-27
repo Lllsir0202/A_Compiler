@@ -14,8 +14,9 @@
     auto GetLHS() -> mlir::Value * { return operands_[0]; }                                               \
     auto GetRHS() -> mlir::Value * { return operands_[1]; }                                               \
     auto GetRes() -> mlir::Value * { return results_[0]; }                                                \
-    auto Emit(std::ofstream *out) const -> void override {                                                \
+    auto Emit(std::ofstream *out) -> void override {                                                      \
       /* Implementation for emitting the operation */                                                     \
+      PrintIndent(out);                                                                                   \
       results_[0]->Emit(out);                                                                             \
       *out << " = " << Name() << " ";                                                                     \
       operands_[0]->Emit(out);                                                                            \

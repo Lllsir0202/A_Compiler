@@ -61,7 +61,7 @@ class Value {
    * @brief Emit the value to the output stream
    * i.e. %x1, %y2, etc.
    */
-  auto Emit(std::ofstream *out) const -> void { *out << "%" << name_ << num_; }
+  auto Emit(std::ofstream *out) -> void { *out << "%" << name_ << num_; }
 
   /**
    * @brief Set the type of this value

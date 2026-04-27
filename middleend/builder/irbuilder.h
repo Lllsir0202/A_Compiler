@@ -2,6 +2,7 @@
 #define MIDDLEEND_BUILDER_IRBUILDER_H
 
 #include <memory>
+#include <stdexcept>
 #include "builder/irvisitor.h"
 namespace middleend {
 /**
@@ -23,7 +24,23 @@ class IRBuilder {
  public:
   virtual ~IRBuilder() = default;
 
-  auto Build() -> void { BuildModule(visitor_.get()); }
+  auto Build() -> int {
+    try {
+      BuildModule(visitor_.get());
+
+    } catch (std::logic_error &e) {
+      compiler_context_->Print(e.what());
+      return 1;
+    } catch (std::runtime_error &e) {
+      compiler_context_->Print(e.what());
+      return 2;
+    } catch (...) {
+      compiler_context_->Print("Unknown error occurred while building IR.");
+      return 3;
+    }
+    compiler_context_ = nullptr;
+    return 0;
+  }
 
   auto BuildModule(IRVisitor *visitor) -> void {
     auto root = compiler_context_->GetAstContext()->GetRootNode();

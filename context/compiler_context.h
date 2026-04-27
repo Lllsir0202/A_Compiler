@@ -41,6 +41,8 @@ class CompilerContext {
   auto Print(const std::string &msg) -> void { (*out_) << msg; }
   auto ReportWarning(frontend::ast::ASTNode *node, const std::string &msg) -> void;
   auto ReportWarning(const std::string &msg) -> void;
+  // Get the output stream
+  auto GetOutputStream() -> std::ofstream * { return out_; }
 
  private:
   // First we control types pointer here

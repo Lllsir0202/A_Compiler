@@ -23,7 +23,8 @@ class VarSetOp : public VarOps {
    * since it is just like low-level ir instruction `store`.
    */
   auto GetRes() -> Value * { return results_[0]; }
-  auto Emit(std::ofstream *out) const -> void override {
+  auto Emit(std::ofstream *out) -> void override {
+    PrintIndent(out);
     results_[0]->Emit(out);
     *out << " = " << Name() << " ";
     operands_[0]->Emit(out);

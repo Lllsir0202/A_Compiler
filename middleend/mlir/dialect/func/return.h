@@ -20,7 +20,8 @@ class ReturnOp : public FuncOps {
     return op;
   }
 
-  auto Emit(std::ofstream *out) const -> void override {
+  auto Emit(std::ofstream *out) -> void override {
+    PrintIndent(out);
     *out << Name();
     if (!operands_.empty()) {
       *out << " ";
