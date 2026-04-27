@@ -321,6 +321,10 @@ void MLIRVisitor::Visit(frontend::ast::AssignStmtNode *assign_stmt) {
   auto lval_ptr = HandleLValExpr(lval_expr, true);
   expr->Accept(this);
   auto value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(expr.get());
+  if (value == nullptr) {
+    compiler_context_->ReportError(expr.get(), "Failed to get value from expression.");
+    return;
+  }
   // Create a var.set operation to set the value of the variables
   auto var_set_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarSetOp>(GET_MLIR_CONTEXT(), lval_ptr, value);
   GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(var_set_op);
@@ -412,6 +416,10 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
     for (const auto &result : results.GetInitializers()) {
       auto init = static_cast<initializer::MLIRInitializer *>(result.get());
       auto value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(init->GetValue());
+      if (value == nullptr) {
+        compiler_context_->ReportError(init->GetValue(), "Failed to get value from initializer expression.");
+        return;
+      }
       if (value->GetType() != entry->type_) {
         auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), value,
                                                                                  value->GetType(), entry->type_);
@@ -426,6 +434,10 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
     if (var_def->init_values_) {
       auto init = static_cast<frontend::ast::InitValNode *>(var_def->init_values_.get());
       auto value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(init->value_.get());
+      if (value == nullptr) {
+        compiler_context_->ReportError(init->value_.get(), "Failed to get value from initializer expression.");
+        return;
+      }
       if (value->GetType() != entry->type_) {
         auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), value,
                                                                                  value->GetType(), entry->type_);
@@ -493,6 +505,10 @@ void MLIRVisitor::Visit(frontend::ast::FuncDefNode *func_def) {
     param->Accept(this);
     auto entry = GET_SYMBOLTABLE_CONTEXT()->GetVarEntryById(param->symbol_id_);
     auto value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromVar(entry);
+    if (value == nullptr) {
+      compiler_context_->ReportError(param.get(), "Failed to get value from function parameter.");
+      return;
+    }
     args.emplace_back(value);
   }
 
