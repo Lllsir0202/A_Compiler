@@ -38,7 +38,7 @@ class VarGetPtrOp : public VarOps {
     operands_[0]->Emit(out);
     // Means has dimensions
     if (operands_.size() > 1) {
-      *out << " ";
+      *out << ": ";
       for (size_t operand_index = 1; operand_index < operands_.size(); operand_index++) {
         operands_[operand_index]->Emit(out);
         if (operand_index != operands_.size() - 1) {
