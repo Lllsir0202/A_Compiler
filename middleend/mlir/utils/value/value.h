@@ -54,6 +54,25 @@ class Value {
       }
     }
   }
+
+  /**
+   * @brief Get all uses
+   */
+  auto GetUses() -> std::vector<Use *> & { return uses_; }
+
+  /**
+   * @brief Replace all uses of this value with another value
+   * i.e. if we have an operation like %1 = base.add %0, and we want to replace all uses of %0 with %2,
+   * then we can call %0->ReplaceAllUsesWith(%2), and then the operation will be changed to %1 = base.add %2
+   * @note: this function will not change the operation that produces this value, so the op_ member of this value will
+   * not be changed, but the operand of the operations that use this value will be changed to the new value.
+   * @example:
+   * %1 = base.add %0, %0
+   * %2 = base.mul %1, %0
+   * if we call %0->ReplaceAllUsesWith(%3), then the operations will be changed to:
+   * %1 = base.add %3, %3
+   * %2 = base.mul %1, %3
+   */
   auto ReplaceAllUsesWith(Value *new_value) -> void;
   static auto Create() -> Value * { return new Value(); }
 

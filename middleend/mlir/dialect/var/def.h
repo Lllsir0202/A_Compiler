@@ -17,7 +17,7 @@ namespace middleend::mlir::var {
  */
 class VarDefOp : public VarOps {
  public:
-  static auto Create(context::MLIRContext *context, std::vector<int> &dimensions, std::vector<Value *> &inits,
+  static auto Create(context::MLIRContext *context, std::vector<int> dimensions, std::vector<Value *> &inits,
                      bool is_global = false, bool is_const = false) -> VarDefOp * {
     auto op = new VarDefOp();
     op->SetUp(context, dimensions, inits, is_global, is_const);

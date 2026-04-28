@@ -76,6 +76,18 @@ class MLIRResourceContext {
   }
 
   /**
+   * @brief Get the entry-value mapping, used for if Operation
+   */
+  auto GetVarMap() -> std::unordered_map<symboltable::VarEntry *, middleend::mlir::Value *> { return var_map_; }
+
+  /**
+   * @brief Set the entry-value mapping, used for if Operation
+   */
+  auto SetVarMap(std::unordered_map<symboltable::VarEntry *, middleend::mlir::Value *> var_map) -> void {
+    var_map_ = std::move(var_map);
+  }
+
+  /**
    * @brief Map an expression node to a value
    */
   auto MapExprToValue(frontend::ast::ExprNode *expr_node, middleend::mlir::Value *value) -> void {

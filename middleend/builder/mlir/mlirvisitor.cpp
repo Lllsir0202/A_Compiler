@@ -6,12 +6,14 @@
 #include "frontend/ast/ast_spec.h"
 #include "middleend/mlir/dialect/arithm/arithm.h"
 #include "middleend/mlir/dialect/func/func.h"
+#include "middleend/mlir/dialect/scf/scf.h"
 #include "middleend/mlir/dialect/var/var.h"
 #include "middleend/mlir/utils/operation/operation.h"
 #include "middleend/mlir/utils/struct/region.h"
 #include "mlir/dialect/arithm/unaryop.h"
 #include "mlir/utils/struct/block.h"
 #include "mlir/utils/value/value.h"
+#include "symboltable_context.h"
 #include "type/type.h"
 #include "utils/flatten/mlirinit.h"
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()
@@ -78,6 +80,10 @@ inline auto MLIRVisitor::HandleLValExpr(frontend::ast::LValExprNode *lval_expr, 
   }
   // Since the variable is defined, we can get its value from the symbol table entry
   auto ptr = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromVar(entry);
+  if (ptr == nullptr) {
+    compiler_context_->ReportError(lval_expr, "variable is not defined in the current context");
+    return nullptr;
+  }
   mlir::var::VarGetPtrOp *var_get_op = nullptr;
   // if the variable is a array
   if (entry->dimensions_.empty()) {
@@ -183,6 +189,8 @@ void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::DeclNode *decl) {
 }
 
 // Expression nodes
+// TODO(loki): implement the `&&` and `||` logical operators
+// After finishing ifOp, since they can be regard as a special ifop
 void MLIRVisitor::Visit(frontend::ast::BinaryExprNode *binary_expr) {
   auto lhs = binary_expr->left_.get();
   lhs->Accept(this);
@@ -338,7 +346,18 @@ void MLIRVisitor::Visit(frontend::ast::IntLiteralExprNode *int_literal) {
     return;
   }
   auto const_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), int_literal->value_);
-  GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(const_op);
+
+  // Insert the constant operation to the function's entry block,
+  // so that the constant operation can be reused in the whole function,
+  // since the constant value is immutable.
+
+  auto func_op = GET_MLIR_CONTEXT()->GetCurrentFuncDefOp();
+  if (func_op == nullptr) {
+    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(const_op);
+  } else {
+    auto entry_block = func_op->GetEntryBlock();
+    entry_block->AddOperation(const_op);
+  }
   const_op->GetRes()->SetType(GET_TYPE_CONTEXT()->GetIntegerType());
   // Map constant value to the constant operation
   GET_MLIR_CONTEXT()->GetResourceContext()->SetConstOpForConstValue(std::to_string(int_literal->value_), const_op);
@@ -415,12 +434,148 @@ void MLIRVisitor::Visit(frontend::ast::ExprStmtNode *expr_stmt) {
   expr->Accept(this);
 }
 
-void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::IfStmtNode *if_stmt) {}
+void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::IfStmtNode *if_stmt) {
+  // Start with cond, it is always execute
+  auto cond = if_stmt->condition_.get();
+  cond->Accept(this);
+  // Generate the bool value for the condition
+  auto cond_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(cond);
+  if (cond_value == nullptr) {
+    compiler_context_->ReportError(cond, "Failed to get value from condition expression.");
+    return;
+  }
+
+  // Since the if statement will change some of the values in the variable map,
+  // We will save the current variable map before visiting the if statement,
+  // and restore it after visiting the if statement(then), and do the same if there is else statement
+  auto var_map = GET_MLIR_CONTEXT()->GetResourceContext()->GetVarMap();
+  // Restore the top region and block
+  auto current_region = GET_MLIR_CONTEXT()->GetCurrentRegion();
+  auto current_block = GET_MLIR_CONTEXT()->GetInsertPoint();
+
+  // Record all variables which are changed in the branch
+  std::vector<symboltable::VarEntry *> changed_vars;
+  // Record IfOp
+  mlir::scf::IfOp *if_op = nullptr;
+
+  // Then need to deal with the then statement
+  auto then_region = new mlir::Region();
+  GET_MLIR_CONTEXT()->SetCurrentRegion(then_region);
+  auto then_block = new mlir::Block();
+  then_region->blocks_.emplace_back(then_block);
+  GET_MLIR_CONTEXT()->SetInsertPoint(then_block);
+  auto then_branch = if_stmt->then_branch_.get();
+  then_branch->Accept(this);
+  // Finish visiting the then statement, need to get the then variable
+  auto then_var_map = GET_MLIR_CONTEXT()->GetResourceContext()->GetVarMap();
+
+  auto else_branch = if_stmt->else_branch_ == nullptr ? nullptr : if_stmt->else_branch_.get();
+
+  if (else_branch == nullptr) {
+    // No else statement, we can just create an if operation and then get yield op
+    // First deal with the yield
+    std::vector<mlir::Value *> yield_values;
+    for (const auto [entry, value] : var_map) {
+      auto then_value = then_var_map[entry];
+      // Collect all variables which are changed in the branch
+      if (then_value != value) {
+        changed_vars.emplace_back(entry);
+        yield_values.emplace_back(then_value);
+      }
+    }
+    // Create the yield operation in the then block
+    /**
+     * @note: yield op has no result
+     */
+    auto yield_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::YieldOp>(GET_MLIR_CONTEXT(), yield_values);
+    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(yield_op);
+    for (size_t i = 0; i < yield_values.size(); ++i) {
+      yield_values[i]->AddUse(yield_op, i);
+    }
+    // Restore the variable map before visiting the else statement
+    GET_MLIR_CONTEXT()->GetResourceContext()->SetVarMap(var_map);
+
+    // Then create the if operation
+    if_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::IfOp>(GET_MLIR_CONTEXT(), changed_vars.size(), cond_value,
+                                                                 then_region, nullptr);
+  } else {
+    GET_MLIR_CONTEXT()->GetResourceContext()->SetVarMap(var_map);
+    // Has else statement, we need to create the else region
+    // and then get the yield op in both then and else block
+    auto else_region = new mlir::Region();
+    GET_MLIR_CONTEXT()->SetCurrentRegion(else_region);
+    auto else_block = new mlir::Block();
+    else_region->blocks_.emplace_back(else_block);
+    GET_MLIR_CONTEXT()->SetInsertPoint(else_block);
+    else_branch->Accept(this);
+    // Finish visiting the else statement
+    auto else_var_map = GET_MLIR_CONTEXT()->GetResourceContext()->GetVarMap();
+
+    std::vector<mlir::Value *> then_yield_values;
+    std::vector<mlir::Value *> else_yield_values;
+    // Collect all variables which are changed in the branch
+    for (const auto [entry, value] : var_map) {
+      auto then_value = then_var_map[entry];
+      auto else_value = else_var_map[entry];
+      if (then_value != else_value) {
+        changed_vars.emplace_back(entry);
+        then_yield_values.emplace_back(then_value);
+        else_yield_values.emplace_back(else_value);
+      }
+      // Since over here, the same value in both then and else
+      // means the value is not changed or set to a constant
+      // We can just set the value in the variable map to the new value
+      if (then_value == else_value && then_value != value) {
+        var_map[entry] = then_value;
+      }
+    }
+
+    // Create the yield operation in the then block
+    auto then_yield_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::YieldOp>(GET_MLIR_CONTEXT(), then_yield_values);
+    GET_MLIR_CONTEXT()->SetCurrentRegion(then_region);
+    GET_MLIR_CONTEXT()->SetInsertPoint(then_block);
+    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(then_yield_op);
+    for (size_t i = 0; i < then_yield_values.size(); ++i) {
+      then_yield_values[i]->AddUse(then_yield_op, i);
+    }
+
+    // Create the yield operation in the else block
+    auto else_yield_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::YieldOp>(GET_MLIR_CONTEXT(), else_yield_values);
+    GET_MLIR_CONTEXT()->SetCurrentRegion(else_region);
+    GET_MLIR_CONTEXT()->SetInsertPoint(else_block);
+    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(else_yield_op);
+    for (size_t i = 0; i < else_yield_values.size(); ++i) {
+      else_yield_values[i]->AddUse(else_yield_op, i);
+    }
+    GET_MLIR_CONTEXT()->GetResourceContext()->SetVarMap(var_map);
+
+    // Then create the if operation
+    if_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::IfOp>(GET_MLIR_CONTEXT(), changed_vars.size(), cond_value,
+                                                                 then_region, else_region);
+  }
+
+  GET_MLIR_CONTEXT()->SetCurrentRegion(current_region);
+  GET_MLIR_CONTEXT()->SetInsertPoint(current_block);
+  GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(if_op);
+
+  /**
+   * @brief Set all changed variables in the YieldOp to the value of the results of if operation
+   */
+  for (size_t i = 0; i < changed_vars.size(); ++i) {
+    auto entry = changed_vars[i];
+    auto original_value = var_map[entry];
+    auto type = original_value->GetType();
+    auto value = if_op->GetResultByIndex(i);
+    value->SetType(type);
+    GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, value);
+  }
+}
+
 void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::WhileStmtNode *while_stmt) {}
 void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::BreakStmtNode *break_stmt) {}
 void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::ContinueStmtNode *continue_stmt) {}
 void MLIRVisitor::Visit(frontend::ast::ReturnStmtNode *return_stmt) {
-  auto expr = return_stmt->expr_.get();
+  auto expr = return_stmt->expr_ == nullptr ? nullptr : return_stmt->expr_.get();
   // Get defined return type
   auto type = GET_MLIR_CONTEXT()->GetCurrentFuncDefOp()->GetReturnType();
 
@@ -442,6 +597,7 @@ void MLIRVisitor::Visit(frontend::ast::ReturnStmtNode *return_stmt) {
     }
     auto return_op = GET_MLIR_CONTEXT()->CreateOperation<middleend::mlir::func::ReturnOp>(GET_MLIR_CONTEXT(),
                                                                                           value->GetType(), value);
+
     GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(return_op);
     value->AddUse(return_op, 0);
   } else {

@@ -58,6 +58,16 @@ class FuncDefOp : public FuncOps {
    */
   auto GetRes() -> mlir::Value * { return results_[0]; }
 
+  /**
+   * @brief Get the entry block
+   */
+  auto GetEntryBlock() -> middleend::mlir::Block * {
+    if (regions_.empty() || regions_[0]->blocks_.empty()) {
+      throw std::runtime_error("The function definition operation has no entry block.");
+    }
+    return regions_[0]->blocks_[0];
+  }
+
  private:
   FuncDefOp() : FuncOps("def"){};
   auto SetUp(context::MLIRContext *context, const std::string &name, std::vector<mlir::Value *> &args,
