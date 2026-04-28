@@ -450,8 +450,8 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
     /**
      * initialize the variable
      */
-    auto results = flatten_helper_.FlattenInitializer(var_def->init_values_.get(), dimensions, initializer::HandleInIR);
-
+    auto results = flatten_helper_.FlattenInitializer(
+        var_def->init_values_ == nullptr ? nullptr : var_def->init_values_.get(), dimensions, initializer::HandleInIR);
     for (const auto &result : results.GetInitializers()) {
       auto init = static_cast<initializer::MLIRInitializer *>(result.get());
       // Since when the init is default initializer,
@@ -509,6 +509,12 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
         GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
         value = cast_op->GetRes();
       }
+      // Add a copy operation to copy the value, since the value may be used in other places, and we don't want to
+      // change the original value
+      auto copy_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CopyOp>(GET_MLIR_CONTEXT(), value);
+      copy_op->GetRes()->SetType(value->GetType());
+      GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(copy_op);
+      value = copy_op->GetRes();
       GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, value);
     } else {
       // Not initialized, provide a default value as `0` but different types

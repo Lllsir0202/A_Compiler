@@ -143,6 +143,12 @@ auto FlattenHelper::FlattenInitializer(frontend::ast::Initializer *init_node, st
   auto reversed_dims = std::vector<int>(dims.rbegin(), dims.rend());
   Object obj(reversed_dims);
 
+  // If the init_node is nullptr, we can just fill the all elements with nullptr
+  if (init_node == nullptr) {
+    ZeroFill(obj, Address(dims), results);
+    return results;
+  }
+
   // Create the initial cursor
   std::vector<frontend::ast::Initializer *> init_list;
   if (!init_node->IsScalar()) {
