@@ -434,7 +434,7 @@ void MLIRVisitor::Visit(frontend::ast::ExprStmtNode *expr_stmt) {
   expr->Accept(this);
 }
 
-void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::IfStmtNode *if_stmt) {
+void MLIRVisitor::Visit(frontend::ast::IfStmtNode *if_stmt) {
   // Start with cond, it is always execute
   auto cond = if_stmt->condition_.get();
   cond->Accept(this);
@@ -525,9 +525,12 @@ void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::IfStmtNode *if_stmt) {
       // Since over here, the same value in both then and else
       // means the value is not changed or set to a constant
       // We can just set the value in the variable map to the new value
-      if (then_value == else_value && then_value != value) {
-        var_map[entry] = then_value;
-      }
+      /**
+       * @note: This will never be the same value since it is SSA form
+       */
+      // if (then_value == else_value && then_value != value) {
+      //   var_map[entry] = then_value;
+      // }
     }
 
     // Create the yield operation in the then block
