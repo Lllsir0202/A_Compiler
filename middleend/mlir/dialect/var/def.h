@@ -32,7 +32,6 @@ class VarDefOp : public VarOps {
      */
     PrintIndent(out);
     results_[0]->Emit(out);
-    *out << " ";
     if (!dimensions_.empty()) {
       for (const auto &dim : dimensions_) {
         *out << "[" << dim << "]";
