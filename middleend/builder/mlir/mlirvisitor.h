@@ -72,11 +72,13 @@ class MLIRVisitor : public IRVisitor {
    * @brief Since the lval expression shall be handled differently in different positions,
    * so we can just provide a helper function to handle the lval expression
    * @param get_ptr whether we want to get the pointer of the variable, which is used for assignment
-   * defaults to false.
+   * @param is_array reference parameter, will be set to true if the lval expression is an array or pointer,
+   * if true: need to insert var.set; otherwise, just need to map the varentry to the value
    * @return the value of the lval expression, which can be either the pointer or the value of the variable
    */
-  inline auto HandleLValExpr(frontend::ast::LValExprNode *lval_expr, bool get_ptr = false) -> mlir::Value *;
+  inline auto HandleLValExpr(frontend::ast::LValExprNode *lval_expr, bool get_ptr, bool &is_array) -> mlir::Value *;
 
+  inline auto MapLValExprToValue(frontend::ast::LValExprNode *lval_expr, mlir::Value *value) -> void;
   utils::flatten::FlattenHelper flatten_helper_;
 };
 

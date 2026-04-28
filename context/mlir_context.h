@@ -130,9 +130,12 @@ class MLIRResourceContext {
   }
 
   /**
-   * @brief Reset const operations
+   * @brief Reset
    */
-  auto ResetConstOps() -> void { const_map_.clear(); }
+  auto Reset() -> void {
+    name_count_map_.clear();
+    const_map_.clear();
+  }
 
  private:
   std::vector<middleend::mlir::Value *> values_;  // all values created by this builder, used for memory management

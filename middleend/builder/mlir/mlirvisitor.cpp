@@ -64,11 +64,13 @@ inline auto MLIRVisitor::HandleUnaryOperator(mlir::Value *operand, frontend::ast
   return result;
 }
 
-inline auto MLIRVisitor::HandleLValExpr(frontend::ast::LValExprNode *lval_expr, bool get_ptr) -> mlir::Value * {
+inline auto MLIRVisitor::HandleLValExpr(frontend::ast::LValExprNode *lval_expr, bool get_ptr,
+                                        bool &is_array) -> mlir::Value * {
   /**
    * @brief The lval expression shall be a variable
    */
   auto symbol_id = lval_expr->symbol_id_;
+  is_array = true;
   auto entry = GET_SYMBOLTABLE_CONTEXT()->GetVarEntryById(symbol_id);
   if (entry == nullptr) {
     compiler_context_->ReportError(lval_expr, "variable is not defined");
@@ -80,34 +82,36 @@ inline auto MLIRVisitor::HandleLValExpr(frontend::ast::LValExprNode *lval_expr, 
   // if the variable is a array
   if (entry->dimensions_.empty()) {
     // Not an array variable, we can directly get the value from the symbol table entry
-    var_get_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetPtrOp>(GET_MLIR_CONTEXT(), ptr);
-    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(var_get_op);
-    GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(lval_expr, var_get_op->GetRes());
-    auto type = entry->type_;
-    /* Add use and set operation which generates the result */
-    ptr->AddUse(var_get_op, 0);
+    // var_get_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetPtrOp>(GET_MLIR_CONTEXT(), ptr);
+    // GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(var_get_op);
+    // GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(lval_expr, var_get_op->GetRes());
+    // auto type = entry->type_;
+    // /* Add use and set operation which generates the result */
+    // ptr->AddUse(var_get_op, 0);
 
-    var_get_op->GetRes()->SetType(type);
-  } else {
-    // Is an array
-    auto indices = std::vector<mlir::Value *>{};
-    for (const auto &index : lval_expr->indices_) {
-      index->Accept(this);
-      auto index_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(index.get());
-      indices.emplace_back(index_value);
-    }
-    var_get_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetPtrOp>(GET_MLIR_CONTEXT(), ptr, indices);
-    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(var_get_op);
-    GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(lval_expr, var_get_op->GetRes());
-    // The type of the lval expression has been calculated in the semantic analysis phase.
-    auto type = lval_expr->GetType();
-    var_get_op->GetRes()->SetType(type);
-    /* Add use and set operation which generates the result */
-    ptr->AddUse(var_get_op, 0);
-    int i = 1;
-    for (const auto &index_value : indices) {
-      index_value->AddUse(var_get_op, i++);
-    }
+    // var_get_op->GetRes()->SetType(type);
+    GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(lval_expr, ptr);
+    is_array = false;
+    return ptr;
+  }
+  // Is an array
+  auto indices = std::vector<mlir::Value *>{};
+  for (const auto &index : lval_expr->indices_) {
+    index->Accept(this);
+    auto index_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(index.get());
+    indices.emplace_back(index_value);
+  }
+  var_get_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetPtrOp>(GET_MLIR_CONTEXT(), ptr, indices);
+  GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(var_get_op);
+  GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(lval_expr, var_get_op->GetRes());
+  // The type of the lval expression has been calculated in the semantic analysis phase.
+  auto type = lval_expr->GetType();
+  var_get_op->GetRes()->SetType(type);
+  /* Add use and set operation which generates the result */
+  ptr->AddUse(var_get_op, 0);
+  int i = 1;
+  for (const auto &index_value : indices) {
+    index_value->AddUse(var_get_op, i++);
   }
   if (get_ptr) {
     GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(lval_expr, var_get_op->GetRes());
@@ -129,6 +133,17 @@ inline auto MLIRVisitor::HandleLValExpr(frontend::ast::LValExprNode *lval_expr, 
   var_get_value_op->GetRes()->SetType(lval_expr->GetType());
   return var_get_value_op->GetRes();
 }
+
+inline auto MLIRVisitor::MapLValExprToValue(frontend::ast::LValExprNode *lval_expr, mlir::Value *value) -> void {
+  auto entry = GET_SYMBOLTABLE_CONTEXT()->GetVarEntryById(lval_expr->symbol_id_);
+  if (entry == nullptr) {
+    compiler_context_->ReportError(lval_expr, "variable is not defined");
+    return;
+  }
+  GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, value);
+  GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(lval_expr, value);
+}
+
 // TODO(loki): implement the MLIRVisitor::Visitor functions to generate MLIR IR
 /**
  * @brief This file is the implementation of the MLIRVisitor class,
@@ -249,7 +264,8 @@ void MLIRVisitor::Visit(frontend::ast::FuncCallExprNode *func_call) {
     if (param->GetType()->GetKind() == type::TypeKind::PTR) {
       // Since if the param is ptr and is not the same as the defined type,
       // it must be a mistake, so we do not need to worry about the cast.
-      auto param_value = HandleLValExpr(static_cast<frontend::ast::LValExprNode *>(param), true);
+      bool is_array;
+      auto param_value = HandleLValExpr(static_cast<frontend::ast::LValExprNode *>(param), true, is_array);
       params.emplace_back(param_value);
     } else {
       param->Accept(this);
@@ -279,7 +295,8 @@ void MLIRVisitor::Visit(frontend::ast::FuncCallExprNode *func_call) {
 }
 
 void MLIRVisitor::Visit(frontend::ast::LValExprNode *lval_expr) {
-  auto res = HandleLValExpr(lval_expr, false);
+  bool is_array;
+  auto res = HandleLValExpr(lval_expr, false, is_array);
   if (res == nullptr) {
     compiler_context_->ReportError(lval_expr, "Failed to handle LVal expression.");
     return;
@@ -333,21 +350,31 @@ void MLIRVisitor::Visit(frontend::ast::AssignStmtNode *assign_stmt) {
   auto &expr = assign_stmt->expr_;
   // Since the lval has been guaranteed to be a LVal expr in parser
   auto lval_expr = static_cast<frontend::ast::LValExprNode *>(lval.get());
-  auto lval_ptr = HandleLValExpr(lval_expr, true);
+  bool is_array;
+  auto lval_ptr = HandleLValExpr(lval_expr, true, is_array);
   expr->Accept(this);
   auto value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(expr.get());
   if (value == nullptr) {
     compiler_context_->ReportError(expr.get(), "Failed to get value from expression.");
     return;
   }
-  // Create a var.set operation to set the value of the variables
-  auto var_set_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarSetOp>(GET_MLIR_CONTEXT(), lval_ptr, value);
-  GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(var_set_op);
-  // It should not generate any value, even though I set the result
-  var_set_op->GetRes()->SetType(GET_TYPE_CONTEXT()->GetUnknownType());
-  // Add use for the value and pointer
-  lval_ptr->AddUse(var_set_op, 0);
-  value->AddUse(var_set_op, 1);
+
+  if (is_array) {  // Create a var.set operation to set the value of the variables
+    auto var_set_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarSetOp>(GET_MLIR_CONTEXT(), lval_ptr, value);
+    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(var_set_op);
+    // It should not generate any value, even though I set the result
+    var_set_op->GetRes()->SetType(GET_TYPE_CONTEXT()->GetUnknownType());
+    // Add use for the value and pointer
+    lval_ptr->AddUse(var_set_op, 0);
+    value->AddUse(var_set_op, 1);
+  } else {
+    // If the lval is not an array, we can just map the lval to the new value
+    // We don't want change the original value of the expr, so we add a operation which is copy the value
+    auto copy_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CopyOp>(GET_MLIR_CONTEXT(), value);
+    copy_op->GetRes()->SetType(value->GetType());
+    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(copy_op);
+    MapLValExprToValue(lval_expr, copy_op->GetRes());
+  }
 }
 
 void MLIRVisitor::Visit(frontend::ast::ExprStmtNode *expr_stmt) {
@@ -413,13 +440,12 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
 
   // Results are a list of exprnode*, we use the map to get the corresponding value in MLIR,
   // and then we will create the initializer operation to initialize the variable
-  std::vector<mlir::Value *> init_values;
-  std::vector<int> dimensions = {};
 
   if (!entry->dimensions_.empty()) {  // Since the definition of a variable, if it has a dimension,
     // the dimensions have been calculated in the semantic phase, and stored in the VarEntry,
     // So we can just get the dimensions from the VarEntry, and use it to create the var.def
-    dimensions = entry->dimensions_;
+    auto dimensions = entry->dimensions_;
+    std::vector<mlir::Value *> init_values;
 
     /**
      * initialize the variable
@@ -456,8 +482,19 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
       }
       init_values.emplace_back(value);
     }
+    /**
+     * since we are defining a variable, we need to create a var.def
+     * and record the varentry->value to result of the var.def,
+     * so that we can deal with the usage of this variable later(espacially in LVal)
+     */
+    // We only call def in array variable definition
+    auto var_def_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarDefOp>(
+        GET_MLIR_CONTEXT(), dimensions, init_values, entry->is_global_, entry->is_const_);
+    GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, var_def_op->GetRes());
+    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(var_def_op);
   } else {
     // If the variable is not an array, just get the value
+    // Probably we should just regard it as a register, since it will not be transferred to a memory alloca
     if (var_def->init_values_) {
       auto init = static_cast<frontend::ast::InitValNode *>(var_def->init_values_.get());
       auto value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(init->value_.get());
@@ -472,21 +509,15 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
         GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
         value = cast_op->GetRes();
       }
-      init_values.emplace_back(value);
+      GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, value);
     } else {
-      init_values.emplace_back(nullptr);
+      // Not initialized, provide a default value as `0` but different types
+      auto default_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), 0);
+      GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(default_op);
+      default_op->GetRes()->SetType(entry->type_);
+      GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, default_op->GetRes());
     }
   }
-
-  /**
-   * since we are defining a variable, we need to create a var.def
-   * and record the varentry->value to result of the var.def,
-   * so that we can deal with the usage of this variable later(espacially in LVal)
-   */
-  auto var_def_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarDefOp>(
-      GET_MLIR_CONTEXT(), dimensions, init_values, entry->is_global_, entry->is_const_);
-  GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, var_def_op->GetRes());
-  GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(var_def_op);
 }
 
 void MLIRVisitor::Visit(frontend::ast::GlobalVarDeclNode *global_var_decl) {
@@ -568,7 +599,7 @@ void MLIRVisitor::Visit(frontend::ast::FuncDefNode *func_def) {
   // Exit a funcdef, set current function definition to nullptr
   GET_MLIR_CONTEXT()->SetCurrentFuncDefOp(nullptr);
   // ConstOp cannot be shared between different functions
-  GET_MLIR_CONTEXT()->GetResourceContext()->ResetConstOps();
+  GET_MLIR_CONTEXT()->GetResourceContext()->Reset();
 }
 
 }  // namespace middleend
