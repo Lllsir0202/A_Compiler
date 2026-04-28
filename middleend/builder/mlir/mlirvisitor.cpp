@@ -196,19 +196,46 @@ void MLIRVisitor::Visit(frontend::ast::BinaryExprNode *binary_expr) {
   auto rhs_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(rhs);
   // Do cast to ensure the type of the left and right operands,
   // are the same with the type we decided in the semantic analysis phase.
-  if (lhs->GetType() != type) {
-    auto cast_op =
-        GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), lhs_value, lhs->GetType(), type);
-    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
-    lhs_value->AddUse(cast_op, 0);
-    lhs_value = cast_op->GetRes();
-  }
-  if (rhs->GetType() != type) {
-    auto cast_op =
-        GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), rhs_value, rhs->GetType(), type);
-    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
-    rhs_value->AddUse(cast_op, 0);
-    rhs_value = cast_op->GetRes();
+
+  // If not logical operator,
+  // we need to ensure the type of the operands
+  // are the same with the type of the binary expression.
+  if (!IsLogicalOperator(binary_expr)) {
+    if (lhs->GetType() != type) {
+      auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), lhs_value,
+                                                                               lhs->GetType(), type);
+      GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
+      lhs_value->AddUse(cast_op, 0);
+      lhs_value = cast_op->GetRes();
+    }
+    if (rhs->GetType() != type) {
+      auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), rhs_value,
+                                                                               rhs->GetType(), type);
+      GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
+      rhs_value->AddUse(cast_op, 0);
+      rhs_value = cast_op->GetRes();
+    }
+  } else {
+    // Is logical operator,
+    // we only need to ensure the type of the operands are the same,
+    // since the result of the logical operator must be i1 type,
+    if (lhs->GetType() != rhs->GetType()) {
+      // if left_prior is true, we will cast the right operand to the left_type
+      auto left_prior =
+          lhs->GetType()->GetKind() == type::TypeKind::FLOAT ||
+          (lhs->GetType()->GetKind() == type::TypeKind::INT && rhs->GetType()->GetKind() == type::TypeKind::BOOL);
+      auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(
+          GET_MLIR_CONTEXT(), left_prior ? rhs_value : lhs_value, left_prior ? rhs->GetType() : lhs->GetType(),
+          left_prior ? lhs->GetType() : rhs->GetType());
+      GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
+      if (left_prior) {
+        rhs_value->AddUse(cast_op, 0);
+        rhs_value = cast_op->GetRes();
+      } else {
+        lhs_value->AddUse(cast_op, 0);
+        lhs_value = cast_op->GetRes();
+      }
+    }
   }
 
   /**

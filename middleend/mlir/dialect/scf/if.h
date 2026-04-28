@@ -34,7 +34,7 @@ class IfOp : public SCFOps {
 
  private:
   IfOp() : SCFOps("if") {}
-  auto SetUp([[maybe_unused]] context::MLIRContext *context, mlir::Value *condition, mlir::Region *then_region,
+  auto SetUp(context::MLIRContext *context, mlir::Value *condition, mlir::Region *then_region,
              mlir::Region *else_region) -> void {
     operands_.reserve(1);
     results_.reserve(1);

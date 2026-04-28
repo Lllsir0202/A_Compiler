@@ -1,6 +1,7 @@
 #ifndef MIDDLEEND_BUILDER_MLIR_MLIRVISITOR_H
 #define MIDDLEEND_BUILDER_MLIR_MLIRVISITOR_H
 #include "ast/ast_expr.h"
+#include "ast/ast_utils.h"
 #include "compiler_context.h"
 #include "flatten/flatten_initializer.h"
 #include "middleend/builder/irvisitor.h"
@@ -66,6 +67,16 @@ class MLIRVisitor : public IRVisitor {
                                    context::CompilerContext *compiler_context) -> mlir::Value *;
   inline auto HandleUnaryOperator(mlir::Value *operand, frontend::ast::UnaryExprNode *unary_expr,
                                   context::CompilerContext *compiler_context) -> mlir::Value *;
+
+  // Helper function for determining whether a binary op is logical operator
+  auto IsLogicalOperator(frontend::ast::BinaryExprNode *binary_expr) -> bool {
+    return binary_expr->operator_ == frontend::ast::OpCode::AND ||
+           binary_expr->operator_ == frontend::ast::OpCode::OR ||
+           binary_expr->operator_ == frontend::ast::OpCode::LESS ||
+           binary_expr->operator_ == frontend::ast::OpCode::LEQUAL ||
+           binary_expr->operator_ == frontend::ast::OpCode::GREATER ||
+           binary_expr->operator_ == frontend::ast::OpCode::GEQUAL;
+  }
 
   // Helper function for handling the lval expression
   /**
