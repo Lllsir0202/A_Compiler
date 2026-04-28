@@ -21,6 +21,7 @@ class FuncDefOp : public FuncOps {
     *out << " = " << Name() << "@" << name_ << "(";
     for (size_t i = 0; i < operands_.size(); ++i) {
       operands_[i]->Emit(out);
+      *out << ": " << operands_[i]->GetType()->ToString();
       if (i != operands_.size() - 1) {
         *out << ", ";
       }
