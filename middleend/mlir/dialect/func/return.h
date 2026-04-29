@@ -26,6 +26,8 @@ class ReturnOp : public FuncOps {
     if (!operands_.empty()) {
       *out << " ";
       operands_[0]->Emit(out);
+      // print return type
+      *out << " : " << operands_[0]->GetType()->ToString();
     }
     *out << "\n";
   }

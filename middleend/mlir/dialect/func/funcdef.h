@@ -1,11 +1,20 @@
 #ifndef MIDDLEEND_MLIR_DIALECT_FUNC_FUNC_DEF_H
 #define MIDDLEEND_MLIR_DIALECT_FUNC_FUNC_DEF_H
 
+#include <unordered_set>
 #include "context/mlir_context.h"
 #include "middleend/mlir/dialect/func/basic.h"
 #include "mlir/utils/struct/region.h"
 #include "mlir/utils/value/value.h"
 namespace middleend::mlir::func {
+
+inline auto IsLibraryFunction(const std::string &func_name) -> bool {
+  static std::unordered_set<std::string> library_functions = {"getint",    "getch",     "getfloat",  "getarray",
+                                                              "getfarray", "putint",    "putch",     "putfloat",
+                                                              "putarray",  "putfarray", "starttime", "stoptime"};
+  return library_functions.count(func_name) > 0;
+}
+
 class FuncDefOp : public FuncOps {
  public:
   static auto Create(context::MLIRContext *context, const std::string &name, std::vector<mlir::Value *> args,
@@ -18,6 +27,8 @@ class FuncDefOp : public FuncOps {
   auto Emit(std::ofstream *out) -> void override {
     PrintIndent(out);
     results_[0]->Emit(out);
+    // Print return type
+    *out << ": " << results_[0]->GetType()->ToString() << " ";
     *out << " = " << Name() << "@" << name_ << "(";
     for (size_t i = 0; i < operands_.size(); ++i) {
       operands_[i]->Emit(out);
@@ -26,7 +37,12 @@ class FuncDefOp : public FuncOps {
         *out << ", ";
       }
     }
-    *out << ") {\n";
+    *out << ") ";
+    if (IsLibraryFunction(name_)) {
+      *out << "(lib)\n";
+      return;
+    }
+    *out << "{\n";
     IncreaseIndent();
     // Emit the body of the function
     for (auto region : regions_) {
