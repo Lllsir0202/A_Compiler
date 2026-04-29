@@ -781,13 +781,10 @@ void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::WhileStmtNode *while_stm
 
    * 2. Then we need to create the ``cond`` region, since we will generate the condition part over there.
    * Meanwhile, we need to collect all variables which are used in the condition part,
-   * and then we can just use this subset to check which ones are accurately accessed in the body.
 
    * 3. Then we need to create the ``body`` region, and generate the body part in this region,
-   * Meanwhile we also need to check all the set of variables which we collected in condition generation,
-   * so that we can know which variables are changed in the body,
-   * and then we can just yield these variables in the body,
-   * and pass them to the condition part in the next iteration.
+   * Meanwhile we also need to collect all variables which are used in the body part,
+   * and then we can get the iter_args by merging the variables we collected in both stages.
 
    * 4. (optional) Since there might be `break` or `continue`, we need to maintain a set,
    * of which collects all the variables which are changed in the body
@@ -982,6 +979,8 @@ void MLIRVisitor::Visit(frontend::ast::FuncDefNode *func_def) {
    *   }
    * }
    */
+  // First reset the constops recorded
+  GET_MLIR_CONTEXT()->GetResourceContext()->Reset();
   std::vector<mlir::Value *> args;
   for (const auto &param : func_def->parameters_) {
     param->Accept(this);
