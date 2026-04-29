@@ -67,12 +67,12 @@ inline auto MLIRVisitor::HandleUnaryOperator(mlir::Value *operand, frontend::ast
 }
 
 inline auto MLIRVisitor::HandleLValExpr(frontend::ast::LValExprNode *lval_expr, bool get_ptr,
-                                        bool &is_array) -> mlir::Value * {
+                                        bool &is_array_or_global) -> mlir::Value * {
   /**
    * @brief The lval expression shall be a variable
    */
   auto symbol_id = lval_expr->symbol_id_;
-  is_array = true;
+  is_array_or_global = true;
   auto entry = GET_SYMBOLTABLE_CONTEXT()->GetVarEntryById(symbol_id);
   if (entry == nullptr) {
     compiler_context_->ReportError(lval_expr, "variable is not defined");
@@ -86,7 +86,7 @@ inline auto MLIRVisitor::HandleLValExpr(frontend::ast::LValExprNode *lval_expr, 
   }
   mlir::var::VarGetPtrOp *var_get_op = nullptr;
   // if the variable is a array
-  if (entry->dimensions_.empty()) {
+  if (entry->dimensions_.empty() && !entry->is_global_) {
     // Not an array variable, we can directly get the value from the symbol table entry
     // var_get_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetPtrOp>(GET_MLIR_CONTEXT(), ptr);
     // GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(var_get_op);
@@ -97,7 +97,7 @@ inline auto MLIRVisitor::HandleLValExpr(frontend::ast::LValExprNode *lval_expr, 
 
     // var_get_op->GetRes()->SetType(type);
     GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(lval_expr, ptr);
-    is_array = false;
+    is_array_or_global = false;
     return ptr;
   }
   // Is an array
@@ -627,7 +627,10 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
   // Results are a list of exprnode*, we use the map to get the corresponding value in MLIR,
   // and then we will create the initializer operation to initialize the variable
 
-  if (!entry->dimensions_.empty()) {  // Since the definition of a variable, if it has a dimension,
+  /**
+   * @note: if the variable is a global variable, we will create a def
+   */
+  if (!entry->dimensions_.empty() || entry->is_global_) {  // Since the definition of a variable, if it has a dimension,
     // the dimensions have been calculated in the semantic phase, and stored in the VarEntry,
     // So we can just get the dimensions from the VarEntry, and use it to create the var.def
     auto dimensions = entry->dimensions_;

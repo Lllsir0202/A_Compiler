@@ -156,6 +156,8 @@ auto FlattenHelper::FlattenInitializer(frontend::ast::Initializer *init_node, st
     for (const auto &init : init_list_node->init_values_) {
       init_list.emplace_back(init.get());
     }
+  } else {
+    init_list.emplace_back(init_node);
   }
   InitCursor cursor(init_list);
   Address address(dims);
