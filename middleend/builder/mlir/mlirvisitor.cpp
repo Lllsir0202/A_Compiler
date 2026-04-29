@@ -905,6 +905,7 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
     // We only call def in array variable definition
     auto var_def_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarDefOp>(
         GET_MLIR_CONTEXT(), dimensions, init_values, entry->is_global_, entry->is_const_);
+    var_def_op->GetRes()->SetType(entry->type_);
     GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, var_def_op->GetRes());
     GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(var_def_op);
   } else {

@@ -37,6 +37,7 @@ class VarDefOp : public VarOps {
         *out << "[" << dim << "]";
       }
     }
+    *out << " " << results_[0]->GetType()->ToString();
     *out << " = ";
     if (is_global_) {
       *out << "global ";
