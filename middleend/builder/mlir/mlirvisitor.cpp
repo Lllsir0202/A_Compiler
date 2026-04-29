@@ -752,7 +752,58 @@ void MLIRVisitor::Visit(frontend::ast::IfStmtNode *if_stmt) {
   }
 }
 
-void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::WhileStmtNode *while_stmt) {}
+void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::WhileStmtNode *while_stmt) {
+  /**
+   * @brief In AST, the while statement is like follows:
+   * while( cond ) {
+   *  body
+   * }
+   * @brief In MLIR, we will translate it to:
+   * scf.while {
+   *  cond_block:
+   *    // generate code for cond
+   *    scf.condition %cond_value, %iter_args
+   *  body_block(%iter_args) :
+   *    // generate code for body
+   *    scf.yield %iter_args
+   * }
+   * @note: we need to get the iter_args throughout the loop
+   * My current design idea is:
+
+   * 1. Before visiting the while statement, save current variable map,
+   * which based on the idea that we only need to consider all variables defined before the while statement
+   * To be more strict, de facto we need to erase local variables defined other local place,
+   * since currently we just simply dealloca the variable entry in the destroy phase.
+   * However, it has no side effect on the correctness of the generation, since we have gone through
+   * the semantic analysis phase, and we have guaranteed that there will be no access to the local variable in other
+   * scope, so it will just add some redundant scan in the variable map, but it will not cause any error in the
+   * generation.
+
+   * 2. Then we need to create the ``cond`` region, since we will generate the condition part over there.
+   * Meanwhile, we need to collect all variables which are used in the condition part,
+   * and then we can just use this subset to check which ones are accurately accessed in the body.
+
+   * 3. Then we need to create the ``body`` region, and generate the body part in this region,
+   * Meanwhile we also need to check all the set of variables which we collected in condition generation,
+   * so that we can know which variables are changed in the body,
+   * and then we can just yield these variables in the body,
+   * and pass them to the condition part in the next iteration.
+
+   * 4. (optional) Since there might be `break` or `continue`, we need to maintain a set,
+   * of which collects all the variables which are changed in the body
+   * as well as the current state of the variable map when `break` or
+   * `continue` is called, so that we can exit the loop and yield the corresponding variables
+   * with the correct value in the `break` or `continue` case.
+
+   * However,
+   * @note Since we don't want to import control flow in this stage,
+   * we need to decide where to exit in `break` and `continue` however,
+   * so perhaps we need to record the whileOp to the breakOp or continueOp,
+   * so that during the lowering phase, we can just lower the breakOp and continueOp to the
+   * corresponding branch(WhileOp stored generated) to exit the loop.
+   * Of course, it will cause more complicated `phi` instruction.
+   */
+}
 void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::BreakStmtNode *break_stmt) {}
 void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::ContinueStmtNode *continue_stmt) {}
 void MLIRVisitor::Visit(frontend::ast::ReturnStmtNode *return_stmt) {
