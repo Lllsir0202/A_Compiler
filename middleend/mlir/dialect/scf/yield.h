@@ -4,6 +4,7 @@
 #include <utility>
 #include "context/mlir_context.h"
 #include "middleend/mlir/dialect/scf/basic.h"
+#include "mlir/utils/value/value.h"
 
 namespace middleend::mlir::scf {
 class YieldOp : public SCFOps {
@@ -14,6 +15,14 @@ class YieldOp : public SCFOps {
     auto op = new YieldOp();
     op->SetUp(context, operands);
     return op;
+  }
+
+  static auto Create(context::MLIRContext *context, mlir::Value *operand) -> YieldOp * {
+    return Create(context, std::vector<mlir::Value *>{operand});
+  }
+
+  static auto Create(context::MLIRContext *context) -> YieldOp * {
+    return Create(context, std::vector<mlir::Value *>{});
   }
 
   auto Emit(std::ofstream *out) -> void override {

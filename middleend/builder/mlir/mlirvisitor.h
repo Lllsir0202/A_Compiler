@@ -78,6 +78,14 @@ class MLIRVisitor : public IRVisitor {
            binary_expr->operator_ == frontend::ast::OpCode::GEQUAL;
   }
 
+  // Helper function for determining whether a binary op is a short-circuit or not.
+  auto IsShortCircuitLogicalOperator(frontend::ast::BinaryExprNode *binary_expr) -> bool {
+    return binary_expr->operator_ == frontend::ast::OpCode::AND || binary_expr->operator_ == frontend::ast::OpCode::OR;
+  }
+
+  // Helper function for handling short-circuit logical operators
+  inline auto HandleShortCircuitOperator(frontend::ast::BinaryExprNode *binary_expr) -> void;
+
   // Helper function for handling the lval expression
   /**
    * @brief Since the lval expression shall be handled differently in different positions,

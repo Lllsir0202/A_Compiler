@@ -18,7 +18,13 @@ DEFINE_BINARY_OP(Less)
 DEFINE_BINARY_OP(LessEqual)
 DEFINE_BINARY_OP(Greater)
 DEFINE_BINARY_OP(GreaterEqual)
-DEFINE_BINARY_OP(And)
-DEFINE_BINARY_OP(Or)
+
+/**
+ * @note Since we need to consider the short-circuiting behavior of the logical operations,
+ * we should use ifOp to implement the logical operations,
+ * instead of directly using the logical operation
+ */
+// DEFINE_BINARY_OP(And)
+// DEFINE_BINARY_OP(Or)
 }  // namespace middleend::mlir::arithm
 #endif

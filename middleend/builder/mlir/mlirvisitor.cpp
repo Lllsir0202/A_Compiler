@@ -40,8 +40,12 @@ inline auto MLIRVisitor::HandleBinaryOperator(mlir::Value *lhs, mlir::Value *rhs
     BINARY_OPERATOR_HANDLER(LEQUAL, LessEqual)
     BINARY_OPERATOR_HANDLER(GREATER, Greater)
     BINARY_OPERATOR_HANDLER(GEQUAL, GreaterEqual)
-    BINARY_OPERATOR_HANDLER(AND, And)
-    BINARY_OPERATOR_HANDLER(OR, Or)
+    // BINARY_OPERATOR_HANDLER(AND, And)
+    // BINARY_OPERATOR_HANDLER(OR, Or)
+    case frontend::ast::OpCode::AND:
+    case frontend::ast::OpCode::OR: {
+      compiler_context->ReportError("Logical operators should not be regarded as normal binary operators");
+    }
     default:
       compiler_context->ReportError("Unsupported binary operator.");
   }
@@ -150,6 +154,125 @@ inline auto MLIRVisitor::MapLValExprToValue(frontend::ast::LValExprNode *lval_ex
   GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(lval_expr, value);
 }
 
+inline auto MLIRVisitor::HandleShortCircuitOperator(frontend::ast::BinaryExprNode *binary_expr) -> void {
+  // TODO(loki): implement the short-circuit logical operator handling
+  if (binary_expr->operator_ == frontend::ast::OpCode::AND) {
+    // Handle the short-circuit logical AND operator
+    // Since the lhs will always be calculated
+    auto lhs_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(binary_expr->left_.get());
+    // not bool , do cast
+    if (lhs_value->type_->GetKind() != type::TypeKind::BOOL) {
+      auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(
+          GET_MLIR_CONTEXT(), lhs_value, lhs_value->type_, GET_TYPE_CONTEXT()->GetBooleanType());
+      lhs_value->AddUse(cast_op, 0);
+      GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
+      lhs_value = cast_op->GetRes();
+    }
+
+    // Record current region and insert point
+    auto current_region = GET_MLIR_CONTEXT()->GetStateContext()->GetCurrentRegion();
+    auto current_insert_point = GET_MLIR_CONTEXT()->GetStateContext()->GetInsertPoint();
+
+    // Create the scf.if operation for short-circuiting
+    auto then_region = new mlir::Region();
+    auto then_block = new mlir::Block();
+    then_region->blocks_.emplace_back(then_block);
+    // Remember to set and reset the current region and insert point while generating the then block
+    GET_MLIR_CONTEXT()->SetCurrentRegion(then_region);
+    GET_MLIR_CONTEXT()->SetInsertPoint(then_block);
+    // Then in then block, generate the rhs value and the result of the binary expression
+    auto rhs = binary_expr->right_.get();
+    rhs->Accept(this);
+    // get rhs result
+    auto rhs_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(rhs);
+
+    if (rhs_value->type_->GetKind() != type::TypeKind::BOOL) {
+      auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(
+          GET_MLIR_CONTEXT(), rhs_value, rhs_value->type_, GET_TYPE_CONTEXT()->GetBooleanType());
+      rhs_value->AddUse(cast_op, 0);
+      GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
+      rhs_value = cast_op->GetRes();
+    }
+
+    // Create the scf.if operation
+    /**
+     * @note:
+     * - cond : the lhs value
+     * - then yield: yield rhs value
+     */
+    // Add yield operation in then block
+    auto yield_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::YieldOp>(GET_MLIR_CONTEXT(), rhs_value);
+    then_block->AddOperation(yield_op);
+    auto if_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::IfOp>(GET_MLIR_CONTEXT(), 1, lhs_value, then_region);
+
+    // Reset region and insert point
+    GET_MLIR_CONTEXT()->SetCurrentRegion(current_region);
+    GET_MLIR_CONTEXT()->SetInsertPoint(current_insert_point);
+    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(if_op);
+    auto result = if_op->GetResultByIndex(0);
+    result->SetType(binary_expr->GetType());
+    // Map the binary expression to the result of the if operation
+    GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(binary_expr, result);
+  } else if (binary_expr->operator_ == frontend::ast::OpCode::OR) {
+    // Handle the short-circuit logical OR operator
+    // Since the lhs will always be calculated
+    auto lhs_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(binary_expr->left_.get());
+    // not bool , do cast
+    if (lhs_value->type_->GetKind() != type::TypeKind::BOOL) {
+      auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(
+          GET_MLIR_CONTEXT(), lhs_value, lhs_value->type_, GET_TYPE_CONTEXT()->GetBooleanType());
+      lhs_value->AddUse(cast_op, 0);
+      GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
+      lhs_value = cast_op->GetRes();
+    }
+
+    // Record current region and insert point
+    auto current_region = GET_MLIR_CONTEXT()->GetStateContext()->GetCurrentRegion();
+    auto current_insert_point = GET_MLIR_CONTEXT()->GetStateContext()->GetInsertPoint();
+
+    // Create the scf.if operation for short-circuiting
+    auto then_region = new mlir::Region();
+    auto then_block = new mlir::Block();
+    then_region->blocks_.emplace_back(then_block);
+    // Remember to set and reset the current region and insert point while generating the then block
+    auto then_yield_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::YieldOp>(GET_MLIR_CONTEXT(), lhs_value);
+    then_block->AddOperation(then_yield_op);
+
+    // in or(||) operater, the rhs will only be calculated when the lhs is false,
+    // which means rhs should be generated in the else block
+    auto else_region = new mlir::Region();
+    auto else_block = new mlir::Block();
+    else_region->blocks_.emplace_back(else_block);
+    GET_MLIR_CONTEXT()->SetCurrentRegion(else_region);
+    GET_MLIR_CONTEXT()->SetInsertPoint(else_block);
+
+    // Generate the rhs value in the else block
+    auto rhs = binary_expr->right_.get();
+    rhs->Accept(this);
+
+    auto rhs_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(rhs);
+    if (rhs_value->type_->GetKind() != type::TypeKind::BOOL) {
+      auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(
+          GET_MLIR_CONTEXT(), rhs_value, rhs_value->type_, GET_TYPE_CONTEXT()->GetBooleanType());
+      rhs_value->AddUse(cast_op, 0);
+      GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
+      rhs_value = cast_op->GetRes();
+    }
+    auto else_yield_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::YieldOp>(GET_MLIR_CONTEXT(), rhs_value);
+    else_block->AddOperation(else_yield_op);
+    auto if_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::IfOp>(GET_MLIR_CONTEXT(), 1, lhs_value, then_region,
+                                                                      else_region);
+    // Reset region and insert point
+    GET_MLIR_CONTEXT()->SetCurrentRegion(current_region);
+    GET_MLIR_CONTEXT()->SetInsertPoint(current_insert_point);
+    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(if_op);
+    auto result = if_op->GetResultByIndex(0);
+    result->SetType(binary_expr->GetType());
+    // Map the binary expression to the result of the if operation
+    GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(binary_expr, result);
+  }
+}
+
 // TODO(loki): implement the MLIRVisitor::Visitor functions to generate MLIR IR
 /**
  * @brief This file is the implementation of the MLIRVisitor class,
@@ -194,6 +317,28 @@ void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::DeclNode *decl) {
 void MLIRVisitor::Visit(frontend::ast::BinaryExprNode *binary_expr) {
   auto lhs = binary_expr->left_.get();
   lhs->Accept(this);
+  // Since the lhs will always be visited, no matter short-circuit or not
+
+  /**
+   * @note: for and(&&) operator, it will be translated to:
+   * scf.if %lhs_value {
+   *  // then block
+   *  scf.yield rhs_value
+   * }
+   * @note for or(||) operator, it will be translated to:
+   * scf.if %lhs_value {
+   *   // then block
+   *   // empty
+   * } else {
+   *   // else block
+   *   scf.yield rhs_value
+   * }
+   */
+  if (IsShortCircuitLogicalOperator(binary_expr)) {
+    HandleShortCircuitOperator(binary_expr);
+    return;
+  }
+
   auto rhs = binary_expr->right_.get();
   rhs->Accept(this);
 
