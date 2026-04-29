@@ -296,3 +296,5 @@ Currently, we have designed the following dialects:
 4. `var` dialect: since we don't want to import memory load and store operations too early, we design the `var` dialect to represent get and set operations for variables, which can be optimized in the high-level dialect and then transferred to the `base` dialect to generate memory load and store operations.
 
 With no doubt, we need to do pattern match and rewrite to do optimizations, so in the future, we probably import more dialects such as `math` dialect to recognize and represent normal math functions, and then we can do some optimizations based on the math properties of these functions.
+
+More detailed design of the higher level dialects and the optimizations might be introduced with the according documents in the future.
