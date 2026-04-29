@@ -173,6 +173,14 @@ inline auto MLIRVisitor::HandleShortCircuitOperator(frontend::ast::BinaryExprNod
     auto current_region = GET_MLIR_CONTEXT()->GetStateContext()->GetCurrentRegion();
     auto current_insert_point = GET_MLIR_CONTEXT()->GetStateContext()->GetInsertPoint();
 
+    // Else region return original value
+    auto else_region = new mlir::Region();
+    auto else_block = new mlir::Block();
+    else_region->blocks_.emplace_back(else_block);
+    auto else_yield_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::YieldOp>(GET_MLIR_CONTEXT(), lhs_value);
+    else_block->AddOperation(else_yield_op);
+    lhs_value->AddUse(else_yield_op, 0);
+
     // Create the scf.if operation for short-circuiting
     auto then_region = new mlir::Region();
     auto then_block = new mlir::Block();
@@ -203,7 +211,8 @@ inline auto MLIRVisitor::HandleShortCircuitOperator(frontend::ast::BinaryExprNod
     // Add yield operation in then block
     auto yield_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::YieldOp>(GET_MLIR_CONTEXT(), rhs_value);
     then_block->AddOperation(yield_op);
-    auto if_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::IfOp>(GET_MLIR_CONTEXT(), 1, lhs_value, then_region);
+    auto if_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::IfOp>(GET_MLIR_CONTEXT(), 1, lhs_value, then_region,
+                                                                      else_region);
 
     // Reset region and insert point
     GET_MLIR_CONTEXT()->SetCurrentRegion(current_region);
@@ -259,9 +268,11 @@ inline auto MLIRVisitor::HandleShortCircuitOperator(frontend::ast::BinaryExprNod
       rhs_value = cast_op->GetRes();
     }
     auto else_yield_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::YieldOp>(GET_MLIR_CONTEXT(), rhs_value);
+    lhs_value->AddUse(else_yield_op, 0);
     else_block->AddOperation(else_yield_op);
     auto if_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::IfOp>(GET_MLIR_CONTEXT(), 1, lhs_value, then_region,
                                                                       else_region);
+
     // Reset region and insert point
     GET_MLIR_CONTEXT()->SetCurrentRegion(current_region);
     GET_MLIR_CONTEXT()->SetInsertPoint(current_insert_point);
@@ -313,7 +324,6 @@ void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::DeclNode *decl) {
 }
 
 // Expression nodes
-// TODO(loki): implement the `&&` and `||` logical operators
 // After finishing ifOp, since they can be regard as a special ifop
 void MLIRVisitor::Visit(frontend::ast::BinaryExprNode *binary_expr) {
   auto lhs = binary_expr->left_.get();
@@ -624,30 +634,41 @@ void MLIRVisitor::Visit(frontend::ast::IfStmtNode *if_stmt) {
   if (else_branch == nullptr) {
     // No else statement, we can just create an if operation and then get yield op
     // First deal with the yield
-    std::vector<mlir::Value *> yield_values;
+    std::vector<mlir::Value *> then_yield_values;
+    std::vector<mlir::Value *> else_yield_values;
     for (const auto [entry, value] : var_map) {
       auto then_value = then_var_map[entry];
       // Collect all variables which are changed in the branch
       if (then_value != value) {
         changed_vars.emplace_back(entry);
-        yield_values.emplace_back(then_value);
+        then_yield_values.emplace_back(then_value);
+        else_yield_values.emplace_back(value);
       }
     }
     // Create the yield operation in the then block
     /**
      * @note: yield op has no result
      */
-    auto yield_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::YieldOp>(GET_MLIR_CONTEXT(), yield_values);
-    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(yield_op);
-    for (size_t i = 0; i < yield_values.size(); ++i) {
-      yield_values[i]->AddUse(yield_op, i);
+    auto then_yield_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::YieldOp>(GET_MLIR_CONTEXT(), then_yield_values);
+    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(then_yield_op);
+
+    // No else statement, we should restore the original value in the value map before then
+    auto else_region = new mlir::Region();
+    auto else_block = new mlir::Block();
+    else_region->blocks_.emplace_back(else_block);
+    auto else_yield_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::YieldOp>(GET_MLIR_CONTEXT(), else_yield_values);
+    else_block->AddOperation(else_yield_op);
+
+    for (size_t i = 0; i < then_yield_values.size(); ++i) {
+      then_yield_values[i]->AddUse(then_yield_op, i);
+      else_yield_values[i]->AddUse(else_yield_op, i);
     }
     // Restore the variable map before visiting the else statement
     GET_MLIR_CONTEXT()->GetResourceContext()->SetVarMap(var_map);
 
     // Then create the if operation
     if_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::IfOp>(GET_MLIR_CONTEXT(), changed_vars.size(), cond_value,
-                                                                 then_region, nullptr);
+                                                                 then_region, else_region);
   } else {
     GET_MLIR_CONTEXT()->GetResourceContext()->SetVarMap(var_map);
     // Has else statement, we need to create the else region

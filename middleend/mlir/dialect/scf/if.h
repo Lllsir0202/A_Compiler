@@ -1,5 +1,6 @@
 #ifndef MIDDLEEND_MLIR_DIALECT_SCF_IF_H
 #define MIDDLEEND_MLIR_DIALECT_SCF_IF_H
+#include <stdexcept>
 #include "context/mlir_context.h"
 #include "middleend/mlir/dialect/scf/basic.h"
 namespace middleend::mlir::scf {
@@ -71,6 +72,13 @@ class IfOp : public SCFOps {
     }
     operands_.emplace_back(condition);
     regions_.emplace_back(then_region);
+    if (else_region == nullptr) {
+      // Currently we will set default yield in else region,
+      // which means there should always be an else region,
+      // even if there is no else statement in the source code.
+      throw std::logic_error("Else region should not be null, since we will set default yield in else region.");
+      return;
+    }
     if (else_region != nullptr) {
       regions_.emplace_back(else_region);
     }
