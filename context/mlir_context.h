@@ -9,6 +9,7 @@
 #include "middleend/mlir/utils/struct/block.h"
 #include "middleend/mlir/utils/struct/region.h"
 #include "middleend/mlir/utils/value/value.h"
+#include "type_context.h"
 
 namespace middleend::mlir::func {
 class FuncDefOp;
@@ -144,10 +145,7 @@ class MLIRResourceContext {
   /**
    * @brief Reset
    */
-  auto Reset() -> void {
-    name_count_map_.clear();
-    const_map_.clear();
-  }
+  auto Reset() -> void { const_map_.clear(); }
 
  private:
   std::vector<middleend::mlir::Value *> values_;  // all values created by this builder, used for memory management
@@ -232,9 +230,10 @@ class MLIRStateContext {
  */
 class MLIRContext {
  public:
-  MLIRContext() {
+  explicit MLIRContext(TypeContext *type_context) {
     resource_context_ = new MLIRResourceContext();
     state_context_ = new MLIRStateContext();
+    type_context_ = type_context;
   }
   ~MLIRContext() {
     delete resource_context_;
@@ -253,6 +252,9 @@ class MLIRContext {
    * @brief Get the state context of the MLIR, which can be used to manage the build state of the MLIR
    */
   auto GetStateContext() -> MLIRStateContext * { return state_context_; }
+
+  // Register Library Functions
+  auto RegisterLibraryFunction() -> void;
 
   /**
    * @brief Provide interfaces to directly create or get something
@@ -290,6 +292,10 @@ class MLIRContext {
  private:
   MLIRResourceContext *resource_context_;
   MLIRStateContext *state_context_;
+
+  // Type context
+  TypeContext *type_context_;
+
   // the module operation of the MLIR, which is the top-level operation
   middleend::mlir::ModuleOp *module_op_ = nullptr;
 };

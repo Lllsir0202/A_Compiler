@@ -25,10 +25,9 @@ class SCFOps : public Operation {
   explicit SCFOps(std::string operator_name) : operator_name_(std::move(operator_name)) {}
 
  private:
-  static const std::string DIALECT_NAME;
+  inline static const std::string DIALECT_NAME = "scf";
   std::string operator_name_;
 };
-const std::string SCFOps::DIALECT_NAME = "scf";
 
 }  // namespace middleend::mlir::scf
 #endif

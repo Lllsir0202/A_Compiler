@@ -286,6 +286,7 @@ void MLIRVisitor::Visit(frontend::ast::RootNode *root) {
   GET_MLIR_CONTEXT()->SetModuleOp(module_op);
   GET_MLIR_CONTEXT()->SetInsertPoint(module_op->regions_[0]->blocks_[0]);
   GET_MLIR_CONTEXT()->SetCurrentRegion(module_op->regions_[0]);
+  GET_MLIR_CONTEXT()->RegisterLibraryFunction();
   /**
    * @brief Visit all children
    */
@@ -437,6 +438,10 @@ void MLIRVisitor::Visit(frontend::ast::FuncCallExprNode *func_call) {
    * we need to get the pointer of the parameter, and then we can use the pointer to build the func.call operation
    */
   auto func_def_op = GET_MLIR_CONTEXT()->GetResourceContext()->GetFuncDefOpFromFuncName(func_name);
+  if (func_def_op == nullptr) {
+    compiler_context_->ReportError(func_call, "function is not defined");
+    return;
+  }
   auto defined_types = func_def_op->GetArguments();
   for (size_t i = 0; i < func_call->params_.size(); ++i) {
     auto param = func_call->params_[i].get();

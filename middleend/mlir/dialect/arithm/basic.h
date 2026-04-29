@@ -31,11 +31,9 @@ class ArithmOps : public Operation {
   explicit ArithmOps(std::string operator_name) : operator_name_(std::move(operator_name)) {}
 
  private:
-  static const std::string DIALECT_NAME;
+  inline static const std::string DIALECT_NAME = "arithm";
   std::string operator_name_;
 };
-
-const std::string ArithmOps::DIALECT_NAME = "arithm";
 
 }  // namespace middleend::mlir::arithm
 #endif

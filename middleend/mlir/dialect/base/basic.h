@@ -26,11 +26,9 @@ class BaseOps : public Operation {
   explicit BaseOps(std::string operator_name) : operator_name_(std::move(operator_name)) {}
 
  private:
-  static const std::string DIALECT_NAME;
+  inline static const std::string DIALECT_NAME = "base";
   std::string operator_name_;
 };
-
-const std::string BaseOps::DIALECT_NAME = "base";
 
 }  // namespace middleend::mlir::base
 

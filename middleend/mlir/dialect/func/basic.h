@@ -24,10 +24,9 @@ class FuncOps : public Operation {
   explicit FuncOps(std::string operator_name) : operator_name_(std::move(operator_name)) {}
 
  private:
-  static const std::string DIALECT_NAME;
+  inline static const std::string DIALECT_NAME = "func";
   std::string operator_name_;
 };
-const std::string FuncOps::DIALECT_NAME = "func";
 
 }  // namespace middleend::mlir::func
 

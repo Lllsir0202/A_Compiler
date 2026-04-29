@@ -23,10 +23,9 @@ class VarOps : public Operation {
   explicit VarOps(std::string operator_name) : operator_name_(std::move(operator_name)) {}
 
  private:
-  static const std::string DIALECT_NAME;
+  inline static const std::string DIALECT_NAME = "var";
   std::string operator_name_;
 };
-const std::string VarOps::DIALECT_NAME = "var";
 
 }  // namespace middleend::mlir::var
 

@@ -23,7 +23,7 @@ class CompilerContext {
     ast_context_ = new AstContext();
     symboltable_context_ = new SymbolTableContext();
     InitializeLibFunc();
-    ir_context_ = new IRContext();
+    ir_context_ = new IRContext(type_context_);
   }
   ~CompilerContext() {
     delete type_context_;
