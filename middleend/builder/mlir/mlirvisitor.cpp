@@ -636,6 +636,13 @@ void MLIRVisitor::Visit(frontend::ast::IfStmtNode *if_stmt) {
     // First deal with the yield
     std::vector<mlir::Value *> then_yield_values;
     std::vector<mlir::Value *> else_yield_values;
+
+    // Since the then statement may def some variables which will not be accessed
+    // in other statements, so we only need to yield the variables
+    // which are changed in the then statement,
+    // and the value of these variables in the else block
+    // should be the same as the original value
+    // before visiting the then statement
     for (const auto [entry, value] : var_map) {
       auto then_value = then_var_map[entry];
       // Collect all variables which are changed in the branch
