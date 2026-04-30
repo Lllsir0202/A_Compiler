@@ -70,8 +70,8 @@ class MLIRVisitor : public IRVisitor {
 
   // Helper function for determining whether a binary op is logical operator
   auto IsLogicalOperator(frontend::ast::BinaryExprNode *binary_expr) -> bool {
-    return binary_expr->operator_ == frontend::ast::OpCode::AND ||
-           binary_expr->operator_ == frontend::ast::OpCode::OR ||
+    return binary_expr->operator_ == frontend::ast::OpCode::EQUAL ||
+           binary_expr->operator_ == frontend::ast::OpCode::NEQUAL ||
            binary_expr->operator_ == frontend::ast::OpCode::LESS ||
            binary_expr->operator_ == frontend::ast::OpCode::LEQUAL ||
            binary_expr->operator_ == frontend::ast::OpCode::GREATER ||

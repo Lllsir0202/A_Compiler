@@ -22,7 +22,7 @@ static int optimization_level = 0;
 // Mark whether regard warnings as errors, default to false
 static bool warnings_as_errors = false;
 
-static const std::unordered_set<std::string> STAGES = {"lexer", "parser", "ast", "llvm", "S", "s"};
+static const std::unordered_set<std::string> STAGES = {"lexer", "parser", "ast", "mlir", "llvm", "S", "s"};
 
 auto static inline ParseArgs(int argc, char *argv[]) -> bool {
   for (int i = 1; i < argc; i++) {
@@ -72,7 +72,7 @@ auto main(int argc, char *argv[]) -> int {
   // Now we use different args to control different Stages
   if (argc <= 1 || !ParseArgs(argc, argv)) {
     std::cerr << "Usage: " << argv[0]
-              << " <input_file> -o <output_file> [-<stage>{lexer, parser, ast, llvm, S/s}] [-O<level>{0,1,2}] "
+              << " <input_file> -o <output_file> [-<stage>{lexer, parser, ast, mlir, llvm, S/s}] [-O<level>{0,1,2}] "
                  "[--Werror|-Werror]"
               << '\n';
     return 1;
@@ -201,7 +201,7 @@ auto main(int argc, char *argv[]) -> int {
     return ret;
   }
 
-  if (stage == "llvm" && ret == 0) {
+  if (stage == "mlir" && ret == 0) {
     stage_ptr = std::make_unique<stages::MLIRStage>(&compiler_context);
     stage_ptr->Run();
     return ret;

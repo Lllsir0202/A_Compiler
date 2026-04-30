@@ -36,6 +36,8 @@ inline auto MLIRVisitor::HandleBinaryOperator(mlir::Value *lhs, mlir::Value *rhs
     BINARY_OPERATOR_HANDLER(MUL, Mul)
     BINARY_OPERATOR_HANDLER(DIV, Div)
     BINARY_OPERATOR_HANDLER(MOD, Mod)
+    BINARY_OPERATOR_HANDLER(EQUAL, Equal)
+    BINARY_OPERATOR_HANDLER(NEQUAL, NotEqual)
     BINARY_OPERATOR_HANDLER(LESS, Less)
     BINARY_OPERATOR_HANDLER(LEQUAL, LessEqual)
     BINARY_OPERATOR_HANDLER(GREATER, Greater)
@@ -45,9 +47,9 @@ inline auto MLIRVisitor::HandleBinaryOperator(mlir::Value *lhs, mlir::Value *rhs
     case frontend::ast::OpCode::AND:
     case frontend::ast::OpCode::OR: {
       compiler_context->ReportError("Logical operators should not be regarded as normal binary operators");
-    }
+    } break;
     default:
-      compiler_context->ReportError("Unsupported binary operator.");
+      compiler_context->ReportError("Unsupported binary operator: " + OpCodeToString(binary_expr->operator_));
   }
   return result;
 }
@@ -64,8 +66,11 @@ inline auto MLIRVisitor::HandleUnaryOperator(mlir::Value *operand, frontend::ast
   switch (unary_expr->operator_) {
     UNARY_OPERATOR_HANDLER(NOT, Not)
     UNARY_OPERATOR_HANDLER(NEGATIVE, Neg)
+    case frontend::ast::OpCode::POSITIVE: {
+      result = operand;
+    } break;
     default:
-      compiler_context->ReportError("Unsupported unary operator.");
+      compiler_context->ReportError("Unsupported unary operator: " + OpCodeToString(unary_expr->operator_));
   }
   return result;
 }
@@ -284,7 +289,6 @@ inline auto MLIRVisitor::HandleShortCircuitOperator(frontend::ast::BinaryExprNod
   }
 }
 
-// TODO(loki): implement the MLIRVisitor::Visitor functions to generate MLIR IR
 /**
  * @brief This file is the implementation of the MLIRVisitor class,
  * which will be used to traverse the AST and generate the MLIR IR.
@@ -408,6 +412,12 @@ void MLIRVisitor::Visit(frontend::ast::BinaryExprNode *binary_expr) {
    * so we can just use the expression node as the key to get the value from the map, and then we can use the value to
    * build the operation for this binary expression
    */
+  if (lhs_value->type_ != rhs_value->type_) {
+    compiler_context_->ReportError(
+        binary_expr, "BinaryOp: LHS and RHS should be the same type, lhs type: " + lhs_value->type_->ToString() +
+                         ", rhs type: " + rhs_value->type_->ToString());
+    return;
+  }
   auto res = HandleBinaryOperator(lhs_value, rhs_value, binary_expr, compiler_context_);
   res->SetType(type);
   GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(binary_expr, res);
@@ -577,6 +587,13 @@ void MLIRVisitor::Visit(frontend::ast::AssignStmtNode *assign_stmt) {
     // If the lval is not an array, we can just map the lval to the new value
     // We don't want change the original value of the expr, so we add a operation which is copy the value
     auto copy_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CopyOp>(GET_MLIR_CONTEXT(), value);
+    if (lval_ptr->type_ != value->type_) {
+      auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), value, value->type_,
+                                                                               lval_ptr->type_);
+      GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
+      value->AddUse(cast_op, 0);
+      value = cast_op->GetRes();
+    }
     copy_op->GetRes()->SetType(value->GetType());
     GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(copy_op);
     MapLValExprToValue(lval_expr, copy_op->GetRes());
@@ -982,38 +999,44 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
     /**
      * initialize the variable
      */
-    auto results = flatten_helper_.FlattenInitializer(
-        var_def->init_values_ == nullptr ? nullptr : var_def->init_values_.get(), dimensions, initializer::HandleInIR);
-    for (const auto &result : results.GetInitializers()) {
-      auto init = static_cast<initializer::MLIRInitializer *>(result.get());
-      // Since when the init is default initializer,
-      // the value in MLIRInitializer is nullptr,
-      // we can just set the init value to nullptr in this case
-      if (init == nullptr) {
-        init_values.emplace_back(nullptr);
-        continue;
+    if (var_def->init_values_ != nullptr) {
+      auto results =
+          flatten_helper_.FlattenInitializer(var_def->init_values_.get(), dimensions, initializer::HandleInIR);
+      for (const auto &result : results.GetInitializers()) {
+        auto init = static_cast<initializer::MLIRInitializer *>(result.get());
+        // Since when the init is default initializer,
+        // the value in MLIRInitializer is nullptr,
+        // we can just set the init value to nullptr in this case
+        if (init == nullptr) {
+          init_values.emplace_back(nullptr);
+          continue;
+        }
+        auto value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(init->GetValue());
+        if (value == nullptr) {
+          compiler_context_->ReportError(init->GetValue(), "Failed to get value from initializer expression.");
+          return;
+        }
+        auto type = entry->type_;
+        // Get the element type of the array
+        // Since we need to make sure that the type of the initiaizer
+        // same as the element type of the array.
+        if (type->GetKind() == type::TypeKind::ARRAY) {
+          type = static_cast<type::ArrayType *>(type)->GetElementType();
+        }
+        if (value->GetType() != type) {
+          auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), value,
+                                                                                   value->GetType(), entry->type_);
+          value->AddUse(cast_op, 0);
+          GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
+          value = cast_op->GetRes();
+        }
+        init_values.emplace_back(value);
       }
-      auto value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(init->GetValue());
-      if (value == nullptr) {
-        compiler_context_->ReportError(init->GetValue(), "Failed to get value from initializer expression.");
-        return;
-      }
-      auto type = entry->type_;
-      // Get the element type of the array
-      // Since we need to make sure that the type of the initiaizer
-      // same as the element type of the array.
-      if (type->GetKind() == type::TypeKind::ARRAY) {
-        type = static_cast<type::ArrayType *>(type)->GetElementType();
-      }
-      if (value->GetType() != type) {
-        auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), value,
-                                                                                 value->GetType(), entry->type_);
-        value->AddUse(cast_op, 0);
-        GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
-        value = cast_op->GetRes();
-      }
-      init_values.emplace_back(value);
     }
+    // Provide empty initializer for the uninitialized variable,
+    // since in C language, the uninitialized variable will be initialized to `0` by default
+    // we will accomplish this by `memset` in the lowering phase.
+
     /**
      * since we are defining a variable, we need to create a var.def
      * and record the varentry->value to result of the var.def,

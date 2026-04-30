@@ -49,6 +49,14 @@ def execute_ast(input, output, opt):
     # print(f"\033[92mAccept \033[0m{input}")
     return 1
     
+def execute_mlir(input, output, opt):
+    """run MLIR-related commands"""
+    result = execute(["timeout", "60", "../../bin/compiler", input, "-mlir", "-o", output, opt])
+    if result.returncode != 0:
+        print(f"\033[93mCompile Error on \033[0m{input}")
+        return 0
+    # print(f"\033[92mAccept \033[0m{input}")
+    return 1
 
 def execute_ir(input, output, opt, stdin, stdout, testout):
     """run IR-related commands"""
@@ -162,6 +170,8 @@ def main():
             output_file = os.path.join(input_folder, f"{name}.out")
             if step == "ast":
                 ac += execute_ast(os.path.join(input_folder, file), os.path.join(output_folder, f"{name}.ast"), opt_arg)
+            elif step == "mlir":
+                ac += execute_mlir(os.path.join(input_folder, file), os.path.join(output_folder, f"{name}.mlir"), opt_arg)
             elif step == "llvm":
                 ac += execute_ir(os.path.join(input_folder, file), os.path.join(output_folder, f"{name}.ll"), opt_arg, input_file if os.path.exists(input_file) else "none", output_file, "tmp.out")
             elif step == "S":

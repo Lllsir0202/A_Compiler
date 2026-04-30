@@ -46,6 +46,9 @@ class VarDefOp : public VarOps {
       *out << "const ";
     }
     *out << Name() << " " << "init: ";
+    if (operands_.empty()) {
+      *out << "default_init";
+    }
     for (size_t i = 0; i < operands_.size(); ++i) {
       auto init = operands_[i];
       if (init != nullptr) {
