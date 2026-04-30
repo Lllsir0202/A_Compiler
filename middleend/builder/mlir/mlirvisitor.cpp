@@ -752,7 +752,7 @@ void MLIRVisitor::Visit(frontend::ast::IfStmtNode *if_stmt) {
   }
 }
 
-void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::WhileStmtNode *while_stmt) {
+void MLIRVisitor::Visit(frontend::ast::WhileStmtNode *while_stmt) {
   /**
    * @brief In AST, the while statement is like follows:
    * while( cond ) {
@@ -800,9 +800,126 @@ void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::WhileStmtNode *while_stm
    * corresponding branch(WhileOp stored generated) to exit the loop.
    * Of course, it will cause more complicated `phi` instruction.
    */
+
+  // Record the current variable map before visiting the while statement
+  auto var_map = GET_MLIR_CONTEXT()->GetResourceContext()->GetVarMap();
+  // Restore the top region and block
+  auto current_region = GET_MLIR_CONTEXT()->GetCurrentRegion();
+  auto current_insert_point = GET_MLIR_CONTEXT()->GetInsertPoint();
+
+  // Enter a loop
+  GET_MLIR_CONTEXT()->GetResourceContext()->EnterLoop();
+
+  // cond region
+  auto cond_region = new mlir::Region();
+  auto cond_block = new mlir::Block();
+  cond_region->blocks_.emplace_back(cond_block);
+  GET_MLIR_CONTEXT()->SetCurrentRegion(cond_region);
+  GET_MLIR_CONTEXT()->SetInsertPoint(cond_block);
+  auto cond = while_stmt->condition_.get();
+  cond->Accept(this);
+
+  // since the condition will not change the value of the variables
+  auto cond_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(cond);
+  if (cond_value == nullptr) {
+    compiler_context_->ReportError(cond, "Failed to get value from condition expression.");
+    return;
+  }
+
+  if (cond_value->GetType()->GetKind() != type::TypeKind::BOOL) {
+    // Do cast to ensure the type of the condition value is boolean
+    auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(
+        GET_MLIR_CONTEXT(), cond_value, cond_value->GetType(), GET_TYPE_CONTEXT()->GetBooleanType());
+    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
+    cond_value->AddUse(cast_op, 0);
+    cond_value = cast_op->GetRes();
+  }
+
+  // Then generate the condition operation
+  auto condition_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::ConditionOp>(GET_MLIR_CONTEXT(), cond_value);
+  GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(condition_op);
+
+  // body region
+  auto body_region = new mlir::Region();
+  auto body_block = new mlir::Block();
+  body_region->blocks_.emplace_back(body_block);
+  GET_MLIR_CONTEXT()->SetCurrentRegion(body_region);
+  GET_MLIR_CONTEXT()->SetInsertPoint(body_block);
+  auto body = while_stmt->body_.get();
+  body->Accept(this);
+
+  // Finish visiting the body statement, we can get the variable map to get loop carried variables
+  auto new_var_map = GET_MLIR_CONTEXT()->GetResourceContext()->GetVarMap();
+  std::vector<symboltable::VarEntry *> iter_args;
+  for (const auto &[entry, value] : var_map) {
+    auto new_value = new_var_map[entry];
+    if (value != new_value) {
+      iter_args.emplace_back(entry);
+    }
+  }
+
+  // Create the yield operation in the body block
+  std::vector<mlir::Value *> yield_values;
+  for (const auto &entry : iter_args) {
+    auto value = new_var_map[entry];
+    yield_values.emplace_back(value);
+  }
+  auto yield_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::YieldOp>(GET_MLIR_CONTEXT(), yield_values);
+  GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(yield_op);
+  for (size_t i = 0; i < yield_values.size(); ++i) {
+    yield_values[i]->AddUse(yield_op, i);
+  }
+
+  // Then create the while operation
+  auto while_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::WhileOp>(GET_MLIR_CONTEXT(), iter_args.size(),
+                                                                          cond_region, body_region);
+
+  GET_MLIR_CONTEXT()->SetCurrentRegion(current_region);
+  GET_MLIR_CONTEXT()->SetInsertPoint(current_insert_point);
+  GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(while_op);
+  // Set the value of the iter_args to the value of the results of while operation
+  for (size_t i = 0; i < iter_args.size(); ++i) {
+    auto entry = iter_args[i];
+    auto value = while_op->GetResultByIndex(i);
+    value->SetType(var_map[entry]->GetType());
+    GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, value);
+  }
+
+  // We need to feed back the iter_args to the condition/break/continue
+  condition_op->SetLoopCarriedVars(iter_args);
+
+  auto break_info = GET_MLIR_CONTEXT()->GetResourceContext()->GetBreakOp();
+  for (auto break_op : break_info) {
+    break_op->SetLoopCarriedVars(iter_args);
+  }
+
+  auto continue_info = GET_MLIR_CONTEXT()->GetResourceContext()->GetContinueOp();
+  for (auto continue_op : continue_info) {
+    continue_op->SetLoopCarriedVars(iter_args);
+  }
+
+  // Exit the loop
+  GET_MLIR_CONTEXT()->GetResourceContext()->ExitLoop();
 }
-void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::BreakStmtNode *break_stmt) {}
-void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::ContinueStmtNode *continue_stmt) {}
+
+void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::BreakStmtNode *break_stmt) {
+  // Create a break op and then wait for the whileop to fill the loop carried variables
+  auto break_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::BreakOp>(GET_MLIR_CONTEXT());
+  GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(break_op);
+  // Record the break op to the resource context, so that we can feed back the loop carried variables after visiting the
+  // while statement
+  GET_MLIR_CONTEXT()->GetResourceContext()->AddBreakOp(break_op);
+}
+
+void MLIRVisitor::Visit([[maybe_unused]] frontend::ast::ContinueStmtNode *continue_stmt) {
+  // Create a continue op and then wait for the whileop to fill the loop carried variables
+  auto continue_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::ContinueOp>(GET_MLIR_CONTEXT());
+  GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(continue_op);
+  // Record the continue op to the resource context, so that we can feed back the loop carried variables after visiting
+  // the while statement
+  GET_MLIR_CONTEXT()->GetResourceContext()->AddContinueOp(continue_op);
+}
+
 void MLIRVisitor::Visit(frontend::ast::ReturnStmtNode *return_stmt) {
   auto expr = return_stmt->expr_ == nullptr ? nullptr : return_stmt->expr_.get();
   // Get defined return type

@@ -68,6 +68,7 @@ class IfOp : public SCFOps {
     results_.reserve(num_results);
     for (size_t i = 0; i < num_results; ++i) {
       auto res = context->CreateValue();
+      res->op_ = this;
       results_.emplace_back(res);
     }
     operands_.emplace_back(condition);

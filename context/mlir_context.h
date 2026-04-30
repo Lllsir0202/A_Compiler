@@ -17,6 +17,11 @@ class FuncDefOp;
 namespace middleend::mlir::arithm {
 class ConstOp;
 }
+namespace middleend::mlir::scf {
+class BreakOp;
+class ContinueOp;
+class WhileOp;
+}  // namespace middleend::mlir::scf
 namespace context {
 /**
  * @brief This class is used to create and manage value
@@ -147,6 +152,67 @@ class MLIRResourceContext {
    */
   auto Reset() -> void { const_map_.clear(); }
 
+  /**
+   * @brief Enter a loop
+   */
+  auto EnterLoop() -> void {
+    break_info_vec_.emplace_back();
+    continue_info_vec_.emplace_back();
+  }
+
+  /**
+   * @brief Exit a loop
+   */
+  auto ExitLoop() -> void {
+    if (break_info_vec_.empty() || continue_info_vec_.empty()) {
+      throw std::logic_error("No loop to exit.");
+    }
+    break_info_vec_.pop_back();
+    continue_info_vec_.pop_back();
+  }
+
+  /**
+   * @brief Map a loop operation to its corresponding break operation, used for break operation to find the
+   * corresponding loop operation
+   */
+  auto AddBreakOp(middleend::mlir::scf::BreakOp *break_op) -> void {
+    if (break_info_vec_.empty()) {
+      throw std::logic_error("No loop to map the break operation to.");
+    }
+    break_info_vec_.back().emplace_back(break_op);
+  }
+
+  /**
+   * @brief Get the break operation mapped to a loop operation
+   */
+  auto GetBreakOp() -> std::vector<middleend::mlir::scf::BreakOp *> {
+    if (break_info_vec_.empty()) {
+      throw std::logic_error("No loop to get the break operation from.");
+    }
+    return break_info_vec_.back();
+  }
+
+  /**
+   * @brief Map a loop operation to its corresponding continue operation, used for continue operation to find the
+   * corresponding loop operation
+   */
+  auto AddContinueOp(middleend::mlir::scf::ContinueOp *continue_op) -> void {
+    if (continue_info_vec_.empty()) {
+      throw std::logic_error("No loop to map the continue operation to.");
+    }
+    continue_info_vec_.back().emplace_back(continue_op);
+  }
+
+  /**
+   * @brief Get the continue operation mapped to a loop operation
+   */
+  auto GetContinueOp() -> std::vector<middleend::mlir::scf::ContinueOp *> {
+    if (continue_info_vec_.empty()) {
+      throw std::logic_error("No loop to get the continue operation from.");
+    }
+    return continue_info_vec_.back();
+  }
+
  private:
   std::vector<middleend::mlir::Value *> values_;  // all values created by this builder, used for memory management
   size_t value_num_ = 0;                          // for generating unique value numbers, i.e. %0, %1, etc.
@@ -171,10 +237,20 @@ class MLIRResourceContext {
    * @brief Since the constant operation can be reused, we can also store the mapping from constant value to the
    * constant operation
    * @note: since the constant value can be of different types, we can use the string representation of the constant
-   * value as the key of the map, and then we can get the corresponding constant operation from the map, so that we can
-   * reuse the constant operation if the same constant value appears again.
+   * value as the key of the map, and then we can get the corresponding constant operation from the map, so that we
+   * can reuse the constant operation if the same constant value appears again.
    */
   std::unordered_map<std::string, middleend::mlir::arithm::ConstOp *> const_map_;
+
+  /**
+   * @brief This vector is used to get break operations
+   */
+  std::vector<std::vector<middleend::mlir::scf::BreakOp *>> break_info_vec_;
+
+  /**
+   * @brief Vector for loop operations to get continue
+   */
+  std::vector<std::vector<middleend::mlir::scf::ContinueOp *>> continue_info_vec_;
 };
 
 /**
@@ -196,7 +272,8 @@ class MLIRStateContext {
   auto GetCurrentRegion() -> middleend::mlir::Region * { return current_region_; }
 
   /**
-   * @brief Interface to set and get the current function definition operation, which is used for control flow building
+   * @brief Interface to set and get the current function definition operation, which is used for control flow
+   * building
    */
   auto SetCurrentFuncDefOp(middleend::mlir::func::FuncDefOp *func_def_op) -> void {
     current_func_def_op_ = func_def_op;
