@@ -17,8 +17,8 @@ class CompilerContext {
   // We can create TypeContext at the beginning since it doesn't depend on anything else
   // and will be used throughout the compilation process.
  public:
-  CompilerContext(std::ifstream *in, std::ofstream *out, bool warnings_as_errors = false)
-      : in_(in), out_(out), warning_as_error_(warnings_as_errors) {
+  CompilerContext(std::ifstream *in, std::ofstream *out, bool warnings_as_errors = false, bool output_region = false)
+      : in_(in), out_(out), warning_as_error_(warnings_as_errors), output_region_(output_region) {
     type_context_ = new TypeContext();
     ast_context_ = new AstContext();
     symboltable_context_ = new SymbolTableContext();
@@ -43,6 +43,8 @@ class CompilerContext {
   auto ReportWarning(const std::string &msg) -> void;
   // Get the output stream
   auto GetOutputStream() -> std::ofstream * { return out_; }
+  // Get the output region flag
+  auto GetOutputRegionFlag() -> bool { return output_region_; }
 
  private:
   // First we control types pointer here
@@ -73,6 +75,10 @@ class CompilerContext {
    * @brief Warning as error flag
    */
   bool warning_as_error_;
+  /**
+   * @brief Output region flag
+   */
+  bool output_region_{};
 };
 
 }  // namespace context
