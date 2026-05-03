@@ -1,3 +1,7 @@
+/**
+ * @brief This file is the implementation of the MLIRVisitor class,
+ * which will be used to traverse the AST and generate the MLIR IR.
+ */
 #include "middleend/builder/mlir/mlirvisitor.h"
 #include <cstddef>
 #include <string>
@@ -353,11 +357,6 @@ inline auto MLIRVisitor::AddDefaultReturn(mlir::func::FuncDefOp *func_def_op) ->
     }
   }
 }
-
-/**
- * @brief This file is the implementation of the MLIRVisitor class,
- * which will be used to traverse the AST and generate the MLIR IR.
- */
 
 // RootNode
 void MLIRVisitor::Visit(frontend::ast::RootNode *root) {
