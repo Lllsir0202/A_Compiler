@@ -352,7 +352,16 @@ class MLIRContext {
     return module_op_;
   }
 
-  auto SetModuleOp(middleend::mlir::ModuleOp *module_op) -> void { module_op_ = module_op; }
+  auto SetModuleOp(middleend::mlir::ModuleOp *module_op) -> void {
+    // Set a new module operation, and delete the old one if it exists to avoid memory leak
+    if (module_op_ != module_op) {
+      delete module_op_;
+    } else {
+      // If the module operation is the same, no need to change.
+      return;
+    }
+    module_op_ = module_op;
+  }
 
   /**
    * @brief Quick interfaces to set and get

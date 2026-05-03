@@ -22,6 +22,13 @@ class Block {
   // The vector of operations in the block
   std::vector<Operation *> operations_;  // the operations in this block
   int indent_level_ = 0;                 // the indent level of this block, which is used for printing
+
+  /**
+   * @brief Used in `base` dialect, decide which block to jump to
+   */
+  int block_id_;            // the unique id of this block, which is used for printing and verification
+  std::string block_name_;  // the name of this block, which is used for printing and verification
+  auto Name() const -> std::string { return "%" + block_name_ + std::to_string(block_id_); }
 };
 
 }  // namespace middleend::mlir

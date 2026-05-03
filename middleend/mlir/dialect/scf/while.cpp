@@ -1,5 +1,7 @@
 #include "middleend/mlir/dialect/scf/while.h"
 #include "context/compiler_context.h"
+#include "middleend/mlir/dialect/scf/condition.h"
+#include "middleend/mlir/dialect/scf/yield.h"
 
 namespace middleend::mlir::scf {
 auto WhileOp::Verify(context::CompilerContext *context) -> bool {
