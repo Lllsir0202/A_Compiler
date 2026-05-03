@@ -1,22 +1,18 @@
 #include "middleend/builder/mlir/mlirvisitor.h"
 #include <cstddef>
 #include <string>
-#include "ast/ast_decl.h"
-#include "ast/ast_expr.h"
-#include "ast/ast_utils.h"
+#include "frontend/ast/ast_decl.h"
+#include "frontend/ast/ast_expr.h"
 #include "frontend/ast/ast_spec.h"
+#include "frontend/ast/ast_utils.h"
 #include "middleend/mlir/dialect/arithm/arithm.h"
 #include "middleend/mlir/dialect/func/func.h"
+#include "middleend/mlir/dialect/func/return.h"
 #include "middleend/mlir/dialect/scf/scf.h"
 #include "middleend/mlir/dialect/var/var.h"
-#include "middleend/mlir/utils/operation/operation.h"
+#include "middleend/mlir/utils/struct/block.h"
 #include "middleend/mlir/utils/struct/region.h"
-#include "mlir/dialect/arithm/unaryop.h"
-#include "mlir/dialect/func/return.h"
-#include "mlir/utils/struct/block.h"
-#include "mlir/utils/value/value.h"
-#include "symboltable_context.h"
-#include "type/type.h"
+#include "middleend/mlir/utils/value/value.h"
 #include "utils/flatten/mlirinit.h"
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()
 #define GET_TYPE_CONTEXT() compiler_context_->GetTypeContext()
