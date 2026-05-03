@@ -95,7 +95,6 @@ class ConstOp : public ArithmOps {
     results_.emplace_back(res);
     res->op_ = this;
   };
-  ;
   std::variant<int, float> const_value_;
 };
 
@@ -127,7 +126,7 @@ class CastOp : public ArithmOps {
     *out << " : " << from_type_->ToString() << " to " << to_type_->ToString() << "\n";
   };
 
-  auto Verify([[maybe_unused]] context::CompilerContext *context) -> bool override {
+  auto Verify(context::CompilerContext *context) -> bool override {
     // Check the number of operands and results
     if (operands_.size() != 1) {
       context->Print("CastOp:operands size should be 1\n");

@@ -21,7 +21,7 @@
       *out << "\n";                                                                         \
     }                                                                                       \
                                                                                             \
-    auto Verify([[maybe_unused]] context::CompilerContext *context) -> bool override {      \
+    auto Verify(context::CompilerContext *context) -> bool override {      \
       if (operands_.size() != 1 || results_.size() != 1) {                                  \
         context->Print("UnaryOp: operand or result size is not correct\n");                 \
         return false;                                                                       \

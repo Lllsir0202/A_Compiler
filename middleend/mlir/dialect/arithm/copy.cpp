@@ -2,7 +2,7 @@
 #include "context/compiler_context.h"
 
 namespace middleend::mlir::arithm {
-auto CopyOp::Verify([[maybe_unused]] context::CompilerContext *context) -> bool {
+auto CopyOp::Verify(context::CompilerContext *context) -> bool {
   // Check the number of operands and results
   if (operands_.size() != 1) {
     context->Print("CopyOp:operand size should be 1\n");

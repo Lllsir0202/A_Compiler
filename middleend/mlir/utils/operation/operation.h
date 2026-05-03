@@ -7,7 +7,8 @@
 
 namespace context {
 class CompilerContext;
-}
+class MLIRContext;
+}  // namespace context
 namespace middleend::mlir {
 class Value;
 class Region;

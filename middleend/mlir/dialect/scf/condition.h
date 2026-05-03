@@ -44,7 +44,7 @@ class ConditionOp : public SCFOps {
     var_map_.clear();
   }
 
-  auto Verify([[maybe_unused]] context::CompilerContext *context) -> bool override;
+  auto Verify(context::CompilerContext *context) -> bool override;
 
  private:
   ConditionOp() : SCFOps("condition"){};

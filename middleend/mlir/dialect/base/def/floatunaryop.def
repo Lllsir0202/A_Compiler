@@ -1,0 +1,58 @@
+/**
+ * @brief Use a macro to define float unary operations.
+ */
+#define DEFINE_FLOATUNARY_OP(NAME, OPNAME)                                                  \
+  class NAME##Op : public BaseOps {                                                         \
+   public:                                                                                  \
+    static auto Create(context::MLIRContext *context, mlir::Value *operand) -> NAME##Op * { \
+      auto op = new NAME##Op();                                                             \
+      op->SetUp(context, operand);                                                          \
+      return op;                                                                            \
+    }                                                                                       \
+    auto GetOperand() -> mlir::Value * { return operands_[0]; }                             \
+    auto GetRes() -> mlir::Value * { return results_[0]; }                                  \
+    auto Emit(std::ofstream *out) -> void override {                                        \
+      /* Implementation for emitting the operation */                                       \
+      PrintIndent(out);                                                                     \
+      results_[0]->Emit(out);                                                               \
+      *out << " = " << Name() << " ";                                                       \
+      operands_[0]->Emit(out);                                                              \
+      *out << "\n";                                                                         \
+    }                                                                                       \
+                                                                                            \
+    auto Verify(context::CompilerContext *context) -> bool override {                       \
+      if (operands_.size() != 1 || results_.size() != 1) {                                  \
+        context->Print("UnaryOp: operand or result size is not correct\n");                 \
+        return false;                                                                       \
+      }                                                                                     \
+      if (results_[0] == nullptr) {                                                         \
+        context->Print("UnaryOp: result is null\n");                                        \
+        return false;                                                                       \
+      }                                                                                     \
+      if (operands_[0] == nullptr) {                                                        \
+        context->Print("UnaryOp: operand is null\n");                                       \
+        return false;                                                                       \
+      }                                                                                     \
+      if (operands_[0]->GetType()->GetKind() != type::TypeKind::FLOAT) {                    \
+        context->Print("UnaryOp: operand type is not float\n");                             \
+        return false;                                                                       \
+      }                                                                                     \
+      if (results_[0]->GetType() == nullptr) {                                              \
+        context->Print("UnaryOp: result type is nullptr\n");                                \
+        return false;                                                                       \
+      }                                                                                     \
+      return true;                                                                          \
+    }                                                                                       \
+                                                                                            \
+   private:                                                                                 \
+    NAME##Op() : BaseOps(#OPNAME) {}                                                        \
+    auto SetUp(context::MLIRContext *context, mlir::Value *operand) -> void {               \
+      /* NAME##Op has one operand and one result */                                         \
+      operands_.reserve(1);                                                                 \
+      results_.reserve(1);                                                                  \
+      operands_.emplace_back(operand);                                                      \
+      auto res = context->CreateValue();                                                    \
+      results_.emplace_back(res);                                                           \
+      res->op_ = this;                                                                      \
+    }                                                                                       \
+  };

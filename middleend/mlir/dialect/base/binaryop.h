@@ -4,7 +4,7 @@
 #include "middleend/mlir/dialect/base/basic.h"
 namespace middleend::mlir::base {
 
-#include "middleend/mlir/dialect/base/intbinaryop.def"
+#include "middleend/mlir/dialect/base/def/intbinaryop.def"
 
 DEFINE_INTBINARY_OP(Add, add)
 DEFINE_INTBINARY_OP(Sub, sub)
@@ -18,7 +18,7 @@ DEFINE_INTBINARY_OP(LessEqual, le)
 DEFINE_INTBINARY_OP(Greater, greater)
 DEFINE_INTBINARY_OP(GreaterEqual, ge)
 
-#include "middleend/mlir/dialect/base/floatbinaryop.def"
+#include "middleend/mlir/dialect/base/def/floatbinaryop.def"
 DEFINE_FLOATBINARY_OP(AddF, addf)
 DEFINE_FLOATBINARY_OP(SubF, subf)
 DEFINE_FLOATBINARY_OP(MulF, mulf)

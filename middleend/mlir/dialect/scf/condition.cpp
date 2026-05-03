@@ -3,7 +3,7 @@
 
 namespace middleend::mlir::scf {
 
-auto ConditionOp::Verify([[maybe_unused]] context::CompilerContext *context) -> bool {
+auto ConditionOp::Verify(context::CompilerContext *context) -> bool {
   for (const auto &operand : operands_) {
     if (operand->GetType() == nullptr) {
       context->Print("ConditionOp: operand has null type\n");

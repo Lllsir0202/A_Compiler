@@ -53,7 +53,7 @@ class FuncDefOp : public FuncOps {
     *out << "}\n";
   }
 
-  auto Verify([[maybe_unused]] context::CompilerContext *context) -> bool override;
+  auto Verify(context::CompilerContext *context) -> bool override;
 
   /**
    * @brief Interface to get the name of the function

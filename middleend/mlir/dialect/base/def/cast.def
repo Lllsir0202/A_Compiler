@@ -1,0 +1,46 @@
+#define DEFINE_CAST_OP(NAME, OP_NAME, OP_TYPE, RESULT_TYPE)                                                         \
+  class NAME##Op : public BaseOps {                                                                                 \
+   public:                                                                                                          \
+    ~NAME##Op() override = default;                                                                                 \
+    static auto Create(context::MLIRContext *context, mlir::Value *value) {                                         \
+      auto op = new NAME##Op();                                                                                     \
+      op->SetUp(context, value);                                                                                    \
+      return op;                                                                                                    \
+    }                                                                                                               \
+                                                                                                                    \
+    auto Emit(std::ofstream *out) -> void override {                                                                \
+      PrintIndent(out);                                                                                             \
+      results_[0]->Emit(out);                                                                                       \
+      *out << " = " << Name() << " ";                                                                               \
+      operands_[0]->Emit(out);                                                                                      \
+      *out << " : " << operands_[0]->GetType()->ToString() << " to " << results_[0]->GetType()->ToString() << "\n"; \
+    }                                                                                                               \
+                                                                                                                    \
+    auto Verify(context::CompilerContext *context) -> bool override {                                               \
+      if (operands_.size() != 1) {                                                                                  \
+        context->Print(#OP_NAME ": operand size should be 1\n");                                                    \
+        return false;                                                                                               \
+      }                                                                                                             \
+      if (results_.size() != 1) {                                                                                   \
+        context->Print(#OP_NAME ": result size should be 1\n");                                                     \
+        return false;                                                                                               \
+      }                                                                                                             \
+      if (operands_[0]->GetType()->GetKind() == type::TypeKind::OP_TYPE &&                                         \
+          results_[0]->GetType()->GetKind() == type::TypeKind::RESULT_TYPE) {                                      \
+        return true;                                                                                                \
+      }                                                                                                             \
+      context->Print(#OP_NAME ": operand or result type is incorrect\n");                                           \
+      return false;                                                                                                 \
+    }                                                                                                               \
+                                                                                                                    \
+   private:                                                                                                         \
+    NAME##Op() : BaseOps(#OP_NAME) {}                                                                               \
+    auto SetUp(context::MLIRContext *context, mlir::Value *value) -> void {                                         \
+      operands_.reserve(1);                                                                                         \
+      results_.reserve(1);                                                                                          \
+      operands_.emplace_back(value);                                                                                \
+      auto res = context->CreateValue();                                                                            \
+      results_.emplace_back(res);                                                                                   \
+      res->op_ = this;                                                                                              \
+    }                                                                                                               \
+  };

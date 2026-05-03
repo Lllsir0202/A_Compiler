@@ -33,7 +33,7 @@ class CopyOp : public ArithmOps {
   }
 
   // Verify the operation
-  auto Verify([[maybe_unused]] context::CompilerContext *context) -> bool override;
+  auto Verify(context::CompilerContext *context) -> bool override;
 
  private:
   CopyOp() : ArithmOps("copy") {}

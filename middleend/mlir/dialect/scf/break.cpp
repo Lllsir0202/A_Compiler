@@ -2,7 +2,7 @@
 #include "context/compiler_context.h"
 
 namespace middleend::mlir::scf {
-auto BreakOp::Verify([[maybe_unused]] context::CompilerContext *context) -> bool {
+auto BreakOp::Verify(context::CompilerContext *context) -> bool {
   for (const auto &operand : operands_) {
     if (operand->GetType() == nullptr) {
       context->Print("BreakOp: operand has null type\n");

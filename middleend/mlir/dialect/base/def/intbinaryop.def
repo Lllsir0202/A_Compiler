@@ -24,7 +24,7 @@
       *out << "\n";                                                                                       \
     }                                                                                                     \
                                                                                                           \
-    auto Verify([[maybe_unused]] context::CompilerContext *context) -> bool override {                    \
+    auto Verify(context::CompilerContext *context) -> bool override {                    \
       /* Implementation for verifying the operation */                                                    \
       if (operands_.size() != 2) {                                                                        \
         context->Print("INTBinaryOp: operand size is not 2\n");                                           \
