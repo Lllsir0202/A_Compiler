@@ -25,6 +25,7 @@ auto PhiOp::Verify(context::CompilerContext *context) -> bool {
     context->Print("PhiOp must have exactly one result");
     return false;
   }
+  auto result_type = results_[0]->GetType();
   for (const auto &[value, block] : incoming_) {
     if (value == nullptr) {
       context->Print("PhiOp incoming value cannot be null");
@@ -32,6 +33,11 @@ auto PhiOp::Verify(context::CompilerContext *context) -> bool {
     }
     if (block == nullptr) {
       context->Print("PhiOp incoming block cannot be null");
+      return false;
+    }
+    // Check all incoming values have the same type as the result value
+    if (result_type != value->GetType()) {
+      context->Print("PhiOp incoming value type must match the result type");
       return false;
     }
   }

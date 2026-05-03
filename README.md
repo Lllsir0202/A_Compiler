@@ -298,3 +298,13 @@ Currently, we have designed the following dialects:
 With no doubt, we need to do pattern match and rewrite to do optimizations, so in the future, we probably import more dialects such as `math` dialect to recognize and represent normal math functions, and then we can do some optimizations based on the math properties of these functions.
 
 More detailed design of the higher level dialects and the optimizations might be introduced with the according documents in the future.
+
+### Low-Level Dialect(Base Dialect)
+Since the `base` dialect is designed to be transfered to the `llvmir` module, it is more close to the structure of the machine code, which can make it easier to generate efficient code. So in the `base` dialect, we will have more low-level operations, mainly focused on transfering the __structured control flow__ to __control flow graph__, as well as importing `br` and `cond_br` operations to represent the control flow.
+
+Moreover, since the `base` dialect is designed to be transfered to the`llvmir` module, we separate some of the operations into different ones based on the type of the operands. 
+
+## Optimization
+Before starting the work of optimization, I will first design the basic idea and principle of optimization in our compiler, and then I will introduce some details about the optimizations we have implemented in the future.
+
+Since the __high-level dialect__ is designed to contain more semantic information, it is more convenient to do optimizations in the high-level dialect, which can be easier to utilize the semantic information to do optimizations especially on the `scf` dialect to do some loop optimizations. 
