@@ -213,6 +213,16 @@ class MLIRResourceContext {
     return continue_info_vec_.back();
   }
 
+  /**
+   * @brief Add a loop operation to the loop info vector, used for future optimization
+   */
+  auto AddLoop(middleend::mlir::scf::WhileOp *while_op) -> void { loop_info_vec_.emplace_back(while_op); }
+
+  /**
+   * @brief Provide interface to get loop
+   */
+  auto GetLoop() -> std::vector<middleend::mlir::scf::WhileOp *> { return loop_info_vec_; }
+
  private:
   std::vector<middleend::mlir::Value *> values_;  // all values created by this builder, used for memory management
   size_t value_num_ = 0;                          // for generating unique value numbers, i.e. %0, %1, etc.
@@ -251,6 +261,11 @@ class MLIRResourceContext {
    * @brief Vector for loop operations to get continue
    */
   std::vector<std::vector<middleend::mlir::scf::ContinueOp *>> continue_info_vec_;
+
+  /**
+   * @brief Record all loops, since it can be more convenient for future optimization
+   */
+  std::vector<middleend::mlir::scf::WhileOp *> loop_info_vec_;
 };
 
 /**

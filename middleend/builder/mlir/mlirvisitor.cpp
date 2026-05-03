@@ -1000,6 +1000,9 @@ void MLIRVisitor::Visit(frontend::ast::WhileStmtNode *while_stmt) {
     continue_op->SetLoopCarriedVars(iter_args);
   }
 
+  // Record whileop
+  GET_MLIR_CONTEXT()->GetResourceContext()->AddLoop(while_op);
+
   // Exit the loop
   GET_MLIR_CONTEXT()->GetResourceContext()->ExitLoop();
 }
