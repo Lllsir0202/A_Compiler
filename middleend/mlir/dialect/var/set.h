@@ -1,8 +1,8 @@
 #ifndef MIDDLEEND_MLIR_DIALECT_VAR_SET_H
 #define MIDDLEEND_MLIR_DIALECT_VAR_SET_H
 
+#include "context/mlir_context.h"
 #include "mlir/dialect/var/basic.h"
-#include "mlir_context.h"
 namespace middleend::mlir::var {
 
 class VarSetOp : public VarOps {
@@ -32,6 +32,8 @@ class VarSetOp : public VarOps {
     operands_[1]->Emit(out);
     *out << "\n";
   }
+
+  auto Verify(context::CompilerContext *context) -> bool override;
 
  private:
   VarSetOp() : VarOps("set") {}

@@ -2,6 +2,7 @@
 #define MIDDLEEND_MLIR_DIALECT_SCF_CONDITION_H
 #include <cstddef>
 #include <vector>
+#include "compiler_context.h"
 #include "context/mlir_context.h"
 #include "middleend/mlir/dialect/scf/basic.h"
 namespace middleend::mlir::scf {
@@ -42,6 +43,8 @@ class ConditionOp : public SCFOps {
 
     var_map_.clear();
   }
+
+  auto Verify([[maybe_unused]] context::CompilerContext *context) -> bool override;
 
  private:
   ConditionOp() : SCFOps("condition"){};

@@ -5,9 +5,13 @@
 #include <vector>
 #include "mlir/utils/struct/block.h"
 
+namespace context {
+class CompilerContext;
+}
 namespace middleend::mlir {
 class Value;
 class Region;
+
 /**
  * @brief Represents an operation in the MLIR
  * this class is the concrete base class for all operations in the MLIR
@@ -24,6 +28,9 @@ class Operation {
   virtual auto DialectName() const -> std::string = 0;
   virtual ~Operation();
   virtual auto Emit(std::ofstream *out) -> void = 0;
+
+  // Provide interface to verify the operation, which will be used to check
+  virtual auto Verify(context::CompilerContext *context) -> bool = 0;
 
   // Operands of the operation
   std::vector<Value *> operands_;  // the operands of this operation
@@ -50,6 +57,7 @@ class ModuleOp : public Operation {
   auto Name() const -> std::string override { return "module"; }
   auto DialectName() const -> std::string override { return "builtin"; }
   auto Emit(std::ofstream *out) -> void override;
+  auto Verify(context::CompilerContext *context) -> bool override;
   static auto Create() -> ModuleOp * {
     auto moduleop = new ModuleOp();
     /**
@@ -70,6 +78,14 @@ class ModuleOp : public Operation {
   ModuleOp() = default;
   auto SetUp() -> void;
 };
+
+// Judge the operation is what kind of operation
+template <typename T>
+auto DynamicOrNull(Operation *op) -> T * {
+  // Since there might be different operations with the same name in different dialects,
+  // so we need
+  return dynamic_cast<T *>(op);
+}
 
 }  // namespace middleend::mlir
 

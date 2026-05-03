@@ -21,6 +21,26 @@
       *out << "\n";                                                                         \
     }                                                                                       \
                                                                                             \
+    auto Verify([[maybe_unused]] context::CompilerContext *context) -> bool override {      \
+      if (operands_.size() != 1 || results_.size() != 1) {                                  \
+        context->Print("UnaryOp: operand or result size is not correct\n");                 \
+        return false;                                                                       \
+      }                                                                                     \
+      if (results_[0] == nullptr) {                                                         \
+        context->Print("UnaryOp: result is null\n");                                        \
+        return false;                                                                       \
+      }                                                                                     \
+      if (operands_[0] == nullptr) {                                                        \
+        context->Print("UnaryOp: operand is null\n");                                       \
+        return false;                                                                       \
+      }                                                                                     \
+      if (results_[0]->GetType() == nullptr) {                                              \
+        context->Print("UnaryOp: result type is nullptr\n");                                \
+        return false;                                                                       \
+      }                                                                                     \
+      return true;                                                                          \
+    }                                                                                       \
+                                                                                            \
    private:                                                                                 \
     NAME##Op() : ArithmOps(#NAME) {}                                                        \
     auto SetUp(context::MLIRContext *context, mlir::Value *operand) -> void {               \

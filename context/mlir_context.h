@@ -4,12 +4,12 @@
 #include <unordered_map>
 #include <vector>
 #include "context/symboltable_context.h"
+#include "context/type_context.h"
 #include "frontend/ast/ast_expr.h"
 #include "middleend/mlir/utils/operation/operation.h"
 #include "middleend/mlir/utils/struct/block.h"
 #include "middleend/mlir/utils/struct/region.h"
 #include "middleend/mlir/utils/value/value.h"
-#include "type_context.h"
 
 namespace middleend::mlir::func {
 class FuncDefOp;

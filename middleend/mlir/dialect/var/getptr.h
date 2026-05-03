@@ -49,6 +49,8 @@ class VarGetPtrOp : public VarOps {
     *out << "\n";
   }
 
+  auto Verify(context::CompilerContext *context) -> bool override;
+
  private:
   VarGetPtrOp() : VarOps("getptr"){};
   auto SetUp(context::MLIRContext *context, Value *ptr, std::vector<Value *> indices = {}) -> void {

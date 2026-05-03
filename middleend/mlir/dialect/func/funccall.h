@@ -26,6 +26,7 @@ class FuncCallOp : public FuncOps {
     *out << ")\n";
   }
 
+  auto Verify(context::CompilerContext *context) -> bool override;
   /**
    * @brief Get the result of the function call
    */

@@ -1,5 +1,6 @@
 #ifndef MIDDLEEND_MLIR_DIALECT_SCF_CONTINUE_H
 #define MIDDLEEND_MLIR_DIALECT_SCF_CONTINUE_H
+#include "compiler_context.h"
 #include "context/mlir_context.h"
 #include "middleend/mlir/dialect/scf/basic.h"
 namespace middleend::mlir::scf {
@@ -40,6 +41,8 @@ class ContinueOp : public SCFOps {
     // Once we set the operands, we can clear the variable map
     var_map_.clear();
   }
+
+  auto Verify(context::CompilerContext *context) -> bool override;
 
  private:
   ContinueOp() : SCFOps("continue"){};

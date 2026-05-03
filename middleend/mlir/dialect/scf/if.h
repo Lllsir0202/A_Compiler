@@ -1,6 +1,7 @@
 #ifndef MIDDLEEND_MLIR_DIALECT_SCF_IF_H
 #define MIDDLEEND_MLIR_DIALECT_SCF_IF_H
 #include <stdexcept>
+#include "compiler_context.h"
 #include "context/mlir_context.h"
 #include "middleend/mlir/dialect/scf/basic.h"
 namespace middleend::mlir::scf {
@@ -59,6 +60,8 @@ class IfOp : public SCFOps {
     }
     return results_[index];
   }
+
+  auto Verify(context::CompilerContext *context) -> bool override;
 
  private:
   IfOp() : SCFOps("if") {}

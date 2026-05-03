@@ -32,6 +32,9 @@ class CopyOp : public ArithmOps {
     *out << "\n";
   }
 
+  // Verify the operation
+  auto Verify([[maybe_unused]] context::CompilerContext *context) -> bool override;
+
  private:
   CopyOp() : ArithmOps("copy") {}
   auto SetUp(context::MLIRContext *context, mlir::Value *value) -> void {

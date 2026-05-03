@@ -1,6 +1,5 @@
 #ifndef MIDDLEEND_MLIR_DIALECT_FUNC_FUNC_DEF_H
 #define MIDDLEEND_MLIR_DIALECT_FUNC_FUNC_DEF_H
-
 #include <unordered_set>
 #include "context/mlir_context.h"
 #include "middleend/mlir/dialect/func/basic.h"
@@ -53,6 +52,8 @@ class FuncDefOp : public FuncOps {
     PrintIndent(out);
     *out << "}\n";
   }
+
+  auto Verify([[maybe_unused]] context::CompilerContext *context) -> bool override;
 
   /**
    * @brief Interface to get the name of the function

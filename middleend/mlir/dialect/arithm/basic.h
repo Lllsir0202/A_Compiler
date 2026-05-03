@@ -21,6 +21,7 @@ class ArithmOps : public Operation {
    */
   auto DialectName() const -> std::string override { return DIALECT_NAME; }
   auto Emit(std::ofstream *out) -> void override = 0;
+  auto Verify(context::CompilerContext *context) -> bool override = 0;
 
   /**
    * @brief identify whether this operation is a commutative operation.

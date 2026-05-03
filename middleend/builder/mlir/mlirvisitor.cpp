@@ -114,14 +114,28 @@ inline auto MLIRVisitor::HandleLValExpr(frontend::ast::LValExprNode *lval_expr, 
   for (const auto &index : lval_expr->indices_) {
     index->Accept(this);
     auto index_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(index.get());
+    if (index_value->GetType()->GetKind() != type::TypeKind::INT) {
+      auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(
+          GET_MLIR_CONTEXT(), index_value, index_value->GetType(), GET_TYPE_CONTEXT()->GetIntegerType());
+      index_value->AddUse(cast_op, 0);
+      GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
+      index_value = cast_op->GetRes();
+    }
     indices.emplace_back(index_value);
   }
+
   var_get_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetPtrOp>(GET_MLIR_CONTEXT(), ptr, indices);
   GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(var_get_op);
   GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(lval_expr, var_get_op->GetRes());
   // The type of the lval expression has been calculated in the semantic analysis phase.
   auto type = lval_expr->GetType();
-  var_get_op->GetRes()->SetType(type);
+  if (type->GetKind() == type::TypeKind::PTR) {
+    // The lval is a pointer, so we can just set the type
+    var_get_op->GetRes()->SetType(type);
+  } else {
+    auto ptr_type = GET_TYPE_CONTEXT()->GetPtrType(type);
+    var_get_op->GetRes()->SetType(ptr_type);
+  }
   /* Add use and set operation which generates the result */
   ptr->AddUse(var_get_op, 0);
   int i = 1;
@@ -516,7 +530,7 @@ void MLIRVisitor::Visit(frontend::ast::IntLiteralExprNode *int_literal) {
     return;
   }
   auto const_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), int_literal->value_);
-
+  const_op->GetRes()->SetType(GET_TYPE_CONTEXT()->GetIntegerType());
   // Insert the constant operation to the function's entry block,
   // so that the constant operation can be reused in the whole function,
   // since the constant value is immutable.
@@ -528,7 +542,7 @@ void MLIRVisitor::Visit(frontend::ast::IntLiteralExprNode *int_literal) {
     auto entry_block = func_op->GetEntryBlock();
     entry_block->AddOperation(const_op);
   }
-  const_op->GetRes()->SetType(GET_TYPE_CONTEXT()->GetIntegerType());
+
   // Map constant value to the constant operation
   GET_MLIR_CONTEXT()->GetResourceContext()->SetConstOpForConstValue(std::to_string(int_literal->value_), const_op);
   // Map the result of the const operation with the int literal ExprNode*
@@ -543,8 +557,20 @@ void MLIRVisitor::Visit(frontend::ast::FloatLiteralExprNode *float_literal) {
     return;
   }
   auto const_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), float_literal->value_);
-  GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(const_op);
   const_op->GetRes()->SetType(GET_TYPE_CONTEXT()->GetFloatType());
+
+  // Insert the constant operation to the function's entry block,
+  // so that the constant operation can be reused in the whole function,
+  // since the constant value is immutable.
+
+  auto func_op = GET_MLIR_CONTEXT()->GetCurrentFuncDefOp();
+  if (func_op == nullptr) {
+    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(const_op);
+  } else {
+    auto entry_block = func_op->GetEntryBlock();
+    entry_block->AddOperation(const_op);
+  }
+
   // Map constant value to the constant operation
   GET_MLIR_CONTEXT()->GetResourceContext()->SetConstOpForConstValue(std::to_string(float_literal->value_), const_op);
   // Map the result of the const operation with the float literal ExprNode*
@@ -584,9 +610,6 @@ void MLIRVisitor::Visit(frontend::ast::AssignStmtNode *assign_stmt) {
     lval_ptr->AddUse(var_set_op, 0);
     value->AddUse(var_set_op, 1);
   } else {
-    // If the lval is not an array, we can just map the lval to the new value
-    // We don't want change the original value of the expr, so we add a operation which is copy the value
-    auto copy_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CopyOp>(GET_MLIR_CONTEXT(), value);
     if (lval_ptr->type_ != value->type_) {
       auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), value, value->type_,
                                                                                lval_ptr->type_);
@@ -594,6 +617,9 @@ void MLIRVisitor::Visit(frontend::ast::AssignStmtNode *assign_stmt) {
       value->AddUse(cast_op, 0);
       value = cast_op->GetRes();
     }
+    // If the lval is not an array, we can just map the lval to the new value
+    // We don't want change the original value of the expr, so we add a operation which is copy the value
+    auto copy_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CopyOp>(GET_MLIR_CONTEXT(), value);
     copy_op->GetRes()->SetType(value->GetType());
     GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(copy_op);
     MapLValExprToValue(lval_expr, copy_op->GetRes());
@@ -620,6 +646,14 @@ void MLIRVisitor::Visit(frontend::ast::IfStmtNode *if_stmt) {
   if (cond_value == nullptr) {
     compiler_context_->ReportError(cond, "Failed to get value from condition expression.");
     return;
+  }
+
+  if (cond_value->type_->GetKind() != type::TypeKind::BOOL) {
+    auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(
+        GET_MLIR_CONTEXT(), cond_value, cond_value->type_, GET_TYPE_CONTEXT()->GetBooleanType());
+    cond_value->AddUse(cast_op, 0);
+    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
+    cond_value = cast_op->GetRes();
   }
 
   // Since the if statement will change some of the values in the variable map,
@@ -1074,9 +1108,20 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
       GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, value);
     } else {
       // Not initialized, provide a default value as `0` but different types
-      auto default_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), 0);
+      mlir::arithm::ConstOp *default_op;
+      // Then entry type should be integer or float.
+      if (entry->type_->GetKind() == type::TypeKind::INT) {
+        default_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), 0);
+        default_op->GetRes()->SetType(entry->type_);
+      } else if (entry->type_->GetKind() == type::TypeKind::FLOAT) {
+        default_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), 0.0F);
+        default_op->GetRes()->SetType(entry->type_);
+      } else {
+        compiler_context_->ReportError(var_def, "Unsupported variable type for default initializer.");
+        return;
+      }
+
       GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(default_op);
-      default_op->GetRes()->SetType(entry->type_);
       GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, default_op->GetRes());
     }
   }

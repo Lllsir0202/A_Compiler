@@ -5,6 +5,7 @@
 #include "builder/mlir/mlirbuilder.h"
 #include "context/compiler_context.h"
 #include "frontend/frontend.h"
+#include "middleend/mlir/verifer/verifer.h"
 #include "mlir/mlir_stage.h"
 #include "stages/ast/ast_stage.h"
 #include "stages/lexer/lexer_stage.h"
@@ -199,6 +200,13 @@ auto main(int argc, char *argv[]) -> int {
   if (ret != 0) {
     std::cerr << "Error: MLIR building failed with error code " << ret << '\n';
     return ret;
+  }
+
+  // Verify the MLIR module
+  auto module_op = compiler_context.GetIRContext()->GetMLIRContext()->GetModuleOp();
+  auto mlir_verifier = std::make_unique<middleend::mlir::verifier::MLIRVerifier>(module_op, &compiler_context);
+  if (!mlir_verifier->Verify()) {
+    return 1;
   }
 
   if (stage == "mlir" && ret == 0) {

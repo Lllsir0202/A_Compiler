@@ -1,7 +1,7 @@
 #ifndef MIDDLEEND_MLIR_DIALECT_VAR_GET_H
 #define MIDDLEEND_MLIR_DIALECT_VAR_GET_H
+#include "context/mlir_context.h"
 #include "middleend/mlir/dialect/var/basic.h"
-#include "mlir_context.h"
 namespace middleend::mlir::var {
 /**
  * @brief This operation is used to get the value of a variable defined before,
@@ -32,6 +32,8 @@ class VarGetValOp : public VarOps {
     operands_[0]->Emit(out);
     *out << "\n";
   }
+
+  auto Verify(context::CompilerContext *context) -> bool override;
 
  private:
   VarGetValOp() : VarOps("getval"){};

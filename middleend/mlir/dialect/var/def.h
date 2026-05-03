@@ -2,6 +2,7 @@
 #define MIDDLEEND_MLIR_DIALECT_VAR_DEF_H
 #include <cstddef>
 #include <fstream>
+#include "compiler_context.h"
 #include "middleend/mlir/dialect/var/basic.h"
 #include "mlir/utils/value/value.h"
 #include "mlir_context.h"
@@ -62,6 +63,8 @@ class VarDefOp : public VarOps {
     }
     *out << "\n";
   }
+
+  auto Verify(context::CompilerContext *context) -> bool override;
 
  private:
   VarDefOp() : VarOps("def") {}

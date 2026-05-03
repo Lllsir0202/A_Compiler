@@ -2,8 +2,12 @@
 #define MIDDLEEND_MLIR_DIALECT_SCF_WHILE_H
 
 #include <stdexcept>
+#include "compiler_context.h"
 #include "context/mlir_context.h"
 #include "middleend/mlir/dialect/scf/basic.h"
+#include "mlir/dialect/scf/condition.h"
+#include "mlir/dialect/scf/yield.h"
+#include "mlir/utils/operation/operation.h"
 namespace middleend::mlir::scf {
 class WhileOp : public SCFOps {
  public:
@@ -40,6 +44,7 @@ class WhileOp : public SCFOps {
     *out << "}\n";
   }
 
+  auto Verify([[maybe_unused]] context::CompilerContext *context) -> bool override;
   // Get the condition region
   auto GetCondRegion() -> mlir::Region * { return regions_[0]; }
 

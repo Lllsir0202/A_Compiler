@@ -6,30 +6,6 @@ namespace middleend::mlir::base {
 
 class AddOp : public BaseOps {
  public:
-  ~AddOp() override = default;
-  static auto Create(context::MLIRContext *context, middleend::mlir::Value *lhs,
-                     middleend::mlir::Value *rhs) -> AddOp * {
-    auto op = new AddOp();
-    op->SetUp(context, lhs, rhs);
-    return op;
-  }
-
-  auto Emit(std::ofstream *out) -> void override {
-    *out << "  " << Name() << " " << operands_[0]->num_ << ", " << operands_[1]->num_ << "\n";
-  }
-
-  auto GetLhs() -> middleend::mlir::Value * { return operands_[0]; }
-  auto GetRhs() -> middleend::mlir::Value * { return operands_[1]; }
-  auto GetRes() -> middleend::mlir::Value * { return results_[0]; }
-
- private:
-  AddOp() : BaseOps("add") {}
-  auto SetUp([[maybe_unused]] context::MLIRContext *context, middleend::mlir::Value *lhs,
-             middleend::mlir::Value *rhs) -> void {
-    operands_.reserve(2);
-    operands_.emplace_back(lhs);
-    operands_.emplace_back(rhs);
-  }
 };
 
 class MulOp : public BaseOps {

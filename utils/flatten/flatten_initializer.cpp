@@ -138,14 +138,14 @@ void FlattenHelper::InitObject(const Object &obj, InitCursor &cursor, Address ad
 auto FlattenHelper::FlattenInitializer(frontend::ast::Initializer *init_node, std::vector<int> &dims,
                                        LeafHandle function_pointer) -> initializer::ArrayInitializer {
   // Create the results array
-  initializer::ArrayInitializer results;
+  initializer::ArrayInitializer results{};
   // Create the initial object
   auto reversed_dims = std::vector<int>(dims.rbegin(), dims.rend());
   Object obj(reversed_dims);
 
-  // If the init_node is nullptr, we can just fill the all elements with nullptr
+  // If the init_node is nullptr,
+  // we can just return an empty results, which means the results will be filled with default value
   if (init_node == nullptr) {
-    ZeroFill(obj, Address(dims), results);
     return results;
   }
 

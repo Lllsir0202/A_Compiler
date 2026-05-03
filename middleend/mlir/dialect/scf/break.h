@@ -27,6 +27,8 @@ class BreakOp : public SCFOps {
     *out << "\n";
   }
 
+  auto Verify(context::CompilerContext *context) -> bool override;
+
   // SetUp the loop-carried variables for the break operation
   auto SetLoopCarriedVars(const std::vector<symboltable::VarEntry *> &changed_vars) -> void {
     // Set them as the oeprands of the break operation

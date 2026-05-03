@@ -32,6 +32,8 @@ class ReturnOp : public FuncOps {
     *out << "\n";
   }
 
+  auto Verify(context::CompilerContext *context) -> bool override;
+
   /**
    * @brief Get the return value of the return operation, if there is no return value, return nullptr
    */

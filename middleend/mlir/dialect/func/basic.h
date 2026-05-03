@@ -2,7 +2,6 @@
 #define MIDDLEEND_MLIR_DIALECT_FUNC_BASIC_H
 
 #include <utility>
-
 #include "middleend/mlir/utils/operation/operation.h"
 namespace middleend::mlir::func {
 class FuncOps : public Operation {

@@ -1,14 +1,16 @@
 #ifndef MIDDLEEND_MLIR_DIALECT_ARITHM_UNARYOP_H
 #define MIDDLEEND_MLIR_DIALECT_ARITHM_UNARYOP_H
 #include <variant>
+#include "compiler_context.h"
 #include "context/mlir_context.h"
 #include "middleend/mlir/dialect/arithm/basic.h"
 #include "middleend/mlir/utils/value/value.h"
 #include "mlir_context.h"
+#include "type/type.h"
 
 namespace middleend::mlir::arithm {
 
-#include "middleend/mlir/dialect//arithm/unaryop.def"
+#include "middleend/mlir/dialect/arithm/unaryop.def"
 
 DEFINE_UNARY_OP(Neg)
 DEFINE_UNARY_OP(Not)
@@ -46,6 +48,35 @@ class ConstOp : public ArithmOps {
       *out << std::get<float>(const_value_);
     }
     *out << "\n";
+  }
+
+  auto Verify(context::CompilerContext *context) -> bool override {
+    // Check the number of operands and results
+    if (!operands_.empty()) {
+      context->Print("ConstOp:operand should be empty\n");
+      return false;
+    }
+    if (results_.size() != 1) {
+      context->Print("ConstOp:results size should be 1\n");
+      return false;
+    }
+    // Check the type of the result, it should be int or float
+    if (results_[0]->type_->GetKind() == type::TypeKind::INT) {
+      if (!std::holds_alternative<int>(const_value_)) {
+        context->Print("ConstOp: result type is not same as constant value\n");
+        return false;
+      }
+      return true;
+    }
+    if (results_[0]->type_->GetKind() == type::TypeKind::FLOAT) {
+      if (!std::holds_alternative<float>(const_value_)) {
+        context->Print("ConstOp: result type is not same as constant value\n");
+        return false;
+      }
+      return true;
+    }
+    context->Print("ConstOp: result type is invalid\n");
+    return false;
   }
 
  private:
@@ -95,6 +126,24 @@ class CastOp : public ArithmOps {
     operands_[0]->Emit(out);
     *out << " : " << from_type_->ToString() << " to " << to_type_->ToString() << "\n";
   };
+
+  auto Verify([[maybe_unused]] context::CompilerContext *context) -> bool override {
+    // Check the number of operands and results
+    if (operands_.size() != 1) {
+      context->Print("CastOp:operands size should be 1\n");
+      return false;
+    }
+    if (results_.size() != 1) {
+      context->Print("CastOp:results size should be 1\n");
+      return false;
+    }
+    // Check the type of the operand and result, they should be the same
+    if (operands_[0]->GetType() == from_type_ && results_[0]->GetType() == to_type_) {
+      return true;
+    }
+    context->Print("CastOp: operand or result type is incorrect\n");
+    return false;
+  }
 
  private:
   CastOp() : ArithmOps("cast") {}

@@ -76,4 +76,24 @@ auto ModuleOp::Emit(std::ofstream *out) -> void {
   *out << "}\n";
 }
 
+auto ModuleOp::Verify(context::CompilerContext *context) -> bool {
+  // Verify the module operation
+  // First the module operation should have only one region and one block
+  if (regions_.size() != 1) {
+    return false;
+  }
+  auto region = regions_[0];
+  if (region->blocks_.size() != 1) {
+    return false;
+  }
+  // Then verify the operations in the block
+  auto block = region->blocks_[0];
+  for (auto op : block->operations_) {
+    if (!op->Verify(context)) {
+      return false;  // If any operation is not valid, the module operation is not valid
+    }
+  }
+  return true;  // If all operations are valid, the module operation is valid
+}
+
 }  // namespace middleend::mlir

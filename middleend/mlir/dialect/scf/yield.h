@@ -2,6 +2,7 @@
 #define MIDDLEEND_MLIR_DIALECT_SCF_YIELD_H
 
 #include <utility>
+#include "compiler_context.h"
 #include "context/mlir_context.h"
 #include "middleend/mlir/dialect/scf/basic.h"
 #include "mlir/utils/value/value.h"
@@ -44,6 +45,8 @@ class YieldOp : public SCFOps {
    * @brief Get Operands
    */
   auto GetOperands() -> std::vector<mlir::Value *> & { return operands_; }
+
+  auto Verify(context::CompilerContext *context) -> bool override;
 
  private:
   YieldOp() : SCFOps("yield") {}
