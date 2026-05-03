@@ -86,6 +86,9 @@ class MLIRVisitor : public IRVisitor {
   // Helper function for handling short-circuit logical operators
   inline auto HandleShortCircuitOperator(frontend::ast::BinaryExprNode *binary_expr) -> void;
 
+  // Helper function for handling adding return in the end of function definition
+  inline auto AddDefaultReturn(mlir::func::FuncDefOp *func_def_op) -> void;
+
   // Helper function for handling the lval expression
   /**
    * @brief Since the lval expression shall be handled differently in different positions,

@@ -1,8 +1,8 @@
 /**
- * @brief Since most of the binary operations have the same structure,
- * we can use a macro to define these binary operations
+ * @brief Since most of the unary operations have the same structure,
+ * we can use a macro to define these unary operations
  */
-#define DEFINE_UNARY_OP(NAME)                                                               \
+#define DEFINE_UNARY_OP(NAME, OPNAME)                                                       \
   class NAME##Op : public ArithmOps {                                                       \
    public:                                                                                  \
     static auto Create(context::MLIRContext *context, mlir::Value *operand) -> NAME##Op * { \
@@ -42,7 +42,7 @@
     }                                                                                       \
                                                                                             \
    private:                                                                                 \
-    NAME##Op() : ArithmOps(#NAME) {}                                                        \
+    NAME##Op() : ArithmOps(#OPNAME) {}                                                      \
     auto SetUp(context::MLIRContext *context, mlir::Value *operand) -> void {               \
       /* NAME##Op has one operand and one result */                                         \
       operands_.reserve(1);                                                                 \

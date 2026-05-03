@@ -21,6 +21,7 @@ class BaseOps : public Operation {
    */
   auto DialectName() const -> std::string override { return DIALECT_NAME; }
   auto Emit(std::ofstream *out) -> void override = 0;
+  auto Verify(context::CompilerContext *context) -> bool override = 0;
 
  protected:
   explicit BaseOps(std::string operator_name) : operator_name_(std::move(operator_name)) {}

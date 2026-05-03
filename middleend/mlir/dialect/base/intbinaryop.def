@@ -1,0 +1,64 @@
+/**
+ * @brief We define a macro to generate all integer binary operations
+ */
+#define DEFINE_INTBINARY_OP(NAME, OPNAME)                                                                         \
+  class NAME##Op : public BaseOps {                                                                       \
+   public:                                                                                                \
+    ~NAME##Op() override = default;                                                                       \
+    static auto Create(context::MLIRContext *context, mlir::Value *lhs, mlir::Value *rhs) -> NAME##Op * { \
+      auto op = new NAME##Op();                                                                           \
+      op->SetUp(context, lhs, rhs);                                                                       \
+      return op;                                                                                          \
+    }                                                                                                     \
+    auto GetLHS() -> mlir::Value * { return operands_[0]; }                                               \
+    auto GetRHS() -> mlir::Value * { return operands_[1]; }                                               \
+    auto GetRes() -> mlir::Value * { return results_[0]; }                                                \
+    auto Emit(std::ofstream *out) -> void override {                                                      \
+      /* Implementation for emitting the operation */                                                     \
+      PrintIndent(out);                                                                                   \
+      results_[0]->Emit(out);                                                                             \
+      *out << " = " << Name() << " ";                                                                     \
+      operands_[0]->Emit(out);                                                                            \
+      *out << " , ";                                                                                      \
+      operands_[1]->Emit(out);                                                                            \
+      *out << "\n";                                                                                       \
+    }                                                                                                     \
+                                                                                                          \
+    auto Verify([[maybe_unused]] context::CompilerContext *context) -> bool override {                    \
+      /* Implementation for verifying the operation */                                                    \
+      if (operands_.size() != 2) {                                                                        \
+        context->Print("INTBinaryOp: operand size is not 2\n");                                           \
+        return false;                                                                                     \
+      }                                                                                                   \
+      if (results_.size() != 1) {                                                                         \
+        context->Print("INTBinaryOp: result size is not 1\n");                                            \
+        return false;                                                                                     \
+      }                                                                                                   \
+      if (operands_[0]->type_ != operands_[1]->type_) {                                                   \
+        context->Print("INTBinaryOp: operand types do not match\n");                                      \
+        return false;                                                                                     \
+      }                                                                                                   \
+      if (operands_[0]->type_->GetKind() != type::TypeKind::INT) {                                        \
+        context->Print("INTBinaryOp: operands are not of integer type\n");                                \
+        return false;                                                                                     \
+      }                                                                                                   \
+      if (operands_[0]->type_ != results_[0]->type_) {                                                    \
+        context->Print("INTBinaryOp: operand and result types do not match\n");                           \
+        return false;                                                                                     \
+      }                                                                                                   \
+      return true;                                                                                        \
+    }                                                                                                     \
+                                                                                                          \
+   private:                                                                                               \
+    NAME##Op() : BaseOps(#OPNAME) {}                                                                        \
+    auto SetUp(context::MLIRContext *context, mlir::Value *lhs, mlir::Value *rhs) -> void {               \
+      /* NAME##Op has two operands and one result */                                                      \
+      operands_.reserve(2);                                                                               \
+      results_.reserve(1);                                                                                \
+      operands_.emplace_back(lhs);                                                                        \
+      operands_.emplace_back(rhs);                                                                        \
+      auto res = context->CreateValue();                                                                  \
+      results_.emplace_back(res);                                                                         \
+      res->op_ = this;                                                                                    \
+    }                                                                                                     \
+  };

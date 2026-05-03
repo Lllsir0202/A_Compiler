@@ -10,6 +10,18 @@ auto FuncDefOp::Verify(context::CompilerContext *context) -> bool {
       return false;
     }
   }
+  // the region should always be 1
+  if (regions_.size() != 1) {
+    context->Print("FuncDefOp: expected exactly one region, but got " + std::to_string(regions_.size()) + "\n");
+    return false;
+  }
+  // the block in the region should always be 1
+  if (regions_[0]->blocks_.size() != 1) {
+    context->Print("FuncDefOp: expected exactly one block in the region, but got " +
+                   std::to_string(regions_[0]->blocks_.size()) + "\n");
+    return false;
+  }
+
   const auto &ops = regions_[0]->blocks_[0]->operations_;
   // Verify all operations in the function body
   for (const auto &op : ops) {

@@ -1,5 +1,6 @@
 #include "middleend/builder/mlir/mlirvisitor.h"
 #include <cstddef>
+#include <string>
 #include "ast/ast_decl.h"
 #include "ast/ast_expr.h"
 #include "ast/ast_utils.h"
@@ -11,6 +12,7 @@
 #include "middleend/mlir/utils/operation/operation.h"
 #include "middleend/mlir/utils/struct/region.h"
 #include "mlir/dialect/arithm/unaryop.h"
+#include "mlir/dialect/func/return.h"
 #include "mlir/utils/struct/block.h"
 #include "mlir/utils/value/value.h"
 #include "symboltable_context.h"
@@ -300,6 +302,59 @@ inline auto MLIRVisitor::HandleShortCircuitOperator(frontend::ast::BinaryExprNod
     result->SetType(binary_expr->GetType());
     // Map the binary expression to the result of the if operation
     GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(binary_expr, result);
+  }
+}
+
+inline auto MLIRVisitor::AddDefaultReturn(mlir::func::FuncDefOp *func_def_op) -> void {
+  // Since we will do optimization to delete redundant return operations in the future,
+  // so we can just add a return operation to the end of the function definition with a default value
+  auto body_region = func_def_op->regions_[0];
+  auto body_block = body_region->blocks_[0];
+  auto body_end_op = body_block->operations_.empty() ? nullptr : body_block->operations_.back();
+  auto return_type = func_def_op->GetReturnType();
+  if (body_end_op == nullptr || mlir::DynamicOrNull<mlir::func::ReturnOp>(body_end_op) == nullptr) {
+    // Since we only allow return: int, float, void
+    if (return_type->GetKind() == type::TypeKind::VOID) {
+      auto return_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::func::ReturnOp>(GET_MLIR_CONTEXT(), return_type);
+      body_block->AddOperation(return_op);
+    } else if (return_type->GetKind() == type::TypeKind::INT) {
+      mlir::Value *const_value;
+      auto existing_const_op = GET_MLIR_CONTEXT()->GetResourceContext()->GetConstOpFromConstValue(std::to_string(0));
+      if (existing_const_op == nullptr) {
+        auto const_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), 0);
+        body_block->AddOperation(const_op);
+        const_op->GetRes()->SetType(GET_TYPE_CONTEXT()->GetIntegerType());
+        GET_MLIR_CONTEXT()->GetResourceContext()->SetConstOpForConstValue(std::to_string(0), const_op);
+        const_value = const_op->GetRes();
+      } else {
+        const_value = existing_const_op->GetRes();
+      }
+
+      // Return 0 for int return type
+      auto return_op =
+          GET_MLIR_CONTEXT()->CreateOperation<mlir::func::ReturnOp>(GET_MLIR_CONTEXT(), return_type, const_value);
+      // Add use for the const value since it is used in the return operation
+      const_value->AddUse(return_op, 0);
+      body_block->AddOperation(return_op);
+    } else if (return_type->GetKind() == type::TypeKind::FLOAT) {
+      mlir::Value *const_value;
+      auto existing_const_op = GET_MLIR_CONTEXT()->GetResourceContext()->GetConstOpFromConstValue(std::to_string(0.0F));
+      if (existing_const_op == nullptr) {
+        auto const_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), 0.0F);
+        body_block->AddOperation(const_op);
+        const_op->GetRes()->SetType(GET_TYPE_CONTEXT()->GetFloatType());
+        GET_MLIR_CONTEXT()->GetResourceContext()->SetConstOpForConstValue(std::to_string(0.0F), const_op);
+        const_value = const_op->GetRes();
+      } else {
+        const_value = existing_const_op->GetRes();
+      }
+
+      auto return_op =
+          GET_MLIR_CONTEXT()->CreateOperation<mlir::func::ReturnOp>(GET_MLIR_CONTEXT(), return_type, const_value);
+      // Add use for the const value since it is used in the return operation
+      const_value->AddUse(return_op, 0);
+      body_block->AddOperation(return_op);
+    }
   }
 }
 
@@ -1200,6 +1255,10 @@ void MLIRVisitor::Visit(frontend::ast::FuncDefNode *func_def) {
   GET_MLIR_CONTEXT()->SetCurrentFuncDefOp(func_def_op);
   // Visit the body of the function
   func_def->body_->Accept(this);
+
+  // If the function definition has no return statement, we can add a default return
+  AddDefaultReturn(func_def_op);
+
   // Exit a funcdef, should get back to the module_op block
   auto top_region = GET_MLIR_CONTEXT()->GetModuleOp()->GetRegion();
   auto top_block = GET_MLIR_CONTEXT()->GetModuleOp()->GetBlock();
