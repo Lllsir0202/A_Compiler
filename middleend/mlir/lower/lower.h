@@ -5,7 +5,8 @@
  */
 #ifndef MIDDLEEND_MLIR_LOWER_LOWER_H
 #define MIDDLEEND_MLIR_LOWER_LOWER_H
-#include "mlir/utils/operation/operation.h"
+#include "middleend/mlir/lower/lowerhelper.h"
+#include "middleend/mlir/utils/operation/operation.h"
 namespace context {
 class CompilerContext;
 }
@@ -15,11 +16,13 @@ class MLIRLower {
   explicit MLIRLower(context::CompilerContext *compiler_context);
   ~MLIRLower() = default;
 
-  auto Lower() -> void;
+  auto Lower() -> int;
 
  private:
   context::CompilerContext *compiler_context_;
   mlir::ModuleOp *module_op_;
+  mlir::ModuleOp *new_module_op_;
+  LowerHelper *lower_helper_;
 };
 }  // namespace middleend::mlir::lower
 

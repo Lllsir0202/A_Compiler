@@ -18,7 +18,7 @@
 namespace middleend::mlir::lower {
 class LowerHelper {
  public:
-  LowerHelper() = default;
+  explicit LowerHelper(context::CompilerContext *compiler_context) : compiler_context_(compiler_context) {}
   ~LowerHelper() = default;
 
   /**
@@ -28,6 +28,25 @@ class LowerHelper {
    * for the dialects.
    */
   auto LowerDispatch(Operation *op) -> void;
+
+  // Provide interface to set and get insert point
+  auto SetInsertPoint(mlir::Block *block) -> void {
+    if (block == nullptr) {
+      compiler_context_->ReportError("Insert point block is nullptr");
+      return;
+    }
+    current_block_ = block;
+  }
+  auto GetInsertPoint() -> mlir::Block * { return current_block_; }
+
+  // Provide interface to set and get current region, which is used for control flow operations
+  auto SetCurrentRegion(mlir::Region *region) -> void { current_region_ = region; }
+  auto GetCurrentRegion() -> mlir::Region * {
+    if (current_region_ == nullptr) {
+      compiler_context_->ReportError("Current region is nullptr");
+    }
+    return current_region_;
+  }
 
  private:
   // Detailed lowering functions for different operations
@@ -83,25 +102,7 @@ class LowerHelper {
   auto LowerBreakOp(middleend::mlir::scf::BreakOp *break_op) -> void;
   auto LowerContinueOp(middleend::mlir::scf::ContinueOp *continue_op) -> void;
   auto LowerConditionOp(middleend::mlir::scf::ConditionOp *condition_op) -> void;
-
-  // Provide interface to set and get insert point
-  auto SetInsertPoint(mlir::Block *block) -> void {
-    if (block == nullptr) {
-      compiler_context_->ReportError("Insert point block is nullptr");
-      return;
-    }
-    current_block_ = block;
-  }
-  auto GetInsertPoint() -> mlir::Block * { return current_block_; }
-
-  // Provide interface to set and get current region, which is used for control flow operations
-  auto SetCurrentRegion(mlir::Region *region) -> void { current_region_ = region; }
-  auto GetCurrentRegion() -> mlir::Region * {
-    if (current_region_ == nullptr) {
-      compiler_context_->ReportError("Current region is nullptr");
-    }
-    return current_region_;
-  }
+  auto LowerInitsOp(middleend::mlir::scf::InitsOp *inits_op) -> void;
 
   // Get Block id
   // Allow default block prefix

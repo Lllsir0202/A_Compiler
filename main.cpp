@@ -1,14 +1,15 @@
 #include <fstream>
 #include <memory>
 #include <unordered_set>
-#include "ast/visitor/semantic/sem_analysis.h"
-#include "builder/mlir/mlirbuilder.h"
 #include "context/compiler_context.h"
+#include "frontend/ast/visitor/semantic/sem_analysis.h"
 #include "frontend/frontend.h"
+#include "middleend/builder/mlir/mlirbuilder.h"
+#include "middleend/mlir/lower/lower.h"
 #include "middleend/mlir/verifer/verifer.h"
-#include "mlir/mlir_stage.h"
 #include "stages/ast/ast_stage.h"
 #include "stages/lexer/lexer_stage.h"
+#include "stages/mlir/mlir_stage.h"
 #include "stages/parser/parser_stage.h"
 #include "stages/stage.h"
 
@@ -208,6 +209,9 @@ auto main(int argc, char *argv[]) -> int {
   if (!mlir_verifier->Verify()) {
     return 1;
   }
+
+  // auto mlir_lower = std::make_unique<middleend::mlir::lower::MLIRLower>(&compiler_context);
+  // ret = mlir_lower->Lower();
 
   if (stage == "mlir" && ret == 0) {
     stage_ptr = std::make_unique<stages::MLIRStage>(&compiler_context);

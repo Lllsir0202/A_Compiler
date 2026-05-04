@@ -1,4 +1,13 @@
 #include "middleend/mlir/lower/lowerhelper.h"
+#include "mlir/dialect/func/funccall.h"
+#include "mlir/dialect/func/funcdef.h"
+#include "mlir/dialect/func/return.h"
+#include "mlir/dialect/scf/inits.h"
+#include "mlir/dialect/scf/while.h"
+#include "mlir/dialect/var/def.h"
+#include "mlir/dialect/var/getptr.h"
+#include "mlir/dialect/var/getvalue.h"
+#include "mlir/dialect/var/set.h"
 namespace middleend::mlir::lower {
 // Use macro to provide quick access to mlir context
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()
@@ -16,8 +25,37 @@ namespace middleend::mlir::lower {
 
 auto LowerHelper::LowerDispatch(Operation *op) -> void {
   // TODO(loki) : implement dispatching and lowering for different operations.
-  // LOWER_DISPATCH(middleend::mlir::arithm::ConstOp, ConstOp);
-  LOWER_DISPATCH(middleend::mlir::var::VarDefOp, VarDefOp);
+  LOWER_DISPATCH(mlir::arithm::AddOp, AddOp)
+  LOWER_DISPATCH(mlir::arithm::SubOp, SubOp)
+  LOWER_DISPATCH(mlir::arithm::MulOp, MulOp)
+  LOWER_DISPATCH(mlir::arithm::DivOp, DivOp)
+  LOWER_DISPATCH(mlir::arithm::ModOp, ModOp)
+  LOWER_DISPATCH(mlir::arithm::EqualOp, EqualOp)
+  LOWER_DISPATCH(mlir::arithm::NotEqualOp, NotEqualOp)
+  LOWER_DISPATCH(mlir::arithm::LessOp, LessOp)
+  LOWER_DISPATCH(mlir::arithm::LessEqualOp, LessEqualOp)
+  LOWER_DISPATCH(mlir::arithm::GreaterOp, GreaterOp)
+  LOWER_DISPATCH(mlir::arithm::GreaterEqualOp, GreaterEqualOp)
+  LOWER_DISPATCH(mlir::arithm::NegOp, NegOp)
+  LOWER_DISPATCH(mlir::arithm::NotOp, NotOp)
+  LOWER_DISPATCH(mlir::arithm::ConstOp, ConstOp)
+  LOWER_DISPATCH(mlir::arithm::CastOp, CastOp)
+  LOWER_DISPATCH(mlir::arithm::CopyOp, CopyOp)
+  LOWER_DISPATCH(mlir::func::FuncDefOp, FuncDefOp)
+  LOWER_DISPATCH(mlir::func::FuncCallOp, FuncCallOp)
+  LOWER_DISPATCH(mlir::func::ReturnOp, ReturnOp)
+  LOWER_DISPATCH(mlir::var::VarDefOp, VarDefOp)
+  LOWER_DISPATCH(mlir::var::VarGetPtrOp, VarGetPtrOp)
+  LOWER_DISPATCH(mlir::var::VarGetValOp, VarGetValOp)
+  LOWER_DISPATCH(mlir::var::VarSetOp, VarSetOp)
+  LOWER_DISPATCH(mlir::scf::WhileOp, WhileOp)
+  LOWER_DISPATCH(mlir::scf::BreakOp, BreakOp)
+  LOWER_DISPATCH(mlir::scf::ContinueOp, ContinueOp)
+  LOWER_DISPATCH(mlir::scf::ConditionOp, ConditionOp)
+  LOWER_DISPATCH(mlir::scf::YieldOp, YieldOp)
+  LOWER_DISPATCH(mlir::scf::IfOp, IfOp)
+  LOWER_DISPATCH(mlir::scf::InitsOp, InitsOp)
+  compiler_context_->ReportError("Unsupported operation for lowering: " + op->Name());
 }
 
 /**
@@ -251,6 +289,10 @@ auto LowerHelper::LowerFuncDefOp(middleend::mlir::func::FuncDefOp *func_def_op) 
   }
   GetInsertPoint()->AddOperation(func_op_base);
 
+  // Record current region and block
+  auto current_region = GetCurrentRegion();
+  auto current_block = GetInsertPoint();
+
   SetCurrentRegion(func_op_base->regions_[0]);
   // Set entry block as the insert point
   auto entry_block = func_op_base->regions_[0]->blocks_[0];
@@ -272,8 +314,8 @@ auto LowerHelper::LowerFuncDefOp(middleend::mlir::func::FuncDefOp *func_def_op) 
   // After lowering the region,
   // we need to reset the current region and insert point to nullptr,
   // as well as the current function definition operation
-  SetCurrentRegion(nullptr);
-  SetInsertPoint(nullptr);
+  SetCurrentRegion(current_region);
+  SetInsertPoint(current_block);
   SetCurrentFuncDefOp(nullptr);
   ResetBlockID();
 }
@@ -323,6 +365,18 @@ auto LowerHelper::LowerIfOp(middleend::mlir::scf::IfOp *if_op) -> void {
   current_region->blocks_.emplace_back(new_else_block);
   current_region->blocks_.emplace_back(merge_block);
 
+  auto then_yield_op = DynamicOrNull<scf::YieldOp>(then_block->operations_.back());
+  if (then_yield_op == nullptr) {
+    compiler_context_->ReportError("Then block of IfOp must end with a YieldOp\n");
+    return;
+  }
+
+  auto else_yield_op = DynamicOrNull<scf::YieldOp>(else_block->operations_.back());
+  if (else_yield_op == nullptr) {
+    compiler_context_->ReportError("Else block of IfOp must end with a YieldOp\n");
+    return;
+  }
+
   /**
    * @note: Since the YieldOp will only appear in the IfOp,
    * and the WhileOp, so we can directly deal with the YieldOp
@@ -335,18 +389,6 @@ auto LowerHelper::LowerIfOp(middleend::mlir::scf::IfOp *if_op) -> void {
   SetInsertPoint(new_then_block);
   for (auto &op : then_block->operations_) {
     LowerDispatch(op);
-  }
-
-  auto then_yield_op = DynamicOrNull<scf::YieldOp>(then_block->operations_.back());
-  if (then_yield_op == nullptr) {
-    compiler_context_->ReportError("Then block of IfOp must end with a YieldOp\n");
-    return;
-  }
-
-  auto else_yield_op = DynamicOrNull<scf::YieldOp>(else_block->operations_.back());
-  if (else_yield_op == nullptr) {
-    compiler_context_->ReportError("Else block of IfOp must end with a YieldOp\n");
-    return;
   }
 
   // After lowering the then block, we need to insert a branch to the merge block
@@ -422,18 +464,14 @@ auto LowerHelper::LowerWhileOp(middleend::mlir::scf::WhileOp *while_op) -> void 
   auto body_prefix = GetCurrentFuncDefOp()->GetName() + "_while_body";
   SetUniqueBlockID(new_body_block, body_prefix);
 
-  auto merge_block = new mlir::Block();
-  auto merge_prefix = GetCurrentFuncDefOp()->GetName() + "_while_merge";
-  SetUniqueBlockID(merge_block, merge_prefix);
+  auto exit_block = new mlir::Block();
+  auto exit_prefix = GetCurrentFuncDefOp()->GetName() + "_while_exit";
+  SetUniqueBlockID(exit_block, exit_prefix);
 
   auto current_region = GetCurrentRegion();
   current_region->blocks_.emplace_back(new_cond_block);
   current_region->blocks_.emplace_back(new_body_block);
-  current_region->blocks_.emplace_back(merge_block);
-
-  // Add branch from current block to cond block
-  auto br_to_cond = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::BrOp>(new_cond_block);
-  current_block->AddOperation(br_to_cond);
+  current_region->blocks_.emplace_back(exit_block);
 
   // Handle the condition operation and yield operation in whileop
   auto condition_op = DynamicOrNull<scf::ConditionOp>(cond_block->operations_.back());
@@ -450,10 +488,10 @@ auto LowerHelper::LowerWhileOp(middleend::mlir::scf::WhileOp *while_op) -> void 
 
   // Since the `phi` should be in the head of the block, we deal with them first.
   /**
-   * @brief condition operation should decide whether to branch to body block or merge block
+   * @brief condition operation should decide whether to branch to body block or exit block
    * If cond:
    * true: means while(true), branch to body block
-   * false: means while(false), branch to merge block
+   * false: means while(false), branch to exit block
    * @note note that the condition operation need to update the value via phi node,
    * since we don't allow the value updated in the condition block
    * -- just because there is no operation that can update the value in an expression
@@ -472,6 +510,7 @@ auto LowerHelper::LowerWhileOp(middleend::mlir::scf::WhileOp *while_op) -> void 
    * since there is no need to merge the values which are not changed during the loop
    */
   auto condition_operands = condition_op->GetOperands();
+  auto condition = condition_op->GetCondition();
   auto yield_operands = yield_op->GetOperands();
   // Deal with the original operands
   auto original_operands = condition_op->GetOriginalValues();
@@ -483,23 +522,59 @@ auto LowerHelper::LowerWhileOp(middleend::mlir::scf::WhileOp *while_op) -> void 
   }
   if (condition_operands.size() != original_operands.size()) {
     compiler_context_->ReportError(
-        "Condition operation and original values of WhileOp must have the same number of operands\n");
+        "Condition operation and original values\n of WhileOp must have the same number of operands: " +
+        std::to_string(condition_operands.size()) + " and " + std::to_string(original_operands.size()));
     return;
   }
 
   auto size = condition_operands.size();
   // Start with jumping from current block to condition block
   // if from current block, then phi is original value, otherwise, phi is the value from yield
-  for (size_t i = 0; i < size; i++) {
-    auto original_value = original_operands[i];
-    auto yield_value = yield_operands[i];
-    auto phi_node = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::PhiOp>(
-        original_value, std::vector<mlir::Value *>{original_value, yield_value},
-        std::vector<mlir::Block *>{current_block, new_body_block});
-    original_value->ReplaceAllOpUsesWith(condition_op, phi_node, i);
-    yield_value->ReplaceAllOpUsesWith(yield_op, phi_node, i);
-    new_cond_block->AddOperation(phi_node);
+
+  if (size != 0) {  // Meet initsop, do not handle, deal with it now
+    auto op = current_block->operations_.back();
+    auto inits_op = DynamicOrNull<mlir::scf::InitsOp>(op);
+    if (inits_op == nullptr) {
+      compiler_context_->ReportError("The block before WhileOp must end with an InitsOp, but got " + op->Name() + "\n");
+      return;
+    }
+    // The original values should be the operand of the initsop
+    if (inits_op->GetOperands().size() != original_operands.size()) {
+      compiler_context_->ReportError(
+          "The number of operands of InitsOp must be the same as the number of original values of WhileOp\n");
+      return;
+    }
+    // Pop back
+    current_block->operations_.pop_back();
+
+    // If from current block, then phi is original value, otherwise, phi is the value from yield
+    for (size_t i = 0; i < size; i++) {
+      auto original_value = original_operands[i];
+      auto yield_operand = yield_operands[i];
+      auto result = inits_op->GetResById(i);
+
+      // If from current block, then phi is original value,
+      // otherwise, phi is the value from yield
+      auto phi_node = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::PhiOp>(
+          result, std::vector<mlir::Value *>{original_value, yield_operand},
+          std::vector<mlir::Block *>{current_block, new_body_block});
+
+      original_value->ReplaceAllOpUsesWith(condition_op, phi_node, 0);
+      yield_operand->ReplaceAllOpUsesWith(yield_op, phi_node, 1);
+      GetInsertPoint()->AddOperation(phi_node);
+    }
   }
+
+  // Add branch from current block to cond block
+  auto br_to_cond = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::BrOp>(new_cond_block);
+  current_block->AddOperation(br_to_cond);
+
+  // Since currently, the phi node will only be added in the condition block,
+  // because all branch will only jump to the condition block, and then jump to the exit block
+
+  auto br_cond_to_body =
+      GET_MLIR_CONTEXT()->CreateOperation<mlir::base::CondBrOp>(condition, new_body_block, exit_block);
+  new_cond_block->AddOperation(br_cond_to_body);
 
   // Then we need to lower the cond block and body block separately,
   // Start with cond block
@@ -507,6 +582,7 @@ auto LowerHelper::LowerWhileOp(middleend::mlir::scf::WhileOp *while_op) -> void 
   for (auto &op : cond_block->operations_) {
     LowerDispatch(op);
   }
+  // Since the condition operation has been handled, we can directly pop back
 
   // Same as IfOp, we will deal with the condition operation in whileop
 
@@ -514,11 +590,29 @@ auto LowerHelper::LowerWhileOp(middleend::mlir::scf::WhileOp *while_op) -> void 
   for (auto &op : body_block->operations_) {
     LowerDispatch(op);
   }
+  auto br_body_to_cond = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::BrOp>(new_cond_block);
+  new_body_block->AddOperation(br_body_to_cond);
 
   // Same as IfOp, we will deal with the yield operation in whileop
 
-  // After lowering the cond block and body block, we need to set the insert point to the merge block
-  SetInsertPoint(merge_block);
+  // After lowering the cond block and body block, we need to set the insert point to the exit block
+  SetInsertPoint(exit_block);
+}
+
+auto LowerHelper::LowerBreakOp([[maybe_unused]] middleend::mlir::scf::BreakOp *break_op) -> void {
+  // TODO(loki): implement the lowering of break operation
+}
+
+auto LowerHelper::LowerContinueOp([[maybe_unused]] middleend::mlir::scf::ContinueOp *continue_op) -> void {
+  // TODO(loki): implement the lowering of continue operation
+}
+
+auto LowerHelper::LowerConditionOp([[maybe_unused]] middleend::mlir::scf::ConditionOp *condition_op) -> void {}
+
+auto LowerHelper::LowerYieldOp([[maybe_unused]] middleend::mlir::scf::YieldOp *yield_op) -> void {}
+
+auto LowerHelper::LowerInitsOp(middleend::mlir::scf::InitsOp *inits_op) -> void {
+  GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(inits_op);
 }
 
 }  // namespace middleend::mlir::lower

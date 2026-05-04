@@ -49,7 +49,7 @@ class ConditionOp : public SCFOps {
     }
 
     var_map_.clear();
-    original_values_.clear();
+    original_var_map_.clear();
   }
 
   auto Verify(context::CompilerContext *context) -> bool override;
