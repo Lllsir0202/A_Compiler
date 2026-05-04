@@ -8,9 +8,23 @@ namespace middleend::mlir::var {
 
 class VarGetPtrOp : public VarOps {
  public:
-  static auto Create(context::MLIRContext *context, Value *ptr, std::vector<Value *> indices = {}) -> VarGetPtrOp * {
+  static auto Create(context::MLIRContext *context, mlir::Value *ptr,
+                     std::vector<mlir::Value *> indices = {}) -> VarGetPtrOp * {
     auto op = new VarGetPtrOp();
     op->SetUp(context, ptr, std::move(indices));
+    return op;
+  }
+
+  // Used in lowering
+  static auto Create(VarGetPtrOp *other) -> VarGetPtrOp * {
+    auto op = new VarGetPtrOp();
+    op->SetUp(other->GetRes(), other->GetPtr(), other->GetIndices());
+    other->GetPtr()->ReplaceAllOpUsesWith(other, op);
+    for (auto &index : other->GetIndices()) {
+      if (index != nullptr) {
+        index->ReplaceAllOpUsesWith(other, op);
+      }
+    }
     return op;
   }
 
@@ -19,15 +33,15 @@ class VarGetPtrOp : public VarOps {
    * accessing an array element, thus it will need a list of indices to
    * specify which element to access, and the result of this operation will be the res_
    */
-  auto GetIndices() -> std::vector<Value *> {
-    auto indices = std::vector<Value *>{};
+  auto GetIndices() -> std::vector<mlir::Value *> {
+    auto indices = std::vector<mlir::Value *>{};
     for (size_t operand_index = 1; operand_index < operands_.size(); operand_index++) {
       indices.emplace_back(operands_[operand_index]);
     }
     return indices;
   }
-  auto GetPtr() -> Value * { return operands_[0]; }
-  auto GetRes() -> Value * { return results_[0]; }
+  auto GetPtr() -> mlir::Value * { return operands_[0]; }
+  auto GetRes() -> mlir::Value * { return results_[0]; }
   auto Emit(std::ofstream *out) -> void override {
     /**
      * @example: %res = var.getptr %index1, %index2, ...
@@ -53,12 +67,22 @@ class VarGetPtrOp : public VarOps {
 
  private:
   VarGetPtrOp() : VarOps("getptr"){};
-  auto SetUp(context::MLIRContext *context, Value *ptr, std::vector<Value *> indices = {}) -> void {
+  auto SetUp(context::MLIRContext *context, mlir::Value *ptr, std::vector<mlir::Value *> indices = {}) -> void {
     operands_.reserve(indices.size() + 1);
     results_.reserve(1);
     operands_.emplace_back(ptr);
     operands_.insert(operands_.end(), indices.begin(), indices.end());
     auto res = context->CreateValue();
+    results_.emplace_back(res);
+    res->op_ = this;
+  }
+
+  // Used in lowering
+  auto SetUp(mlir::Value *res, mlir::Value *ptr, std::vector<mlir::Value *> indices = {}) -> void {
+    operands_.reserve(indices.size() + 1);
+    results_.reserve(1);
+    operands_.emplace_back(ptr);
+    operands_.insert(operands_.end(), indices.begin(), indices.end());
     results_.emplace_back(res);
     res->op_ = this;
   }

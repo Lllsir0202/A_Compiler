@@ -20,6 +20,16 @@ class ReturnOp : public FuncOps {
     return op;
   }
 
+  // Used in lowering
+  static auto Create(ReturnOp *other) -> ReturnOp * {
+    auto op = new ReturnOp();
+    op->SetUp(other->GetRes(), other->GetReturnValue()->GetType(), other->GetReturnValue());
+    if (other->GetReturnValue() != nullptr) {
+      other->GetReturnValue()->ReplaceAllOpUsesWith(other, op);
+    }
+    return op;
+  }
+
   auto Emit(std::ofstream *out) -> void override {
     PrintIndent(out);
     *out << Name();
@@ -61,6 +71,19 @@ class ReturnOp : public FuncOps {
     auto res = context->CreateValue();
     res->SetType(return_type);
     results_.emplace_back(res);
+    res->op_ = this;
+  }
+
+  //  Used in lowering
+  auto SetUp(mlir::Value *res, type::Type *return_type, mlir::Value *return_value) -> void {
+    operands_.reserve(1);
+    results_.reserve(1);
+    if (return_value != nullptr) {
+      // if return_value is null, it means there is no return value
+      operands_.emplace_back(return_value);
+    }
+    results_.emplace_back(res);
+    res->SetType(return_type);
     res->op_ = this;
   }
 };

@@ -2,9 +2,9 @@
   class NAME##Op : public BaseOps {                                                                                 \
    public:                                                                                                          \
     ~NAME##Op() override = default;                                                                                 \
-    static auto Create(context::MLIRContext *context, mlir::Value *value) {                                         \
+    static auto Create(context::MLIRContext *context, mlir::Value *res, mlir::Value *value) {                       \
       auto op = new NAME##Op();                                                                                     \
-      op->SetUp(context, value);                                                                                    \
+      op->SetUp(context, res, value);                                                                               \
       return op;                                                                                                    \
     }                                                                                                               \
                                                                                                                     \
@@ -25,8 +25,8 @@
         context->Print(#OP_NAME ": result size should be 1\n");                                                     \
         return false;                                                                                               \
       }                                                                                                             \
-      if (operands_[0]->GetType()->GetKind() == type::TypeKind::OP_TYPE &&                                         \
-          results_[0]->GetType()->GetKind() == type::TypeKind::RESULT_TYPE) {                                      \
+      if (operands_[0]->GetType()->GetKind() == type::TypeKind::OP_TYPE &&                                          \
+          results_[0]->GetType()->GetKind() == type::TypeKind::RESULT_TYPE) {                                       \
         return true;                                                                                                \
       }                                                                                                             \
       context->Print(#OP_NAME ": operand or result type is incorrect\n");                                           \
@@ -35,11 +35,10 @@
                                                                                                                     \
    private:                                                                                                         \
     NAME##Op() : BaseOps(#OP_NAME) {}                                                                               \
-    auto SetUp(context::MLIRContext *context, mlir::Value *value) -> void {                                         \
+    auto SetUp([[maybe_unused]] context::MLIRContext *context, mlir::Value *res, mlir::Value *value) -> void {      \
       operands_.reserve(1);                                                                                         \
       results_.reserve(1);                                                                                          \
       operands_.emplace_back(value);                                                                                \
-      auto res = context->CreateValue();                                                                            \
       results_.emplace_back(res);                                                                                   \
       res->op_ = this;                                                                                              \
     }                                                                                                               \

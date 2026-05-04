@@ -12,6 +12,16 @@ class FuncCallOp : public FuncOps {
     return func_call_op;
   }
 
+  // Used in lowering
+  static auto Create(FuncCallOp *other) -> FuncCallOp * {
+    auto func_call_op = new FuncCallOp();
+    func_call_op->SetUp(other->GetRes(), other->GetName(), other->GetOperands());
+    for (auto &operand : other->GetOperands()) {
+      operand->ReplaceAllOpUsesWith(other, func_call_op);
+    }
+    return func_call_op;
+  }
+
   auto Emit(std::ofstream *out) -> void override {
     PrintIndent(out);
     results_[0]->Emit(out);
@@ -50,6 +60,17 @@ class FuncCallOp : public FuncOps {
     results_.emplace_back(res);
     res->op_ = this;
   };
+
+  // Used in lowering
+  auto SetUp(mlir::Value *res, const std::string &name, std::vector<mlir::Value *> args) -> void {
+    results_.reserve(1);
+    operands_.reserve(args.size());
+    name_ = name;
+    operands_ = std::move(args);
+    results_.emplace_back(res);
+    res->op_ = this;
+  };
+
   std::string name_;
 };
 }  // namespace middleend::mlir::func

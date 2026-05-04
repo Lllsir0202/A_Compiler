@@ -3,6 +3,7 @@
 #include <unordered_set>
 #include "context/mlir_context.h"
 #include "middleend/mlir/dialect/func/basic.h"
+#include "mlir/utils/struct/block.h"
 #include "mlir/utils/struct/region.h"
 #include "mlir/utils/value/value.h"
 namespace middleend::mlir::func {
@@ -101,6 +102,7 @@ class FuncDefOp : public FuncOps {
     results_.emplace_back(res);
     res->op_ = this;
   };
+
   std::string name_;
 };
 

@@ -2,24 +2,81 @@
 #define MIDDLEEND_MLIR_DIALECT_BASE_UNARY_H
 #include "context/compiler_context.h"
 #include "middleend/mlir/dialect/base/basic.h"
+#include "mlir/utils/value/value.h"
 namespace middleend::mlir::base {
 #include "middleend/mlir/dialect/base/def/intunaryop.def"
 
 DEFINE_INTUNARY_OP(Neg, neg)
-DEFINE_INTUNARY_OP(Not, not )
 
 #include "middleend/mlir/dialect/base/def/floatunaryop.def"
 
 DEFINE_FLOATUNARY_OP(NegF, negf)
-DEFINE_FLOATUNARY_OP(NotF, notf)
+
+// Not operation only accept boolean type,
+// so we do not need to separate them into different operations based on the types.
+/**
+ * @brief Use a macro to define integer unary operations.
+ */
+class NotOp : public BaseOps {
+ public:
+  static auto Create(context::MLIRContext *context, mlir::Value *res, mlir::Value *operand) -> NotOp * {
+    auto op = new NotOp();
+    op->SetUp(context, res, operand);
+    return op;
+  }
+  auto GetOperand() -> mlir::Value * { return operands_[0]; }
+  auto GetRes() -> mlir::Value * { return results_[0]; }
+  auto Emit(std::ofstream *out) -> void override { /* Implementation for emitting the operation */
+    PrintIndent(out);
+    results_[0]->Emit(out);
+    *out << " = " << Name() << " ";
+    operands_[0]->Emit(out);
+    *out << "\n";
+  }
+
+  auto Verify(context::CompilerContext *context) -> bool override {
+    if (operands_.size() != 1 || results_.size() != 1) {
+      context->Print("NotOp: operand or result size is not correct\n");
+      return false;
+    }
+    if (results_[0] == nullptr) {
+      context->Print("NotOp: result is null\n");
+      return false;
+    }
+    if (operands_[0] == nullptr) {
+      context->Print("NotOp: operand is null\n");
+      return false;
+    }
+    if (operands_[0]->GetType()->GetKind() != type::TypeKind::BOOL) {
+      context->Print("NotOp: operand type is not boolean\n");
+      return false;
+    }
+    if (results_[0]->GetType() == nullptr) {
+      context->Print("NotOp: result type is nullptr\n");
+      return false;
+    }
+    return true;
+  }
+
+ private:
+  NotOp() : BaseOps("not") {}
+  auto SetUp([[maybe_unused]] context::MLIRContext *context, mlir::Value *res, mlir::Value *operand) -> void {
+    /* NotOp has one operand and one result */
+    operands_.reserve(1);
+    results_.reserve(1);
+    operands_.emplace_back(operand);
+    results_.emplace_back(res);
+    res->op_ = this;
+  }
+};
 
 // Handling const op, separate them into different operations according to the type
 class ConstIntOp : public BaseOps {
  public:
   ~ConstIntOp() override = default;
-  static auto Create(context::MLIRContext *context, int value) {
+  static auto Create(context::MLIRContext *context, mlir::Value *res, int value) {
     auto op = new ConstIntOp();
-    op->SetUp(context, value);
+    op->SetUp(context, res, value);
     return op;
   }
 
@@ -49,10 +106,9 @@ class ConstIntOp : public BaseOps {
 
  private:
   explicit ConstIntOp() : BaseOps("constint") {}
-  auto SetUp(context::MLIRContext *context, int value) -> void {
+  auto SetUp([[maybe_unused]] context::MLIRContext *context, mlir::Value *res, int value) -> void {
     results_.reserve(1);
     value_ = value;
-    auto res = context->CreateValue();
     results_.emplace_back(res);
     res->op_ = this;
   }
@@ -62,9 +118,9 @@ class ConstIntOp : public BaseOps {
 class ConstFloatOp : public BaseOps {
  public:
   ~ConstFloatOp() override = default;
-  static auto Create(context::MLIRContext *context, float value) {
+  static auto Create(context::MLIRContext *context, mlir::Value *res, float value) {
     auto op = new ConstFloatOp();
-    op->SetUp(context, value);
+    op->SetUp(context, res, value);
     return op;
   }
 
@@ -94,10 +150,9 @@ class ConstFloatOp : public BaseOps {
 
  private:
   explicit ConstFloatOp() : BaseOps("constfloat") {}
-  auto SetUp(context::MLIRContext *context, float value) -> void {
+  auto SetUp([[maybe_unused]] context::MLIRContext *context, mlir::Value *res, float value) -> void {
     results_.reserve(1);
     value_ = value;
-    auto res = context->CreateValue();
     results_.emplace_back(res);
     res->op_ = this;
   }

@@ -1,15 +1,16 @@
 #ifndef MIDDLEEND_MLIR_DIALECT_BASE_PHI_H
 #define MIDDLEEND_MLIR_DIALECT_BASE_PHI_H
 #include "middleend/mlir/dialect/base/basic.h"
+#include "mlir/utils/value/value.h"
 namespace middleend::mlir::base {
 class PhiOp : public BaseOps {
  public:
   ~PhiOp() override = default;
 
-  static auto Create(mlir::Value *result,
-                     const std::vector<std::pair<mlir::Value *, mlir::Block *>> &incoming) -> PhiOp * {
+  static auto Create(mlir::Value *result, const std::vector<mlir::Value *> &values,
+                     const std::vector<mlir::Block *> &blocks) -> PhiOp * {
     auto *op = new PhiOp();
-    op->SetUp(result, incoming);
+    op->SetUp(result, values, blocks);
     return op;
   }
 
@@ -17,7 +18,7 @@ class PhiOp : public BaseOps {
   // and set the incoming values later.
   static auto Create(mlir::Value *result) -> PhiOp * {
     auto *op = new PhiOp();
-    op->SetUp(result, {});
+    op->SetUp(result, {}, {});
     return op;
   }
 
@@ -43,10 +44,15 @@ class PhiOp : public BaseOps {
 
  private:
   PhiOp() : BaseOps("phi") {}
-  auto SetUp(mlir::Value *result, const std::vector<std::pair<mlir::Value *, mlir::Block *>> &incoming) -> void {
+  auto SetUp(mlir::Value *result, const std::vector<mlir::Value *> &values,
+             const std::vector<mlir::Block *> &blocks) -> void {
     results_.reserve(1);
     results_.emplace_back(result);
-    incoming_ = incoming;
+    result->op_ = this;
+    incoming_.reserve(values.size());
+    for (size_t i = 0; i < values.size(); ++i) {
+      incoming_.emplace_back(values[i], blocks[i]);
+    }
   }
   std::vector<std::pair<mlir::Value *, mlir::Block *>> incoming_;
 };

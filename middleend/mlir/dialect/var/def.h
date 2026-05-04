@@ -25,6 +25,19 @@ class VarDefOp : public VarOps {
     return op;
   }
 
+  // Used in lowering when we need to create a new var def operation with specific result and operand
+  static auto Create(VarDefOp *other) -> VarDefOp * {
+    auto op = new VarDefOp();
+    // Do not change other operation's attributes
+    op->SetUp(other->results_[0], other->dimensions_, other->operands_, other->is_global_, other->is_const_);
+    for (auto &operand : other->operands_) {
+      if (operand != nullptr) {
+        operand->ReplaceAllOpUsesWith(other, op);
+      }
+    }
+    return op;
+  }
+
   auto GetInits() -> std::vector<Value *> & { return operands_; }
   auto GetRes() -> Value * { return results_[0]; }
   auto Emit(std::ofstream *out) -> void override {
@@ -81,6 +94,20 @@ class VarDefOp : public VarOps {
     is_const_ = is_const;
     res->op_ = this;
   }
+
+  auto SetUp(mlir::Value *res, std::vector<int> dimensions, std::vector<Value *> inits, bool is_global,
+             bool is_const) -> void {
+    operands_.reserve(inits.size());
+    dimensions_.reserve(dimensions.size());
+    results_.reserve(1);
+    operands_ = std::move(inits);
+    dimensions_ = std::move(dimensions);
+    is_global_ = is_global;
+    is_const_ = is_const;
+    results_.emplace_back(res);
+    res->op_ = this;
+  }
+
   bool is_global_;
   bool is_const_;
   std::vector<int> dimensions_;

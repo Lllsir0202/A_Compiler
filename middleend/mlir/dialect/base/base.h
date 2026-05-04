@@ -4,6 +4,7 @@
 #include "middleend/mlir/dialect/base/branch.h"
 #include "middleend/mlir/dialect/base/cast.h"
 #include "middleend/mlir/dialect/base/copy.h"
+#include "middleend/mlir/dialect/base/funcdef.h"
 #include "middleend/mlir/dialect/base/phi.h"
-#include "middleend/mlir/dialect/base/unary.h"
+#include "middleend/mlir/dialect/base/unaryop.h"
 #endif

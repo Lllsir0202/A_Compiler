@@ -8,8 +8,6 @@ MLIRLower::MLIRLower(context::CompilerContext *compiler_context) : compiler_cont
 }
 
 // Lower the high-level MLIR to low-level MLIR
-auto MLIRLower::Lower() -> void {
-    
-}
+auto MLIRLower::Lower() -> void {}
 
 }  // namespace middleend::mlir::lower

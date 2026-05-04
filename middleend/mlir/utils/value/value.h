@@ -45,7 +45,7 @@ class Value {
     }
   }
 
-  auto AddUse(Operation *op, std::size_t index) -> void { uses_.emplace_back(new Use{op, index}); }
+  auto AddUse(Operation *op, std::size_t index) -> void;
   [[maybe_unused]] auto RemoveUse(Operation *op) -> void {
     for (auto it = uses_.begin(); it != uses_.end(); ++it) {
       if ((*it)->operation_ == op) {
@@ -74,6 +74,13 @@ class Value {
    * %2 = base.mul %1, %3
    */
   auto ReplaceAllUsesWith(Value *new_value) -> void;
+
+  /**
+   * @brief Replace all operations that use this value with another operation
+   */
+  auto ReplaceAllOpUsesWith(Operation *old_op, Operation *new_op, size_t new_index) -> void;
+  auto ReplaceAllOpUsesWith(Operation *old_op, Operation *new_op) -> void;
+
   static auto Create() -> Value * { return new Value(); }
 
   /**

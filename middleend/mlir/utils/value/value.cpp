@@ -3,6 +3,15 @@
 #include "middleend/mlir/utils/operation/operation.h"
 
 namespace middleend::mlir {
+auto Value::AddUse(Operation *op, std::size_t index) -> void {
+  if (op == nullptr) {
+    throw std::runtime_error("The operation that uses this value is nullptr");
+  }
+  if (index >= op->operands_.size()) {
+    throw std::runtime_error("The operand index is out of range");
+  }
+  uses_.emplace_back(new Use{op, index});
+}
 
 auto Value::ReplaceAllUsesWith(Value *new_value) -> void {
   for (auto use : uses_) {
@@ -23,6 +32,39 @@ auto Value::ReplaceAllUsesWith(Value *new_value) -> void {
     delete use;
   }
   uses_.clear();
+}
+
+auto Value::ReplaceAllOpUsesWith(Operation *old_op, Operation *new_op, size_t new_index) -> void {
+  for (auto &use : uses_) {
+    auto op = use->operation_;
+    if (op == nullptr) {
+      throw std::runtime_error("The operation that uses this value is nullptr");
+    }
+    // Replace the operation with the new operation
+    if (op == old_op) {
+      use->operation_ = new_op;
+      // Also need to update the operand index in the new operation
+      if (new_index >= new_op->operands_.size()) {
+        throw std::runtime_error("The new operand index is out of range");
+      }
+      use->operand_index_ = new_index;
+    }
+  }
+}
+
+// This function is used for those operations that have the same operands and result
+auto Value::ReplaceAllOpUsesWith(Operation *old_op, Operation *new_op) -> void {
+  for (auto &use : uses_) {
+    auto op = use->operation_;
+    if (op == nullptr) {
+      throw std::runtime_error("The operation that uses this value is nullptr");
+    }
+    // Replace the operation with the new operation
+    // Do not change index
+    if (op == old_op) {
+      use->operation_ = new_op;
+    }
+  }
 }
 
 }  // namespace middleend::mlir

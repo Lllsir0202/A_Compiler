@@ -17,6 +17,14 @@ class CopyOp : public ArithmOps {
     return op;
   }
 
+  // Used in lowering
+  static auto Create(CopyOp *other) -> CopyOp * {
+    auto op = new CopyOp();
+    op->SetUp(other->results_[0], other->operands_[0]);
+    other->operands_[0]->ReplaceAllOpUsesWith(other, op);
+    return op;
+  }
+
   /**
    * Since we might need to use and change the value and result of the operation
    * we should not make them const
@@ -42,6 +50,15 @@ class CopyOp : public ArithmOps {
     results_.reserve(1);
     operands_.emplace_back(value);
     auto res = context->CreateValue();
+    results_.emplace_back(res);
+    res->op_ = this;
+  };
+
+  // Used in the lowering when we need to create a new copy operation with specific result and operand
+  auto SetUp(mlir::Value *res, mlir::Value *value) -> void {
+    operands_.reserve(1);
+    results_.reserve(1);
+    operands_.emplace_back(value);
     results_.emplace_back(res);
     res->op_ = this;
   };
