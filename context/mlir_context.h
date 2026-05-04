@@ -101,6 +101,15 @@ class MLIRResourceContext {
   }
 
   /**
+   * @brief Set the argument value name
+   */
+  auto SetArgValueName(middleend::mlir::Value *value, size_t index) -> void {
+    value->name_ = "arg";
+    value->num_ = index;
+    value_num_--;  // Decrement the global value number since we are reusing the same variable name
+  }
+
+  /**
    * @brief Get the value mapped to an expression node
    */
   auto GetValueFromExpr(frontend::ast::ExprNode *expr_node) -> middleend::mlir::Value * {

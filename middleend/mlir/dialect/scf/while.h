@@ -27,7 +27,11 @@ class WhileOp : public SCFOps {
         *out << ", ";
       }
     }
-    *out << " = " << Name() << " {\n";
+    if (!results_.empty()) {
+      *out << " = " << Name() << " {\n";
+    } else {
+      *out << Name() << " {\n";
+    }
     indent_level_++;
     regions_[0]->indent_level_ = indent_level_;
     regions_[0]->Emit(out);

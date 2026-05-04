@@ -938,7 +938,8 @@ void MLIRVisitor::Visit(frontend::ast::WhileStmtNode *while_stmt) {
   }
 
   // Then generate the condition operation
-  auto condition_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::ConditionOp>(GET_MLIR_CONTEXT(), cond_value);
+  auto condition_op =
+      GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::ConditionOp>(GET_MLIR_CONTEXT(), cond_value, var_map);
   GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(condition_op);
 
   // body region
@@ -978,13 +979,11 @@ void MLIRVisitor::Visit(frontend::ast::WhileStmtNode *while_stmt) {
 
   GET_MLIR_CONTEXT()->SetCurrentRegion(current_region);
   GET_MLIR_CONTEXT()->SetInsertPoint(current_insert_point);
-  GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(while_op);
   // Set the value of the iter_args to the value of the results of while operation
   for (size_t i = 0; i < iter_args.size(); ++i) {
     auto entry = iter_args[i];
     auto value = while_op->GetResultByIndex(i);
     value->SetType(var_map[entry]->GetType());
-    GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, value);
   }
 
   // We need to feed back the iter_args to the condition/break/continue
@@ -999,6 +998,28 @@ void MLIRVisitor::Visit(frontend::ast::WhileStmtNode *while_stmt) {
   for (auto continue_op : continue_info) {
     continue_op->SetLoopCarriedVars(iter_args);
   }
+
+  // In front of the while operation, we import an operation to initialize the iter_args,
+  // which is used to initialize the loop carried variables,
+  // and since the iter_args will be changed in the loop, we can just replace all the uses of the original value
+  // with the value of the iter_args,
+  // so that we can ensure the correctness of the loop carried variables in the loop
+  auto original_values = std::vector<mlir::Value *>();
+  for (const auto &entry : iter_args) {
+    auto original_value = var_map[entry];
+    original_values.emplace_back(original_value);
+  }
+
+  if (!original_values.empty()) {
+    auto inits_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::InitsOp>(GET_MLIR_CONTEXT(), original_values);
+    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(inits_op);
+    for (size_t i = 0; i < original_values.size(); ++i) {
+      original_values[i]->ReplaceAllUsesWith(inits_op->GetResById(i));
+      original_values[i]->AddUse(inits_op, i);
+    }
+  }
+
+  GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(while_op);
 
   // Record whileop
   GET_MLIR_CONTEXT()->GetResourceContext()->AddLoop(while_op);

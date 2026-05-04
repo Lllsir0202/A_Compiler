@@ -1,18 +1,22 @@
 #ifndef MIDDLEEND_MLIR_DIALECT_SCF_CONDITION_H
 #define MIDDLEEND_MLIR_DIALECT_SCF_CONDITION_H
 #include <cstddef>
+#include <unordered_map>
 #include <vector>
 #include "compiler_context.h"
 #include "context/mlir_context.h"
 #include "middleend/mlir/dialect/scf/basic.h"
+#include "mlir/utils/value/value.h"
+#include "symboltable_context.h"
 namespace middleend::mlir::scf {
 class ConditionOp : public SCFOps {
  public:
   ~ConditionOp() override = default;
 
-  static auto Create(context::MLIRContext *context, mlir::Value *cond_value) -> ConditionOp * {
+  static auto Create(context::MLIRContext *context, mlir::Value *cond_value,
+                     std::unordered_map<symboltable::VarEntry *, mlir::Value *> original_value_map) -> ConditionOp * {
     auto op = new ConditionOp();
-    op->SetUp(context, cond_value);
+    op->SetUp(context, cond_value, original_value_map);
     return op;
   }
 
@@ -38,23 +42,46 @@ class ConditionOp : public SCFOps {
     for (size_t i = 0; i < changed_vars.size(); ++i) {
       auto entry = changed_vars[i];
       operands_.emplace_back(var_map_[entry]);
+      // Since the origin value is just a record for lowering
+      // we don't need to add use for it.
+      original_values_.emplace_back(original_var_map_[entry]);
       var_map_[entry]->AddUse(this, i + 1);
     }
 
     var_map_.clear();
+    original_values_.clear();
   }
 
   auto Verify(context::CompilerContext *context) -> bool override;
 
+  /**
+   * @brief Provide interface to get the operands
+   */
+
+  auto GetCondition() -> mlir::Value * { return operands_[0]; }
+  auto GetOperands() -> std::vector<mlir::Value *> {
+    std::vector<mlir::Value *> operands;
+    for (size_t i = 1; i < operands_.size(); ++i) {
+      operands.emplace_back(operands_[i]);
+    }
+    return operands;
+  }
+
+  auto GetOriginalValues() -> std::vector<mlir::Value *> { return original_values_; }
+
  private:
   ConditionOp() : SCFOps("condition"){};
-  auto SetUp(context::MLIRContext *context, mlir::Value *cond_value) -> void {
+  auto SetUp(context::MLIRContext *context, mlir::Value *cond_value,
+             std::unordered_map<symboltable::VarEntry *, mlir::Value *> &original_value_map) -> void {
     // Record current variable map
     var_map_ = context->GetResourceContext()->GetVarMap();
+    original_var_map_ = std::move(original_value_map);
     operands_.reserve(1);
     operands_.emplace_back(cond_value);
   }
   std::unordered_map<symboltable::VarEntry *, mlir::Value *> var_map_;
+  std::unordered_map<symboltable::VarEntry *, mlir::Value *> original_var_map_;
+  std::vector<mlir::Value *> original_values_;
 };
 
 }  // namespace middleend::mlir::scf

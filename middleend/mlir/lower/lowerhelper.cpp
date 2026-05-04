@@ -307,10 +307,16 @@ auto LowerHelper::LowerIfOp(middleend::mlir::scf::IfOp *if_op) -> void {
 
   // Deal with then block, insert new then block and new else block to current region
   auto new_then_block = new mlir::Block();
+  auto then_prefix = GetCurrentFuncDefOp()->GetName() + "_then";
+  SetUniqueBlockID(new_then_block, then_prefix);
   auto new_else_block = new mlir::Block();
+  auto else_prefix = GetCurrentFuncDefOp()->GetName() + "_else";
+  SetUniqueBlockID(new_else_block, else_prefix);
 
   // Need a merge block to merge the then block and else block
   auto merge_block = new mlir::Block();
+  auto merge_prefix = GetCurrentFuncDefOp()->GetName() + "_if_merge";
+  SetUniqueBlockID(merge_block, merge_prefix);
 
   auto current_region = GetCurrentRegion();
   current_region->blocks_.emplace_back(new_then_block);
@@ -397,7 +403,122 @@ auto LowerHelper::LowerWhileOp(middleend::mlir::scf::WhileOp *while_op) -> void 
   // While operation has cond region and body region,
   // cond region is ended with a `condition` operation
   // body region is ended with a `yield` operation
-  
+  auto cond_region = while_op->GetCondRegion();
+  auto body_region = while_op->GetBodyRegion();
+
+  // Get cond and region block
+  auto cond_block = cond_region->blocks_[0];
+  auto body_block = body_region->blocks_[0];
+
+  // Current block is the block before the while loop, need to br to cond block
+  auto current_block = GetInsertPoint();
+
+  // Create new blocks for cond, body and merge
+  auto new_cond_block = new mlir::Block();
+  auto cond_prefix = GetCurrentFuncDefOp()->GetName() + "_while_cond";
+  SetUniqueBlockID(new_cond_block, cond_prefix);
+
+  auto new_body_block = new mlir::Block();
+  auto body_prefix = GetCurrentFuncDefOp()->GetName() + "_while_body";
+  SetUniqueBlockID(new_body_block, body_prefix);
+
+  auto merge_block = new mlir::Block();
+  auto merge_prefix = GetCurrentFuncDefOp()->GetName() + "_while_merge";
+  SetUniqueBlockID(merge_block, merge_prefix);
+
+  auto current_region = GetCurrentRegion();
+  current_region->blocks_.emplace_back(new_cond_block);
+  current_region->blocks_.emplace_back(new_body_block);
+  current_region->blocks_.emplace_back(merge_block);
+
+  // Add branch from current block to cond block
+  auto br_to_cond = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::BrOp>(new_cond_block);
+  current_block->AddOperation(br_to_cond);
+
+  // Handle the condition operation and yield operation in whileop
+  auto condition_op = DynamicOrNull<scf::ConditionOp>(cond_block->operations_.back());
+  if (condition_op == nullptr) {
+    compiler_context_->ReportError("Condition block of WhileOp must end with a ConditionOp\n");
+    return;
+  }
+
+  auto yield_op = DynamicOrNull<scf::YieldOp>(body_block->operations_.back());
+  if (yield_op == nullptr) {
+    compiler_context_->ReportError("Body block of WhileOp must end with a YieldOp\n");
+    return;
+  }
+
+  // Since the `phi` should be in the head of the block, we deal with them first.
+  /**
+   * @brief condition operation should decide whether to branch to body block or merge block
+   * If cond:
+   * true: means while(true), branch to body block
+   * false: means while(false), branch to merge block
+   * @note note that the condition operation need to update the value via phi node,
+   * since we don't allow the value updated in the condition block
+   * -- just because there is no operation that can update the value in an expression
+   * but to be more clear, might we should record the values before entering the while loop,
+   * and then directly use them as the operand when we jump from current block to cond block,
+   * instead of using the operand of condition operation, so that it might cause less bugs,
+   * once we allow the value to be updated in an expression.
+   * so if :
+   * jump from current block(means from outside of the while loop) to cond block,
+   * then the value is the initial value, which is the operand of the condition operation
+   * if:
+   * jump from body block to cond block, means we are in the while loop, then the value is the updated value,
+   * which is the operand of the yield operation in body block
+
+   * And we only need to deal with the values which changed during the loop,
+   * since there is no need to merge the values which are not changed during the loop
+   */
+  auto condition_operands = condition_op->GetOperands();
+  auto yield_operands = yield_op->GetOperands();
+  // Deal with the original operands
+  auto original_operands = condition_op->GetOriginalValues();
+
+  if (condition_operands.size() != yield_operands.size()) {
+    compiler_context_->ReportError(
+        "Condition operation and yield operation of WhileOp must have the same number of operands\n");
+    return;
+  }
+  if (condition_operands.size() != original_operands.size()) {
+    compiler_context_->ReportError(
+        "Condition operation and original values of WhileOp must have the same number of operands\n");
+    return;
+  }
+
+  auto size = condition_operands.size();
+  // Start with jumping from current block to condition block
+  // if from current block, then phi is original value, otherwise, phi is the value from yield
+  for (size_t i = 0; i < size; i++) {
+    auto original_value = original_operands[i];
+    auto yield_value = yield_operands[i];
+    auto phi_node = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::PhiOp>(
+        original_value, std::vector<mlir::Value *>{original_value, yield_value},
+        std::vector<mlir::Block *>{current_block, new_body_block});
+    original_value->ReplaceAllOpUsesWith(condition_op, phi_node, i);
+    yield_value->ReplaceAllOpUsesWith(yield_op, phi_node, i);
+    new_cond_block->AddOperation(phi_node);
+  }
+
+  // Then we need to lower the cond block and body block separately,
+  // Start with cond block
+  SetInsertPoint(new_cond_block);
+  for (auto &op : cond_block->operations_) {
+    LowerDispatch(op);
+  }
+
+  // Same as IfOp, we will deal with the condition operation in whileop
+
+  SetInsertPoint(new_body_block);
+  for (auto &op : body_block->operations_) {
+    LowerDispatch(op);
+  }
+
+  // Same as IfOp, we will deal with the yield operation in whileop
+
+  // After lowering the cond block and body block, we need to set the insert point to the merge block
+  SetInsertPoint(merge_block);
 }
 
 }  // namespace middleend::mlir::lower
