@@ -300,6 +300,9 @@ auto LowerHelper::LowerFuncDefOp(middleend::mlir::func::FuncDefOp *func_def_op) 
   // Record current function
   SetCurrentFuncDefOp(func_op_base);
 
+  // Record map
+  GET_MLIR_CONTEXT()->GetLowerContext()->MapFuncNameToFuncDefOp(func_op_base->GetName(), func_op_base);
+
   // Then we need to lower the region in the function definition,
   // Since we are currently in the original block, which is the entry block of the function definition,
   // we can directly lower the operations in the region without changing the insert point,

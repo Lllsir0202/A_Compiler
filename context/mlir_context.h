@@ -13,15 +13,20 @@
 
 namespace middleend::mlir::func {
 class FuncDefOp;
-}
+}  // namespace middleend::mlir::func
 namespace middleend::mlir::arithm {
 class ConstOp;
-}
+}  // namespace middleend::mlir::arithm
 namespace middleend::mlir::scf {
 class BreakOp;
 class ContinueOp;
 class WhileOp;
 }  // namespace middleend::mlir::scf
+
+namespace middleend::mlir::base {
+class FuncDefOp;
+}  // namespace middleend::mlir::base
+
 namespace context {
 /**
  * @brief This class is used to create and manage value
@@ -160,6 +165,11 @@ class MLIRResourceContext {
    * @brief Reset
    */
   auto Reset() -> void { const_map_.clear(); }
+
+  /**
+   * @breif Reset the function map when finishing the mlir visitor
+   */
+  auto ResetFuncMap() -> void { func_map_.clear(); }
 
   /**
    * @brief Enter a loop
@@ -387,6 +397,17 @@ class MLIRLowerContext {
     return while_op_vec_.back();
   }
 
+  auto MapFuncNameToFuncDefOp(const std::string &func_name, middleend::mlir::base::FuncDefOp *func_def_op) -> void {
+    func_name_2_func_def_op_[func_name] = func_def_op;
+  }
+
+  auto GetFuncDefOpFromFuncName(const std::string &func_name) -> middleend::mlir::base::FuncDefOp * {
+    if (func_name_2_func_def_op_.count(func_name) > 0) {
+      return func_name_2_func_def_op_[func_name];
+    }
+    return nullptr;  // Not found
+  }
+
  private:
   // Record map from while operation to its corresponding exit block,
   // which is used for lowering break operation
@@ -395,6 +416,11 @@ class MLIRLowerContext {
   std::unordered_map<middleend::mlir::scf::WhileOp *, middleend::mlir::Block *> while_2_body_block_;
 
   std::vector<middleend::mlir::scf::WhileOp *> while_op_vec_;
+
+  // Map from func name to base funcdef op,
+  // used for func call operation to get
+  // the corresponding function definition operation
+  std::unordered_map<std::string, middleend::mlir::base::FuncDefOp *> func_name_2_func_def_op_;
 };
 
 /**

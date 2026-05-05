@@ -15,7 +15,8 @@ class FuncCallOp : public FuncOps {
   // Used in lowering
   static auto Create(FuncCallOp *other) -> FuncCallOp * {
     auto func_call_op = new FuncCallOp();
-    func_call_op->SetUp(other->GetRes(), other->GetName(), other->GetOperands());
+    auto args = other->GetOperands();
+    func_call_op->SetUp(other->GetRes(), other->GetName(), std::move(args));
     for (auto &operand : other->GetOperands()) {
       operand->ReplaceAllOpUsesWith(other, func_call_op);
     }

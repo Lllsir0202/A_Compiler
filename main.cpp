@@ -213,6 +213,13 @@ auto main(int argc, char *argv[]) -> int {
   auto mlir_lower = std::make_unique<middleend::mlir::lower::MLIRLower>(&compiler_context);
   ret = mlir_lower->Lower();
 
+  auto lower_verifier = std::make_unique<middleend::mlir::verifier::MLIRVerifier>(
+      compiler_context.GetIRContext()->GetMLIRContext()->GetModuleOp(), &compiler_context);
+
+  if (!lower_verifier->Verify()) {
+    return 1;
+  }
+
   if (stage == "mlir" && ret == 0) {
     stage_ptr = std::make_unique<stages::MLIRStage>(&compiler_context);
     stage_ptr->Run();

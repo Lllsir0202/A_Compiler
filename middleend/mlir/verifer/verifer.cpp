@@ -9,4 +9,13 @@ auto MLIRVerifier::Verify() -> bool {
   }
   return module_op_->Verify(compiler_context_);
 }
+
+auto BaseVerifier::Verify() -> bool {
+  if (module_op_ == nullptr) {
+    compiler_context_->Print("Operation: No operation to verify.");
+    return false;
+  }
+
+  return module_op_->Verify(compiler_context_);
+}
 }  // namespace middleend::mlir::verifier

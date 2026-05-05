@@ -14,6 +14,17 @@ class MLIRVerifier {
   context::CompilerContext *compiler_context_;
 };
 
+class BaseVerifier {
+ public:
+  explicit BaseVerifier(ModuleOp *moduleop, context::CompilerContext *compiler_context)
+      : module_op_(moduleop), compiler_context_(compiler_context) {}
+  auto Verify() -> bool;
+
+ private:
+  mlir::ModuleOp *module_op_;
+  context::CompilerContext *compiler_context_;
+};
+
 }  // namespace middleend::mlir::verifier
 
 #endif

@@ -7,6 +7,8 @@ namespace middleend::mlir::lower {
 // Get necessary information
 MLIRLower::MLIRLower(context::CompilerContext *compiler_context) : compiler_context_(compiler_context) {
   module_op_ = GET_MLIR_CONTEXT()->GetModuleOp();
+  // Reset the function map
+  GET_MLIR_CONTEXT()->GetResourceContext()->ResetFuncMap();
   lower_helper_ = new LowerHelper(compiler_context_);
   new_module_op_ = GET_MLIR_CONTEXT()->CreateOperation<mlir::ModuleOp>();
 }

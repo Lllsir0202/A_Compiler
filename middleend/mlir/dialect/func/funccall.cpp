@@ -7,8 +7,14 @@ auto FuncCallOp::Verify(context::CompilerContext *context) -> bool {
   // Check if the function definition operation exists
   auto func_def_op = context->GetIRContext()->GetMLIRContext()->GetResourceContext()->GetFuncDefOpFromFuncName(name_);
   if (func_def_op == nullptr) {
-    context->Print("FuncCallOp: function definition not found for function name " + name_ + "\n");
-    return false;
+    // If in lowering stage
+    auto func_def = context->GetIRContext()->GetMLIRContext()->GetLowerContext()->GetFuncDefOpFromFuncName(name_);
+    if (func_def == nullptr) {
+      return false;
+    }
+
+    // Has verified in high-level MLIR
+    return true;
   }
 
   // Currently only one result
