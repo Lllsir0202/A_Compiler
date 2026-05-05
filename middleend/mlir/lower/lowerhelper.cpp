@@ -1,6 +1,7 @@
 #include "middleend/mlir/lower/lowerhelper.h"
 #include <exception>
 #include <fstream>
+#include "mlir/dialect/base/phi.h"
 #include "mlir/dialect/func/funccall.h"
 #include "mlir/dialect/func/funcdef.h"
 #include "mlir/dialect/func/return.h"
@@ -397,8 +398,14 @@ auto LowerHelper::LowerIfOp(middleend::mlir::scf::IfOp *if_op) -> void {
   }
 
   // After lowering the then block, we need to insert a branch to the merge block
+  /**
+   * @note: Since there might be recursive IfOp or WhileOp in the then block,
+   * we cannot directly insert the branch to the merge block
+   */
   auto br_to_merge_from_then = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::BrOp>(merge_block);
-  new_then_block->AddOperation(br_to_merge_from_then);
+  GetInsertPoint()->AddOperation(br_to_merge_from_then);
+  // Br from then block to merge block, which will be used in phi
+  auto control_flow_from_then = GetInsertPoint();
 
   // Then we need to lower the else block
   SetInsertPoint(new_else_block);
@@ -408,7 +415,9 @@ auto LowerHelper::LowerIfOp(middleend::mlir::scf::IfOp *if_op) -> void {
 
   // Same as then block, add a branch to the merge block
   auto br_to_merge_from_else = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::BrOp>(merge_block);
-  new_else_block->AddOperation(br_to_merge_from_else);
+  GetInsertPoint()->AddOperation(br_to_merge_from_else);
+  // Br from else block to merge block, which will be used in phi
+  auto control_flow_from_else = GetInsertPoint();
 
   // After lowering the then block and else block, we need to reset the insert point to the merge block
   SetInsertPoint(merge_block);
@@ -436,7 +445,7 @@ auto LowerHelper::LowerIfOp(middleend::mlir::scf::IfOp *if_op) -> void {
     // Since the mlir::Value* has been generated in high-level dialect, we only need to directly use them
     auto phi_node = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::PhiOp>(
         res, std::vector<mlir::Value *>{then_value, else_value},
-        std::vector<mlir::Block *>{new_then_block, new_else_block});
+        std::vector<mlir::Block *>{control_flow_from_then, control_flow_from_else});
 
     then_value->ReplaceAllOpUsesWith(then_yield_op, phi_node, 0);
     else_value->ReplaceAllOpUsesWith(else_yield_op, phi_node, 1);
@@ -543,40 +552,29 @@ auto LowerHelper::LowerWhileOp(middleend::mlir::scf::WhileOp *while_op) -> void 
   // Start with jumping from current block to condition block
   // if from current block, then phi is original value, otherwise, phi is the value from yield
 
-  if (size != 0) {  // Meet initsop, do not handle, deal with it now
-    auto cond_block_args = cond_block->arguments_;
-    auto body_block_args = body_block->arguments_;
-    if (cond_block_args.size() != size || body_block_args.size() != size) {
-      compiler_context_->ReportError(
-          "Condition block and body block of WhileOp must have the same number of arguments as the operands of "
-          "condition operation and yield operation\n");
-      return;
-    }
+  // Create phi node and fill the incomings later
+  std::vector<mlir::base::PhiOp *> phi_nodes;
 
-    // If from current block, then phi is original value, otherwise, phi is the value from yield
-    for (size_t i = 0; i < size; i++) {
-      auto original_value = original_operands[i];
-      auto yield_operand = yield_operands[i];
-      if (cond_block_args[i] != body_block_args[i]) {
-        compiler_context_->ReportError(
-            "Condition block argument and body block argument must be the same for the same index\n");
-        return;
-      }
+  auto cond_block_args = cond_block->arguments_;
+  auto body_block_args = body_block->arguments_;
+  if (cond_block_args.size() != size || body_block_args.size() != size) {
+    compiler_context_->ReportError(
+        "Condition block and body block of WhileOp must have the same number of arguments as the operands of "
+        "condition operation and yield operation\n");
+    return;
+  }
 
-      auto result = cond_block_args[i];
+  // If from current block, then phi is original value, otherwise, phi is the value from yield
+  for (size_t i = 0; i < size; i++) {
+    auto result = cond_block_args[i];
 
-      // If from current block, then phi is original value,
-      // otherwise, phi is the value from yield
-      auto phi_node = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::PhiOp>(
-          result, std::vector<mlir::Value *>{original_value, yield_operand},
-          std::vector<mlir::Block *>{current_block, new_body_block});
-
-      original_value->ReplaceAllOpUsesWith(condition_op, phi_node, 0);
-      yield_operand->ReplaceAllOpUsesWith(yield_op, phi_node, 1);
-      // Phi node should be added to the head of the condition block,
-      // which means it should be added before the condition block lowering
-      new_cond_block->AddOperation(phi_node);
-    }
+    // If from current block, then phi is original value,
+    // otherwise, phi is the value from yield
+    auto phi_node = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::PhiOp>(result);
+    phi_nodes.emplace_back(phi_node);
+    // Phi node should be added to the head of the condition block,
+    // which means it should be added before the condition block lowering
+    new_cond_block->AddOperation(phi_node);
   }
 
   // Add branch from current block to cond block
@@ -593,6 +591,8 @@ auto LowerHelper::LowerWhileOp(middleend::mlir::scf::WhileOp *while_op) -> void 
   // Since currently, the phi node will only be added in the condition block,
   // because all branch will only jump to the condition block, and then jump to the exit block
 
+  // Since the condition block will always jump from current block to condition block,
+  // so we don't need to consider the scf change the br operation's `from`.
   auto br_cond_to_body =
       GET_MLIR_CONTEXT()->CreateOperation<mlir::base::CondBrOp>(condition, new_body_block, exit_block);
   GetInsertPoint()->AddOperation(br_cond_to_body);
@@ -607,6 +607,20 @@ auto LowerHelper::LowerWhileOp(middleend::mlir::scf::WhileOp *while_op) -> void 
   }
   auto br_body_to_cond = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::BrOp>(new_cond_block);
   GetInsertPoint()->AddOperation(br_body_to_cond);
+  auto control_flow_from_body = GetInsertPoint();
+
+  // Set the incomings of phi nodes
+  for (size_t i = 0; i < size; i++) {
+    auto phi_node = phi_nodes[i];
+    auto original_value = original_operands[i];
+    auto yield_value = yield_operands[i];
+    // If from current block, then phi is original value,
+    // otherwise, phi is the value from yield
+    phi_node->AddIncoming(original_value, new_cond_block);
+    phi_node->AddIncoming(yield_value, control_flow_from_body);
+    original_value->ReplaceAllOpUsesWith(condition_op, phi_node, 0);
+    yield_value->ReplaceAllOpUsesWith(yield_op, phi_node, 1);
+  }
 
   // Same as IfOp, we will deal with the yield operation in whileop
 

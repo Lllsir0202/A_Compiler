@@ -110,6 +110,7 @@ class LowerHelper {
     block->block_name_ = prefix;
     block->block_id_ = block_id_counter_++;
   }
+
   auto ResetBlockID() -> void { block_id_counter_ = 0; }
 
   // Provide interface to set and get current function definition operation, which is used for return operation to find
