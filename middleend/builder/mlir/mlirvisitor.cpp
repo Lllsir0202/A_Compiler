@@ -1032,6 +1032,14 @@ void MLIRVisitor::Visit(frontend::ast::WhileStmtNode *while_stmt) {
     }
   }
 
+  // Map the whileop's results to the iter_args,
+  // so that after whileop, the following code can just get the value from the results of the whileop
+  for (size_t i = 0; i < iter_args.size(); ++i) {
+    auto entry = iter_args[i];
+    auto value = while_op->GetResultByIndex(i);
+    GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, value);
+  }
+
   GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(while_op);
 
   // Record whileop
