@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include "type/type.h"
+
 namespace middleend::mlir {
 class Operation;
 

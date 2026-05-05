@@ -1,5 +1,6 @@
 #include "middleend/mlir/utils/value/value.h"
 #include <stdexcept>
+#include "compiler_context.h"
 #include "middleend/mlir/utils/operation/operation.h"
 
 namespace middleend::mlir {
