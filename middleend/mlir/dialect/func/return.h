@@ -23,9 +23,12 @@ class ReturnOp : public FuncOps {
   // Used in lowering
   static auto Create(ReturnOp *other) -> ReturnOp * {
     auto op = new ReturnOp();
-    op->SetUp(other->GetRes(), other->GetReturnValue()->GetType(), other->GetReturnValue());
+
     if (other->GetReturnValue() != nullptr) {
+      op->SetUp(other->GetRes(), other->GetReturnValue()->GetType(), other->GetReturnValue());
       other->GetReturnValue()->ReplaceAllOpUsesWith(other, op);
+    } else {
+      op->SetUp(other->GetRes(), other->GetRes()->GetType());
     }
     return op;
   }
@@ -82,6 +85,13 @@ class ReturnOp : public FuncOps {
       // if return_value is null, it means there is no return value
       operands_.emplace_back(return_value);
     }
+    results_.emplace_back(res);
+    res->SetType(return_type);
+    res->op_ = this;
+  }
+
+  auto SetUp(mlir::Value *res, type::Type *return_type) -> void {
+    results_.reserve(1);
     results_.emplace_back(res);
     res->SetType(return_type);
     res->op_ = this;

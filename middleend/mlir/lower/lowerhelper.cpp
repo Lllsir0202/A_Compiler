@@ -462,6 +462,9 @@ auto LowerHelper::LowerIfOp(middleend::mlir::scf::IfOp *if_op) -> void {
 }
 
 auto LowerHelper::LowerWhileOp(middleend::mlir::scf::WhileOp *while_op) -> void {
+  // Enter a loop
+  GET_MLIR_CONTEXT()->GetLowerContext()->EnterWhileLoop(while_op);
+
   // While operation has cond region and body region,
   // cond region is ended with a `condition` operation
   // body region is ended with a `yield` operation
@@ -591,14 +594,18 @@ auto LowerHelper::LowerWhileOp(middleend::mlir::scf::WhileOp *while_op) -> void 
    */
   for (size_t i = 0; i < size; i++) {
     auto result = while_op->GetResultByIndex(i);
-
-    // If from current block, then phi is original value,
-    // otherwise, phi is the value from yield
+    // In exit block, most of the time, the value is from condition block.
     auto phi_node = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::PhiOp>(result);
     phi_node->AddIncoming(cond_block_args[i], new_cond_block);
     phi_nodes.emplace_back(phi_node);
     exit_block->AddOperation(phi_node);
   }
+
+  // We can map whileop to exit_block, so that when we meet `break`,
+  //  we will be able to deal with it correctly.
+  GET_MLIR_CONTEXT()->GetLowerContext()->MapWhileOpToExitBlock(while_op, exit_block);
+  GET_MLIR_CONTEXT()->GetLowerContext()->MapWhileOpToCondBlock(while_op, new_cond_block);
+  GET_MLIR_CONTEXT()->GetLowerContext()->MapWhileOpToBodyBlock(while_op, new_body_block);
 
   // Add branch from current block to cond block
   auto br_to_cond = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::BrOp>(new_cond_block);
@@ -649,17 +656,91 @@ auto LowerHelper::LowerWhileOp(middleend::mlir::scf::WhileOp *while_op) -> void 
 
   // After lowering the cond block and body block, we need to set the insert point to the exit block
   SetInsertPoint(exit_block);
+
+  // Exit the loop
+  GET_MLIR_CONTEXT()->GetLowerContext()->ExitWhileLoop();
 }
 
-auto LowerHelper::LowerBreakOp([[maybe_unused]] middleend::mlir::scf::BreakOp *break_op) -> void {
-  // TODO(loki): implement the lowering of break operation
+auto LowerHelper::LowerBreakOp(middleend::mlir::scf::BreakOp *break_op) -> void {
   // Since the break operation will directly jump to the exit block of the while loop,
   // and we need to update the phi node in the exit block, which means we need to add a incoming
   // from the break operation to the exit block
+  auto current_loop = GET_MLIR_CONTEXT()->GetLowerContext()->GetCurrentWhileLoop();
+  if (current_loop == nullptr) {
+    compiler_context_->ReportError("Break operation must be inside a while loop\n");
+    return;
+  }
+  auto exit_block = GET_MLIR_CONTEXT()->GetLowerContext()->GetExitBlockFromWhileOp(current_loop);
+  // Add a branch from current block to exit block
+  auto current_block = GetInsertPoint();
+  auto br_to_exit = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::BrOp>(exit_block);
+  current_block->AddOperation(br_to_exit);
+
+  // If break operation has operands, which is current state of the loop, we need to update the phi node in the exit
+  // block
+  auto size = current_loop->GetResultsSize();
+  auto operands = break_op->GetOperands();
+  if (operands.size() != size) {
+    compiler_context_->ReportError(
+        "Break operation must have the same number of operands as the while operation's results: " +
+        std::to_string(operands.size()) + " and " + std::to_string(size));
+    return;
+  }
+
+  // Update the phi node in the exit block
+  for (size_t i = 0; i < size; i++) {
+    // Implementation for updating phi nodes
+    auto operand = operands[i];
+    auto phi_node = exit_block->operations_[i];
+    if (auto phi_op = DynamicOrNull<mlir::base::PhiOp>(phi_node)) {
+      phi_op->AddIncoming(operand, current_block);
+      operand->ReplaceAllOpUsesWith(break_op, phi_op, phi_op->GetIncoming().size() - 1);
+    } else {
+      compiler_context_->ReportError("The operation in the exit block is not a PhiOp\n");
+      return;
+    }
+  }
 }
 
 auto LowerHelper::LowerContinueOp([[maybe_unused]] middleend::mlir::scf::ContinueOp *continue_op) -> void {
   // TODO(loki): implement the lowering of continue operation
+  /**
+   * @brief For continue operation, it will directly jump to the condition block of the while loop,
+   * and we need to update the phi node in the condition block,
+   * which means we need to add a incoming from the continue operation to the condition block
+   */
+  auto current_loop = GET_MLIR_CONTEXT()->GetLowerContext()->GetCurrentWhileLoop();
+  if (current_loop == nullptr) {
+    compiler_context_->ReportError("Continue operation must be inside a while loop\n");
+    return;
+  }
+  auto cond_block = GET_MLIR_CONTEXT()->GetLowerContext()->GetCondBlockFromWhileOp(current_loop);
+  // Add a branch from current block to condition block
+  auto current_block = GetInsertPoint();
+  auto br_to_cond = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::BrOp>(cond_block);
+  current_block->AddOperation(br_to_cond);
+  // Then add incoming to the phi node in the condition block
+  auto operands = continue_op->GetOperands();
+  auto size = current_loop->GetResultsSize();
+  if (operands.size() != size) {
+    compiler_context_->ReportError(
+        "Continue operation must have the same number of operands as the while operation's results: " +
+        std::to_string(operands.size()) + " and " + std::to_string(size));
+    return;
+  }
+
+  // Update the phi node in the condition block
+  for (size_t i = 0; i < size; i++) {
+    auto operand = operands[i];
+    auto phi_node = cond_block->operations_[i];
+    if (auto phi_op = DynamicOrNull<mlir::base::PhiOp>(phi_node)) {
+      phi_op->AddIncoming(operand, current_block);
+      operand->ReplaceAllOpUsesWith(continue_op, phi_op, phi_op->GetIncoming().size() - 1);
+    } else {
+      compiler_context_->ReportError("The operation in the condition block is not a PhiOp\n");
+      return;
+    }
+  }
 }
 
 auto LowerHelper::LowerConditionOp([[maybe_unused]] middleend::mlir::scf::ConditionOp *condition_op) -> void {}

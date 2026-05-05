@@ -61,6 +61,8 @@ class WhileOp : public SCFOps {
     return results_[index];
   }
 
+  auto GetResultsSize() -> size_t { return results_.size(); }
+
  private:
   WhileOp() : SCFOps("while"){};
   auto SetUp(context::MLIRContext *context, size_t num_results, mlir::Region *cond_region,

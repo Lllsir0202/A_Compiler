@@ -26,6 +26,8 @@ class ContinueOp : public SCFOps {
     *out << "\n";
   }
 
+  auto GetOperands() -> std::vector<mlir::Value *> { return operands_; }
+
   // Only thing from break operation, continue operation will jump to the condition block
   auto SetLoopCarriedVars(const std::vector<symboltable::VarEntry *> &changed_vars) -> void {
     // Set them as the oeprands of the continue operation

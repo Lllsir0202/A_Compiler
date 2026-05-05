@@ -78,6 +78,10 @@ inline auto SemanticAnalyser::DecideResultType(OpCode op, ExprNode *operand) -> 
   switch (op) {
     case OpCode::NEGATIVE:
     case OpCode::POSITIVE:
+      if (operand->GetType()->GetKind() == type::TypeKind::BOOL) {
+        // If the operand is bool, we will consider it as integer
+        return compiler_context_->GetTypeContext()->GetIntegerType();
+      }
       if (operand->GetType()->GetKind() != type::TypeKind::UNKNOWN) {
         return operand->GetType();
       }

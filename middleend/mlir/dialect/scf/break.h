@@ -27,6 +27,8 @@ class BreakOp : public SCFOps {
     *out << "\n";
   }
 
+  auto GetOperands() -> std::vector<mlir::Value *> { return operands_; }
+
   auto Verify(context::CompilerContext *context) -> bool override;
 
   // SetUp the loop-carried variables for the break operation

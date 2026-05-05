@@ -1155,7 +1155,7 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
         }
         if (value->GetType() != type) {
           auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), value,
-                                                                                   value->GetType(), entry->type_);
+                                                                                   value->GetType(), type);
           value->AddUse(cast_op, 0);
           GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
           value = cast_op->GetRes();
@@ -1188,9 +1188,17 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
         compiler_context_->ReportError(init->value_.get(), "Failed to get value from initializer expression.");
         return;
       }
-      if (value->GetType() != entry->type_) {
+      /**
+       * @note: For array-variables, we need to check the type of the initials with the element type
+       */
+      auto type = entry->type_;
+      if (type->GetKind() == type::TypeKind::ARRAY) {
+        // In definition, type will only be array type instead of pointer
+        type = static_cast<type::ArrayType *>(type)->GetElementType();
+      }
+      if (value->GetType() != type) {
         auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), value,
-                                                                                 value->GetType(), entry->type_);
+                                                                                 value->GetType(), type);
         value->AddUse(cast_op, 0);
         GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
         value = cast_op->GetRes();

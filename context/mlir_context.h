@@ -325,6 +325,79 @@ class MLIRStateContext {
 };
 
 /**
+ * @brief This class is used for lowering the high-level IR to low-level IR
+ */
+class MLIRLowerContext {
+ public:
+  MLIRLowerContext() = default;
+  ~MLIRLowerContext() = default;
+
+  /**
+   * @brief Provide interfaces to record and get the whileop->exit block
+   */
+  auto MapWhileOpToExitBlock(middleend::mlir::scf::WhileOp *while_op, middleend::mlir::Block *exit_block) -> void {
+    while_2_exit_block_[while_op] = exit_block;
+  }
+
+  auto GetExitBlockFromWhileOp(middleend::mlir::scf::WhileOp *while_op) -> middleend::mlir::Block * {
+    if (while_2_exit_block_.count(while_op) > 0) {
+      return while_2_exit_block_[while_op];
+    }
+    return nullptr;  // Not found
+  }
+
+  auto MapWhileOpToCondBlock(middleend::mlir::scf::WhileOp *while_op, middleend::mlir::Block *cond_block) -> void {
+    while_2_cond_block_[while_op] = cond_block;
+  }
+
+  auto GetCondBlockFromWhileOp(middleend::mlir::scf::WhileOp *while_op) -> middleend::mlir::Block * {
+    if (while_2_cond_block_.count(while_op) > 0) {
+      return while_2_cond_block_[while_op];
+    }
+    return nullptr;  // Not found
+  }
+
+  auto MapWhileOpToBodyBlock(middleend::mlir::scf::WhileOp *while_op, middleend::mlir::Block *body_block) -> void {
+    while_2_body_block_[while_op] = body_block;
+  }
+
+  auto GetBodyBlockFromWhileOp(middleend::mlir::scf::WhileOp *while_op) -> middleend::mlir::Block * {
+    if (while_2_body_block_.count(while_op) > 0) {
+      return while_2_body_block_[while_op];
+    }
+    return nullptr;  // Not found
+  }
+
+  /**
+   * @brief Record while loop and get which loop we are currently in
+   */
+  auto EnterWhileLoop(middleend::mlir::scf::WhileOp *while_op) -> void { while_op_vec_.emplace_back(while_op); }
+
+  auto ExitWhileLoop() -> void {
+    if (while_op_vec_.empty()) {
+      throw std::logic_error("No while loop to exit.");
+    }
+    while_op_vec_.pop_back();
+  }
+
+  auto GetCurrentWhileLoop() -> middleend::mlir::scf::WhileOp * {
+    if (while_op_vec_.empty()) {
+      return nullptr;  // Not found
+    }
+    return while_op_vec_.back();
+  }
+
+ private:
+  // Record map from while operation to its corresponding exit block,
+  // which is used for lowering break operation
+  std::unordered_map<middleend::mlir::scf::WhileOp *, middleend::mlir::Block *> while_2_exit_block_;
+  std::unordered_map<middleend::mlir::scf::WhileOp *, middleend::mlir::Block *> while_2_cond_block_;
+  std::unordered_map<middleend::mlir::scf::WhileOp *, middleend::mlir::Block *> while_2_body_block_;
+
+  std::vector<middleend::mlir::scf::WhileOp *> while_op_vec_;
+};
+
+/**
  * @brief Since the IR can be totally different among different IRs,
  * we will provide a context for the IR,
  * which will be used to manage the resources of the IR,
@@ -334,11 +407,13 @@ class MLIRContext {
   explicit MLIRContext(TypeContext *type_context) {
     resource_context_ = new MLIRResourceContext();
     state_context_ = new MLIRStateContext();
+    lower_context_ = new MLIRLowerContext();
     type_context_ = type_context;
   }
   ~MLIRContext() {
     delete resource_context_;
     delete state_context_;
+    delete lower_context_;
     // Since the module operation will not be destroyed by other operations,
     // we shall call delete while the MLIRContext is destroyed,
     // so that the memory of the module operation can be released.
@@ -353,6 +428,11 @@ class MLIRContext {
    * @brief Get the state context of the MLIR, which can be used to manage the build state of the MLIR
    */
   auto GetStateContext() -> MLIRStateContext * { return state_context_; }
+
+  /**
+   * @brief Get the lower context of the MLIR, which can be used to manage the lowering state of the MLIR
+   */
+  auto GetLowerContext() -> MLIRLowerContext * { return lower_context_; }
 
   // Register Library Functions
   auto RegisterLibraryFunction() -> void;
@@ -402,6 +482,7 @@ class MLIRContext {
  private:
   MLIRResourceContext *resource_context_;
   MLIRStateContext *state_context_;
+  MLIRLowerContext *lower_context_;
 
   // Type context
   TypeContext *type_context_;
