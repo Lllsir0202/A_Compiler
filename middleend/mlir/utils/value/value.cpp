@@ -43,10 +43,7 @@ auto Value::ReplaceAllOpUsesWith(Operation *old_op, Operation *new_op, size_t ne
     // Replace the operation with the new operation
     if (op == old_op) {
       use->operation_ = new_op;
-      // Also need to update the operand index in the new operation
-      if (new_index >= new_op->operands_.size()) {
-        throw std::runtime_error("The new operand index is out of range");
-      }
+
       use->operand_index_ = new_index;
     }
   }

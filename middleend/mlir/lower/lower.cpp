@@ -19,13 +19,22 @@ auto MLIRLower::Lower() -> int {
     try {
       lower_helper_->LowerDispatch(op);
     } catch (std::logic_error) {
+      delete lower_helper_;
+      lower_helper_ = nullptr;
+      delete new_module_op_;
       compiler_context_->Print("Logic Error: Failed to lower operation: " + op->Name() + "\n");
       return 1;
     } catch (std::runtime_error) {
       compiler_context_->Print("Runtime Error: Failed to lower operation: " + op->Name() + "\n");
+      delete lower_helper_;
+      lower_helper_ = nullptr;
+      delete new_module_op_;
       return 2;
     } catch (...) {
       compiler_context_->Print("Unknown Error: Failed to lower operation: " + op->Name() + "\n");
+      delete lower_helper_;
+      lower_helper_ = nullptr;
+      delete new_module_op_;
       return 3;
     }
   }

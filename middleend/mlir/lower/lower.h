@@ -14,7 +14,7 @@ namespace middleend::mlir::lower {
 class MLIRLower {
  public:
   explicit MLIRLower(context::CompilerContext *compiler_context);
-  ~MLIRLower() = default;
+  ~MLIRLower() { delete lower_helper_; }
 
   auto Lower() -> int;
 

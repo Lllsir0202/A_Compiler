@@ -1011,11 +1011,23 @@ void MLIRVisitor::Visit(frontend::ast::WhileStmtNode *while_stmt) {
   }
 
   if (!original_values.empty()) {
-    auto inits_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::InitsOp>(GET_MLIR_CONTEXT(), original_values);
-    GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(inits_op);
+    // auto inits_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::InitsOp>(GET_MLIR_CONTEXT(), original_values);
+    // Create block args
+    auto block_args = std::vector<mlir::Value *>();
+
+    // GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(inits_op);
     for (size_t i = 0; i < original_values.size(); ++i) {
-      original_values[i]->ReplaceAllUsesWith(inits_op->GetResById(i));
-      original_values[i]->AddUse(inits_op, i);
+      auto arg = GET_MLIR_CONTEXT()->CreateValue();
+      arg->SetType(original_values[i]->GetType());
+      block_args.emplace_back(arg);
+      original_values[i]->ReplaceAllUsesWith(arg);
+      GET_MLIR_CONTEXT()->GetResourceContext()->SetArgValueName(arg, i);
+    }
+
+    // Add arguments to block and body block
+    for (auto arg : block_args) {
+      cond_block->AddArgument(arg);
+      body_block->AddArgument(arg);
     }
   }
 

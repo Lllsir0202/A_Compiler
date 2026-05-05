@@ -32,7 +32,11 @@ auto Block::PrintIndent(std::ofstream *out) const -> void {
  */
 auto Block::Emit(std::ofstream *out) -> void {
   PrintIndent(out);
-  *out << "block (";
+  if (block_name_.empty()) {
+    *out << "block (";
+  } else {
+    *out << "%" << block_name_ << block_id_ << " (";
+  }
   for (auto argument : arguments_) {
     argument->Emit(out);
     if (argument != arguments_.back()) {

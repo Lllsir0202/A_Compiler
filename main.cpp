@@ -210,8 +210,8 @@ auto main(int argc, char *argv[]) -> int {
     return 1;
   }
 
-  // auto mlir_lower = std::make_unique<middleend::mlir::lower::MLIRLower>(&compiler_context);
-  // ret = mlir_lower->Lower();
+  auto mlir_lower = std::make_unique<middleend::mlir::lower::MLIRLower>(&compiler_context);
+  ret = mlir_lower->Lower();
 
   if (stage == "mlir" && ret == 0) {
     stage_ptr = std::make_unique<stages::MLIRStage>(&compiler_context);
