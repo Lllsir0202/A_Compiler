@@ -1,6 +1,5 @@
 #include "middleend/mlir/lower/lowerhelper.h"
 #include <exception>
-#include <fstream>
 #include "mlir/dialect/base/phi.h"
 #include "mlir/dialect/func/funccall.h"
 #include "mlir/dialect/func/funcdef.h"
