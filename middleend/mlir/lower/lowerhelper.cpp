@@ -576,7 +576,29 @@ auto LowerHelper::LowerWhileOp(middleend::mlir::scf::WhileOp *while_op) -> void 
     new_cond_block->AddOperation(phi_node);
   }
 
-  // Since the value in the
+  /**
+   * @brief Since the exit block will decide what value to choose,
+   * for instance:
+   * @example
+   * while (x < 10) {
+   *   x = x + 1
+   * }
+   * in this case, since we only allow exit the loop from the condition block,
+   * we only need to consider the value from condition block, which is the args passed by block.
+   * BUT, if we import break operation, then we need to consider the value from body block,
+   * we can create a new phi node in the exit block to merge the values from condition block and body block,
+   * and in optimization, we erase the phi node which has only one incoming edge, since it is redundant.
+   */
+  for (size_t i = 0; i < size; i++) {
+    auto result = while_op->GetResultByIndex(i);
+
+    // If from current block, then phi is original value,
+    // otherwise, phi is the value from yield
+    auto phi_node = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::PhiOp>(result);
+    phi_node->AddIncoming(cond_block_args[i], new_cond_block);
+    phi_nodes.emplace_back(phi_node);
+    exit_block->AddOperation(phi_node);
+  }
 
   // Add branch from current block to cond block
   auto br_to_cond = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::BrOp>(new_cond_block);
