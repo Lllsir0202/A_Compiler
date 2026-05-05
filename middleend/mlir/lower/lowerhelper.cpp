@@ -576,6 +576,8 @@ auto LowerHelper::LowerWhileOp(middleend::mlir::scf::WhileOp *while_op) -> void 
     new_cond_block->AddOperation(phi_node);
   }
 
+  // Since the value in the
+
   // Add branch from current block to cond block
   auto br_to_cond = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::BrOp>(new_cond_block);
   current_block->AddOperation(br_to_cond);
@@ -629,6 +631,9 @@ auto LowerHelper::LowerWhileOp(middleend::mlir::scf::WhileOp *while_op) -> void 
 
 auto LowerHelper::LowerBreakOp([[maybe_unused]] middleend::mlir::scf::BreakOp *break_op) -> void {
   // TODO(loki): implement the lowering of break operation
+  // Since the break operation will directly jump to the exit block of the while loop,
+  // and we need to update the phi node in the exit block, which means we need to add a incoming
+  // from the break operation to the exit block
 }
 
 auto LowerHelper::LowerContinueOp([[maybe_unused]] middleend::mlir::scf::ContinueOp *continue_op) -> void {
