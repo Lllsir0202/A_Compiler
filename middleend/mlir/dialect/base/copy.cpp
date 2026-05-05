@@ -26,7 +26,6 @@ auto CopyOp::Emit(std::ofstream *out) -> void {
   *out << " = " << Name() << " ";
   operands_[0]->Emit(out);
   *out << "\n";
-  *out << "\n";
 }
 
 auto CopyOp::SetUp([[maybe_unused]] context::MLIRContext *context, mlir::Value *res, mlir::Value *input) -> void {

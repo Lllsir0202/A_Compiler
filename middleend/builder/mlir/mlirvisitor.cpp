@@ -1025,6 +1025,7 @@ void MLIRVisitor::Visit(frontend::ast::WhileStmtNode *while_stmt) {
     }
 
     // Add arguments to block and body block
+    // These arguments will be used to lower to the phi operation in the lowering phase.
     for (auto arg : block_args) {
       cond_block->AddArgument(arg);
       body_block->AddArgument(arg);

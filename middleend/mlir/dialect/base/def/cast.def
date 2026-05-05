@@ -2,9 +2,9 @@
   class NAME##Op : public BaseOps {                                                                                 \
    public:                                                                                                          \
     ~NAME##Op() override = default;                                                                                 \
-    static auto Create(context::MLIRContext *context, mlir::Value *res, mlir::Value *value) {                       \
+    static auto Create(mlir::Value *res, mlir::Value *value) {                                                      \
       auto op = new NAME##Op();                                                                                     \
-      op->SetUp(context, res, value);                                                                               \
+      op->SetUp(res, value);                                                                                        \
       return op;                                                                                                    \
     }                                                                                                               \
                                                                                                                     \
@@ -35,7 +35,7 @@
                                                                                                                     \
    private:                                                                                                         \
     NAME##Op() : BaseOps(#OP_NAME) {}                                                                               \
-    auto SetUp([[maybe_unused]] context::MLIRContext *context, mlir::Value *res, mlir::Value *value) -> void {      \
+    auto SetUp(mlir::Value *res, mlir::Value *value) -> void {                                                      \
       operands_.reserve(1);                                                                                         \
       results_.reserve(1);                                                                                          \
       operands_.emplace_back(value);                                                                                \

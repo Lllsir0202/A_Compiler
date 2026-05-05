@@ -19,9 +19,9 @@ DEFINE_FLOATUNARY_OP(NegF, negf)
  */
 class NotOp : public BaseOps {
  public:
-  static auto Create(context::MLIRContext *context, mlir::Value *res, mlir::Value *operand) -> NotOp * {
+  static auto Create(mlir::Value *res, mlir::Value *operand) -> NotOp * {
     auto op = new NotOp();
-    op->SetUp(context, res, operand);
+    op->SetUp(res, operand);
     return op;
   }
   auto GetOperand() -> mlir::Value * { return operands_[0]; }
@@ -60,7 +60,7 @@ class NotOp : public BaseOps {
 
  private:
   NotOp() : BaseOps("not") {}
-  auto SetUp([[maybe_unused]] context::MLIRContext *context, mlir::Value *res, mlir::Value *operand) -> void {
+  auto SetUp(mlir::Value *res, mlir::Value *operand) -> void {
     /* NotOp has one operand and one result */
     operands_.reserve(1);
     results_.reserve(1);
@@ -74,9 +74,9 @@ class NotOp : public BaseOps {
 class ConstIntOp : public BaseOps {
  public:
   ~ConstIntOp() override = default;
-  static auto Create(context::MLIRContext *context, mlir::Value *res, int value) {
+  static auto Create(mlir::Value *res, int value) {
     auto op = new ConstIntOp();
-    op->SetUp(context, res, value);
+    op->SetUp(res, value);
     return op;
   }
 
@@ -85,7 +85,6 @@ class ConstIntOp : public BaseOps {
     results_[0]->Emit(out);
     *out << " = " << Name() << " ";
     *out << value_ << "\n";
-    *out << "\n";
   }
   auto Verify(context::CompilerContext *context) -> bool override {
     // ConstIntOp should have no operand and one result
@@ -106,7 +105,7 @@ class ConstIntOp : public BaseOps {
 
  private:
   explicit ConstIntOp() : BaseOps("constint") {}
-  auto SetUp([[maybe_unused]] context::MLIRContext *context, mlir::Value *res, int value) -> void {
+  auto SetUp(mlir::Value *res, int value) -> void {
     results_.reserve(1);
     value_ = value;
     results_.emplace_back(res);
@@ -118,9 +117,9 @@ class ConstIntOp : public BaseOps {
 class ConstFloatOp : public BaseOps {
  public:
   ~ConstFloatOp() override = default;
-  static auto Create(context::MLIRContext *context, mlir::Value *res, float value) {
+  static auto Create(mlir::Value *res, float value) {
     auto op = new ConstFloatOp();
-    op->SetUp(context, res, value);
+    op->SetUp(res, value);
     return op;
   }
 
@@ -129,7 +128,6 @@ class ConstFloatOp : public BaseOps {
     results_[0]->Emit(out);
     *out << " = " << Name() << " ";
     *out << value_ << "\n";
-    *out << "\n";
   }
   auto Verify(context::CompilerContext *context) -> bool override {
     // ConstFloatOp should have no operand and one result
@@ -150,7 +148,7 @@ class ConstFloatOp : public BaseOps {
 
  private:
   explicit ConstFloatOp() : BaseOps("constfloat") {}
-  auto SetUp([[maybe_unused]] context::MLIRContext *context, mlir::Value *res, float value) -> void {
+  auto SetUp(mlir::Value *res, float value) -> void {
     results_.reserve(1);
     value_ = value;
     results_.emplace_back(res);

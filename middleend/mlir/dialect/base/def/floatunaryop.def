@@ -4,9 +4,9 @@
 #define DEFINE_FLOATUNARY_OP(NAME, OPNAME)                                                                       \
   class NAME##Op : public BaseOps {                                                                              \
    public:                                                                                                       \
-    static auto Create(context::MLIRContext *context, mlir::Value *res, mlir::Value *operand) -> NAME##Op * {    \
+    static auto Create(mlir::Value *res, mlir::Value *operand) -> NAME##Op * {    \
       auto op = new NAME##Op();                                                                                  \
-      op->SetUp(context, res, operand);                                                                          \
+      op->SetUp(res, operand);                                                                          \
       return op;                                                                                                 \
     }                                                                                                            \
     auto GetOperand() -> mlir::Value * { return operands_[0]; }                                                  \
@@ -46,7 +46,7 @@
                                                                                                                  \
    private:                                                                                                      \
     NAME##Op() : BaseOps(#OPNAME) {}                                                                             \
-    auto SetUp([[maybe_unused]] context::MLIRContext *context, mlir::Value *res, mlir::Value *operand) -> void { \
+    auto SetUp(mlir::Value *res, mlir::Value *operand) -> void { \
       /* NAME##Op has one operand and one result */                                                              \
       operands_.reserve(1);                                                                                      \
       results_.reserve(1);                                                                                       \
