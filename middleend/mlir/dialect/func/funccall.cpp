@@ -10,6 +10,7 @@ auto FuncCallOp::Verify(context::CompilerContext *context) -> bool {
     // If in lowering stage
     auto func_def = context->GetIRContext()->GetMLIRContext()->GetLowerContext()->GetFuncDefOpFromFuncName(name_);
     if (func_def == nullptr) {
+      context->Print("FuncCallOp: function definition not found for function name " + name_ + "\n");
       return false;
     }
 
