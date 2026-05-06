@@ -4,7 +4,7 @@
  */
 #ifndef MIDDLEEND_LLVM_INST_INST_H
 #define MIDDLEEND_LLVM_INST_INST_H
-#include <string>
+#include <fstream>
 #include <vector>
 #include "middleend/llvm/inst/opkind.h"
 // Some forward declaration
@@ -15,7 +15,11 @@ class Operand;
 
 namespace middleend::llvm::utils::factory {
 class InstFactory;
-}
+}  // namespace middleend::llvm::utils::factory
+
+namespace context {
+class CompilerContext;
+}  // namespace context
 
 namespace middleend::llvm::inst {
 class Instruction {
@@ -58,7 +62,7 @@ class Instruction {
   virtual ~Instruction() = default;
 
   // Virtual function to verify the instruction
-  virtual auto Verify() const -> bool = 0;
+  virtual auto Verify(context::CompilerContext *context) const -> bool = 0;
 
  protected:
   explicit Instruction(OpKind op_kind) : op_kind_(op_kind) {}

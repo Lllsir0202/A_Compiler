@@ -11,7 +11,7 @@ class InstFactory {
  private:
   template <typename InstType, typename... Args>
   static auto CreateInst(Args &&...args) -> InstType * {
-    auto *inst = new InstType(std::forward<Args>(args)...);
+    auto *inst = InstType::Create(std::forward<Args>(args)...);
     return inst;
   }
 
