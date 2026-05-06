@@ -273,8 +273,13 @@ LOWER_CLONE_OP(var, VarGetValOp)
 LOWER_CLONE_OP(var, VarSetOp)
 
 // Function-related operations
-LOWER_CLONE_OP(func, FuncCallOp)
 LOWER_CLONE_OP(func, ReturnOp)
+
+auto LowerHelper::LowerFuncCallOp(middleend::mlir::func::FuncCallOp *func_call_op) -> void {
+  auto new_func_call_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::FuncCallOp>(
+      func_call_op->GetRes(), func_call_op->GetName(), func_call_op->GetOperands());
+  GetInsertPoint()->AddOperation(new_func_call_op);
+}
 
 // FuncDef is different, since it will contain a structured region
 auto LowerHelper::LowerFuncDefOp(middleend::mlir::func::FuncDefOp *func_def_op) -> void {
