@@ -1,12 +1,10 @@
 #ifndef MIDDLEEND_MLIR_DIALECT_ARITHM_UNARYOP_H
 #define MIDDLEEND_MLIR_DIALECT_ARITHM_UNARYOP_H
 #include <variant>
-#include "compiler_context.h"
-#include "context/mlir_context.h"
+#include "context/compiler_context.h"
 #include "middleend/mlir/dialect/arithm/basic.h"
 #include "middleend/mlir/utils/value/value.h"
-#include "mlir_context.h"
-#include "type/type.h"
+#include "utils/type/type.h"
 
 namespace middleend::mlir::arithm {
 

@@ -20,19 +20,9 @@ enum class OpKind {
   DivF,
   // Comparison operations
   // Integer
-  ICmpEQ,
-  ICmpNE,
-  ICmpLT,
-  ICmpLE,
-  ICmpGT,
-  ICmpGE,
+  ICmp,
   // Float
-  FCmpOEQ,
-  FCmpONE,
-  FCmpOLT,
-  FCmpOLE,
-  FCmpOGT,
-  FCmpOGE,
+  FCmp,
   // Logical operations
   And,
   Or,

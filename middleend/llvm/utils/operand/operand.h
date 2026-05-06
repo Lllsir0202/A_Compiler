@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <fstream>
 #include <string>
-#include "type/type.h"
+#include "utils/type/type.h"
 
 // Forward declare the operand factory to allow it to create operands
 namespace middleend::llvm::utils::factory {

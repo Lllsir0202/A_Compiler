@@ -5,10 +5,6 @@
 #include "llvm/utils/operand/operand.h"
 #include "middleend/llvm/inst/inst.h"
 
-namespace context {
-class LLVMIRContext;
-}  // namespace context
-
 namespace middleend::llvm::inst {
 // #include "middleend/llvm/inst/arithm/arithm.def"
 /**

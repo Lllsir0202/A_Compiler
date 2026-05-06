@@ -13,7 +13,7 @@
 #include "frontend/ast/ast_spec.h"
 #include "frontend/ast/ast_stmt.h"
 #include "frontend/ast/astvisitor.h"
-#include "type/type.h"
+#include "utils/type/type.h"
 #include "utils/flatten/astinit.h"
 #include "utils/flatten/flatten_initializer.h"
 #include "utils/flatten/initializer.h"

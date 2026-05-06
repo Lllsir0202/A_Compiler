@@ -3,13 +3,18 @@
 #include <unordered_map>
 #include "middleend/llvm/utils/factory/opfactory.h"
 #include "middleend/llvm/utils/operand/regoperand.h"
-#include "type_context.h"
+#include "context/type_context.h"
 namespace context {
 
 /**
  * @brief LLVMIRLowerContext is responsible for lowering the base ir to llvmir
  */
-class LLVMIRLowerContext {};
+class LLVMIRLowerContext {
+  public:
+
+  private:
+
+};
 
 /**
  * @brief LLVMIRResourceContext is responsible for managing the resources of llvm ir.

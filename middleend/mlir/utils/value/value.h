@@ -5,7 +5,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
-#include "type/type.h"
+#include "utils/type/type.h"
 
 namespace middleend::mlir {
 class Operation;

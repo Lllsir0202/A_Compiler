@@ -2,7 +2,7 @@
 #define MIDDLEEND_MLIR_DIALECT_FUNC_RETURN_H
 #include "context/mlir_context.h"
 #include "middleend/mlir/dialect/func/basic.h"
-#include "type/type.h"
+#include "utils/type/type.h"
 namespace middleend::mlir::func {
 class ReturnOp : public FuncOps {
  public:

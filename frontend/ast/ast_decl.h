@@ -3,12 +3,12 @@
 
 #include <memory>
 #include <vector>
-#include "ast/ast_base.h"
-#include "ast/ast_expr.h"
-#include "ast/ast_stmt.h"
-#include "ast/astvisitor.h"
-#include "token/location.h"
-#include "type/type.h"
+#include "frontend/ast/ast_base.h"
+#include "frontend/ast/ast_expr.h"
+#include "frontend/ast/ast_stmt.h"
+#include "frontend/ast/astvisitor.h"
+#include "frontend/token/location.h"
+#include "utils/type/type.h"
 
 namespace frontend::ast {
 /**

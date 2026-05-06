@@ -19,6 +19,7 @@ class InstFactory;
 
 namespace context {
 class CompilerContext;
+class LLVMIRContext;
 }  // namespace context
 
 namespace middleend::llvm::inst {

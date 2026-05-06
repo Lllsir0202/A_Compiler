@@ -7,7 +7,7 @@
 #include "middleend/mlir/dialect/base/basic.h"
 #include "mlir/utils/struct/region.h"
 #include "mlir/utils/value/value.h"
-#include "type/type.h"
+#include "utils/type/type.h"
 
 namespace middleend::mlir::base {
 inline auto IsLibraryFunction(const std::string &func_name) -> bool {
