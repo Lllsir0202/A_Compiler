@@ -4,13 +4,18 @@
 #include "middleend/llvm/utils/operand/labeloperand.h"
 #include "middleend/llvm/utils/operand/literaloperand.h"
 #include "middleend/llvm/utils/operand/regoperand.h"
+
+namespace context {
+class LLVMIRResourceContext;
+}
 namespace middleend::llvm::utils::factory {
 class OperandFactory {
- public:
-  static auto CreateRegOperand(size_t id) -> operand::RegOperand * { return new operand::RegOperand(id); }
-  static auto CreateIntLiteral(int value) -> operand::IntLiteral * { return new operand::IntLiteral(value); }
-  static auto CreateFloatLiteral(float value) -> operand::FloatLiteral * { return new operand::FloatLiteral(value); }
-  static auto CreateLabelOperand(size_t id) -> operand::LabelOperand * { return new operand::LabelOperand(id); }
+ private:
+  static auto CreateRegOperand(size_t id) -> RegOperand * { return new RegOperand(id); }
+  static auto CreateIntLiteral(int value) -> IntLiteral * { return new IntLiteral(value); }
+  static auto CreateFloatLiteral(float value) -> FloatLiteral * { return new FloatLiteral(value); }
+  static auto CreateLabelOperand(size_t id) -> LabelOperand * { return new LabelOperand(id); }
+  friend class context::LLVMIRResourceContext;
 };
 
 }  // namespace middleend::llvm::utils::factory

@@ -1,7 +1,7 @@
 #ifndef CONTEXT_LLVMIR_CONTEXT_H
 #define CONTEXT_LLVMIR_CONTEXT_H
-#include "llvm/utils/operand/regoperand.h"
 #include "middleend/llvm/utils/factory/opfactory.h"
+#include "middleend/llvm/utils/operand/regoperand.h"
 namespace context {
 
 /**
@@ -15,13 +15,13 @@ class LLVMIRContext {
  public:
   // Get different types of operands from the context,
   // and we will ensure that the same operand will always be the same instance of operand.
-  auto GetRegOperand() -> middleend::llvm::utils::operand::RegOperand *;
+  auto GetRegOperand() -> middleend::llvm::utils::RegOperand *;
 
-  auto GetLabelOperand() -> middleend::llvm::utils::operand::LabelOperand *;
+  auto GetLabelOperand() -> middleend::llvm::utils::LabelOperand *;
 
-  auto GetIntLiteral(int value) -> middleend::llvm::utils::operand::IntLiteral *;
+  auto GetIntLiteral(int value) -> middleend::llvm::utils::IntLiteral *;
 
-  auto GetFloatLiteral(float value) -> middleend::llvm::utils::operand::FloatLiteral *;
+  auto GetFloatLiteral(float value) -> middleend::llvm::utils::FloatLiteral *;
 
  private:
   // Id counters for different operand types

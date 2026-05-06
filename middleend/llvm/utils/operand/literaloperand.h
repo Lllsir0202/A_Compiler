@@ -2,10 +2,10 @@
 #define MIDDLEEND_LLVM_UTILS_OPERAND_LITERALOPERAND_H
 
 #include "middleend/llvm/utils/operand/operand.h"
-namespace middleend::llvm::utils::operand {
+namespace middleend::llvm::utils {
 class IntLiteral : public Operand {
  public:
-  auto Emit() const -> std::string override { return std::to_string(value_); }
+  auto Emit(std::ofstream *out) const -> void override { *out << std::to_string(value_); }
 
  private:
   explicit IntLiteral(int value) : Operand(OpType::Literal), value_(value) {}
@@ -16,7 +16,7 @@ class IntLiteral : public Operand {
 
 class FloatLiteral : public Operand {
  public:
-  auto Emit() const -> std::string override { return std::to_string(value_); }
+  auto Emit(std::ofstream *out) const -> void override { *out << std::to_string(value_); }
 
  private:
   explicit FloatLiteral(float value) : Operand(OpType::Literal), value_(value) {}
@@ -25,6 +25,6 @@ class FloatLiteral : public Operand {
   friend class middleend::llvm::utils::factory::OperandFactory;
 };
 
-}  // namespace middleend::llvm::utils::operand
+}  // namespace middleend::llvm::utils
 
 #endif

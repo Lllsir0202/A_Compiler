@@ -4,11 +4,11 @@
 #include <cstddef>
 #include "middleend/llvm/utils/operand/operand.h"
 
-namespace middleend::llvm::utils::operand {
+namespace middleend::llvm::utils {
 
 class LabelOperand : public Operand {
  public:
-  auto Emit() const -> std::string override { return "label" + std::to_string(id_); }
+  auto Emit(std::ofstream *out) const -> void override { *out << "label" << id_; }
 
  private:
   explicit LabelOperand(size_t id) : Operand(OpType::Label), id_(id) {}
@@ -17,6 +17,6 @@ class LabelOperand : public Operand {
   friend class middleend::llvm::utils::factory::OperandFactory;
 };
 
-}  // namespace middleend::llvm::utils::operand
+}  // namespace middleend::llvm::utils
 
 #endif
