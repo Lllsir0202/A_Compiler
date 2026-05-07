@@ -105,6 +105,7 @@ class LLVMIRContext {
   // Get contexts
   auto GetResourceContext() -> LLVMIRResourceContext * { return resource_context_; }
   auto GetLowerContext() -> LLVMIRLowerContext * { return lower_context_; }
+  auto GetTypeContext() -> TypeContext * { return type_context_; }
 
  private:
   [[maybe_unused]] LLVMIRLowerContext *lower_context_;

@@ -11,7 +11,7 @@ class CallInst : public Instruction {
 
  private:
   explicit CallInst() : Instruction(OpKind::Call) {}
-  static auto Create(context::LLVMIRContext *context, utils::Operand *callee, const std::vector<utils::Operand *> &args,
+  static auto Create(context::LLVMIRContext *context, std::string callee, const std::vector<utils::Operand *> &args,
                      type::Type *return_type) -> CallInst *;
   friend class utils::factory::InstFactory;
 

@@ -13,6 +13,8 @@ class Type {
   virtual auto ToString() const -> std::string = 0;
   Type() = delete;
   virtual ~Type() = default;
+  // Added in lowering to llvmir, which is used to decide which size to align to
+  virtual auto GetAlign() const -> size_t = 0;
 
  protected:
   explicit Type(TypeKind kind) : kind_(kind) {}
@@ -27,6 +29,7 @@ class Type {
 class UnknownType : public Type {
  public:
   auto ToString() const -> std::string override { return "Unknown"; }
+  auto GetAlign() const -> size_t override { return 0; }
   ~UnknownType() override = default;
 
  private:
@@ -41,6 +44,7 @@ class UnknownType : public Type {
 class BooleanType : public Type {
  public:
   auto ToString() const -> std::string override { return "Bool"; }
+  auto GetAlign() const -> size_t override { return 1; }
   ~BooleanType() override = default;
 
  private:
@@ -54,6 +58,7 @@ class BooleanType : public Type {
 class IntegerType : public Type {
  public:
   auto ToString() const -> std::string override { return "Int"; }
+  auto GetAlign() const -> size_t override { return 4; }
   ~IntegerType() override = default;
 
  private:
@@ -67,6 +72,7 @@ class IntegerType : public Type {
 class FloatType : public Type {
  public:
   auto ToString() const -> std::string override { return "Float"; }
+  auto GetAlign() const -> size_t override { return 4; }
   ~FloatType() override = default;
 
  private:
@@ -80,6 +86,7 @@ class FloatType : public Type {
 class VoidType : public Type {
  public:
   auto ToString() const -> std::string override { return "Void"; }
+  auto GetAlign() const -> size_t override { return 0; }
   ~VoidType() override = default;
 
  private:
@@ -98,6 +105,7 @@ class PtrType : public Type {
  public:
   auto ToString() const -> std::string override { return "Ptr to " + base_type_->ToString(); }
   auto GetBaseType() const -> Type * { return base_type_; }
+  auto GetAlign() const -> size_t override { return 16; }
   ~PtrType() override = default;
 
  private:
@@ -118,6 +126,7 @@ class ArrayType : public Type {
   }
   auto GetElementType() const -> Type * { return element_type_; }
   auto GetSize() const -> size_t { return size_; }
+  auto GetAlign() const -> size_t override { return element_type_->GetAlign(); }
   ~ArrayType() override = default;
 
  private:
