@@ -13,10 +13,10 @@
 #include "frontend/ast/ast_spec.h"
 #include "frontend/ast/ast_stmt.h"
 #include "frontend/ast/astvisitor.h"
-#include "utils/type/type.h"
 #include "utils/flatten/astinit.h"
 #include "utils/flatten/flatten_initializer.h"
 #include "utils/flatten/initializer.h"
+#include "utils/type/type.h"
 
 namespace frontend::ast {
 class SemanticAnalyser : public ASTVisitor {

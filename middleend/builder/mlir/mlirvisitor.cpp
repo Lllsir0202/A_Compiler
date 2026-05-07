@@ -17,8 +17,8 @@
 #include "middleend/mlir/utils/struct/block.h"
 #include "middleend/mlir/utils/struct/region.h"
 #include "middleend/mlir/utils/value/value.h"
-#include "utils/type/type.h"
 #include "utils/flatten/mlirinit.h"
+#include "utils/type/type.h"
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()
 #define GET_TYPE_CONTEXT() compiler_context_->GetTypeContext()
 #define GET_SYMBOLTABLE_CONTEXT() compiler_context_->GetSymbolTableContext()
