@@ -9,10 +9,6 @@ auto LLVMIRResourceContext::GetNewRegOperand(type::Type *type) -> middleend::llv
   return op;
 }
 
-auto LLVMIRResourceContext::GetNewLabelOperand() -> middleend::llvm::utils::LabelOperand * {
-  return middleend::llvm::utils::factory::OperandFactory::CreateLabelOperand(label_id_counter_++);
-}
-
 auto LLVMIRResourceContext::GetNewIntLiteral(int value, type::Type *type) -> middleend::llvm::utils::IntLiteral * {
   auto op = middleend::llvm::utils::factory::OperandFactory::CreateIntLiteral(value);
   op->SetType(type);
@@ -39,8 +35,10 @@ auto LLVMIRResourceContext::GetLabelOperand(size_t id) -> middleend::llvm::utils
   if (label_operands_.count(id) > 0) {
     return label_operands_[id];
   }
-  // If the operand does not exist, report error
-  return nullptr;
+  // If the operand does not exist, create a new one
+  auto op = middleend::llvm::utils::factory::OperandFactory::CreateLabelOperand(label_id_counter_++);
+  label_operands_[id] = op;
+  return op;
 }
 
 auto LLVMIRResourceContext::GetIntLiteral(int value) -> middleend::llvm::utils::IntLiteral * {

@@ -32,8 +32,6 @@ class LLVMIRResourceContext {
    */
   auto GetNewRegOperand(type::Type *type) -> middleend::llvm::utils::RegOperand *;
 
-  auto GetNewLabelOperand() -> middleend::llvm::utils::LabelOperand *;
-
   auto GetNewIntLiteral(int value, type::Type *type) -> middleend::llvm::utils::IntLiteral *;
 
   auto GetNewFloatLiteral(float value, type::Type *type) -> middleend::llvm::utils::FloatLiteral *;
@@ -43,9 +41,14 @@ class LLVMIRResourceContext {
    * to ensure that the same operand will always be the same instance of operand.
    */
   auto GetRegOperand(size_t id) -> middleend::llvm::utils::RegOperand *;
-  auto GetLabelOperand(size_t id) -> middleend::llvm::utils::LabelOperand *;
   auto GetIntLiteral(int value) -> middleend::llvm::utils::IntLiteral *;
   auto GetFloatLiteral(float value) -> middleend::llvm::utils::FloatLiteral *;
+
+  /**
+   * @brief Label operands are used to represent the labels of basic blocks,
+   * so we don't need to create new or get existing
+   */
+  auto GetLabelOperand(size_t id) -> middleend::llvm::utils::LabelOperand *;
 
   /**
    * @brief Interfaces to manage function-related resources
@@ -85,8 +88,8 @@ class LLVMIRContext {
     return resource_context_->GetNewRegOperand(type);
   }
 
-  auto GetNewLabelOperand() -> middleend::llvm::utils::LabelOperand * {
-    return resource_context_->GetNewLabelOperand();
+  auto GetLabelOperand(size_t id) -> middleend::llvm::utils::LabelOperand * {
+    return resource_context_->GetLabelOperand(id);
   }
 
   auto GetNewIntLiteral(int value) -> middleend::llvm::utils::IntLiteral * {
