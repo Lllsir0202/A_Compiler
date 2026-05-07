@@ -47,17 +47,20 @@ enum class OpKind {
   // Bitcast and other type conversion operations
   Bitcast,
   // Boolean 2 Integer
-  Bool2Int,
+  // Use zext
+  Zext,
   // Integer 2 Boolean
-  Int2Bool,
+  // Use icmp ne with 0
   // Int 2 Float
-  Int2Float,
+  // Use sitofp
+  Sitofp,
   // Float 2 Int
-  Float2Int,
+  // Use fptosi
+  Fptosi,
   // Float 2 Bool
-  Float2Bool,
+  // Use fcmp oeq with 0.0
   // Bool 2 Float
-  Bool2Float,
+  // Zext to int, then sitofp to float
 };
 
 }  // namespace middleend::llvm::inst
