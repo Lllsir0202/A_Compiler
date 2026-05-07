@@ -1,19 +1,25 @@
 #ifndef CONTEXT_LLVMIR_CONTEXT_H
 #define CONTEXT_LLVMIR_CONTEXT_H
 #include <unordered_map>
+#include "context/type_context.h"
+#include "llvm/inst/func/funcdef.h"
+#include "llvm/utils/struct/function.h"
 #include "middleend/llvm/utils/factory/opfactory.h"
 #include "middleend/llvm/utils/operand/regoperand.h"
-#include "context/type_context.h"
+
+// Forward declaration
+namespace middleend::llvm::inst {
+class FuncDefInst;
+}
+
 namespace context {
 
 /**
  * @brief LLVMIRLowerContext is responsible for lowering the base ir to llvmir
  */
 class LLVMIRLowerContext {
-  public:
-
-  private:
-
+ public:
+ private:
 };
 
 /**
@@ -41,6 +47,14 @@ class LLVMIRResourceContext {
   auto GetIntLiteral(int value) -> middleend::llvm::utils::IntLiteral *;
   auto GetFloatLiteral(float value) -> middleend::llvm::utils::FloatLiteral *;
 
+  /**
+   * @brief Interfaces to manage function-related resources
+   */
+  auto AddFunctionDef(const std::string &func_name, middleend::llvm::inst::FuncDefInst *func_def) -> void;
+  auto GetFunctionDef(const std::string &func_name) -> middleend::llvm::inst::FuncDefInst *;
+  auto AddFunction(const middleend::llvm::utils::Function &function) -> void;
+  [[maybe_unused]] auto GetFunction(const std::string &func_name) -> middleend::llvm::utils::Function *;
+
  private:
   // Id counters for different operand types
   size_t reg_id_counter_ = 0;
@@ -51,6 +65,12 @@ class LLVMIRResourceContext {
   std::unordered_map<size_t, middleend::llvm::utils::LabelOperand *> label_operands_;
   std::unordered_map<int, middleend::llvm::utils::IntLiteral *> int_literals_;
   std::unordered_map<float, middleend::llvm::utils::FloatLiteral *> float_literals_;
+
+  // Record all functions
+  std::vector<middleend::llvm::utils::Function> functions_;
+
+  // Record the function definition instruction
+  std::unordered_map<std::string, middleend::llvm::inst::FuncDefInst *> func_def_insts_;
 };
 
 class LLVMIRContext {
@@ -81,6 +101,10 @@ class LLVMIRContext {
   auto GetIntegerType() -> type::Type * { return type_context_->GetIntegerType(); }
   auto GetFloatType() -> type::Type * { return type_context_->GetFloatType(); }
   auto GetBoolType() -> type::Type * { return type_context_->GetBooleanType(); }
+
+  // Get contexts
+  auto GetResourceContext() -> LLVMIRResourceContext * { return resource_context_; }
+  auto GetLowerContext() -> LLVMIRLowerContext * { return lower_context_; }
 
  private:
   [[maybe_unused]] LLVMIRLowerContext *lower_context_;

@@ -5,7 +5,7 @@
   class NAME##Inst : public Instruction {                                                                           \
    public:                                                                                                          \
     auto Emit(std::ofstream *out) const -> void override;                                                           \
-    auto Verify() const -> bool override;                                                                           \
+    auto Verify(context::CompilerContext *context) const -> bool override;                                          \
     ~NAME##Inst() override = default;                                                                               \
                                                                                                                     \
    private:                                                                                                         \

@@ -39,6 +39,7 @@ enum class OpKind {
   CondBr,
   Ret,
   // Other operations
+  FuncDef,
   Call,
   Alloca,
   GetElementPtr,

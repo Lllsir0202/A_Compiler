@@ -1,4 +1,5 @@
 #include "context/llvmir_context.h"
+#include <stdexcept>
 #include "llvm/utils/factory/opfactory.h"
 
 namespace context {
@@ -55,6 +56,44 @@ auto LLVMIRResourceContext::GetFloatLiteral(float value) -> middleend::llvm::uti
     return float_literals_[value];
   }
   // If the operand does not exist, report error
+  return nullptr;
+}
+
+// Function-related resource management
+auto LLVMIRResourceContext::AddFunctionDef(const std::string &func_name,
+                                           middleend::llvm::inst::FuncDefInst *func_def) -> void {
+  if (func_def_insts_.count(func_name) > 0) {
+    // If already exists, report error
+    throw std::logic_error("Function definition already exists: " + func_name);
+  }
+  func_def_insts_[func_name] = func_def;
+}
+
+auto LLVMIRResourceContext::GetFunctionDef(const std::string &func_name) -> middleend::llvm::inst::FuncDefInst * {
+  if (func_def_insts_.count(func_name) > 0) {
+    return func_def_insts_[func_name];
+  }
+  // If the function definition does not exist, report error
+  return nullptr;
+}
+
+auto LLVMIRResourceContext::AddFunction(const middleend::llvm::utils::Function &function) -> void {
+  // Check if the function already exists
+  for (const auto &func : functions_) {
+    if (func.GetFuncName() == function.GetFuncName()) {
+      throw std::logic_error("Function already exists: " + function.GetFuncName());
+    }
+  }
+  functions_.emplace_back(function);
+}
+
+auto LLVMIRResourceContext::GetFunction(const std::string &func_name) -> middleend::llvm::utils::Function * {
+  for (auto &func : functions_) {
+    if (func.GetFuncName() == func_name) {
+      return &func;
+    }
+  }
+  // If the function does not exist, report error
   return nullptr;
 }
 
