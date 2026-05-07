@@ -16,6 +16,10 @@ namespace middleend::llvm::utils::factory {
 class OperandFactory;
 }
 
+namespace middleend::llvm::inst {
+class Instruction;
+}
+
 namespace middleend::llvm::utils {
 enum OpType : uint8_t { Register, Literal, Memory, Label };
 
@@ -65,6 +69,10 @@ class Operand {
   auto IsVoid() const -> bool { return type_ != nullptr && type_->GetKind() == type::TypeKind::VOID; }
   auto IsPtr() const -> bool { return type_ != nullptr && type_->GetKind() == type::TypeKind::PTR; }
 
+  // Provide interface to get and set the instruction which generates this op
+  auto GetInstruction() const -> inst::Instruction * { return instruction_; }
+  auto SetInstruction(inst::Instruction *inst) -> void { instruction_ = inst; }
+
   virtual ~Operand() = default;
 
  protected:
@@ -73,6 +81,13 @@ class Operand {
  private:
   const OpType op_type_;
   type::Type *type_ = nullptr;
+
+  /**
+   * @brief instruction_ is used to record the instruction which generates
+   * this operand,
+   * only used in register operand(probably)
+   */
+  inst::Instruction *instruction_ = nullptr;
 };
 }  // namespace middleend::llvm::utils
 

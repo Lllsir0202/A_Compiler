@@ -44,6 +44,12 @@ auto AddInst::Verify(context::CompilerContext *context) const -> bool {
     return false;
   }
 
+  // Check the instruction
+  if (result_->GetInstruction() != this) {
+    context->ReportError("Add instruction's result operand must point to itself");
+    return false;
+  }
+
   return operands_[0]->IsInt32() && operands_[1]->IsInt32();
 }
 
@@ -51,6 +57,7 @@ auto AddInst::Create(context::LLVMIRContext *context, utils::Operand *operand1, 
   auto *inst = new AddInst();
   auto res = context->GetNewRegOperand(context->GetIntegerType());
   inst->SetResult(res);
+  res->SetInstruction(inst);
   inst->AddOperand(operand1);
   inst->AddOperand(operand2);
   return inst;
@@ -85,6 +92,11 @@ auto AddFInst::Verify(context::CompilerContext *context) const -> bool {
     return false;
   }
 
+  if (result_->GetInstruction() != this) {
+    context->ReportError("AddF instruction's result operand must point to itself");
+    return false;
+  }
+
   return operands_[0]->IsFloat() && operands_[1]->IsFloat();
 }
 
@@ -93,6 +105,7 @@ auto AddFInst::Create(context::LLVMIRContext *context, utils::Operand *operand1,
   auto *inst = new AddFInst();
   auto res = context->GetNewRegOperand(context->GetFloatType());
   inst->SetResult(res);
+  res->SetInstruction(inst);
   inst->AddOperand(operand1);
   inst->AddOperand(operand2);
   return inst;
@@ -143,6 +156,11 @@ auto SubInst::Verify(context::CompilerContext *context) const -> bool {
     return false;
   }
 
+  if (result_->GetInstruction() != this) {
+    context->ReportError("Sub instruction's result operand must point to itself");
+    return false;
+  }
+
   return operands_[0]->IsInt32() && operands_[1]->IsInt32();
 }
 
@@ -150,6 +168,7 @@ auto SubInst::Create(context::LLVMIRContext *context, utils::Operand *operand1, 
   auto *inst = new SubInst();
   auto res = context->GetNewRegOperand(context->GetIntegerType());
   inst->SetResult(res);
+  res->SetInstruction(inst);
   inst->AddOperand(operand1);
   inst->AddOperand(operand2);
   return inst;
@@ -190,6 +209,11 @@ auto SubFInst::Verify(context::CompilerContext *context) const -> bool {
     return false;
   }
 
+  if (result_->GetInstruction() != this) {
+    context->ReportError("SubF instruction's result operand must point to itself");
+    return false;
+  }
+
   return operands_[0]->IsFloat() && operands_[1]->IsFloat();
 }
 
@@ -198,6 +222,7 @@ auto SubFInst::Create(context::LLVMIRContext *context, utils::Operand *operand1,
   auto *inst = new SubFInst();
   auto res = context->GetNewRegOperand(context->GetFloatType());
   inst->SetResult(res);
+  res->SetInstruction(inst);
   inst->AddOperand(operand1);
   inst->AddOperand(operand2);
   return inst;
@@ -238,6 +263,11 @@ auto MulInst::Verify(context::CompilerContext *context) const -> bool {
     return false;
   }
 
+  if (result_->GetInstruction() != this) {
+    context->ReportError("Mul instruction's result operand must point to itself");
+    return false;
+  }
+
   return operands_[0]->IsInt32() && operands_[1]->IsInt32();
 }
 
@@ -245,6 +275,7 @@ auto MulInst::Create(context::LLVMIRContext *context, utils::Operand *operand1, 
   auto *inst = new MulInst();
   auto res = context->GetNewRegOperand(context->GetIntegerType());
   inst->SetResult(res);
+  res->SetInstruction(inst);
   inst->AddOperand(operand1);
   inst->AddOperand(operand2);
   return inst;
@@ -284,6 +315,11 @@ auto MulFInst::Verify(context::CompilerContext *context) const -> bool {
     return false;
   }
 
+  if (result_->GetInstruction() != this) {
+    context->ReportError("MulF instruction's result operand must point to itself");
+    return false;
+  }
+
   return operands_[0]->IsFloat() && operands_[1]->IsFloat();
 }
 
@@ -292,6 +328,7 @@ auto MulFInst::Create(context::LLVMIRContext *context, utils::Operand *operand1,
   auto *inst = new MulFInst();
   auto res = context->GetNewRegOperand(context->GetFloatType());
   inst->SetResult(res);
+  res->SetInstruction(inst);
   inst->AddOperand(operand1);
   inst->AddOperand(operand2);
   return inst;
@@ -331,6 +368,11 @@ auto DivInst::Verify(context::CompilerContext *context) const -> bool {
     return false;
   }
 
+  if (result_->GetInstruction() != this) {
+    context->ReportError("Div instruction's result operand must point to itself");
+    return false;
+  }
+
   return operands_[0]->IsInt32() && operands_[1]->IsInt32();
 }
 
@@ -338,6 +380,7 @@ auto DivInst::Create(context::LLVMIRContext *context, utils::Operand *operand1, 
   auto *inst = new DivInst();
   auto res = context->GetNewRegOperand(context->GetIntegerType());
   inst->SetResult(res);
+  res->SetInstruction(inst);
   inst->AddOperand(operand1);
   inst->AddOperand(operand2);
   return inst;
@@ -377,6 +420,11 @@ auto DivFInst::Verify(context::CompilerContext *context) const -> bool {
     return false;
   }
 
+  if (result_->GetInstruction() != this) {
+    context->ReportError("DivF instruction's result operand must point to itself");
+    return false;
+  }
+
   return operands_[0]->IsFloat() && operands_[1]->IsFloat();
 }
 
@@ -385,6 +433,7 @@ auto DivFInst::Create(context::LLVMIRContext *context, utils::Operand *operand1,
   auto *inst = new DivFInst();
   auto res = context->GetNewRegOperand(context->GetFloatType());
   inst->SetResult(res);
+  res->SetInstruction(inst);
   inst->AddOperand(operand1);
   inst->AddOperand(operand2);
   return inst;
@@ -417,6 +466,16 @@ auto ModInst::Verify(context::CompilerContext *context) const -> bool {
     return false;
   }
 
+  if (GetParentBlock() == nullptr) {
+    context->ReportError("Mod instruction must have a parent block");
+    return false;
+  }
+
+  if (result_->GetInstruction() != this) {
+    context->ReportError("Mod instruction's result operand must point to itself");
+    return false;
+  }
+
   return operands_[0]->IsInt32() && operands_[1]->IsInt32();
 }
 
@@ -424,6 +483,7 @@ auto ModInst::Create(context::LLVMIRContext *context, utils::Operand *operand1, 
   auto *inst = new ModInst();
   auto res = context->GetNewRegOperand(context->GetIntegerType());
   inst->SetResult(res);
+  res->SetInstruction(inst);
   inst->AddOperand(operand1);
   inst->AddOperand(operand2);
   return inst;
