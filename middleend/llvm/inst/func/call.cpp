@@ -9,7 +9,9 @@ auto CallInst::Create(context::LLVMIRContext *context, std::string callee, const
   // Create a new call instruction
   auto *inst = new CallInst();
   inst->callee_ = std::move(callee);
-  inst->args_ = args;
+  for (const auto &arg : args) {
+    inst->AddOperand(arg);
+  }
   inst->return_type_ = return_type;
   if (inst->return_type_->GetKind() != type::TypeKind::VOID) {  // Create register operand for the return value
     auto res = context->GetNewRegOperand(return_type);
@@ -28,10 +30,10 @@ auto CallInst::Emit(std::ofstream *out) const -> void {
     *out << " = ";
   }
   *out << "call " << utils::Operand::GetTypeInLLVMIR(return_type_) << " @" << callee_ << "(";
-  for (size_t i = 0; i < args_.size(); ++i) {
-    *out << utils::Operand::GetTypeInLLVMIR(args_[i]->GetType()) << " ";
-    args_[i]->Emit(out);
-    if (i != args_.size() - 1) {
+  for (size_t i = 0; i < operands_.size(); ++i) {
+    *out << utils::Operand::GetTypeInLLVMIR(operands_[i]->GetType()) << " ";
+    operands_[i]->Emit(out);
+    if (i != operands_.size() - 1) {
       *out << ", ";
     }
   }
@@ -46,13 +48,13 @@ auto CallInst::Verify(context::CompilerContext *context) const -> bool {
     context->Print("Callee function is not defined");
     return false;
   }
-  if (func_def->GetArgTypes().size() != args_.size()) {
+  if (func_def->GetArgTypes().size() != operands_.size()) {
     // If the number of arguments does not match, report error
     context->Print("Number of arguments of the call instruction does not match the function definition");
     return false;
   }
-  for (size_t i = 0; i < args_.size(); ++i) {
-    if (args_[i]->GetType() == nullptr || args_[i]->GetType() != func_def->GetArgTypes()[i]) {
+  for (size_t i = 0; i < operands_.size(); ++i) {
+    if (operands_[i]->GetType() == nullptr || operands_[i]->GetType() != func_def->GetArgTypes()[i]) {
       // If the argument type is not compatible, report error
       context->Print("Argument type of the call instruction does not match the function definition");
       return false;
@@ -65,7 +67,7 @@ auto CallInst::Verify(context::CompilerContext *context) const -> bool {
     return false;
   }
 
-  if(result_ != nullptr && result_->GetInstruction() != this) {
+  if (result_ != nullptr && result_->GetInstruction() != this) {
     // If the result operand is not set correctly, report error
     context->Print("Result operand of the call instruction is not set correctly");
     return false;

@@ -9,6 +9,10 @@ class CallInst : public Instruction {
   auto Emit(std::ofstream *out) const -> void override;
   auto Verify(context::CompilerContext *context) const -> bool override;
 
+  auto GetCallee() const -> const std::string & { return callee_; }
+  auto GetArgs() const -> const std::vector<utils::Operand *> & { return operands_; }
+  auto GetReturnType() const -> type::Type * { return return_type_; }
+
  private:
   explicit CallInst() : Instruction(OpKind::Call) {}
   static auto Create(context::LLVMIRContext *context, std::string callee, const std::vector<utils::Operand *> &args,
@@ -17,8 +21,7 @@ class CallInst : public Instruction {
 
   // String name of the callee function
   std::string callee_;
-  // Argument operands
-  std::vector<utils::Operand *> args_;
+
   // Return type of the call instruction
   type::Type *return_type_;
 };

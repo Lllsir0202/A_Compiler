@@ -30,7 +30,7 @@ auto BrCondInst::Emit(std::ofstream *out) const -> void {
   *out << "br ";
   // Has checked in verify that condition_ is a boolean
   *out << "i1 ";
-  condition_->Emit(out);
+  GetCondition()->Emit(out);
   *out << ", ";
   true_target_->Emit(out);
   *out << ", ";
@@ -38,7 +38,7 @@ auto BrCondInst::Emit(std::ofstream *out) const -> void {
 }
 
 auto BrCondInst::Verify(context::CompilerContext *context) const -> bool {
-  if (condition_ == nullptr) {
+  if (operands_[0] == nullptr) {
     context->Print("BrCond instruction must have a condition operand");
     return false;
   }
@@ -46,7 +46,7 @@ auto BrCondInst::Verify(context::CompilerContext *context) const -> bool {
     context->Print("BrCond instruction must have both true and false target labels");
     return false;
   }
-  if (!condition_->IsBool()) {
+  if (!operands_[0]->IsBool()) {
     context->Print("BrCond instruction condition operand must be of type i1");
     return false;
   }
@@ -56,7 +56,7 @@ auto BrCondInst::Verify(context::CompilerContext *context) const -> bool {
 auto BrCondInst::Create([[maybe_unused]] context::LLVMIRContext *context, utils::Operand *condition,
                         utils::LabelOperand *true_target, utils::LabelOperand *false_target) -> BrCondInst * {
   auto *inst = new BrCondInst();
-  inst->condition_ = condition;
+  inst->AddOperand(condition);
   inst->true_target_ = true_target;
   inst->false_target_ = false_target;
   return inst;

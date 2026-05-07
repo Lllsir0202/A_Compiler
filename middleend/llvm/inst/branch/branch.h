@@ -21,15 +21,13 @@ class BrCondInst : public Instruction {
  public:
   auto Emit(std::ofstream *out) const -> void override;
   auto Verify(context::CompilerContext *context) const -> bool override;
+  auto GetCondition() const -> utils::Operand * { return operands_[0]; }
 
  private:
   explicit BrCondInst() : Instruction(OpKind::CondBr) {}
   static auto Create(context::LLVMIRContext *context, utils::Operand *condition, utils::LabelOperand *true_target,
                      utils::LabelOperand *false_target) -> BrCondInst *;
   friend class utils::factory::InstFactory;
-
-  // Condition operand
-  utils::Operand *condition_;
   // True and false target labels
   utils::LabelOperand *true_target_;
   utils::LabelOperand *false_target_;
