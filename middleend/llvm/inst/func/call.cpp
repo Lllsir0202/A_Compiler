@@ -15,6 +15,7 @@ auto CallInst::Create(context::LLVMIRContext *context, std::string callee, const
     auto res = context->GetNewRegOperand(return_type);
     // Set the result operand of the instruction
     inst->SetResult(res);
+    res->SetInstruction(inst);
   }
   return inst;
 }
@@ -42,18 +43,34 @@ auto CallInst::Verify(context::CompilerContext *context) const -> bool {
   auto func_def = context->GetIRContext()->GetLLVMIRContext()->GetResourceContext()->GetFunctionDef(callee_);
   if (func_def == nullptr) {
     // If the callee function is not defined, report error
+    context->Print("Callee function is not defined");
     return false;
   }
   if (func_def->GetArgTypes().size() != args_.size()) {
     // If the number of arguments does not match, report error
+    context->Print("Number of arguments of the call instruction does not match the function definition");
     return false;
   }
   for (size_t i = 0; i < args_.size(); ++i) {
     if (args_[i]->GetType() == nullptr || args_[i]->GetType() != func_def->GetArgTypes()[i]) {
       // If the argument type is not compatible, report error
+      context->Print("Argument type of the call instruction does not match the function definition");
       return false;
     }
   }
+
+  if (return_type_ == nullptr || return_type_ != func_def->GetReturnType()) {
+    // If the return type is not compatible, report error
+    context->Print("Return type of the call instruction does not match the function definition");
+    return false;
+  }
+
+  if(result_ != nullptr && result_->GetInstruction() != this) {
+    // If the result operand is not set correctly, report error
+    context->Print("Result operand of the call instruction is not set correctly");
+    return false;
+  }
+
   return true;
 }
 

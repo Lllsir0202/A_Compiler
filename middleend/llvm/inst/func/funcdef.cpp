@@ -18,29 +18,29 @@ auto FuncDefInst::Verify(context::CompilerContext *context) const -> bool {
   // For example, we can check that the function name is not empty,
   // the return type is valid, and the argument types and operands are valid.
   if (func_name_.empty()) {
-    context->ReportError("Function name cannot be empty");
+    context->Print("Function name cannot be empty");
     return false;
   }
   if (return_type_ == nullptr) {
-    context->ReportError("Return type cannot be null");
+    context->Print("Return type cannot be null");
     return false;
   }
   if (arg_types_.size() != arg_operands_.size()) {
-    context->ReportError("Argument types and operands size mismatch");
+    context->Print("Argument types and operands size mismatch");
     return false;
   }
   for (size_t i = 0; i < arg_types_.size(); ++i) {
     if (arg_types_[i] == nullptr) {
-      context->ReportError("Argument type cannot be null");
+      context->Print("Argument type cannot be null");
       return false;
     }
     if (arg_operands_[i] == nullptr) {
-      context->ReportError("Argument operand cannot be null");
+      context->Print("Argument operand cannot be null");
       return false;
     }
     // Only allow register operands
     if (!arg_operands_[i]->IsRegister()) {
-      context->ReportError("Argument operand must be a register operand");
+      context->Print("Argument operand must be a register operand");
       return false;
     }
   }

@@ -16,12 +16,12 @@ auto RetInst::Emit(std::ofstream *out) const -> void {
 
 auto RetInst::Verify(context::CompilerContext *context) const -> bool {
   if (GetParentBlock() == nullptr) {
-    context->ReportError("Ret instruction must have a parent block");
+    context->Print("Ret instruction must have a parent block");
     return false;
   }
   // If ret_value_ is not nullptr, it must be a valid operand
   if (ret_value_ != nullptr && ret_value_->GetType() == nullptr) {
-    context->ReportError("Ret instruction has an invalid return value operand");
+    context->Print("Ret instruction has an invalid return value operand");
     return false;
   }
   return true;

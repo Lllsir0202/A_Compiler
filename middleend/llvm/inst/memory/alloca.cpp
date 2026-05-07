@@ -32,4 +32,21 @@ auto AllocaInst::Emit(std::ofstream *out) const -> void {
   *out << ", align " << utils::Operand::GetTypeInLLVMIR(result_->GetType()) << "\n";
 }
 
+auto AllocaInst::Verify(context::CompilerContext *context) const -> bool {
+  // Verify the instruction, check if the allocated type is valid
+  if (allocated_type_ == nullptr) {
+    context->Print("Allocated type of alloca instruction cannot be null");
+    return false;
+  }
+  if (result_ == nullptr) {
+    context->Print("Result operand of alloca instruction cannot be null");
+    return false;
+  }
+  if (!result_->IsRegister()) {
+    context->Print("Result operand of alloca instruction must be a register operand");
+    return false;
+  }
+  return true;
+}
+
 }  // namespace middleend::llvm::inst

@@ -14,11 +14,15 @@ class AllocaInst : public Instruction {
   auto Emit(std::ofstream *out) const -> void override;
   auto Verify(context::CompilerContext *context) const -> bool override;
 
+  // Interface to get the dimensions of the allocated array
+  auto GetDimensions() const -> const std::vector<int> & { return dimensions_; }
+
  private:
   explicit AllocaInst(type::Type *allocated_type, std::vector<int> dimensions)
       : Instruction(OpKind::Alloca), allocated_type_(allocated_type), dimensions_(std::move(dimensions)) {}
   static auto Create(context::LLVMIRContext *context, type::Type *allocated_type,
                      std::vector<int> dimensions) -> AllocaInst *;
+  friend class utils::factory::InstFactory;
   // Type of the allocated memory
   type::Type *allocated_type_;
 

@@ -70,8 +70,18 @@ auto ICmpInst::Verify(context::CompilerContext *context) const -> bool {
     return false;
   }
 
+  if (!operands_[0]->IsInt32() || !operands_[1]->IsInt32()) {
+    context->ReportError("ICmp instruction operands must be int32");
+    return false;
+  }
+
   if (GetParentBlock() == nullptr) {
     context->ReportError("ICmp instruction must have a parent block");
+    return false;
+  }
+
+  if (result_->GetInstruction() != this) {
+    context->ReportError("ICmp instruction result operand must point back to the instruction");
     return false;
   }
 
@@ -82,8 +92,10 @@ auto ICmpInst::Create(context::LLVMIRContext *context, CmpPredicate predicate, u
                       utils::Operand *operand2) -> ICmpInst * {
   auto *inst = new ICmpInst(OpKind::ICmp);
   inst->predicate_ = predicate;
-  auto res = context->GetNewRegOperand(context->GetIntegerType());
+  // ICmp returns a boolean value
+  auto res = context->GetNewRegOperand(context->GetBoolType());
   inst->SetResult(res);
+  res->SetInstruction(inst);
   inst->AddOperand(operand1);
   inst->AddOperand(operand2);
   return inst;
@@ -116,8 +128,18 @@ auto FCmpInst::Verify(context::CompilerContext *context) const -> bool {
     return false;
   }
 
+  if (!operands_[0]->IsFloat() || !operands_[1]->IsFloat()) {
+    context->ReportError("FCmp instruction operands must be float");
+    return false;
+  }
+
   if (GetParentBlock() == nullptr) {
     context->ReportError("FCmp instruction must have a parent block");
+    return false;
+  }
+
+  if (result_->GetInstruction() != this) {
+    context->ReportError("FCmp instruction result operand must point back to the instruction");
     return false;
   }
 
@@ -128,8 +150,9 @@ auto FCmpInst::Create(context::LLVMIRContext *context, CmpPredicate predicate, u
                       utils::Operand *operand2) -> FCmpInst * {
   auto *inst = new FCmpInst(OpKind::FCmp);
   inst->predicate_ = predicate;
-  auto res = context->GetNewRegOperand(context->GetFloatType());
+  auto res = context->GetNewRegOperand(context->GetBoolType());
   inst->SetResult(res);
+  res->SetInstruction(inst);
   inst->AddOperand(operand1);
   inst->AddOperand(operand2);
   return inst;

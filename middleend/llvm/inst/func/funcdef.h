@@ -29,6 +29,9 @@ class FuncDefInst : public Instruction {
         arg_operands_(std::move(arg_operands)) {}
   static auto Create(context::LLVMIRContext *context, const std::string &func_name, type::Type *return_type,
                      std::vector<type::Type *> arg_types, std::vector<utils::Operand *> arg_operands) -> FuncDefInst *;
+
+  friend class utils::factory::InstFactory;
+
   // Function name
   std::string func_name_;
   // Return type of the function

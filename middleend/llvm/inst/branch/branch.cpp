@@ -9,11 +9,11 @@ auto BrInst::Emit(std::ofstream *out) const -> void {
 
 auto BrInst::Verify(context::CompilerContext *context) const -> bool {
   if (target_ == nullptr) {
-    context->ReportError("Br instruction must have a target label");
+    context->Print("Br instruction must have a target label");
     return false;
   }
   if (GetParentBlock() == nullptr) {
-    context->ReportError("Br instruction must have a parent block");
+    context->Print("Br instruction must have a parent block");
     return false;
   }
   return true;
@@ -39,15 +39,15 @@ auto BrCondInst::Emit(std::ofstream *out) const -> void {
 
 auto BrCondInst::Verify(context::CompilerContext *context) const -> bool {
   if (condition_ == nullptr) {
-    context->ReportError("BrCond instruction must have a condition operand");
+    context->Print("BrCond instruction must have a condition operand");
     return false;
   }
   if (true_target_ == nullptr || false_target_ == nullptr) {
-    context->ReportError("BrCond instruction must have both true and false target labels");
+    context->Print("BrCond instruction must have both true and false target labels");
     return false;
   }
   if (!condition_->IsBool()) {
-    context->ReportError("BrCond instruction condition operand must be of type i1");
+    context->Print("BrCond instruction condition operand must be of type i1");
     return false;
   }
   return true;
