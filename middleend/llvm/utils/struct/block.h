@@ -3,6 +3,8 @@
 
 #include <cstddef>
 #include <deque>
+#include <fstream>
+#include <string>
 namespace middleend::llvm::inst {
 class Instruction;
 }
@@ -25,9 +27,17 @@ class BasicBlock {
   auto AddInstBack(inst::Instruction *inst) -> void { instructions_.emplace_back(inst); }
   auto AddInstFront(inst::Instruction *inst) -> void { instructions_.emplace_front(inst); }
 
+  // Interface for debug, comment
+  auto GetComment() const -> const std::string & { return comment_; }
+  auto SetComment(const std::string &comment) -> void { comment_ = comment; }
+
+  auto Emit(std::ofstream *out) const -> void { *out << "label " << id_ << ":  ; " << comment_ << std::endl; }
+
  private:
   explicit BasicBlock(size_t id) : id_(id) {}
   const size_t id_;
+  // Used for debug, comment
+  std::string comment_;
 
   std::deque<inst::Instruction *> instructions_;
   friend class factory::BlockFactory;
