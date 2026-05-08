@@ -19,9 +19,9 @@ namespace middleend::mlir::var {
 class VarDefOp : public VarOps {
  public:
   static auto Create(context::MLIRContext *context, std::vector<int> dimensions, std::vector<Value *> &inits,
-                     bool is_global = false, bool is_const = false) -> VarDefOp * {
+                     bool is_const = false) -> VarDefOp * {
     auto op = new VarDefOp();
-    op->SetUp(context, dimensions, inits, is_global, is_const);
+    op->SetUp(context, dimensions, inits, is_const);
     return op;
   }
 
@@ -29,7 +29,7 @@ class VarDefOp : public VarOps {
   static auto Create(VarDefOp *other) -> VarDefOp * {
     auto op = new VarDefOp();
     // Do not change other operation's attributes
-    op->SetUp(other->results_[0], other->dimensions_, other->operands_, other->is_global_, other->is_const_);
+    op->SetUp(other->results_[0], other->dimensions_, other->operands_, other->is_const_);
     for (auto &operand : other->operands_) {
       if (operand != nullptr) {
         operand->ReplaceAllOpUsesWith(other, op);
@@ -53,9 +53,6 @@ class VarDefOp : public VarOps {
     }
     *out << " " << results_[0]->GetType()->ToString();
     *out << " = ";
-    if (is_global_) {
-      *out << "global ";
-    }
     if (is_const_) {
       *out << "const ";
     }
@@ -81,7 +78,7 @@ class VarDefOp : public VarOps {
 
  private:
   VarDefOp() : VarOps("def") {}
-  auto SetUp(context::MLIRContext *context, std::vector<int> &dimensions, std::vector<Value *> &inits, bool is_global,
+  auto SetUp(context::MLIRContext *context, std::vector<int> &dimensions, std::vector<Value *> &inits,
              bool is_const) -> void {
     operands_.reserve(inits.size());
     dimensions_.reserve(dimensions.size());
@@ -90,25 +87,21 @@ class VarDefOp : public VarOps {
     dimensions_ = std::move(dimensions);
     auto res = context->CreateValue();
     results_.emplace_back(res);
-    is_global_ = is_global;
     is_const_ = is_const;
     res->op_ = this;
   }
 
-  auto SetUp(mlir::Value *res, std::vector<int> dimensions, std::vector<Value *> inits, bool is_global,
-             bool is_const) -> void {
+  auto SetUp(mlir::Value *res, std::vector<int> dimensions, std::vector<Value *> inits, bool is_const) -> void {
     operands_.reserve(inits.size());
     dimensions_.reserve(dimensions.size());
     results_.reserve(1);
     operands_ = std::move(inits);
     dimensions_ = std::move(dimensions);
-    is_global_ = is_global;
     is_const_ = is_const;
     results_.emplace_back(res);
     res->op_ = this;
   }
 
-  bool is_global_;
   bool is_const_;
   std::vector<int> dimensions_;
 };

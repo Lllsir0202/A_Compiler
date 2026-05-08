@@ -1,6 +1,7 @@
 #include "middleend/llvm/inst/func/call.h"
 #include <utility>
 #include "context/compiler_context.h"
+#include "middleend/llvm/inst/func/funcdef.h"
 #include "middleend/llvm/utils/operand/operand.h"
 #include "type/type.h"
 namespace middleend::llvm::inst {

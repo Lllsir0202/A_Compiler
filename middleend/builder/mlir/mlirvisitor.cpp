@@ -5,6 +5,7 @@
 #include "middleend/builder/mlir/mlirvisitor.h"
 #include <cstddef>
 #include <string>
+#include "flatten/astinit.h"
 #include "frontend/ast/ast_decl.h"
 #include "frontend/ast/ast_expr.h"
 #include "frontend/ast/ast_spec.h"
@@ -17,6 +18,7 @@
 #include "middleend/mlir/utils/struct/block.h"
 #include "middleend/mlir/utils/struct/region.h"
 #include "middleend/mlir/utils/value/value.h"
+#include "mlir/dialect/var/globaldef.h"
 #include "utils/flatten/mlirinit.h"
 #include "utils/type/type.h"
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()
@@ -1102,25 +1104,135 @@ void MLIRVisitor::Visit(frontend::ast::ReturnStmtNode *return_stmt) {
 
 // Variable nodes includes decl and initializer
 void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
+  /**
+   * @brief variable definition, we have stored the symbolId
+   */
+  auto symbol_id = var_def->symbol_id_;
+  auto entry = GET_SYMBOLTABLE_CONTEXT()->GetVarEntryById(symbol_id);
+  // If the entry initializer is not null, it means we have calculated the initializers
+  auto initializer = entry->initializer_.get();
+  if (entry->is_global_) {
+    if (initializer != nullptr) {
+      // If initializer is not null, it means:
+      // 1. the entry is const
+      // 2. the entry is global variable
+      // Here we only deal with global variables
+      if (initializer->IsScalar()) {
+        auto const_initializer = static_cast<initializer::ConstInitializer *>(initializer);
+        if (entry->type_->GetKind() == type::TypeKind::INT) {
+          auto value = const_initializer->GetIntValue().value();
+          auto global_def = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::GlobalVarDefOp>(
+              GET_MLIR_CONTEXT(), entry->name_, std::vector<int>{}, std::vector<int>{value});
+          global_def->GetRes()->SetType(entry->type_);
+          GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(global_def);
+          GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, global_def->GetRes());
+        } else if (entry->type_->GetKind() == type::TypeKind::FLOAT) {
+          auto value = const_initializer->GetFloatValue().value();
+          auto global_def = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::GlobalVarDefOp>(
+              GET_MLIR_CONTEXT(), entry->name_, std::vector<int>{}, std::vector<float>{value});
+          global_def->GetRes()->SetType(entry->type_);
+          GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(global_def);
+          GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, global_def->GetRes());
+        } else {
+          compiler_context_->ReportError(var_def, "Unsupported type for global variable initializer.");
+          return;
+        }
+      } else {
+        auto array_initializer = static_cast<initializer::ArrayInitializer *>(initializer);
+        const auto &values = array_initializer->GetInitializers();
+        if (entry->type_->GetKind() != type::TypeKind::ARRAY) {
+          compiler_context_->ReportError(var_def, "Initializer is array but variable is not array.");
+          return;
+        }
+        auto array_type = static_cast<type::ArrayType *>(entry->type_);
+        if (array_type->GetElementType()->GetKind() == type::TypeKind::INT) {
+          std::vector<int> init_values;
+          for (const auto &value : values) {
+            auto const_initializer = static_cast<initializer::ConstInitializer *>(value.get());
+            init_values.emplace_back(const_initializer->GetIntValue().value());
+          }
+          auto global_def = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::GlobalVarDefOp>(
+              GET_MLIR_CONTEXT(), entry->name_, entry->dimensions_, init_values);
+          global_def->GetRes()->SetType(entry->type_);
+          GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(global_def);
+          GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, global_def->GetRes());
+        } else if (array_type->GetElementType()->GetKind() == type::TypeKind::FLOAT) {
+          std::vector<float> init_values;
+          for (const auto &value : values) {
+            auto const_initializer = static_cast<initializer::ConstInitializer *>(value.get());
+            init_values.emplace_back(const_initializer->GetFloatValue().value());
+          }
+          auto global_def = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::GlobalVarDefOp>(
+              GET_MLIR_CONTEXT(), entry->name_, entry->dimensions_, init_values);
+          global_def->GetRes()->SetType(entry->type_);
+          GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(global_def);
+          GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, global_def->GetRes());
+        } else {
+          compiler_context_->ReportError(var_def, "Unsupported type for global variable initializer.");
+          return;
+        }
+      }
+      return;
+    }
+    // If the initialize is null, default initializer
+    switch (entry->type_->GetKind()) {
+      case type::TypeKind::INT: {
+        auto global_def = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::GlobalVarDefOp>(
+            GET_MLIR_CONTEXT(), entry->name_, std::vector<int>{}, std::vector<int>{0});
+        global_def->GetRes()->SetType(entry->type_);
+        GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(global_def);
+        GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, global_def->GetRes());
+        break;
+      }
+      case type::TypeKind::FLOAT: {
+        auto global_def = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::GlobalVarDefOp>(
+            GET_MLIR_CONTEXT(), entry->name_, std::vector<int>{}, std::vector<float>{0.0F});
+        global_def->GetRes()->SetType(entry->type_);
+        GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(global_def);
+        GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, global_def->GetRes());
+        break;
+      }
+      case type::TypeKind::ARRAY: {
+        // For array variable, if the initializer is null, we can just provide an empty initializer,
+        // since in C language, the uninitialized variable will be initialized to `0` by default
+        // we will accomplish this by `memset` in the lowering phase.
+        mlir::var::GlobalVarDefOp *global_def = nullptr;
+        if (static_cast<type::ArrayType *>(entry->type_)->GetElementType()->GetKind() == type::TypeKind::INT) {
+          global_def = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::GlobalVarDefOp>(
+              GET_MLIR_CONTEXT(), entry->name_, entry->dimensions_, std::vector<int>{});
+        } else if (static_cast<type::ArrayType *>(entry->type_)->GetElementType()->GetKind() == type::TypeKind::FLOAT) {
+          global_def = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::GlobalVarDefOp>(
+              GET_MLIR_CONTEXT(), entry->name_, entry->dimensions_, std::vector<float>{});
+        } else {
+          compiler_context_->ReportError(var_def, "Unsupported type for global variable initializer.");
+          return;
+        }
+        global_def->GetRes()->SetType(entry->type_);
+        GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(global_def);
+        GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, global_def->GetRes());
+        break;
+      }
+      default: {
+        compiler_context_->ReportError(var_def, "Unsupported type for global variable.");
+        return;
+      }
+    }
+    return;
+  }
+
   // Since the variable definition has been checked and stored in semantic phase
   // The dimensions have been calculated
   if (var_def->init_values_) {
     var_def->init_values_->Accept(this);
   }
 
-  /**
-   * @brief variable definition, we have stored the symbolId
-   */
-  auto symbol_id = var_def->symbol_id_;
-  auto entry = GET_SYMBOLTABLE_CONTEXT()->GetVarEntryById(symbol_id);
-
   // Results are a list of exprnode*, we use the map to get the corresponding value in MLIR,
   // and then we will create the initializer operation to initialize the variable
 
   /**
-   * @note: if the variable is a global variable, we will create a def
+   * @note: if the variable is a array type, we will create a def
    */
-  if (!entry->dimensions_.empty() || entry->is_global_) {  // Since the definition of a variable, if it has a dimension,
+  if (!entry->dimensions_.empty()) {  // Since the definition of a variable, if it has a dimension,
     // the dimensions have been calculated in the semantic phase, and stored in the VarEntry,
     // So we can just get the dimensions from the VarEntry, and use it to create the var.def
     auto dimensions = entry->dimensions_;
@@ -1173,8 +1285,8 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
      * so that we can deal with the usage of this variable later(espacially in LVal)
      */
     // We only call def in array variable definition
-    auto var_def_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarDefOp>(
-        GET_MLIR_CONTEXT(), dimensions, init_values, entry->is_global_, entry->is_const_);
+    auto var_def_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarDefOp>(GET_MLIR_CONTEXT(), dimensions,
+                                                                               init_values, entry->is_const_);
     var_def_op->GetRes()->SetType(entry->type_);
     GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, var_def_op->GetRes());
     GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(var_def_op);

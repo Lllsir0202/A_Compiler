@@ -103,7 +103,7 @@ class Value {
   /**
    * @brief Get the type of this value
    */
-  auto GetType() -> type::Type * { return type_; }
+  auto GetType() const -> type::Type * { return type_; }
 
  private:
   Value() = default;

@@ -7,6 +7,10 @@ namespace middleend::llvm::inst {
 class FuncDefInst;
 }  // namespace middleend::llvm::inst
 
+namespace middleend::mlir::var {
+class VarDefOp;
+}
+
 namespace middleend::llvm::utils {
 /**
  * @brief Module class defines the llvm module,
@@ -32,9 +36,16 @@ class Module {
     func_def_insts_[func_name] = func_def;
   }
 
+  // Global variables will be emit at the top of the llvm ir
+  auto GetGlobalVars() const -> const std::vector<mlir::var::VarDefOp *> & { return global_vars_; }
+  auto AddGlobalVar(mlir::var::VarDefOp *global_var) -> void { global_vars_.emplace_back(global_var); }
+
  private:
   // Record all functions
   std::vector<Function *> functions_;
+
+  // Record all global variables
+  std::vector<mlir::var::VarDefOp *> global_vars_;
 
   // Record the function definition instruction
   std::unordered_map<std::string, middleend::llvm::inst::FuncDefInst *> func_def_insts_;

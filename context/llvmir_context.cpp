@@ -1,6 +1,11 @@
 #include "context/llvmir_context.h"
 #include <stdexcept>
-#include "llvm/utils/factory/opfactory.h"
+#include "llvm/utils/factory/instfactory.h"
+#include "middleend/llvm/utils/factory/blockfactory.h"
+#include "middleend/llvm/utils/factory/funcfactory.h"
+#include "middleend/llvm/utils/factory/opfactory.h"
+#include "middleend/llvm/utils/struct/block.h"
+#include "middleend/llvm/utils/struct/function.h"
 
 namespace context {
 auto LLVMIRResourceContext::GetNewRegOperand(type::Type *type) -> middleend::llvm::utils::RegOperand * {
@@ -85,6 +90,18 @@ auto LLVMIRResourceContext::GetFunction(const std::string &func_name) -> middlee
   }
   // If the function does not exist, report error
   return nullptr;
+}
+
+auto LLVMIRResourceContext::GetNewBasicBlock() -> middleend::llvm::utils::BasicBlock * {
+  auto block = middleend::llvm::utils::factory::BlockFactory::CreateBlock(label_id_counter_++);
+  return block;
+}
+
+auto LLVMIRResourceContext::CreateFunction(const std::string &func_name,
+                                           type::Type *return_type) -> middleend::llvm::utils::Function * {
+  auto function = middleend::llvm::utils::factory::FuncFactory::CreateFunction(func_name, return_type);
+  AddFunction(function);
+  return function;
 }
 
 }  // namespace context

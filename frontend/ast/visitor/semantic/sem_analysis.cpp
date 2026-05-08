@@ -182,7 +182,7 @@ auto SemanticAnalyser::Normalize(symboltable::VarEntry *entry,
       }
     }
   }
-// #define Debug
+
 #ifdef Debug
 
   debug_file_ << "Normalized initializer for variable " << entry->name_ << ":\n";
@@ -797,6 +797,11 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
       compiler_context_->ReportError(var_def, "const variable initializer must be a constant expression");
       return;
     }
+    // Global variable must be initialized with a constant expression
+    if (entry->is_global_ && !var_def->init_values_->IsConst()) {
+      compiler_context_->ReportError(var_def, "global variable initializer must be a constant expression");
+      return;
+    }
     // Check whether the initializer is compatible with the variable type
     if (entry->dimensions_.empty() && !var_def->init_values_->IsScalar()) {
       compiler_context_->ReportError(var_def, "scalar variable cannot be initialized with a non-scalar initializer");
@@ -814,10 +819,10 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
   // then we can set the value of the variable in the symbol table entry
 
   /**
-   * @cond: if it is a constant variable and need to be flattened,
+   * @cond: if it is a constant variable or it is global and need to be flattened,
    * @then: we will flatten the initializer list and set the value in the symbol table entry
    */
-  if (entry->is_const_ && !entry->dimensions_.empty()) {
+  if ((entry->is_const_ || entry->is_global_) && !entry->dimensions_.empty()) {
     // means the variable is const, we can set its value in the symbol table entry
     auto result =
         flatten_helper_.FlattenInitializer(var_def->init_values_.get(), entry->dimensions_, initializer::HandleInAst);
@@ -827,7 +832,6 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
     // First put the result into the RAII wrapper
     Normalize(entry, result_ptr);
     entry->initializer_ = std::move(result_ptr);
-
   }
   /**
    * @cond: if the entry is not a constant variable but is an array variable,

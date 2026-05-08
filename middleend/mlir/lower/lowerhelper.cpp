@@ -9,6 +9,7 @@
 #include "mlir/dialect/var/def.h"
 #include "mlir/dialect/var/getptr.h"
 #include "mlir/dialect/var/getvalue.h"
+#include "mlir/dialect/var/globaldef.h"
 #include "mlir/dialect/var/set.h"
 namespace middleend::mlir::lower {
 // Use macro to provide quick access to mlir context
@@ -47,6 +48,7 @@ auto LowerHelper::LowerDispatch(Operation *op) -> void {
   LOWER_DISPATCH(mlir::func::FuncCallOp, FuncCallOp)
   LOWER_DISPATCH(mlir::func::ReturnOp, ReturnOp)
   LOWER_DISPATCH(mlir::var::VarDefOp, VarDefOp)
+  LOWER_DISPATCH(mlir::var::GlobalVarDefOp, GlobalVarDefOp)
   LOWER_DISPATCH(mlir::var::VarGetPtrOp, VarGetPtrOp)
   LOWER_DISPATCH(mlir::var::VarGetValOp, VarGetValOp)
   LOWER_DISPATCH(mlir::var::VarSetOp, VarSetOp)
@@ -268,6 +270,7 @@ LOWER_CLONE_OP(arithm, CopyOp)
 
 // Variable-about operations
 LOWER_CLONE_OP(var, VarDefOp)
+LOWER_CLONE_OP(var, GlobalVarDefOp)
 LOWER_CLONE_OP(var, VarGetPtrOp)
 LOWER_CLONE_OP(var, VarGetValOp)
 LOWER_CLONE_OP(var, VarSetOp)

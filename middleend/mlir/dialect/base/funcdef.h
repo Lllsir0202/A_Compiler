@@ -87,6 +87,13 @@ class FuncDefOp : public BaseOps {
     return regions_[0]->blocks_[0];
   }
 
+  auto GetBlocks() -> std::vector<middleend::mlir::Block *> {
+    if (regions_.empty()) {
+      throw std::runtime_error("The function definition operation has no blocks.");
+    }
+    return regions_[0]->blocks_;
+  }
+
  private:
   FuncDefOp() : BaseOps("funcdef"){};
 

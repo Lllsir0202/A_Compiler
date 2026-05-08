@@ -50,7 +50,6 @@ class LowerHelper {
 
  private:
   // Detailed lowering functions for different operations
-  // TODO(loki) : implement dispatching and lowering for different operations.
   /**
    * @brief lower arithmetic operations
    */
@@ -89,6 +88,7 @@ class LowerHelper {
    * but we can still provide a lowering function currently)
    */
   auto LowerVarDefOp(middleend::mlir::var::VarDefOp *var_def_op) -> void;
+  auto LowerGlobalVarDefOp(middleend::mlir::var::GlobalVarDefOp *global_var_def_op) -> void;
   auto LowerVarGetPtrOp(middleend::mlir::var::VarGetPtrOp *var_get_ptr_op) -> void;
   auto LowerVarGetValOp(middleend::mlir::var::VarGetValOp *var_get_val_op) -> void;
   auto LowerVarSetOp(middleend::mlir::var::VarSetOp *var_set_op) -> void;

@@ -2,10 +2,12 @@
 #define CONTEXT_LLVMIR_CONTEXT_H
 #include <unordered_map>
 #include "context/type_context.h"
+#include "middleend/llvm/utils/factory/instfactory.h"
 #include "middleend/llvm/utils/factory/opfactory.h"
 #include "middleend/llvm/utils/operand/regoperand.h"
 #include "middleend/llvm/utils/struct/function.h"
 #include "middleend/llvm/utils/struct/module.h"
+#include "middleend/mlir/utils/struct/block.h"
 
 // Forward declaration
 namespace middleend::llvm::inst {
@@ -19,7 +21,55 @@ namespace context {
  */
 class LLVMIRLowerContext {
  public:
+  // Interface to get and set current insert point, which is used for instruction insertion
+  auto SetInsertPoint(middleend::llvm::utils::BasicBlock *block) -> void { current_block_ = block; }
+  auto GetInsertPoint() -> middleend::llvm::utils::BasicBlock * { return current_block_; }
+
+  // Interface to get and set current function
+  auto SetCurrentFunction(middleend::llvm::utils::Function *function) -> void { current_function_ = function; }
+  auto GetCurrentFunction() -> middleend::llvm::utils::Function * { return current_function_; }
+
+  // Interface to map and get llvm ops from mlir ops
+  auto MapMLIRBlockToLLVMIRBlock(middleend::mlir::Block *mlir_block,
+                                 middleend::llvm::utils::BasicBlock *llvm_block) -> void {
+    // Should never found
+    if (block_mapping_.count(mlir_block) > 0) {
+      throw std::logic_error("MLIR block already mapped to LLVM IR block");
+    }
+    block_mapping_[mlir_block] = llvm_block;
+  }
+  auto GetLLVMIRBlockFromMLIRBlock(middleend::mlir::Block *mlir_block) -> middleend::llvm::utils::BasicBlock * {
+    if (block_mapping_.count(mlir_block) > 0) {
+      return block_mapping_[mlir_block];
+    }
+    return nullptr;
+  }
+
+  auto MapMLIRValueToLLVMIROperand(middleend::mlir::Value *mlir_value,
+                                   middleend::llvm::utils::Operand *llvm_operand) -> void {
+    // Should never found
+    if (value_mapping_.count(mlir_value) > 0) {
+      throw std::logic_error("MLIR value already mapped to LLVM IR operand");
+    }
+    value_mapping_[mlir_value] = llvm_operand;
+  }
+
+  auto GetLLVMIROperandFromMLIRValue(middleend::mlir::Value *mlir_value) -> middleend::llvm::utils::Operand * {
+    if (value_mapping_.count(mlir_value) > 0) {
+      return value_mapping_[mlir_value];
+    }
+    return nullptr;
+  }
+
  private:
+  // Insert point management
+  middleend::llvm::utils::BasicBlock *current_block_;
+  middleend::llvm::utils::Function *current_function_;
+
+  // Need a map from mlir block to llvmir block
+  std::unordered_map<middleend::mlir::Block *, middleend::llvm::utils::BasicBlock *> block_mapping_;
+  // map from mlir value to llvmir operand
+  std::unordered_map<middleend::mlir::Value *, middleend::llvm::utils::Operand *> value_mapping_;
 };
 
 /**
@@ -50,6 +100,9 @@ class LLVMIRResourceContext {
    */
   auto GetLabelOperand(size_t id) -> middleend::llvm::utils::LabelOperand *;
 
+  // Get a new unique block id for the new basic block
+  auto GetNewBasicBlock() -> middleend::llvm::utils::BasicBlock *;
+
   /**
    * @brief Interfaces to manage function-related resources
    */
@@ -57,6 +110,24 @@ class LLVMIRResourceContext {
   auto GetFunctionDef(const std::string &func_name) -> middleend::llvm::inst::FuncDefInst *;
   auto AddFunction(middleend::llvm::utils::Function *function) -> void;
   [[maybe_unused]] auto GetFunction(const std::string &func_name) -> middleend::llvm::utils::Function *;
+
+  /**
+   * @brief Reset the reg and label id counters, while we enter a new function
+   * @note Should be called when we enter a new function
+   */
+  auto ResetFunctionLevelResource() -> void {
+    reg_id_counter_ = 0;
+    label_id_counter_ = 0;
+    reg_operands_.clear();
+    label_operands_.clear();
+  }
+
+  auto CreateFunction(const std::string &func_name, type::Type *return_type) -> middleend::llvm::utils::Function *;
+
+  template <typename InstType, typename... Args>
+  auto CreateInst(Args &&...args) -> InstType * {
+    return middleend::llvm::utils::factory::InstFactory::CreateInst<InstType>(std::forward<Args>(args)...);
+  }
 
  private:
   // Id counters for different operand types

@@ -8,7 +8,7 @@ namespace context {
 class LLVMIRResourceContext;
 }  // namespace context
 
-namespace middleend::llvm::utils {
+namespace middleend::llvm::utils::factory {
 class FuncFactory {
  private:
   /**
@@ -17,11 +17,11 @@ class FuncFactory {
    * @param return_type The return type of the function
    */
   static auto CreateFunction(const std::string &func_name, type::Type *return_type) -> Function * {
-    return new Function(func_name, return_type);
+    return new utils::Function(func_name, return_type);
   }
   friend class context::LLVMIRResourceContext;
 };
 
-}  // namespace middleend::llvm::utils
+}  // namespace middleend::llvm::utils::factory
 
 #endif

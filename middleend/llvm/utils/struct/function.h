@@ -9,6 +9,10 @@
 #include <vector>
 #include "middleend/llvm/utils/struct/block.h"
 #include "utils/type/type.h"
+namespace middleend::llvm::utils::factory {
+class FuncFactory;
+}  // namespace middleend::llvm::utils::factory
+
 namespace middleend::llvm::utils {
 class Function {
  public:
@@ -18,11 +22,20 @@ class Function {
   auto GetBasicBlocks() const -> const std::vector<BasicBlock *> & { return basic_blocks_; }
   auto GetEntryBlock() const -> BasicBlock * { return entry_block_; }
 
+  // Add block
+  auto AddBasicBlock(BasicBlock *block) -> void {
+    basic_blocks_.emplace_back(block);
+    // If the block is the first block, set it as the entry block
+    if (basic_blocks_.size() == 1) {
+      entry_block_ = block;
+    }
+  }
+
  private:
   // Only allow friend class to create
   explicit Function(std::string func_name, type::Type *return_type)
       : func_name_(std::move(func_name)), return_type_(return_type) {}
-  friend class FuncFactory;
+  friend class factory::FuncFactory;
 
   std::string func_name_;
   // Return type of the function
