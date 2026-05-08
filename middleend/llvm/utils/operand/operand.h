@@ -21,7 +21,7 @@ class Instruction;
 }
 
 namespace middleend::llvm::utils {
-enum OpType : uint8_t { Register, Literal, Memory, Label };
+enum OpType : uint8_t { Register, Literal, Memory, Label, Global };
 
 class Operand {
  public:

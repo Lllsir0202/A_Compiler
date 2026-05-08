@@ -16,7 +16,7 @@ class IntLiteral : public Operand {
 
 class FloatLiteral : public Operand {
  public:
-  auto Emit(std::ofstream *out) const -> void override { *out << std::to_string(value_); }
+  auto Emit(std::ofstream *out) const -> void override { *out << "0X" << std::hexfloat << value_ << std::defaultfloat; }
 
  private:
   explicit FloatLiteral(float value) : Operand(OpType::Literal), value_(value) {}

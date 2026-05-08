@@ -42,6 +42,7 @@ enum class OpKind {
   FuncDef,
   Call,
   Alloca,
+  GlobalDef,
   GetElementPtr,
   Phi,
   // Bitcast and other type conversion operations

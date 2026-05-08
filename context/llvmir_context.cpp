@@ -27,6 +27,13 @@ auto LLVMIRResourceContext::GetNewFloatLiteral(float value,
   return op;
 }
 
+auto LLVMIRResourceContext::GetNewGlobalOperand(const std::string &name,
+                                                type::Type *type) -> middleend::llvm::utils::GlobalOperand * {
+  auto op = middleend::llvm::utils::factory::OperandFactory::CreateGlobalOperand(name);
+  op->SetType(type);
+  return op;
+}
+
 // Get existing operands by id(or value for literals)
 auto LLVMIRResourceContext::GetRegOperand(size_t id) -> middleend::llvm::utils::RegOperand * {
   if (reg_operands_.count(id) > 0) {
@@ -57,6 +64,14 @@ auto LLVMIRResourceContext::GetIntLiteral(int value) -> middleend::llvm::utils::
 auto LLVMIRResourceContext::GetFloatLiteral(float value) -> middleend::llvm::utils::FloatLiteral * {
   if (float_literals_.count(value) > 0) {
     return float_literals_[value];
+  }
+  // If the operand does not exist, report error
+  return nullptr;
+}
+
+auto LLVMIRResourceContext::GetGlobalOperand(const std::string &name) -> middleend::llvm::utils::GlobalOperand * {
+  if (global_operands_.count(name) > 0) {
+    return global_operands_[name];
   }
   // If the operand does not exist, report error
   return nullptr;

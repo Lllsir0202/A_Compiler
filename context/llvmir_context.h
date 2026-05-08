@@ -2,12 +2,14 @@
 #define CONTEXT_LLVMIR_CONTEXT_H
 #include <unordered_map>
 #include "context/type_context.h"
+#include "llvm/utils/operand/globaloperand.h"
 #include "middleend/llvm/utils/factory/instfactory.h"
 #include "middleend/llvm/utils/factory/opfactory.h"
 #include "middleend/llvm/utils/operand/regoperand.h"
 #include "middleend/llvm/utils/struct/function.h"
 #include "middleend/llvm/utils/struct/module.h"
 #include "middleend/mlir/utils/struct/block.h"
+#include "type/type.h"
 
 // Forward declaration
 namespace middleend::llvm::inst {
@@ -70,6 +72,8 @@ class LLVMIRLowerContext {
   std::unordered_map<middleend::mlir::Block *, middleend::llvm::utils::BasicBlock *> block_mapping_;
   // map from mlir value to llvmir operand
   std::unordered_map<middleend::mlir::Value *, middleend::llvm::utils::Operand *> value_mapping_;
+
+  // Record all the llvm ir global definition
 };
 
 /**
@@ -86,6 +90,8 @@ class LLVMIRResourceContext {
 
   auto GetNewFloatLiteral(float value, type::Type *type) -> middleend::llvm::utils::FloatLiteral *;
 
+  auto GetNewGlobalOperand(const std::string &name, type::Type *type) -> middleend::llvm::utils::GlobalOperand *;
+
   /**
    * @brief Interfaces to get existing operands by id(or value for literals),
    * to ensure that the same operand will always be the same instance of operand.
@@ -93,6 +99,7 @@ class LLVMIRResourceContext {
   auto GetRegOperand(size_t id) -> middleend::llvm::utils::RegOperand *;
   auto GetIntLiteral(int value) -> middleend::llvm::utils::IntLiteral *;
   auto GetFloatLiteral(float value) -> middleend::llvm::utils::FloatLiteral *;
+  auto GetGlobalOperand(const std::string &name) -> middleend::llvm::utils::GlobalOperand *;
 
   /**
    * @brief Label operands are used to represent the labels of basic blocks,
@@ -139,6 +146,7 @@ class LLVMIRResourceContext {
   std::unordered_map<size_t, middleend::llvm::utils::LabelOperand *> label_operands_;
   std::unordered_map<int, middleend::llvm::utils::IntLiteral *> int_literals_;
   std::unordered_map<float, middleend::llvm::utils::FloatLiteral *> float_literals_;
+  std::unordered_map<std::string, middleend::llvm::utils::GlobalOperand *> global_operands_;
 
   // Top module
   middleend::llvm::utils::Module *module_;
@@ -166,6 +174,10 @@ class LLVMIRContext {
 
   auto GetNewFloatLiteral(float value) -> middleend::llvm::utils::FloatLiteral * {
     return resource_context_->GetNewFloatLiteral(value, type_context_->GetFloatType());
+  }
+
+  auto GetNewGlobalOperand(const std::string &name, type::Type *type) -> middleend::llvm::utils::GlobalOperand * {
+    return resource_context_->GetNewGlobalOperand(name, type);
   }
 
   // Get types

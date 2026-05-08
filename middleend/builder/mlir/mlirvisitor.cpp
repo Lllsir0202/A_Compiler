@@ -1220,6 +1220,8 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
     return;
   }
 
+  // Following is the case for local variable definition
+
   // Since the variable definition has been checked and stored in semantic phase
   // The dimensions have been calculated
   if (var_def->init_values_) {

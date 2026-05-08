@@ -1,6 +1,7 @@
 #ifndef MIDDLEEND_LLVM_UTILS_FACTORY_OPFACTORY_H
 #define MIDDLEEND_LLVM_UTILS_FACTORY_OPFACTORY_H
 
+#include "middleend/llvm/utils/operand/globaloperand.h"
 #include "middleend/llvm/utils/operand/labeloperand.h"
 #include "middleend/llvm/utils/operand/literaloperand.h"
 #include "middleend/llvm/utils/operand/regoperand.h"
@@ -15,6 +16,7 @@ class OperandFactory {
   static auto CreateIntLiteral(int value) -> IntLiteral * { return new IntLiteral(value); }
   static auto CreateFloatLiteral(float value) -> FloatLiteral * { return new FloatLiteral(value); }
   static auto CreateLabelOperand(size_t id) -> LabelOperand * { return new LabelOperand(id); }
+  static auto CreateGlobalOperand(std::string name) -> GlobalOperand * { return new GlobalOperand(std::move(name)); }
   friend class context::LLVMIRResourceContext;
 };
 
