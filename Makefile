@@ -73,7 +73,12 @@ libarm:
 	$(ARM_AR) rcs $(LIB_PATH)/libarm.a $(LIB_PATH)/syslib_tmp.o
 	rm $(LIB_PATH)/syslib_tmp.o
 
-libs: librv libarm
+libx86:
+	$(GCC) -c $(LIB_SRC) -o $(LIB_PATH)/syslib_tmp.o -I $(LIB_PATH)
+	$(AR) rcs $(LIB_PATH)/libx86.a $(LIB_PATH)/syslib_tmp.o
+	rm $(LIB_PATH)/syslib_tmp.o
+
+libs: librv libarm libx86
 
 format:
 	@find . -type f \( -name "*.c" -o -name "*.cpp" -o -name "*.h" -o -name "*.hpp" -o -name "*.hh" \) -not -path "./libs" -exec $(CLANG_FORMAT) -i {} +

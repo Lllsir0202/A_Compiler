@@ -4,6 +4,7 @@
 
 namespace middleend::llvm::inst {
 auto RetInst::Emit(std::ofstream *out) const -> void {
+  *out << " ";
   *out << "ret ";
   if (ret_value_ != nullptr) {
     auto type = ret_value_->GetType();
@@ -12,6 +13,7 @@ auto RetInst::Emit(std::ofstream *out) const -> void {
   } else {
     *out << "void";
   }
+  *out << "\n";
 }
 
 auto RetInst::Verify(context::CompilerContext *context) const -> bool {

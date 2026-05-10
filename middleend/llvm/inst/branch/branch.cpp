@@ -3,8 +3,10 @@
 
 namespace middleend::llvm::inst {
 auto BrInst::Emit(std::ofstream *out) const -> void {
+  *out << " ";
   *out << "br ";
   target_->Emit(out);
+  *out << "\n";
 }
 
 auto BrInst::Verify(context::CompilerContext *context) const -> bool {
@@ -27,6 +29,7 @@ auto BrInst::Create([[maybe_unused]] context::LLVMIRContext *context, utils::Lab
 
 // Condition branch
 auto BrCondInst::Emit(std::ofstream *out) const -> void {
+  *out << " ";
   *out << "br ";
   // Has checked in verify that condition_ is a boolean
   *out << "i1 ";
@@ -35,6 +38,7 @@ auto BrCondInst::Emit(std::ofstream *out) const -> void {
   true_target_->Emit(out);
   *out << ", ";
   false_target_->Emit(out);
+  *out << "\n";
 }
 
 auto BrCondInst::Verify(context::CompilerContext *context) const -> bool {

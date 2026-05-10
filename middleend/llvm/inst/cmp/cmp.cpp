@@ -56,6 +56,7 @@ auto ICmpInst::Emit(std::ofstream *out) const -> void {
   operands_[0]->Emit(out);
   *out << ", ";
   operands_[1]->Emit(out);
+  *out << "\n";
 }
 
 auto ICmpInst::Verify(context::CompilerContext *context) const -> bool {
@@ -103,6 +104,7 @@ auto ICmpInst::Create(context::LLVMIRContext *context, CmpPredicate predicate, u
 
 // Float comparison
 auto FCmpInst::Emit(std::ofstream *out) const -> void {
+  *out << " ";
   result_->Emit(out);
   *out << " = fcmp ";
 
@@ -114,6 +116,7 @@ auto FCmpInst::Emit(std::ofstream *out) const -> void {
   operands_[0]->Emit(out);
   *out << ", ";
   operands_[1]->Emit(out);
+  *out << "\n";
 }
 
 auto FCmpInst::Verify(context::CompilerContext *context) const -> bool {
@@ -159,6 +162,7 @@ auto FCmpInst::Create(context::LLVMIRContext *context, CmpPredicate predicate, u
 }
 
 auto XorInst::Emit(std::ofstream *out) const -> void {
+  *out << " ";
   result_->Emit(out);
   *out << " = xor ";
   auto type = operands_[0]->GetType();
@@ -170,6 +174,7 @@ auto XorInst::Emit(std::ofstream *out) const -> void {
   } else {
     *out << "true";
   }
+  *out << "\n";
 }
 
 auto XorInst::Verify(context::CompilerContext *context) const -> bool {
