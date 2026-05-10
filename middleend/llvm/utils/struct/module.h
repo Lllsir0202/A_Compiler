@@ -1,7 +1,9 @@
 #ifndef MIDDLEEND_LLVM_UTILS_STRUCT_MODULE_H
 #define MIDDLEEND_LLVM_UTILS_STRUCT_MODULE_H
 #include <unordered_map>
+#include "llvm/inst/memory/globaldef.h"
 #include "middleend/llvm/utils/struct/function.h"
+#include "mlir/dialect/var/globaldef.h"
 
 namespace middleend::llvm::inst {
 class FuncDefInst;
@@ -37,18 +39,30 @@ class Module {
   }
 
   // Global variables will be emit at the top of the llvm ir
-  auto GetGlobalVars() const -> const std::vector<mlir::var::VarDefOp *> & { return global_vars_; }
-  auto AddGlobalVar(mlir::var::VarDefOp *global_var) -> void { global_vars_.emplace_back(global_var); }
+  auto GetGlobalVarDef(const std::string &var_name) -> middleend::llvm::inst::GlobalDefInst * {
+    auto it = global_var_defs_.find(var_name);
+    if (it != global_var_defs_.end()) {
+      return it->second;
+    }
+    return nullptr;
+  }
+
+  auto AddGlobalVarDef(const std::string &var_name, middleend::llvm::inst::GlobalDefInst *global_var_def) -> void {
+    if (global_var_defs_.count(var_name) > 0) {
+      throw std::logic_error("Global variable definition already exists: " + var_name);
+    }
+    global_var_defs_[var_name] = global_var_def;
+  }
 
  private:
   // Record all functions
   std::vector<Function *> functions_;
 
-  // Record all global variables
-  std::vector<mlir::var::VarDefOp *> global_vars_;
-
   // Record the function definition instruction
   std::unordered_map<std::string, middleend::llvm::inst::FuncDefInst *> func_def_insts_;
+
+  // Record the global variable definition instruction, which will be emitted at the top of the llvm ir
+  std::unordered_map<std::string, middleend::llvm::inst::GlobalDefInst *> global_var_defs_;
 };
 
 }  // namespace middleend::llvm::utils

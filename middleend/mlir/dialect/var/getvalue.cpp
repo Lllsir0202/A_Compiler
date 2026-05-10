@@ -1,5 +1,7 @@
 #include "middleend/mlir/dialect/var/getvalue.h"
 #include "context/compiler_context.h"
+#include "mlir/dialect/var/def.h"
+#include "type/type.h"
 
 namespace middleend::mlir::var {
 auto VarGetValOp::Verify(context::CompilerContext *context) -> bool {
@@ -25,9 +27,9 @@ auto VarGetValOp::Verify(context::CompilerContext *context) -> bool {
     return false;
   }
 
-  // We make sure all pointer type in our MLIR is a pointer to the value.
+  // We make sure all ptr is a pointer to the variable
   if (operands_[0]->GetType()->GetKind() != type::TypeKind::PTR) {
-    context->Print("VarGetValOp: operand type must be a pointer type\n");
+    context->Print("VarGetValOp: operand is not a pointer type\n");
     return false;
   }
 

@@ -115,6 +115,9 @@ inline auto MLIRVisitor::HandleLValExpr(frontend::ast::LValExprNode *lval_expr, 
     return ptr;
   }
   // Is an array
+  /**
+   * @note if it is a array variable, we might not get the pointer to the variable
+   */
   auto indices = std::vector<mlir::Value *>{};
   for (const auto &index : lval_expr->indices_) {
     index->Accept(this);
