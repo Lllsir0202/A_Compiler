@@ -124,9 +124,10 @@ auto LowerHelper::LowerFuncDefOp(mlir::base::FuncDefOp *func_def) -> void {
     auto args = func_def->GetArguments();
     std::vector<llvm::utils::Operand *> llvm_args;
     std::vector<type::Type *> llvm_arg_types;
-    for (const auto *arg : args) {
+    for (auto *arg : args) {
       llvm_arg_types.emplace_back(arg->GetType());
       auto llvm_arg = GET_LLVMIR_CONTEXT()->GetNewRegOperand(arg->GetType());
+      GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(arg, llvm_arg);
       llvm_args.emplace_back(llvm_arg);
     }
     auto func_def_inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDefInst>(
@@ -414,6 +415,9 @@ auto LowerHelper::LowerBrOp(mlir::base::BrOp *br_op) -> void {
   auto target_block = br_op->GetTarget();
   // Since we lower all basic blocks before lowering instructions
   auto llvm_target_block = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIRBlockFromMLIRBlock(target_block);
+  if (llvm_target_block == nullptr) {
+    throw std::logic_error("Target block not found in LowerBrOp");
+  }
   auto llvm_label_op = GET_LLVMIR_CONTEXT()->GetResourceContext()->GetLabelOperand(llvm_target_block->GetID());
   // Create a branch instruction to jump to the target block
   auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::BrInst>(GET_LLVMIR_CONTEXT(), llvm_label_op);
@@ -429,6 +433,13 @@ auto LowerHelper::LowerCondBrOp(mlir::base::CondBrOp *cond_br_op) -> void {
   auto llvm_condition = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(condition);
   auto llvm_true_block = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIRBlockFromMLIRBlock(true_block);
   auto llvm_false_block = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIRBlockFromMLIRBlock(false_block);
+  if (llvm_true_block == nullptr) {
+    throw std::logic_error("True target block not found in LowerCondBrOp");
+  }
+  if (llvm_false_block == nullptr) {
+    throw std::logic_error("False target block not found in LowerCondBrOp");
+  }
+
   auto llvm_true_label_op = GET_LLVMIR_CONTEXT()->GetResourceContext()->GetLabelOperand(llvm_true_block->GetID());
   auto llvm_false_label_op = GET_LLVMIR_CONTEXT()->GetResourceContext()->GetLabelOperand(llvm_false_block->GetID());
 

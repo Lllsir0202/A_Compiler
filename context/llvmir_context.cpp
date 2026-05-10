@@ -36,7 +36,7 @@ auto LLVMIRResourceContext::GetLabelOperand(size_t id) -> middleend::llvm::utils
     return label_operands_[id];
   }
   // If the operand does not exist, create a new one
-  auto op = middleend::llvm::utils::factory::OperandFactory::CreateLabelOperand(label_id_counter_++);
+  auto op = middleend::llvm::utils::factory::OperandFactory::CreateLabelOperand(id);
   label_operands_[id] = op;
   return op;
 }

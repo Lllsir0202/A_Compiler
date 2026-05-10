@@ -33,22 +33,26 @@ auto AddInst::Emit(std::ofstream *out) const -> void {
 auto AddInst::Verify(context::CompilerContext *context) const -> bool {
   // Verify the result operand is a register operand
   if (result_ == nullptr || !result_->IsRegister()) {
-    context->Print("Add instruction must have a valid result operand");
+    context->Print("Add instruction must have a valid result operand\n");
     return false;
   }
   // Verify the operands have exactly 2 operands, and both are int32
   if (operands_.size() != 2) {
-    context->Print("Add instruction must have exactly 2 operands");
+    context->Print("Add instruction must have exactly 2 operands\n");
+    return false;
+  }
+  // verify the operands are not nullptr
+  if (operands_[0] == nullptr || operands_[1] == nullptr) {
+    context->Print("Add instruction operands cannot be null\n");
     return false;
   }
   if (GetParentBlock() == nullptr) {
-    context->Print("Add instruction must have a parent block");
+    context->Print("Add instruction must have a parent block\n");
     return false;
   }
-
   // Check the instruction
   if (result_->GetInstruction() != this) {
-    context->Print("Add instruction's result operand must point to itself");
+    context->Print("Add instruction's result operand must point to itself\n");
     return false;
   }
 
@@ -82,22 +86,25 @@ auto AddFInst::Emit(std::ofstream *out) const -> void {
 auto AddFInst::Verify(context::CompilerContext *context) const -> bool {
   // Verify the result operand is a register operand
   if (result_ == nullptr || !result_->IsRegister()) {
-    context->Print("AddF instruction must have a valid result operand");
+    context->Print("AddF instruction must have a valid result operand\n");
     return false;
   }
   // Verify the operands have exactly 2 operands, and both are float
   if (operands_.size() != 2) {
-    context->Print("AddF instruction must have exactly 2 operands");
+    context->Print("AddF instruction must have exactly 2 operands\n");
     return false;
   }
-
+  if (operands_[0] == nullptr || operands_[1] == nullptr) {
+    context->Print("AddF instruction operands cannot be null\n");
+    return false;
+  }
   if (GetParentBlock() == nullptr) {
-    context->Print("AddF instruction must have a parent block");
+    context->Print("AddF instruction must have a parent block\n");
     return false;
   }
 
   if (result_->GetInstruction() != this) {
-    context->Print("AddF instruction's result operand must point to itself");
+    context->Print("AddF instruction's result operand must point to itself\n");
     return false;
   }
 
@@ -141,29 +148,32 @@ auto SubInst::Verify(context::CompilerContext *context) const -> bool {
 
   // Verify the result operand is a register operand
   if (result_ == nullptr || !result_->IsRegister()) {
-    context->Print("Sub instruction must have a valid result operand");
+    context->Print("Sub instruction must have a valid result operand\n");
     return false;
   }
 
   if (!result_->IsInt32()) {
-    context->Print("Sub instruction must have an int32 result operand");
+    context->Print("Sub instruction must have an int32 result operand\n ");
     return false;
   }
 
   // Verify the operands have exactly 2 operands, and both are int32
   if (operands_.size() != 2) {
-    context->Print("Sub instruction must have exactly 2 operands");
+    context->Print("Sub instruction must have exactly 2 operands\n");
     return false;
   }
-
+  if (operands_[0] == nullptr || operands_[1] == nullptr) {
+    context->Print("Sub instruction operands cannot be null\n");
+    return false;
+  }
   // Verify the parent block is not nullptr
   if (GetParentBlock() == nullptr) {
-    context->Print("Sub instruction must have a parent block");
+    context->Print("Sub instruction must have a parent block\n");
     return false;
   }
 
   if (result_->GetInstruction() != this) {
-    context->Print("Sub instruction's result operand must point to itself");
+    context->Print("Sub instruction's result operand must point to itself\n ");
     return false;
   }
 
@@ -197,28 +207,31 @@ auto SubFInst::Emit(std::ofstream *out) const -> void {
 auto SubFInst::Verify(context::CompilerContext *context) const -> bool {
   // Verify the result operand is a register operand
   if (result_ == nullptr || !result_->IsRegister()) {
-    context->Print("SubF instruction must have a valid result operand");
+    context->Print("SubF instruction must have a valid result operand\n");
     return false;
   }
 
   if (!result_->IsFloat()) {
-    context->Print("SubF instruction must have a float result operand");
+    context->Print("SubF instruction must have a float result operand\n");
     return false;
   }
 
   // Verify the operands have exactly 2 operands, and both are float
   if (operands_.size() != 2) {
-    context->Print("SubF instruction must have exactly 2 operands");
+    context->Print("SubF instruction must have exactly 2 operands\n");
     return false;
   }
-
+  if (operands_[0] == nullptr || operands_[1] == nullptr) {
+    context->Print("SubF instruction operands cannot be null\n");
+    return false;
+  }
   if (GetParentBlock() == nullptr) {
-    context->Print("SubF instruction must have a parent block");
+    context->Print("SubF instruction must have a parent block\n");
     return false;
   }
 
   if (result_->GetInstruction() != this) {
-    context->Print("SubF instruction's result operand must point to itself");
+    context->Print("SubF instruction's result operand must point to itself\n");
     return false;
   }
 
@@ -253,28 +266,31 @@ auto MulInst::Emit(std::ofstream *out) const -> void {
 auto MulInst::Verify(context::CompilerContext *context) const -> bool {
   // Verify the result operand is a register operand
   if (result_ == nullptr || !result_->IsRegister()) {
-    context->Print("Mul instruction must have a valid result operand");
+    context->Print("Mul instruction must have a valid result operand\n");
     return false;
   }
 
   if (!result_->IsInt32()) {
-    context->Print("Mul instruction must have an int32 result operand");
+    context->Print("Mul instruction must have an int32 result operand\n");
     return false;
   }
 
   // Verify the operands have exactly 2 operands, and both are int32
   if (operands_.size() != 2) {
-    context->Print("Mul instruction must have exactly 2 operands");
+    context->Print("Mul instruction must have exactly 2 operands\n");
     return false;
   }
-
+  if (operands_[0] == nullptr || operands_[1] == nullptr) {
+    context->Print("Mul instruction operands cannot be null\n");
+    return false;
+  }
   if (GetParentBlock() == nullptr) {
-    context->Print("Mul instruction must have a parent block");
+    context->Print("Mul instruction must have a parent block\n");
     return false;
   }
 
   if (result_->GetInstruction() != this) {
-    context->Print("Mul instruction's result operand must point to itself");
+    context->Print("Mul instruction's result operand must point to itself\n");
     return false;
   }
 
@@ -307,28 +323,31 @@ auto MulFInst::Emit(std::ofstream *out) const -> void {
 auto MulFInst::Verify(context::CompilerContext *context) const -> bool {
   // Verify the result operand is a register operand
   if (result_ == nullptr || !result_->IsRegister()) {
-    context->Print("MulF instruction must have a valid result operand");
+    context->Print("MulF instruction must have a valid result operand\n");
     return false;
   }
 
   if (!result_->IsFloat()) {
-    context->Print("MulF instruction must have a float result operand");
+    context->Print("MulF instruction must have a float result operand\n");
     return false;
   }
 
   // Verify the operands have exactly 2 operands, and both are float
   if (operands_.size() != 2) {
-    context->Print("MulF instruction must have exactly 2 operands");
+    context->Print("MulF instruction must have exactly 2 operands\n");
     return false;
   }
-
+  if (operands_[0] == nullptr || operands_[1] == nullptr) {
+    context->Print("MulF instruction operands cannot be null\n");
+    return false;
+  }
   if (GetParentBlock() == nullptr) {
-    context->Print("MulF instruction must have a parent block");
+    context->Print("MulF instruction must have a parent block\n");
     return false;
   }
 
   if (result_->GetInstruction() != this) {
-    context->Print("MulF instruction's result operand must point to itself");
+    context->Print("MulF instruction's result operand must point to itself\n");
     return false;
   }
 
@@ -362,28 +381,31 @@ auto DivInst::Emit(std::ofstream *out) const -> void {
 auto DivInst::Verify(context::CompilerContext *context) const -> bool {
   // Verify the result operand is a register operand
   if (result_ == nullptr || !result_->IsRegister()) {
-    context->Print("Div instruction must have a valid result operand");
+    context->Print("Div instruction must have a valid result operand\n");
     return false;
   }
 
   if (!result_->IsInt32()) {
-    context->Print("Div instruction must have an int32 result operand");
+    context->Print("Div instruction must have an int32 result operand\n");
     return false;
   }
 
   // Verify the operands have exactly 2 operands, and both are int32
   if (operands_.size() != 2) {
-    context->Print("Div instruction must have exactly 2 operands");
+    context->Print("Div instruction must have exactly 2 operands\n");
     return false;
   }
-
+  if (operands_[0] == nullptr || operands_[1] == nullptr) {
+    context->Print("Div instruction operands cannot be null\n");
+    return false;
+  }
   if (GetParentBlock() == nullptr) {
-    context->Print("Div instruction must have a parent block");
+    context->Print("Div instruction must have a parent block\n");
     return false;
   }
 
   if (result_->GetInstruction() != this) {
-    context->Print("Div instruction's result operand must point to itself");
+    context->Print("Div instruction's result operand must point to itself\n");
     return false;
   }
 
@@ -416,28 +438,31 @@ auto DivFInst::Emit(std::ofstream *out) const -> void {
 auto DivFInst::Verify(context::CompilerContext *context) const -> bool {
   // Verify the result operand is a register operand
   if (result_ == nullptr || !result_->IsRegister()) {
-    context->Print("DivF instruction must have a valid result operand");
+    context->Print("DivF instruction must have a valid result operand\n");
     return false;
   }
 
   if (!result_->IsFloat()) {
-    context->Print("DivF instruction must have a float result operand");
+    context->Print("DivF instruction must have a float result operand\n");
     return false;
   }
 
   // Verify the operands have exactly 2 operands, and both are float
   if (operands_.size() != 2) {
-    context->Print("DivF instruction must have exactly 2 operands");
+    context->Print("DivF instruction must have exactly 2 operands\n");
     return false;
   }
-
+  if (operands_[0] == nullptr || operands_[1] == nullptr) {
+    context->Print("DivF instruction operands cannot be null\n");
+    return false;
+  }
   if (GetParentBlock() == nullptr) {
-    context->Print("DivF instruction must have a parent block");
+    context->Print("DivF instruction must have a parent block\n");
     return false;
   }
 
   if (result_->GetInstruction() != this) {
-    context->Print("DivF instruction's result operand must point to itself");
+    context->Print("DivF instruction's result operand must point to itself\n");
     return false;
   }
 
@@ -475,22 +500,25 @@ auto ModInst::Emit(std::ofstream *out) const -> void {
 auto ModInst::Verify(context::CompilerContext *context) const -> bool {
   // Verify the result operand is a register operand
   if (result_ == nullptr || !result_->IsRegister()) {
-    context->Print("Mod instruction must have a valid result operand");
+    context->Print("Mod instruction must have a valid result operand\n");
     return false;
   }
   // Verify the operands have exactly 2 operands, and both are int32
   if (operands_.size() != 2) {
-    context->Print("Mod instruction must have exactly 2 operands");
+    context->Print("Mod instruction must have exactly 2 operands\n");
     return false;
   }
-
+  if (operands_[0] == nullptr || operands_[1] == nullptr) {
+    context->Print("Mod instruction operands cannot be null\n");
+    return false;
+  }
   if (GetParentBlock() == nullptr) {
-    context->Print("Mod instruction must have a parent block");
+    context->Print("Mod instruction must have a parent block\n");
     return false;
   }
 
   if (result_->GetInstruction() != this) {
-    context->Print("Mod instruction's result operand must point to itself");
+    context->Print("Mod instruction's result operand must point to itself\n");
     return false;
   }
 

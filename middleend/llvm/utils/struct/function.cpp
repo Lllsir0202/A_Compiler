@@ -23,6 +23,7 @@ auto Function::Emit(std::ofstream *out) const -> void {
     block->Emit(out);
   }
   *out << "}\n";
+  *out << "\n";
 }
 
 }  // namespace middleend::llvm::utils

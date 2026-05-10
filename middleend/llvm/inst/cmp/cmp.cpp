@@ -45,6 +45,7 @@ static inline auto GetPredicateStringForFloat(CmpPredicate predicate) -> std::st
 
 // Int comparison
 auto ICmpInst::Emit(std::ofstream *out) const -> void {
+  *out << " ";
   result_->Emit(out);
   *out << " = icmp ";
 

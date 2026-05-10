@@ -1,6 +1,7 @@
 #include "middleend/llvm/inst/memory/globaldef.h"
 #include <fstream>
 #include "context/compiler_context.h"
+#include "llvm/utils/operand/operand.h"
 #include "type/type.h"
 
 namespace middleend::llvm::inst {
@@ -53,12 +54,8 @@ auto GlobalDefInst::Verify(context::CompilerContext *context) const -> bool {
 auto GlobalDefInst::Emit(std::ofstream *out) const -> void {
   *out << "@" << name_ << " = global ";
   if (!dimensions_.empty()) {
-    for (size_t i = 0; i < dimensions_.size(); ++i) {
-      *out << "[";
-      *out << dimensions_[i];
-      if (i != dimensions_.size() - 1) {
-        *out << " x ";
-      }
+    for (const auto &dim : dimensions_) {
+      *out << "[" << dim << " x ";
     }
     // output the element type
     auto type = allocated_type_;
@@ -73,33 +70,45 @@ auto GlobalDefInst::Emit(std::ofstream *out) const -> void {
   }
 
   if (!int_initial_values_.empty()) {
+    if (int_initial_values_.size() > 1) {
+      *out << "[";
+    }
     for (size_t i = 0; i < int_initial_values_.size(); ++i) {
       *out << "i32 " << int_initial_values_[i];
       if (i != int_initial_values_.size() - 1) {
         *out << ", ";
       }
     }
+    if (int_initial_values_.size() > 1) {
+      *out << "]";
+    }
   } else if (!float_initial_values_.empty()) {
+    if (float_initial_values_.size() > 1) {
+      *out << "[";
+    }
     for (size_t i = 0; i < float_initial_values_.size(); ++i) {
-      *out << "float " << float_initial_values_[i];
+      *out << "float " << utils::FloatToLLVMIRFormat(float_initial_values_[i]);
       if (i != float_initial_values_.size() - 1) {
         *out << ", ";
       }
+    }
+    if (float_initial_values_.size() > 1) {
+      *out << "]";
     }
   } else {
     // If the initial value is empty, provide a default initializer
     auto type = allocated_type_;
     if (type->GetKind() == type::TypeKind::ARRAY) {
-      type = static_cast<type::ArrayType *>(allocated_type_)->GetElementType();
-    }
-    if (type->GetKind() == type::TypeKind::INT) {
+      *out << "zeroinitializer";
+    } else if (type->GetKind() == type::TypeKind::INT) {
       *out << "i32 0";
     } else if (type->GetKind() == type::TypeKind::FLOAT) {
-      *out << "float 0.000000e+00";
+      *out << "float 0.000000E+00";
     } else {
       throw std::runtime_error("Unsupported type for global variable initializer");
     }
   }
+  *out << ", align " << allocated_type_->GetAlign();
   *out << "\n";
 }
 

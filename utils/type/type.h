@@ -126,7 +126,7 @@ class ArrayType : public Type {
   }
   auto GetElementType() const -> Type * { return element_type_; }
   auto GetSize() const -> size_t { return size_; }
-  auto GetAlign() const -> size_t override { return element_type_->GetAlign(); }
+  auto GetAlign() const -> size_t override { return 16; }
   ~ArrayType() override = default;
 
  private:

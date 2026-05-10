@@ -79,7 +79,7 @@ def execute_ir(input, output, opt, stdin, stdout, testout):
         print(f"\033[93mOutput Error on \033[0m{input}")
         return 0
 
-    result = execute(["clang", "-static", "tmp.o", "-L./libs", "-llibx86"])
+    result = execute(["clang", "-static", "tmp.o", "-L./libs", "-l:libx86"])
     if result.returncode != 0:
         execute(["rm", "-rf", "tmp.o"])
         print(f"\033[93mLink Error on \033[0m{input}")
