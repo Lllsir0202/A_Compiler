@@ -67,6 +67,23 @@ auto FuncDefInst::Verify(context::CompilerContext *context) const -> bool {
 }
 
 auto FuncDefInst::Emit(std::ofstream *out) const -> void {
+  if (IsLibraryFunction(func_name_)) {
+    // format be like:
+    /**
+     * @example:
+     * declare declare i32 @printf(i8*, ...)
+     */
+    *out << "declare " << utils::Operand::GetTypeInLLVMIR(return_type_) << " @" << func_name_ << "(";
+    for (size_t i = 0; i < arg_types_.size(); ++i) {
+      *out << utils::Operand::GetTypeInLLVMIR(arg_types_[i]) << " ";
+      if (i != arg_types_.size() - 1) {
+        *out << ", ";
+      }
+    }
+    *out << ")\n";
+    return;
+  }
+
   // Emit the function definition instruction in LLVM IR format
   *out << "define " << utils::Operand::GetTypeInLLVMIR(return_type_) << " @" << func_name_ << "(";
   for (size_t i = 0; i < arg_types_.size(); ++i) {
@@ -76,9 +93,7 @@ auto FuncDefInst::Emit(std::ofstream *out) const -> void {
       *out << ", ";
     }
   }
-  *out << ") {" << std::endl;
-  // The function body will be emitted later, so we just emit an empty body here
-  *out << "}" << std::endl;
+  *out << ")";
 }
 
 }  // namespace middleend::llvm::inst

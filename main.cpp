@@ -6,6 +6,7 @@
 #include "frontend/frontend.h"
 #include "middleend/builder/mlir/mlirbuilder.h"
 #include "middleend/llvm/lower/lower.h"
+#include "middleend/llvm/verifer/verifer.h"
 #include "middleend/mlir/lower/lower.h"
 #include "middleend/mlir/verifer/verifer.h"
 #include "stages/ast/ast_stage.h"
@@ -220,12 +221,15 @@ auto main(int argc, char *argv[]) -> int {
 
   auto mlir_lower = std::make_unique<middleend::mlir::lower::MLIRLower>(&compiler_context);
   ret = mlir_lower->Lower();
+  if (ret != 0) {
+    return ret;
+  }
 
   auto lower_verifier = std::make_unique<middleend::mlir::verifier::MLIRVerifier>(
       compiler_context.GetIRContext()->GetMLIRContext()->GetModuleOp(), &compiler_context);
 
   if (!lower_verifier->Verify()) {
-    return 1;
+    return -1;
   }
 
   if (stage == "baseir" && ret == 0) {
@@ -236,6 +240,14 @@ auto main(int argc, char *argv[]) -> int {
 
   auto llvm_lower = std::make_unique<middleend::llvm::lower::LLVMLower>(&compiler_context);
   ret = llvm_lower->Lower();
+
+  auto llvm_verifier = std::make_unique<middleend::llvm::verifer::LLVMVerifer>(
+      compiler_context.GetIRContext()->GetLLVMIRContext()->GetModule(), &compiler_context);
+
+  if (!llvm_verifier->Verify()) {
+    return -1;
+  }
+
   if (stage == "llvm" && ret == 0) {
     stage_ptr = std::make_unique<stages::LLVMStage>(&compiler_context);
     stage_ptr->Run();

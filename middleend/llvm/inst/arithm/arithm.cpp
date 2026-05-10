@@ -13,6 +13,7 @@ auto AddInst::Emit(std::ofstream *out) const -> void {
    * where %result is the result operand, i32 is the type of the operands,
    */
 
+  *out << " ";
   result_->Emit(out);
   *out << " = add ";
 
@@ -26,6 +27,7 @@ auto AddInst::Emit(std::ofstream *out) const -> void {
   operands_[0]->Emit(out);
   *out << ", ";
   operands_[1]->Emit(out);
+  *out << "\n";
 }
 
 auto AddInst::Verify(context::CompilerContext *context) const -> bool {
@@ -65,6 +67,7 @@ auto AddInst::Create(context::LLVMIRContext *context, utils::Operand *operand1, 
 
 // Float add
 auto AddFInst::Emit(std::ofstream *out) const -> void {
+  *out << " ";
   result_->Emit(out);
   *out << " = fadd ";
 
@@ -73,6 +76,7 @@ auto AddFInst::Emit(std::ofstream *out) const -> void {
   operands_[0]->Emit(out);
   *out << ", ";
   operands_[1]->Emit(out);
+  *out << "\n";
 }
 
 auto AddFInst::Verify(context::CompilerContext *context) const -> bool {
@@ -115,6 +119,7 @@ auto SubInst::Emit(std::ofstream *out) const -> void {
   /**
    * @brief Emit the sub instruction
    */
+  *out << " ";
   result_->Emit(out);
   *out << " = sub ";
   // Has checked the operand size and type
@@ -123,6 +128,7 @@ auto SubInst::Emit(std::ofstream *out) const -> void {
   operands_[0]->Emit(out);
   *out << ", ";
   operands_[1]->Emit(out);
+  *out << "\n";
 }
 
 auto SubInst::Verify(context::CompilerContext *context) const -> bool {
@@ -176,6 +182,7 @@ auto SubInst::Create(context::LLVMIRContext *context, utils::Operand *operand1, 
 
 // Float sub
 auto SubFInst::Emit(std::ofstream *out) const -> void {
+  *out << " ";
   result_->Emit(out);
   *out << " = fsub ";
 
@@ -184,6 +191,7 @@ auto SubFInst::Emit(std::ofstream *out) const -> void {
   operands_[0]->Emit(out);
   *out << ", ";
   operands_[1]->Emit(out);
+  *out << "\n";
 }
 
 auto SubFInst::Verify(context::CompilerContext *context) const -> bool {
@@ -230,6 +238,7 @@ auto SubFInst::Create(context::LLVMIRContext *context, utils::Operand *operand1,
 
 // Mul
 auto MulInst::Emit(std::ofstream *out) const -> void {
+  *out << " ";
   result_->Emit(out);
   *out << " = mul ";
 
@@ -238,6 +247,7 @@ auto MulInst::Emit(std::ofstream *out) const -> void {
   operands_[0]->Emit(out);
   *out << ", ";
   operands_[1]->Emit(out);
+  *out << "\n";
 }
 
 auto MulInst::Verify(context::CompilerContext *context) const -> bool {
@@ -283,6 +293,7 @@ auto MulInst::Create(context::LLVMIRContext *context, utils::Operand *operand1, 
 
 // Float mul
 auto MulFInst::Emit(std::ofstream *out) const -> void {
+  *out << " ";
   result_->Emit(out);
   *out << " = fmul ";
   auto type = operands_[0]->GetType();
@@ -290,6 +301,7 @@ auto MulFInst::Emit(std::ofstream *out) const -> void {
   operands_[0]->Emit(out);
   *out << ", ";
   operands_[1]->Emit(out);
+  *out << "\n";
 }
 
 auto MulFInst::Verify(context::CompilerContext *context) const -> bool {
@@ -336,6 +348,7 @@ auto MulFInst::Create(context::LLVMIRContext *context, utils::Operand *operand1,
 
 // Div
 auto DivInst::Emit(std::ofstream *out) const -> void {
+  *out << " ";
   result_->Emit(out);
   *out << " = sdiv ";
   auto type = operands_[0]->GetType();
@@ -343,6 +356,7 @@ auto DivInst::Emit(std::ofstream *out) const -> void {
   operands_[0]->Emit(out);
   *out << ", ";
   operands_[1]->Emit(out);
+  *out << "\n";
 }
 
 auto DivInst::Verify(context::CompilerContext *context) const -> bool {
@@ -388,6 +402,7 @@ auto DivInst::Create(context::LLVMIRContext *context, utils::Operand *operand1, 
 
 // Float div
 auto DivFInst::Emit(std::ofstream *out) const -> void {
+  *out << " ";
   result_->Emit(out);
   *out << " = fdiv ";
   auto type = operands_[0]->GetType();
@@ -395,6 +410,7 @@ auto DivFInst::Emit(std::ofstream *out) const -> void {
   operands_[0]->Emit(out);
   *out << ", ";
   operands_[1]->Emit(out);
+  *out << "\n";
 }
 
 auto DivFInst::Verify(context::CompilerContext *context) const -> bool {
@@ -445,6 +461,7 @@ auto DivFInst::Create(context::LLVMIRContext *context, utils::Operand *operand1,
  * because it only supports integer
  */
 auto ModInst::Emit(std::ofstream *out) const -> void {
+  *out << " ";
   result_->Emit(out);
   *out << " = srem ";
   auto type = operands_[0]->GetType();
@@ -452,6 +469,7 @@ auto ModInst::Emit(std::ofstream *out) const -> void {
   operands_[0]->Emit(out);
   *out << ", ";
   operands_[1]->Emit(out);
+  *out << "\n";
 }
 
 auto ModInst::Verify(context::CompilerContext *context) const -> bool {

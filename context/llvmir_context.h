@@ -210,6 +210,9 @@ class LLVMIRContext {
   auto GetModule() -> middleend::llvm::utils::Module * { return resource_context_->GetModule(); }
   auto SetModule(middleend::llvm::utils::Module *module) -> void { resource_context_->SetModule(module); }
 
+  auto GetInsertPoint() -> middleend::llvm::utils::BasicBlock * { return lower_context_->GetInsertPoint(); }
+  auto SetInsertPoint(middleend::llvm::utils::BasicBlock *block) { lower_context_->SetInsertPoint(block); }
+
  private:
   [[maybe_unused]] LLVMIRLowerContext *lower_context_;
   LLVMIRResourceContext *resource_context_;

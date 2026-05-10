@@ -10,7 +10,7 @@ BasicBlock::~BasicBlock() {
 }
 
 auto BasicBlock::Emit(std::ofstream *out) const -> void {
-  *out << "label " << id_ << ":  ; " << comment_ << "\n";
+  *out << "label" << id_ << ":  ; " << comment_ << "\n";
   for (const auto &inst : instructions_) {
     inst->Emit(out);
   }

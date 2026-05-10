@@ -36,10 +36,10 @@ auto LLVMLower::RegisterLibraryFunctions() -> void {
       GET_LLVMIR_CONTEXT(), "getarray", GET_LLVMIR_CONTEXT()->GetIntegerType(),
       std::vector<type::Type *>{GET_LLVMIR_CONTEXT()->GetIntegerType(), GET_LLVMIR_CONTEXT()->GetIntegerType()});
   auto putfloatarray_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDefInst>(
-      GET_LLVMIR_CONTEXT(), "putfloatarray", GET_LLVMIR_CONTEXT()->GetVoidType(),
+      GET_LLVMIR_CONTEXT(), "putfarray", GET_LLVMIR_CONTEXT()->GetVoidType(),
       std::vector<type::Type *>{GET_LLVMIR_CONTEXT()->GetIntegerType(), GET_LLVMIR_CONTEXT()->GetIntegerType()});
   auto getfloatarray_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDefInst>(
-      GET_LLVMIR_CONTEXT(), "getfloatarray", GET_LLVMIR_CONTEXT()->GetFloatType(),
+      GET_LLVMIR_CONTEXT(), "getfarray", GET_LLVMIR_CONTEXT()->GetFloatType(),
       std::vector<type::Type *>{GET_LLVMIR_CONTEXT()->GetIntegerType(), GET_LLVMIR_CONTEXT()->GetIntegerType()});
   auto starttime_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDefInst>(
       GET_LLVMIR_CONTEXT(), "starttime", GET_LLVMIR_CONTEXT()->GetVoidType(), std::vector<type::Type *>{});
