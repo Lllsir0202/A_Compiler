@@ -61,6 +61,7 @@ class Operand {
   auto IsLiteral() const -> bool { return op_type_ == OpType::Literal; }
   auto IsMemory() const -> bool { return op_type_ == OpType::Memory; }
   auto IsLabel() const -> bool { return op_type_ == OpType::Label; }
+  auto IsGlobal() const -> bool { return op_type_ == OpType::Global; }
 
   // Provide some interface to check the type of the operand
   auto IsInt32() const -> bool { return type_ != nullptr && type_->GetKind() == type::TypeKind::INT; }

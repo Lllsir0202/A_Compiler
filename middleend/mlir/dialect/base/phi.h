@@ -22,7 +22,7 @@ class PhiOp : public BaseOps {
     return op;
   }
 
-  auto GetResult() -> mlir::Value * { return results_[0]; }
+  auto GetRes() -> mlir::Value * { return results_[0]; }
 
   // Get incoming pairs, and do not allow modifying.
   auto GetIncoming() -> const std::vector<std::pair<mlir::Value *, mlir::Block *>> & { return incoming_; }

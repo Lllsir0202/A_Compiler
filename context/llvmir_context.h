@@ -81,14 +81,11 @@ class LLVMIRLowerContext {
  */
 class LLVMIRResourceContext {
  public:
+  explicit LLVMIRResourceContext(TypeContext *type_context) : type_context_(type_context) {}
   /**
    * @brief Interfaces to create new operands
    */
   auto GetNewRegOperand(type::Type *type) -> middleend::llvm::utils::RegOperand *;
-
-  auto GetNewIntLiteral(int value, type::Type *type) -> middleend::llvm::utils::IntLiteral *;
-
-  auto GetNewFloatLiteral(float value, type::Type *type) -> middleend::llvm::utils::FloatLiteral *;
 
   auto GetNewGlobalOperand(const std::string &name, type::Type *type) -> middleend::llvm::utils::GlobalOperand *;
 
@@ -119,6 +116,12 @@ class LLVMIRResourceContext {
   [[maybe_unused]] auto GetFunction(const std::string &func_name) -> middleend::llvm::utils::Function *;
 
   /**
+   * @brief Interfaces to manage global variable-related resources
+   */
+  auto AddGlobalVarDef(const std::string &var_name, middleend::llvm::inst::GlobalDefInst *global_var_def) -> void;
+  auto GetGlobalVarDef(const std::string &var_name) -> middleend::llvm::inst::GlobalDefInst *;
+
+  /**
    * @brief Reset the reg and label id counters, while we enter a new function
    * @note Should be called when we enter a new function
    */
@@ -137,6 +140,8 @@ class LLVMIRResourceContext {
   }
 
  private:
+  // type context is needed for operand creation
+  TypeContext *type_context_;
   // Id counters for different operand types
   size_t reg_id_counter_ = 0;
   size_t label_id_counter_ = 0;
@@ -155,7 +160,7 @@ class LLVMIRResourceContext {
 class LLVMIRContext {
  public:
   explicit LLVMIRContext(TypeContext *type_context) : type_context_(type_context) {
-    resource_context_ = new LLVMIRResourceContext();
+    resource_context_ = new LLVMIRResourceContext(type_context_);
     lower_context_ = new LLVMIRLowerContext();
   }
   // Get different types of operands from the context,
@@ -168,16 +173,20 @@ class LLVMIRContext {
     return resource_context_->GetLabelOperand(id);
   }
 
-  auto GetNewIntLiteral(int value) -> middleend::llvm::utils::IntLiteral * {
-    return resource_context_->GetNewIntLiteral(value, type_context_->GetIntegerType());
+  auto GetIntLiteral(int value) -> middleend::llvm::utils::IntLiteral * {
+    return resource_context_->GetIntLiteral(value);
   }
 
-  auto GetNewFloatLiteral(float value) -> middleend::llvm::utils::FloatLiteral * {
-    return resource_context_->GetNewFloatLiteral(value, type_context_->GetFloatType());
+  auto GetFloatLiteral(float value) -> middleend::llvm::utils::FloatLiteral * {
+    return resource_context_->GetFloatLiteral(value);
   }
 
   auto GetNewGlobalOperand(const std::string &name, type::Type *type) -> middleend::llvm::utils::GlobalOperand * {
     return resource_context_->GetNewGlobalOperand(name, type);
+  }
+
+  auto GetGlobalOperand(const std::string &name) -> middleend::llvm::utils::GlobalOperand * {
+    return resource_context_->GetGlobalOperand(name);
   }
 
   // Get types

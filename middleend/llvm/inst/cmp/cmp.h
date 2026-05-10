@@ -41,6 +41,20 @@ class FCmpInst : public Instruction {
   CmpPredicate predicate_;
 };
 
+class XorInst : public Instruction {
+ public:
+  auto Emit(std::ofstream *out) const -> void override;
+  auto Verify(context::CompilerContext *context) const -> bool override;
+
+ private:
+  explicit XorInst(OpKind op_kind) : Instruction(op_kind) {}
+  [[maybe_unused]] static auto Create(context::LLVMIRContext *context, utils::Operand *operand1,
+                                      utils::Operand *operand2) -> XorInst *;
+  // Used in not operation with only one operand
+  static auto Create(context::LLVMIRContext *context, utils::Operand *operand) -> XorInst *;
+  friend class utils::factory::InstFactory;
+};
+
 }  // namespace middleend::llvm::inst
 
 #endif

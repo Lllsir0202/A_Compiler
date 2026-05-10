@@ -5,8 +5,8 @@
 
 namespace middleend::llvm::inst {
 auto GlobalDefInst::Create(context::LLVMIRContext *context, type::Type *allocated_type, std::string name,
-                           std::vector<int> initial_values) -> GlobalDefInst * {
-  auto *inst = new GlobalDefInst(allocated_type, std::move(name), std::move(initial_values));
+                           std::vector<int> dimensions, std::vector<int> initial_values) -> GlobalDefInst * {
+  auto *inst = new GlobalDefInst(allocated_type, std::move(name), std::move(dimensions), std::move(initial_values));
   auto res = context->GetNewGlobalOperand(name, allocated_type);
   res->SetInstruction(inst);
   inst->SetResult(res);
@@ -14,8 +14,8 @@ auto GlobalDefInst::Create(context::LLVMIRContext *context, type::Type *allocate
 }
 
 auto GlobalDefInst::Create(context::LLVMIRContext *context, type::Type *allocated_type, std::string name,
-                           std::vector<float> initial_values) -> GlobalDefInst * {
-  auto *inst = new GlobalDefInst(allocated_type, std::move(name), std::move(initial_values));
+                           std::vector<int> dimensions, std::vector<float> initial_values) -> GlobalDefInst * {
+  auto *inst = new GlobalDefInst(allocated_type, std::move(name), std::move(dimensions), std::move(initial_values));
   auto res = context->GetNewGlobalOperand(name, allocated_type);
   res->SetInstruction(inst);
   inst->SetResult(res);

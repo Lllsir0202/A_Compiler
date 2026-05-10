@@ -27,7 +27,6 @@ namespace middleend::mlir::lower {
   }
 
 auto LowerHelper::LowerDispatch(Operation *op) -> void {
-  // TODO(loki) : implement dispatching and lowering for different operations.
   LOWER_DISPATCH(mlir::arithm::AddOp, AddOp)
   LOWER_DISPATCH(mlir::arithm::SubOp, SubOp)
   LOWER_DISPATCH(mlir::arithm::MulOp, MulOp)

@@ -61,7 +61,8 @@ enum class OpKind {
   // Float 2 Bool
   // Use fcmp oeq with 0.0
   // Bool 2 Float
-  // Zext to int, then sitofp to float
+  // UitoFp
+  Uitofp
 };
 
 }  // namespace middleend::llvm::inst

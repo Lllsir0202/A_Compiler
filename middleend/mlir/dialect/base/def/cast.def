@@ -32,6 +32,8 @@
       context->Print(#OP_NAME ": operand or result type is incorrect\n");                                           \
       return false;                                                                                                 \
     }                                                                                                               \
+    auto GetOperand() const -> mlir::Value * { return operands_[0]; }                                               \
+    auto GetRes() const -> mlir::Value * { return results_[0]; }                                                    \
                                                                                                                     \
    private:                                                                                                         \
     NAME##Op() : BaseOps(#OP_NAME) {}                                                                               \

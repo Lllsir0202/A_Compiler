@@ -144,4 +144,56 @@ auto FptoSiInst::Create(context::LLVMIRContext *context, utils::Operand *src) ->
   return inst;
 }
 
+auto UitoFpInst::Emit(std::ofstream *out) const -> void {
+  // Emit the instruction in LLVM IR format
+  // For example: %result = uitofp i32 %src to float
+  *out << " ";
+  result_->Emit(out);
+  *out << " = uitofp ";
+  *out << utils::Operand::GetTypeInLLVMIR(operands_[0]->GetType());
+  *out << " ";
+  operands_[0]->Emit(out);
+  *out << " to ";
+  *out << utils::Operand::GetTypeInLLVMIR(result_->GetType());
+  *out << "\n";
+}
+
+auto UitoFpInst::Verify(context::CompilerContext *context) const -> bool {
+  // Verify the instruction, check if the source operand is of integer type
+  if (operands_.size() != 1) {
+    context->Print("Uitofp instruction should have exactly one operand");
+    return false;
+  }
+  auto *src = operands_[0];
+  if (!src->IsBool()) {
+    context->Print("Uitofp instruction requires a boolean source operand");
+    return false;
+  }
+  if (!result_->IsFloat()) {
+    context->Print("Uitofp instruction requires a float result operand");
+    return false;
+  }
+
+  if (GetParentBlock() == nullptr) {
+    context->Print("Uitofp instruction should be in a basic block");
+    return false;
+  }
+
+  if (result_->GetInstruction() != this) {
+    context->Print("Uitofp instruction's result operand should point back to the instruction");
+    return false;
+  }
+
+  return true;
+}
+
+auto UitoFpInst::Create(context::LLVMIRContext *context, utils::Operand *src) -> UitoFpInst * {
+  auto *inst = new UitoFpInst();
+  inst->AddOperand(src);
+  auto res = context->GetNewRegOperand(context->GetFloatType());
+  inst->SetResult(res);
+  res->SetInstruction(inst);
+  return inst;
+}
+
 }  // namespace middleend::llvm::inst

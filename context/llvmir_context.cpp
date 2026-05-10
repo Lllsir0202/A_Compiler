@@ -14,19 +14,6 @@ auto LLVMIRResourceContext::GetNewRegOperand(type::Type *type) -> middleend::llv
   return op;
 }
 
-auto LLVMIRResourceContext::GetNewIntLiteral(int value, type::Type *type) -> middleend::llvm::utils::IntLiteral * {
-  auto op = middleend::llvm::utils::factory::OperandFactory::CreateIntLiteral(value);
-  op->SetType(type);
-  return op;
-}
-
-auto LLVMIRResourceContext::GetNewFloatLiteral(float value,
-                                               type::Type *type) -> middleend::llvm::utils::FloatLiteral * {
-  auto op = middleend::llvm::utils::factory::OperandFactory::CreateFloatLiteral(value);
-  op->SetType(type);
-  return op;
-}
-
 auto LLVMIRResourceContext::GetNewGlobalOperand(const std::string &name,
                                                 type::Type *type) -> middleend::llvm::utils::GlobalOperand * {
   auto op = middleend::llvm::utils::factory::OperandFactory::CreateGlobalOperand(name);
@@ -57,16 +44,22 @@ auto LLVMIRResourceContext::GetIntLiteral(int value) -> middleend::llvm::utils::
   if (int_literals_.count(value) > 0) {
     return int_literals_[value];
   }
-  // If the operand does not exist, report error
-  return nullptr;
+  // If the operand does not exist, create a new one
+  auto op = middleend::llvm::utils::factory::OperandFactory::CreateIntLiteral(value);
+  op->SetType(type_context_->GetIntegerType());
+  int_literals_[value] = op;
+  return op;
 }
 
 auto LLVMIRResourceContext::GetFloatLiteral(float value) -> middleend::llvm::utils::FloatLiteral * {
   if (float_literals_.count(value) > 0) {
     return float_literals_[value];
   }
-  // If the operand does not exist, report error
-  return nullptr;
+  // If the operand does not exist, create a new one
+  auto op = middleend::llvm::utils::factory::OperandFactory::CreateFloatLiteral(value);
+  op->SetType(type_context_->GetFloatType());
+  float_literals_[value] = op;
+  return op;
 }
 
 auto LLVMIRResourceContext::GetGlobalOperand(const std::string &name) -> middleend::llvm::utils::GlobalOperand * {
@@ -105,6 +98,18 @@ auto LLVMIRResourceContext::GetFunction(const std::string &func_name) -> middlee
   }
   // If the function does not exist, report error
   return nullptr;
+}
+
+/**
+ * @brief Global variable-related resource management
+ */
+auto LLVMIRResourceContext::AddGlobalVarDef(const std::string &var_name,
+                                            middleend::llvm::inst::GlobalDefInst *global_var_def) -> void {
+  module_->AddGlobalVarDef(var_name, global_var_def);
+}
+
+auto LLVMIRResourceContext::GetGlobalVarDef(const std::string &var_name) -> middleend::llvm::inst::GlobalDefInst * {
+  return module_->GetGlobalVarDef(var_name);
 }
 
 auto LLVMIRResourceContext::GetNewBasicBlock() -> middleend::llvm::utils::BasicBlock * {

@@ -103,6 +103,12 @@ class ConstIntOp : public BaseOps {
     return true;
   }
 
+  /**
+   * @brief Interfaces to get the value and result
+   */
+  auto GetValue() const -> int { return value_; }
+  auto GetRes() -> mlir::Value * { return results_[0]; }
+
  private:
   explicit ConstIntOp() : BaseOps("constint") {}
   auto SetUp(mlir::Value *res, int value) -> void {
@@ -145,6 +151,12 @@ class ConstFloatOp : public BaseOps {
     }
     return true;
   }
+
+  /**
+   * @brief Interfaces to get the value and result
+   */
+  auto GetValue() const -> float { return value_; }
+  auto GetRes() -> mlir::Value * { return results_[0]; }
 
  private:
   explicit ConstFloatOp() : BaseOps("constfloat") {}

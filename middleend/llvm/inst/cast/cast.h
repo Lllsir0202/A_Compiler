@@ -45,6 +45,20 @@ class FptoSiInst : public Instruction {
   friend class utils::factory::InstFactory;
 };
 
+class UitoFpInst : public Instruction {
+ public:
+  // Virtual override in instruction
+  auto Emit(std::ofstream *out) const -> void override;
+  auto Verify(context::CompilerContext *context) const -> bool override;
+
+  auto GetSrc() const -> utils::Operand * { return operands_[0]; }
+
+ private:
+  UitoFpInst() : Instruction(OpKind::Uitofp) {}
+  static auto Create(context::LLVMIRContext *context, utils::Operand *src) -> UitoFpInst *;
+  friend class utils::factory::InstFactory;
+};
+
 }  // namespace middleend::llvm::inst
 
 #endif

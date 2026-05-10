@@ -61,27 +61,27 @@ auto ICmpInst::Emit(std::ofstream *out) const -> void {
 auto ICmpInst::Verify(context::CompilerContext *context) const -> bool {
   // Verify the result operand is a register operand
   if (result_ == nullptr || !result_->IsRegister()) {
-    context->ReportError("ICmp instruction must have a valid result operand");
+    context->Print("ICmp instruction must have a valid result operand");
     return false;
   }
   // Verify the operands have exactly 2 operands, and both are int32
   if (operands_.size() != 2) {
-    context->ReportError("ICmp instruction must have exactly 2 operands");
+    context->Print("ICmp instruction must have exactly 2 operands");
     return false;
   }
 
   if (!operands_[0]->IsInt32() || !operands_[1]->IsInt32()) {
-    context->ReportError("ICmp instruction operands must be int32");
+    context->Print("ICmp instruction operands must be int32");
     return false;
   }
 
   if (GetParentBlock() == nullptr) {
-    context->ReportError("ICmp instruction must have a parent block");
+    context->Print("ICmp instruction must have a parent block");
     return false;
   }
 
   if (result_->GetInstruction() != this) {
-    context->ReportError("ICmp instruction result operand must point back to the instruction");
+    context->Print("ICmp instruction result operand must point back to the instruction");
     return false;
   }
 
@@ -119,27 +119,27 @@ auto FCmpInst::Emit(std::ofstream *out) const -> void {
 auto FCmpInst::Verify(context::CompilerContext *context) const -> bool {
   // Verify the result operand is a register operand
   if (result_ == nullptr || !result_->IsRegister()) {
-    context->ReportError("FCmp instruction must have a valid result operand");
+    context->Print("FCmp instruction must have a valid result operand");
     return false;
   }
   // Verify the operands have exactly 2 operands, and both are float
   if (operands_.size() != 2) {
-    context->ReportError("FCmp instruction must have exactly 2 operands");
+    context->Print("FCmp instruction must have exactly 2 operands");
     return false;
   }
 
   if (!operands_[0]->IsFloat() || !operands_[1]->IsFloat()) {
-    context->ReportError("FCmp instruction operands must be float");
+    context->Print("FCmp instruction operands must be float");
     return false;
   }
 
   if (GetParentBlock() == nullptr) {
-    context->ReportError("FCmp instruction must have a parent block");
+    context->Print("FCmp instruction must have a parent block");
     return false;
   }
 
   if (result_->GetInstruction() != this) {
-    context->ReportError("FCmp instruction result operand must point back to the instruction");
+    context->Print("FCmp instruction result operand must point back to the instruction");
     return false;
   }
 
@@ -155,6 +155,75 @@ auto FCmpInst::Create(context::LLVMIRContext *context, CmpPredicate predicate, u
   res->SetInstruction(inst);
   inst->AddOperand(operand1);
   inst->AddOperand(operand2);
+  return inst;
+}
+
+auto XorInst::Emit(std::ofstream *out) const -> void {
+  result_->Emit(out);
+  *out << " = xor ";
+  auto type = operands_[0]->GetType();
+  *out << utils::Operand::GetTypeInLLVMIR(type) << " ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  if (operands_.size() > 1) {
+    operands_[1]->Emit(out);
+  } else {
+    *out << "true";
+  }
+}
+
+auto XorInst::Verify(context::CompilerContext *context) const -> bool {
+  // Verify the result operand is a register operand
+  if (result_ == nullptr || !result_->IsRegister()) {
+    context->Print("Xor instruction must have a valid result operand");
+    return false;
+  }
+  // Verify the operands have exactly 2 operands, and both are int32 or bool
+  if (operands_.size() != 2) {
+    context->Print("Xor instruction must have exactly 2 operands");
+    return false;
+  }
+
+  if (!operands_[0]->IsInt32() && !operands_[0]->IsBool()) {
+    context->Print("Xor instruction first operand must be int32 or bool");
+    return false;
+  }
+
+  if (!operands_[1]->IsInt32() && !operands_[1]->IsBool()) {
+    context->Print("Xor instruction second operand must be int32 or bool");
+    return false;
+  }
+
+  if (GetParentBlock() == nullptr) {
+    context->Print("Xor instruction must have a parent block");
+    return false;
+  }
+
+  if (result_->GetInstruction() != this) {
+    context->Print("Xor instruction result operand must point back to the instruction");
+    return false;
+  }
+
+  return true;
+}
+
+auto XorInst::Create(context::LLVMIRContext *context, utils::Operand *operand1, utils::Operand *operand2) -> XorInst * {
+  auto *inst = new XorInst(OpKind::Xor);
+  auto res = context->GetNewRegOperand(operand1->GetType());
+  inst->SetResult(res);
+  res->SetInstruction(inst);
+  inst->AddOperand(operand1);
+  inst->AddOperand(operand2);
+  return inst;
+}
+
+// Used in lowering not operation
+auto XorInst::Create(context::LLVMIRContext *context, utils::Operand *operand) -> XorInst * {
+  auto *inst = new XorInst(OpKind::Xor);
+  auto res = context->GetNewRegOperand(operand->GetType());
+  inst->SetResult(res);
+  res->SetInstruction(inst);
+  inst->AddOperand(operand);
   return inst;
 }
 

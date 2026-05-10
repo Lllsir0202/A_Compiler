@@ -18,22 +18,26 @@ class GlobalDefInst : public Instruction {
   auto GetDimensions() const -> const std::vector<int> & { return dimensions_; }
 
  private:
-  explicit GlobalDefInst(type::Type *allocated_type, std::string name, std::vector<int> initial_values)
+  explicit GlobalDefInst(type::Type *allocated_type, std::string name, std::vector<int> dimensions,
+                         std::vector<int> initial_values)
       : Instruction(OpKind::GlobalDef),
         allocated_type_(allocated_type),
+        dimensions_(std::move(dimensions)),
         name_(std::move(name)),
         int_initial_values_(std::move(initial_values)) {}
-  explicit GlobalDefInst(type::Type *allocated_type, std::string name, std::vector<float> initial_values)
+  explicit GlobalDefInst(type::Type *allocated_type, std::string name, std::vector<int> dimensions,
+                         std::vector<float> initial_values)
       : Instruction(OpKind::GlobalDef),
         allocated_type_(allocated_type),
+        dimensions_(std::move(dimensions)),
         name_(std::move(name)),
         float_initial_values_(std::move(initial_values)) {}
 
   static auto Create(context::LLVMIRContext *context, type::Type *allocated_type, std::string name,
-                     std::vector<int> initial_values) -> GlobalDefInst *;
+                     std::vector<int> dimensions, std::vector<int> initial_values) -> GlobalDefInst *;
   static auto Create(context::LLVMIRContext *context, type::Type *allocated_type, std::string name,
-                     std::vector<float> initial_values) -> GlobalDefInst *;
-
+                     std::vector<int> dimensions, std::vector<float> initial_values) -> GlobalDefInst *;
+  friend class utils::factory::InstFactory;
   type::Type *allocated_type_;
   std::vector<int> dimensions_;
   std::string name_;

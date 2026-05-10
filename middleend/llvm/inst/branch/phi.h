@@ -21,7 +21,7 @@ class PhiInst : public Instruction {
   PhiInst() : Instruction(OpKind::Phi) {}
   static auto Create(context::LLVMIRContext *context, std::vector<utils::Operand *>, std::vector<utils::LabelOperand *>,
                      type::Type *result_type) -> PhiInst *;
-  friend class context::LLVMIRContext;
+  friend class utils::factory::InstFactory;
 
   // Operands of the phi instruction
   std::vector<utils::Operand *> incoming_values_;

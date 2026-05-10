@@ -13,6 +13,9 @@ class CopyOp : public BaseOps {
     return op;
   }
 
+  auto GetRes() -> mlir::Value * { return results_[0]; }
+  auto GetSrc() -> mlir::Value * { return operands_[0]; }
+
   auto Emit(std::ofstream *out) -> void override;
   auto Verify(context::CompilerContext *context) -> bool override;
 
