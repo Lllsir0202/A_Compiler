@@ -1,4 +1,5 @@
 #include "middleend/llvm/lower/lowerhelper.h"
+#include <stdexcept>
 #include "llvm/inst/cast/cast.h"
 #include "llvm/inst/memory/gep.h"
 #include "middleend/llvm/inst/arithm/arithm.h"
@@ -18,6 +19,8 @@
 #include "middleend/llvm/utils/operand/operand.h"
 #include "middleend/mlir/dialect/base/funcdef.h"
 #include "mlir/dialect/base/binaryop.h"
+#include "mlir/dialect/base/branch.h"
+#include "mlir/dialect/base/funccall.h"
 #include "mlir/dialect/var/getptr.h"
 #include "mlir/utils/operation/operation.h"
 #include "type/type.h"
@@ -37,8 +40,58 @@ namespace middleend::llvm::lower {
 
 auto LowerHelper::LowerDispatch(mlir::Operation *op) -> void {
   // Dispatch the lowering operation in base dialect
-  LOWER_DISPATCH(mlir::base::FuncDefOp, FuncDef)
-  // For other operations, we will lower them in the future
+  // Function-related operations
+  LOWER_DISPATCH(mlir::base::FuncDefOp, FuncDefOp)
+  LOWER_DISPATCH(mlir::base::FuncCallOp, FuncCallOp)
+  LOWER_DISPATCH(mlir::func::ReturnOp, ReturnOp)
+  // Branch
+  LOWER_DISPATCH(mlir::base::BrOp, BrOp)
+  LOWER_DISPATCH(mlir::base::CondBrOp, CondBrOp)
+  LOWER_DISPATCH(mlir::base::PhiOp, PhiOp)
+  // Arithmetic operations
+  LOWER_DISPATCH(mlir::base::AddOp, AddOp)
+  LOWER_DISPATCH(mlir::base::SubOp, SubOp)
+  LOWER_DISPATCH(mlir::base::MulOp, MulOp)
+  LOWER_DISPATCH(mlir::base::DivOp, DivOp)
+  LOWER_DISPATCH(mlir::base::ModOp, ModOp)
+  LOWER_DISPATCH(mlir::base::AddFOp, AddFOp)
+  LOWER_DISPATCH(mlir::base::SubFOp, SubFOp)
+  LOWER_DISPATCH(mlir::base::MulFOp, MulFOp)
+  LOWER_DISPATCH(mlir::base::DivFOp, DivFOp)
+  // Lower comparison operations
+  LOWER_DISPATCH(mlir::base::EqualOp, ICmpOp)
+  LOWER_DISPATCH(mlir::base::NotEqualOp, ICmpOp)
+  LOWER_DISPATCH(mlir::base::LessOp, ICmpOp)
+  LOWER_DISPATCH(mlir::base::LessEqualOp, ICmpOp)
+  LOWER_DISPATCH(mlir::base::GreaterOp, ICmpOp)
+  LOWER_DISPATCH(mlir::base::GreaterEqualOp, ICmpOp)
+  LOWER_DISPATCH(mlir::base::EqualFOp, FCmpOp)
+  LOWER_DISPATCH(mlir::base::NotEqualFOp, FCmpOp)
+  LOWER_DISPATCH(mlir::base::LessFOp, FCmpOp)
+  LOWER_DISPATCH(mlir::base::LessEqualFOp, FCmpOp)
+  LOWER_DISPATCH(mlir::base::GreaterFOp, FCmpOp)
+  LOWER_DISPATCH(mlir::base::GreaterEqualFOp, FCmpOp)
+  // Unary operations
+  LOWER_DISPATCH(mlir::base::NegOp, NegOp)
+  LOWER_DISPATCH(mlir::base::NegFOp, NegFOp)
+  LOWER_DISPATCH(mlir::base::NotOp, NotOp)
+  LOWER_DISPATCH(mlir::base::ConstIntOp, IntLiteralOp)
+  LOWER_DISPATCH(mlir::base::ConstFloatOp, FloatLiteralOp)
+  // Cast operations
+  LOWER_DISPATCH(mlir::base::Int2FloatOp, Int2FloatOp)
+  LOWER_DISPATCH(mlir::base::Float2IntOp, Float2IntOp)
+  LOWER_DISPATCH(mlir::base::Int2BoolOp, Int2BoolOp)
+  LOWER_DISPATCH(mlir::base::Float2BoolOp, Float2BoolOp)
+  LOWER_DISPATCH(mlir::base::Bool2IntOp, Bool2IntOp)
+  // Variable-related operations
+  LOWER_DISPATCH(middleend::mlir::var::VarGetPtrOp, VarGetPtrOp)
+  LOWER_DISPATCH(middleend::mlir::var::GlobalVarDefOp, GlobalVarDefOp)
+  LOWER_DISPATCH(middleend::mlir::var::VarGetValOp, VarGetValOp)
+  LOWER_DISPATCH(middleend::mlir::var::VarSetOp, VarSetOp)
+  // Copy operation
+  LOWER_DISPATCH(middleend::mlir::base::CopyOp, CopyOp)
+  // If not recognized, throw an error
+  throw std::logic_error("Unsupported operation type in LowerDispatch: " + op->Name());
 }
 
 auto LowerHelper::LowerBasicBlocks(mlir::base::FuncDefOp *func_def) -> void {
@@ -54,7 +107,7 @@ auto LowerHelper::LowerBasicBlocks(mlir::base::FuncDefOp *func_def) -> void {
   }
 }
 
-auto LowerHelper::LowerFuncDef(mlir::base::FuncDefOp *func_def) -> void {
+auto LowerHelper::LowerFuncDefOp(mlir::base::FuncDefOp *func_def) -> void {
   // function definition lowering is a bit special
   // When we meet a function definition, we will create a new llvm ir function,
   // but if the function is a library function, we will just collect and print in the future
@@ -313,7 +366,7 @@ auto LowerHelper::LowerBool2FloatOp(mlir::base::Bool2FloatOp *op) -> void {
 /**
  * @brief Lowering function-related operations
  */
-auto LowerHelper::LowerFuncCall(mlir::base::FuncCallOp *func_call) -> void {
+auto LowerHelper::LowerFuncCallOp(mlir::base::FuncCallOp *func_call) -> void {
   auto func_name = func_call->GetName();
   auto args = func_call->GetOperands();
   auto result = func_call->GetRes();
@@ -331,7 +384,7 @@ auto LowerHelper::LowerFuncCall(mlir::base::FuncCallOp *func_call) -> void {
   }
 }
 
-auto LowerHelper::LowerReturn(mlir::func::ReturnOp *return_op) -> void {
+auto LowerHelper::LowerReturnOp(mlir::func::ReturnOp *return_op) -> void {
   auto ret = return_op->GetReturnValue();
   auto llvm_ret =
       ret == nullptr ? nullptr : GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(ret);

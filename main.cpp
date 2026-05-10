@@ -5,10 +5,12 @@
 #include "frontend/ast/visitor/semantic/sem_analysis.h"
 #include "frontend/frontend.h"
 #include "middleend/builder/mlir/mlirbuilder.h"
+#include "middleend/llvm/lower/lower.h"
 #include "middleend/mlir/lower/lower.h"
 #include "middleend/mlir/verifer/verifer.h"
 #include "stages/ast/ast_stage.h"
 #include "stages/lexer/lexer_stage.h"
+#include "stages/llvm/llvm_stage.h"
 #include "stages/mlir/mlir_stage.h"
 #include "stages/parser/parser_stage.h"
 #include "stages/stage.h"
@@ -228,6 +230,14 @@ auto main(int argc, char *argv[]) -> int {
 
   if (stage == "baseir" && ret == 0) {
     stage_ptr = std::make_unique<stages::MLIRStage>(&compiler_context);
+    stage_ptr->Run();
+    return ret;
+  }
+
+  auto llvm_lower = std::make_unique<middleend::llvm::lower::LLVMLower>(&compiler_context);
+  ret = llvm_lower->Lower();
+  if (stage == "llvm" && ret == 0) {
+    stage_ptr = std::make_unique<stages::LLVMStage>(&compiler_context);
     stage_ptr->Run();
     return ret;
   }

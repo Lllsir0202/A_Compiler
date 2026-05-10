@@ -115,6 +115,8 @@ class LLVMIRResourceContext {
   auto AddFunction(middleend::llvm::utils::Function *function) -> void;
   [[maybe_unused]] auto GetFunction(const std::string &func_name) -> middleend::llvm::utils::Function *;
 
+  auto AddLibraryFunction(middleend::llvm::inst::FuncDefInst *func_def) -> void;
+  auto GetLibraryFunction(const std::string &func_name) -> middleend::llvm::inst::FuncDefInst *;
   /**
    * @brief Interfaces to manage global variable-related resources
    */
@@ -138,6 +140,10 @@ class LLVMIRResourceContext {
   auto CreateInst(Args &&...args) -> InstType * {
     return middleend::llvm::utils::factory::InstFactory::CreateInst<InstType>(std::forward<Args>(args)...);
   }
+
+  // Interface to get and set the top module
+  auto GetModule() -> middleend::llvm::utils::Module * { return module_; }
+  auto SetModule(middleend::llvm::utils::Module *module) -> void { module_ = module; }
 
  private:
   // type context is needed for operand creation
@@ -193,11 +199,16 @@ class LLVMIRContext {
   auto GetIntegerType() -> type::Type * { return type_context_->GetIntegerType(); }
   auto GetFloatType() -> type::Type * { return type_context_->GetFloatType(); }
   auto GetBoolType() -> type::Type * { return type_context_->GetBooleanType(); }
+  auto GetVoidType() -> type::Type * { return type_context_->GetVoidType(); }
 
   // Get contexts
   auto GetResourceContext() -> LLVMIRResourceContext * { return resource_context_; }
   auto GetLowerContext() -> LLVMIRLowerContext * { return lower_context_; }
   auto GetTypeContext() -> TypeContext * { return type_context_; }
+
+  // Get module
+  auto GetModule() -> middleend::llvm::utils::Module * { return resource_context_->GetModule(); }
+  auto SetModule(middleend::llvm::utils::Module *module) -> void { resource_context_->SetModule(module); }
 
  private:
   [[maybe_unused]] LLVMIRLowerContext *lower_context_;

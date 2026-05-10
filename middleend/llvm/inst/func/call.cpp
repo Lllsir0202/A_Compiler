@@ -46,9 +46,33 @@ auto CallInst::Verify(context::CompilerContext *context) const -> bool {
   auto func_def = context->GetIRContext()->GetLLVMIRContext()->GetResourceContext()->GetFunctionDef(callee_);
   if (func_def == nullptr) {
     // If the callee function is not defined, report error
-    context->Print("Callee function is not defined");
-    return false;
+    // Check if it is a library function
+    func_def = context->GetIRContext()->GetLLVMIRContext()->GetResourceContext()->GetLibraryFunction(callee_);
+    if (func_def == nullptr) {
+      context->Print("Callee function is not defined");
+      return false;
+    }
+    // check if the argument types match
+    if (func_def->GetArgTypes().size() != operands_.size()) {
+      // If the number of arguments does not match, report error
+      context->Print("Number of arguments of the call instruction does not match the library function definition");
+      return false;
+    }
+    for (size_t i = 0; i < operands_.size(); ++i) {
+      if (operands_[i]->GetType() == nullptr || operands_[i]->GetType() != func_def->GetArgTypes()[i]) {
+        // If the argument type is not compatible, report error
+        context->Print("Argument type of the call instruction does not match the library function definition");
+        return false;
+      }
+    }
+    if (return_type_ == nullptr || return_type_ != func_def->GetReturnType()) {
+      // If the return type is not compatible, report error
+      context->Print("Return type of the call instruction does not match the library function definition");
+      return false;
+    }
+    return true;
   }
+
   if (func_def->GetArgTypes().size() != operands_.size()) {
     // If the number of arguments does not match, report error
     context->Print("Number of arguments of the call instruction does not match the function definition");

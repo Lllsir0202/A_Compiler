@@ -265,8 +265,6 @@ auto LowerHelper::LowerCastOp(middleend::mlir::arithm::CastOp *cast_op) -> void 
     GetInsertPoint()->AddOperation(new_op);                                                     \
   }
 
-LOWER_CLONE_OP(arithm, CopyOp)
-
 // Variable-about operations
 LOWER_CLONE_OP(var, VarDefOp)
 LOWER_CLONE_OP(var, GlobalVarDefOp)
@@ -276,6 +274,13 @@ LOWER_CLONE_OP(var, VarSetOp)
 
 // Function-related operations
 LOWER_CLONE_OP(func, ReturnOp)
+
+auto LowerHelper::LowerCopyOp(middleend::mlir::arithm::CopyOp *copy_op) -> void {
+  // Copy operation is a special case, since it is a high level operation that does not exist in the base dialect,
+  // we will just clone the copy operation to the base dialect, and then we will lower it in the next step
+  auto new_copy_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::CopyOp>(copy_op->GetRes(), copy_op->GetValue());
+  GetInsertPoint()->AddOperation(new_copy_op);
+}
 
 auto LowerHelper::LowerFuncCallOp(middleend::mlir::func::FuncCallOp *func_call_op) -> void {
   auto new_func_call_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::FuncCallOp>(

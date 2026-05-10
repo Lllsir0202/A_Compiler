@@ -1,5 +1,6 @@
 #ifndef MIDDLEEND_LLVM_UTILS_FACTORY_FUNCFACTORY_H
 #define MIDDLEEND_LLVM_UTILS_FACTORY_FUNCFACTORY_H
+#include "llvm/lower/lower.h"
 #include "middleend/llvm/utils/struct/function.h"
 #include "utils/type/type.h"
 

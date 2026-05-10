@@ -7,9 +7,9 @@ namespace middleend::mlir::base {
 class CopyOp : public BaseOps {
  public:
   ~CopyOp() override = default;
-  static auto Create(context::MLIRContext *context, mlir::Value *res, mlir::Value *input) {
+  static auto Create(mlir::Value *res, mlir::Value *input) {
     auto op = new CopyOp();
-    op->SetUp(context, res, input);
+    op->SetUp(res, input);
     return op;
   }
 
@@ -21,7 +21,7 @@ class CopyOp : public BaseOps {
 
  private:
   explicit CopyOp() : BaseOps("copy") {}
-  auto SetUp([[maybe_unused]] context::MLIRContext *context, mlir::Value *res, mlir::Value *input) -> void;
+  auto SetUp(mlir::Value *res, mlir::Value *input) -> void;
 };
 
 }  // namespace middleend::mlir::base

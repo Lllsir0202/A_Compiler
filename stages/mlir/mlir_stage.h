@@ -1,7 +1,8 @@
 #ifndef STAGES_MLIR_MLIR_STAGE_H
 #define STAGES_MLIR_MLIR_STAGE_H
-#include "compiler_context.h"
+#include "context/compiler_context.h"
 #include "stages/stage.h"
+
 namespace stages {
 /**
  * @brief MLIRStage representing the MLIR middleend,

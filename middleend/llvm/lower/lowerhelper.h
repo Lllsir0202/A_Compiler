@@ -68,9 +68,9 @@ class LowerHelper {
   /**
    * @brief Function-related operations
    */
-  auto LowerFuncDef(mlir::base::FuncDefOp *func_def) -> void;
-  auto LowerFuncCall(mlir::base::FuncCallOp *func_call) -> void;
-  auto LowerReturn(mlir::func::ReturnOp *return_op) -> void;
+  auto LowerFuncDefOp(mlir::base::FuncDefOp *func_def) -> void;
+  auto LowerFuncCallOp(mlir::base::FuncCallOp *func_call) -> void;
+  auto LowerReturnOp(mlir::func::ReturnOp *return_op) -> void;
 
   /**
    * @brief Branch-related operations

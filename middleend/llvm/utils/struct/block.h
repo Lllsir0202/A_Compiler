@@ -20,6 +20,7 @@ namespace middleend::llvm::utils {
  */
 class BasicBlock {
  public:
+  ~BasicBlock();
   // Interface for basic block to get block information
   auto GetID() const -> size_t { return id_; }
   auto GetInstructions() const -> const std::deque<inst::Instruction *> & { return instructions_; }
@@ -31,7 +32,7 @@ class BasicBlock {
   auto GetComment() const -> const std::string & { return comment_; }
   auto SetComment(const std::string &comment) -> void { comment_ = comment; }
 
-  auto Emit(std::ofstream *out) const -> void { *out << "label " << id_ << ":  ; " << comment_ << std::endl; }
+  auto Emit(std::ofstream *out) const -> void;
 
  private:
   explicit BasicBlock(size_t id) : id_(id) {}

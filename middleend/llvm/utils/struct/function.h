@@ -16,6 +16,7 @@ class FuncFactory;
 namespace middleend::llvm::utils {
 class Function {
  public:
+  ~Function();
   // Interfaces to get function information
   auto GetFuncName() const -> const std::string & { return func_name_; }
   auto GetReturnType() const -> type::Type * { return return_type_; }
@@ -30,6 +31,9 @@ class Function {
       entry_block_ = block;
     }
   }
+
+  // Print
+  auto Emit(std::ofstream *out) const -> void;
 
  private:
   // Only allow friend class to create

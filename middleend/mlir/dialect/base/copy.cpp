@@ -28,12 +28,11 @@ auto CopyOp::Emit(std::ofstream *out) -> void {
   *out << "\n";
 }
 
-auto CopyOp::SetUp([[maybe_unused]] context::MLIRContext *context, mlir::Value *res, mlir::Value *input) -> void {
+auto CopyOp::SetUp(mlir::Value *res, mlir::Value *input) -> void {
   /* CopyOp has one operand and one result */
   operands_.reserve(1);
   results_.reserve(1);
   operands_.emplace_back(input);
-  results_.emplace_back(res);
   results_.emplace_back(res);
   res->SetType(input->GetType());
   res->op_ = this;

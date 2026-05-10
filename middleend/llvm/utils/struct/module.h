@@ -11,8 +11,11 @@ class FuncDefInst;
 
 namespace middleend::mlir::var {
 class VarDefOp;
-}
+}  // namespace middleend::mlir::var
 
+namespace middleend::llvm::utils::factory {
+class ModuleFactory;
+}  // namespace middleend::llvm::utils::factory
 namespace middleend::llvm::utils {
 /**
  * @brief Module class defines the llvm module,
@@ -20,10 +23,11 @@ namespace middleend::llvm::utils {
  */
 class Module {
  public:
+  ~Module();
   auto GetFunctions() const -> const std::vector<Function *> & { return functions_; }
   auto AddFunction(Function *function) -> void { functions_.emplace_back(function); }
 
-  auto GetFunctionDef(const std::string &func_name) -> middleend::llvm::inst::FuncDefInst * {
+  auto GetFunctionDef(const std::string &func_name) const -> middleend::llvm::inst::FuncDefInst * {
     auto it = func_def_insts_.find(func_name);
     if (it != func_def_insts_.end()) {
       return it->second;
@@ -54,7 +58,19 @@ class Module {
     global_var_defs_[var_name] = global_var_def;
   }
 
+  auto GetLibraryFuncDefs() const -> const std::vector<middleend::llvm::inst::FuncDefInst *> & {
+    return library_func_def_insts_;
+  }
+
+  auto AddLibraryFuncDef(middleend::llvm::inst::FuncDefInst *func_def) -> void {
+    library_func_def_insts_.emplace_back(func_def);
+  }
+
+  auto Emit(std::ofstream *out) const -> void;
+
  private:
+  Module() = default;
+  friend class factory::ModuleFactory;
   // Record all functions
   std::vector<Function *> functions_;
 
@@ -63,6 +79,9 @@ class Module {
 
   // Record the global variable definition instruction, which will be emitted at the top of the llvm ir
   std::unordered_map<std::string, middleend::llvm::inst::GlobalDefInst *> global_var_defs_;
+
+  // Record libraray functions
+  std::vector<middleend::llvm::inst::FuncDefInst *> library_func_def_insts_;
 };
 
 }  // namespace middleend::llvm::utils

@@ -1,5 +1,6 @@
 #include "context/llvmir_context.h"
 #include <stdexcept>
+#include "llvm/inst/func/funcdef.h"
 #include "llvm/utils/factory/instfactory.h"
 #include "middleend/llvm/utils/factory/blockfactory.h"
 #include "middleend/llvm/utils/factory/funcfactory.h"
@@ -73,15 +74,45 @@ auto LLVMIRResourceContext::GetGlobalOperand(const std::string &name) -> middlee
 // Function-related resource management
 auto LLVMIRResourceContext::AddFunctionDef(const std::string &func_name,
                                            middleend::llvm::inst::FuncDefInst *func_def) -> void {
+  if (module_ == nullptr) {
+    throw std::logic_error("Module is not set in LLVMIRContext");
+  }
   return module_->AddFunctionDef(func_name, func_def);
 }
 
 auto LLVMIRResourceContext::GetFunctionDef(const std::string &func_name) -> middleend::llvm::inst::FuncDefInst * {
+  if (module_ == nullptr) {
+    throw std::logic_error("Module is not set in LLVMIRContext");
+  }
   return module_->GetFunctionDef(func_name);
+}
+
+auto LLVMIRResourceContext::AddLibraryFunction(middleend::llvm::inst::FuncDefInst *func_def) -> void {
+  if (module_ == nullptr) {
+    throw std::logic_error("Module is not set in LLVMIRContext");
+  }
+  module_->AddLibraryFuncDef(func_def);
+}
+
+auto LLVMIRResourceContext::GetLibraryFunction(const std::string &func_name) -> middleend::llvm::inst::FuncDefInst * {
+  // First check if the function is a library function
+  if (module_ == nullptr) {
+    throw std::logic_error("Module is not set in LLVMIRContext");
+  }
+  for (const auto &lib_func : module_->GetLibraryFuncDefs()) {
+    if (lib_func->GetFuncName() == func_name) {
+      return lib_func;
+    }
+  }
+  // If not found in library functions, check user-defined functions
+  return nullptr;
 }
 
 auto LLVMIRResourceContext::AddFunction(middleend::llvm::utils::Function *function) -> void {
   // Check if the function already exists
+  if (module_ == nullptr) {
+    throw std::logic_error("Module is not set in LLVMIRContext");
+  }
   for (const auto &func : module_->GetFunctions()) {
     if (func->GetFuncName() == function->GetFuncName()) {
       throw std::logic_error("Function already exists: " + function->GetFuncName());
@@ -91,6 +122,9 @@ auto LLVMIRResourceContext::AddFunction(middleend::llvm::utils::Function *functi
 }
 
 auto LLVMIRResourceContext::GetFunction(const std::string &func_name) -> middleend::llvm::utils::Function * {
+  if (module_ == nullptr) {
+    throw std::logic_error("Module is not set in LLVMIRContext");
+  }
   for (auto &func : module_->GetFunctions()) {
     if (func->GetFuncName() == func_name) {
       return func;
@@ -105,20 +139,32 @@ auto LLVMIRResourceContext::GetFunction(const std::string &func_name) -> middlee
  */
 auto LLVMIRResourceContext::AddGlobalVarDef(const std::string &var_name,
                                             middleend::llvm::inst::GlobalDefInst *global_var_def) -> void {
+  if (module_ == nullptr) {
+    throw std::logic_error("Module is not set in LLVMIRContext");
+  }
   module_->AddGlobalVarDef(var_name, global_var_def);
 }
 
 auto LLVMIRResourceContext::GetGlobalVarDef(const std::string &var_name) -> middleend::llvm::inst::GlobalDefInst * {
+  if (module_ == nullptr) {
+    throw std::logic_error("Module is not set in LLVMIRContext");
+  }
   return module_->GetGlobalVarDef(var_name);
 }
 
 auto LLVMIRResourceContext::GetNewBasicBlock() -> middleend::llvm::utils::BasicBlock * {
+  if (module_ == nullptr) {
+    throw std::logic_error("Module is not set in LLVMIRContext");
+  }
   auto block = middleend::llvm::utils::factory::BlockFactory::CreateBlock(label_id_counter_++);
   return block;
 }
 
 auto LLVMIRResourceContext::CreateFunction(const std::string &func_name,
                                            type::Type *return_type) -> middleend::llvm::utils::Function * {
+  if (module_ == nullptr) {
+    throw std::logic_error("Module is not set in LLVMIRContext");
+  }
   auto function = middleend::llvm::utils::factory::FuncFactory::CreateFunction(func_name, return_type);
   AddFunction(function);
   return function;
