@@ -612,7 +612,6 @@ auto LowerHelper::LowerWhileOp(middleend::mlir::scf::WhileOp *while_op) -> void 
     // In exit block, most of the time, the value is from condition block.
     auto phi_node = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::PhiOp>(result);
     phi_node->AddIncoming(cond_block_args[i], new_cond_block);
-    phi_nodes.emplace_back(phi_node);
     exit_block->AddOperation(phi_node);
   }
 
@@ -661,7 +660,7 @@ auto LowerHelper::LowerWhileOp(middleend::mlir::scf::WhileOp *while_op) -> void 
     auto yield_value = yield_operands[i];
     // If from current block, then phi is original value,
     // otherwise, phi is the value from yield
-    phi_node->AddIncoming(original_value, new_cond_block);
+    phi_node->AddIncoming(original_value, current_block);
     phi_node->AddIncoming(yield_value, control_flow_from_body);
     original_value->ReplaceAllOpUsesWith(condition_op, phi_node, 0);
     yield_value->ReplaceAllOpUsesWith(yield_op, phi_node, 1);
@@ -718,7 +717,6 @@ auto LowerHelper::LowerBreakOp(middleend::mlir::scf::BreakOp *break_op) -> void 
 }
 
 auto LowerHelper::LowerContinueOp([[maybe_unused]] middleend::mlir::scf::ContinueOp *continue_op) -> void {
-  // TODO(loki): implement the lowering of continue operation
   /**
    * @brief For continue operation, it will directly jump to the condition block of the while loop,
    * and we need to update the phi node in the condition block,

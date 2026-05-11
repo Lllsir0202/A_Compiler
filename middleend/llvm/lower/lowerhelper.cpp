@@ -1,14 +1,15 @@
 #include "middleend/llvm/lower/lowerhelper.h"
 #include <stdexcept>
-#include "llvm/inst/cast/cast.h"
-#include "llvm/inst/memory/gep.h"
 #include "middleend/llvm/inst/arithm/arithm.h"
 #include "middleend/llvm/inst/branch/branch.h"
 #include "middleend/llvm/inst/branch/phi.h"
 #include "middleend/llvm/inst/branch/ret.h"
+#include "middleend/llvm/inst/cast/cast.h"
 #include "middleend/llvm/inst/cmp/cmp.h"
 #include "middleend/llvm/inst/func/call.h"
 #include "middleend/llvm/inst/func/funcdef.h"
+#include "middleend/llvm/inst/memory/alloca.h"
+#include "middleend/llvm/inst/memory/gep.h"
 #include "middleend/llvm/inst/memory/globaldef.h"
 #include "middleend/llvm/inst/memory/load.h"
 #include "middleend/llvm/inst/memory/store.h"
@@ -17,13 +18,15 @@
 #include "middleend/llvm/utils/factory/instfactory.h"
 #include "middleend/llvm/utils/factory/opfactory.h"
 #include "middleend/llvm/utils/operand/operand.h"
+#include "middleend/mlir/dialect/base/binaryop.h"
+#include "middleend/mlir/dialect/base/branch.h"
+#include "middleend/mlir/dialect/base/funccall.h"
 #include "middleend/mlir/dialect/base/funcdef.h"
-#include "mlir/dialect/base/binaryop.h"
-#include "mlir/dialect/base/branch.h"
-#include "mlir/dialect/base/funccall.h"
-#include "mlir/dialect/var/getptr.h"
-#include "mlir/utils/operation/operation.h"
-#include "type/type.h"
+#include "middleend/mlir/dialect/var/def.h"
+#include "middleend/mlir/dialect/var/getptr.h"
+#include "middleend/mlir/dialect/var/globaldef.h"
+#include "middleend/mlir/utils/operation/operation.h"
+#include "utils/type/type.h"
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()
 #define GET_LLVMIR_CONTEXT() compiler_context_->GetIRContext()->GetLLVMIRContext()
 
@@ -85,6 +88,7 @@ auto LowerHelper::LowerDispatch(mlir::Operation *op) -> void {
   LOWER_DISPATCH(mlir::base::Bool2IntOp, Bool2IntOp)
   // Variable-related operations
   LOWER_DISPATCH(middleend::mlir::var::VarGetPtrOp, VarGetPtrOp)
+  LOWER_DISPATCH(middleend::mlir::var::VarDefOp, VarDefOp)
   LOWER_DISPATCH(middleend::mlir::var::GlobalVarDefOp, GlobalVarDefOp)
   LOWER_DISPATCH(middleend::mlir::var::VarGetValOp, VarGetValOp)
   LOWER_DISPATCH(middleend::mlir::var::VarSetOp, VarSetOp)
@@ -506,6 +510,21 @@ auto LowerHelper::LowerGlobalVarDefOp(mlir::var::GlobalVarDefOp *global_var_def)
   }
 }
 
+auto LowerHelper::LowerVarDefOp(mlir::var::VarDefOp *var_def) -> void {
+  // Local variable definition will definitely be an alloca instruction
+  // Get allocated type
+  auto res = var_def->GetRes();
+  auto var_type = res->GetType();
+  if (var_type->GetKind() == type::TypeKind::ARRAY) {
+    var_type = static_cast<type::ArrayType *>(var_type)->GetElementType();
+  }
+  // Has got allocated operand type
+  auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::AllocaInst>(
+      GET_LLVMIR_CONTEXT(), res->GetType(), var_type, var_def->GetDimensions());
+  GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstFront(inst);
+  GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(res, inst->GetResult());
+  inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());
+}
 /**
  * @note: Important Operations:
  * 1. GetPtrOp: Currently the pointer might be :

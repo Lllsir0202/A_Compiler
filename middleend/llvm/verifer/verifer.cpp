@@ -8,8 +8,20 @@ auto LLVMVerifer::Verify() -> bool {
     return false;
   }
   for (auto function : module_->GetFunctions()) {
+    if (function == nullptr) {
+      compiler_context_->Print("Null function found in module");
+      return false;
+    }
     for (auto block : function->GetBasicBlocks()) {
+      if (block == nullptr) {
+        compiler_context_->Print("Null block found in function: " + function->GetFuncName());
+        return false;
+      }
       for (auto inst : block->GetInstructions()) {
+        if (inst == nullptr) {
+          compiler_context_->Print("Null instruction found in function: " + function->GetFuncName());
+          return false;
+        }
         if (!inst->Verify(compiler_context_)) {
           compiler_context_->Print("Instruction verification failed in function: " + function->GetFuncName());
           return false;

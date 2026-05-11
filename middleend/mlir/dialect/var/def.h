@@ -40,6 +40,8 @@ class VarDefOp : public VarOps {
 
   auto GetInits() -> std::vector<Value *> & { return operands_; }
   auto GetRes() -> Value * { return results_[0]; }
+  auto GetDimensions() const -> const std::vector<int> & { return dimensions_; }
+
   auto Emit(std::ofstream *out) -> void override {
     /**
      * @example: %res[%dim1, %dim2, ...] = var.def %init1, %init2, ...

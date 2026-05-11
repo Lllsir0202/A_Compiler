@@ -45,7 +45,7 @@ static inline auto GetPredicateStringForFloat(CmpPredicate predicate) -> std::st
 
 // Int comparison
 auto ICmpInst::Emit(std::ofstream *out) const -> void {
-  *out << " ";
+  *out << "  ";
   result_->Emit(out);
   *out << " = icmp ";
 
@@ -105,7 +105,7 @@ auto ICmpInst::Create(context::LLVMIRContext *context, CmpPredicate predicate, u
 
 // Float comparison
 auto FCmpInst::Emit(std::ofstream *out) const -> void {
-  *out << " ";
+  *out << "  ";
   result_->Emit(out);
   *out << " = fcmp ";
 
@@ -163,7 +163,7 @@ auto FCmpInst::Create(context::LLVMIRContext *context, CmpPredicate predicate, u
 }
 
 auto XorInst::Emit(std::ofstream *out) const -> void {
-  *out << " ";
+  *out << "  ";
   result_->Emit(out);
   *out << " = xor ";
   auto type = operands_[0]->GetType();

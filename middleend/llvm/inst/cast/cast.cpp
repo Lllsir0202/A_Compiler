@@ -6,7 +6,7 @@ namespace middleend::llvm::inst {
 auto ZextInst::Emit(std::ofstream *out) const -> void {
   // Emit the instruction in LLVM IR format
   // For example: %result = zext i1 %src to i32
-  *out << " ";
+  *out << "  ";
   result_->Emit(out);
   *out << " = zext ";
   *out << utils::Operand::GetTypeInLLVMIR(operands_[0]->GetType());
@@ -53,7 +53,7 @@ auto ZextInst::Create(context::LLVMIRContext *context, utils::Operand *src) -> Z
 auto SitoFpInst::Emit(std::ofstream *out) const -> void {
   // Emit the instruction in LLVM IR format
   // For example: %result = sitofp i32 %src to float
-  *out << " ";
+  *out << "  ";
   result_->Emit(out);
   *out << " = sitofp ";
   *out << utils::Operand::GetTypeInLLVMIR(operands_[0]->GetType());
@@ -100,7 +100,7 @@ auto SitoFpInst::Create(context::LLVMIRContext *context, utils::Operand *src) ->
 auto FptoSiInst::Emit(std::ofstream *out) const -> void {
   // Emit the instruction in LLVM IR format
   // For example: %result = fptosi float %src to i32
-  *out << " ";
+  *out << "  ";
   result_->Emit(out);
   *out << " = fptosi ";
   *out << utils::Operand::GetTypeInLLVMIR(operands_[0]->GetType());
@@ -147,7 +147,7 @@ auto FptoSiInst::Create(context::LLVMIRContext *context, utils::Operand *src) ->
 auto UitoFpInst::Emit(std::ofstream *out) const -> void {
   // Emit the instruction in LLVM IR format
   // For example: %result = uitofp i32 %src to float
-  *out << " ";
+  *out << "  ";
   result_->Emit(out);
   *out << " = uitofp ";
   *out << utils::Operand::GetTypeInLLVMIR(operands_[0]->GetType());

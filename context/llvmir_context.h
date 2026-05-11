@@ -19,64 +19,6 @@ class FuncDefInst;
 namespace context {
 
 /**
- * @brief LLVMIRLowerContext is responsible for lowering the base ir to llvmir
- */
-class LLVMIRLowerContext {
- public:
-  // Interface to get and set current insert point, which is used for instruction insertion
-  auto SetInsertPoint(middleend::llvm::utils::BasicBlock *block) -> void { current_block_ = block; }
-  auto GetInsertPoint() -> middleend::llvm::utils::BasicBlock * { return current_block_; }
-
-  // Interface to get and set current function
-  auto SetCurrentFunction(middleend::llvm::utils::Function *function) -> void { current_function_ = function; }
-  auto GetCurrentFunction() -> middleend::llvm::utils::Function * { return current_function_; }
-
-  // Interface to map and get llvm ops from mlir ops
-  auto MapMLIRBlockToLLVMIRBlock(middleend::mlir::Block *mlir_block,
-                                 middleend::llvm::utils::BasicBlock *llvm_block) -> void {
-    // Should never found
-    if (block_mapping_.count(mlir_block) > 0) {
-      throw std::logic_error("MLIR block already mapped to LLVM IR block");
-    }
-    block_mapping_[mlir_block] = llvm_block;
-  }
-  auto GetLLVMIRBlockFromMLIRBlock(middleend::mlir::Block *mlir_block) -> middleend::llvm::utils::BasicBlock * {
-    if (block_mapping_.count(mlir_block) > 0) {
-      return block_mapping_[mlir_block];
-    }
-    return nullptr;
-  }
-
-  auto MapMLIRValueToLLVMIROperand(middleend::mlir::Value *mlir_value,
-                                   middleend::llvm::utils::Operand *llvm_operand) -> void {
-    // Should never found
-    if (value_mapping_.count(mlir_value) > 0) {
-      throw std::logic_error("MLIR value already mapped to LLVM IR operand");
-    }
-    value_mapping_[mlir_value] = llvm_operand;
-  }
-
-  auto GetLLVMIROperandFromMLIRValue(middleend::mlir::Value *mlir_value) -> middleend::llvm::utils::Operand * {
-    if (value_mapping_.count(mlir_value) > 0) {
-      return value_mapping_[mlir_value];
-    }
-    return nullptr;
-  }
-
- private:
-  // Insert point management
-  middleend::llvm::utils::BasicBlock *current_block_;
-  middleend::llvm::utils::Function *current_function_;
-
-  // Need a map from mlir block to llvmir block
-  std::unordered_map<middleend::mlir::Block *, middleend::llvm::utils::BasicBlock *> block_mapping_;
-  // map from mlir value to llvmir operand
-  std::unordered_map<middleend::mlir::Value *, middleend::llvm::utils::Operand *> value_mapping_;
-
-  // Record all the llvm ir global definition
-};
-
-/**
  * @brief LLVMIRResourceContext is responsible for managing the resources of llvm ir.
  */
 class LLVMIRResourceContext {
@@ -163,6 +105,63 @@ class LLVMIRResourceContext {
   middleend::llvm::utils::Module *module_;
 };
 
+/**
+ * @brief LLVMIRLowerContext is responsible for lowering the base ir to llvmir
+ */
+class LLVMIRLowerContext {
+ public:
+  // Interface to get and set current insert point, which is used for instruction insertion
+  auto SetInsertPoint(middleend::llvm::utils::BasicBlock *block) -> void { current_block_ = block; }
+  auto GetInsertPoint() -> middleend::llvm::utils::BasicBlock * { return current_block_; }
+
+  // Interface to get and set current function
+  auto SetCurrentFunction(middleend::llvm::utils::Function *function) -> void { current_function_ = function; }
+  auto GetCurrentFunction() -> middleend::llvm::utils::Function * { return current_function_; }
+
+  // Interface to map and get llvm ops from mlir ops
+  auto MapMLIRBlockToLLVMIRBlock(middleend::mlir::Block *mlir_block,
+                                 middleend::llvm::utils::BasicBlock *llvm_block) -> void {
+    // Should never found
+    if (block_mapping_.count(mlir_block) > 0) {
+      throw std::logic_error("MLIR block already mapped to LLVM IR block");
+    }
+    block_mapping_[mlir_block] = llvm_block;
+  }
+  auto GetLLVMIRBlockFromMLIRBlock(middleend::mlir::Block *mlir_block) -> middleend::llvm::utils::BasicBlock * {
+    if (block_mapping_.count(mlir_block) > 0) {
+      return block_mapping_[mlir_block];
+    }
+    return nullptr;
+  }
+
+  auto MapMLIRValueToLLVMIROperand(middleend::mlir::Value *mlir_value,
+                                   middleend::llvm::utils::Operand *llvm_operand) -> void {
+    // Should never found
+    if (value_mapping_.count(mlir_value) > 0) {
+      throw std::logic_error("MLIR value already mapped to LLVM IR operand\n");
+    }
+    value_mapping_[mlir_value] = llvm_operand;
+  }
+
+  auto GetLLVMIROperandFromMLIRValue(middleend::mlir::Value *mlir_value) -> middleend::llvm::utils::Operand * {
+    if (value_mapping_.count(mlir_value) > 0) {
+      return value_mapping_[mlir_value];
+    }
+    // If not found, report error
+    return nullptr;
+  }
+
+ private:
+  // Insert point management
+  middleend::llvm::utils::BasicBlock *current_block_;
+  middleend::llvm::utils::Function *current_function_;
+
+  // Need a map from mlir block to llvmir block
+  std::unordered_map<middleend::mlir::Block *, middleend::llvm::utils::BasicBlock *> block_mapping_;
+  // map from mlir value to llvmir operand
+  std::unordered_map<middleend::mlir::Value *, middleend::llvm::utils::Operand *> value_mapping_;
+};
+
 class LLVMIRContext {
  public:
   explicit LLVMIRContext(TypeContext *type_context) : type_context_(type_context) {
@@ -214,7 +213,7 @@ class LLVMIRContext {
   auto SetInsertPoint(middleend::llvm::utils::BasicBlock *block) { lower_context_->SetInsertPoint(block); }
 
  private:
-  [[maybe_unused]] LLVMIRLowerContext *lower_context_;
+  LLVMIRLowerContext *lower_context_;
   LLVMIRResourceContext *resource_context_;
 
   TypeContext *type_context_;

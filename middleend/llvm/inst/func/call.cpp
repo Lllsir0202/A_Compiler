@@ -3,7 +3,7 @@
 #include "context/compiler_context.h"
 #include "middleend/llvm/inst/func/funcdef.h"
 #include "middleend/llvm/utils/operand/operand.h"
-#include "type/type.h"
+#include "utils/type/type.h"
 namespace middleend::llvm::inst {
 auto CallInst::Create(context::LLVMIRContext *context, std::string callee, const std::vector<utils::Operand *> &args,
                       type::Type *return_type) -> CallInst * {
@@ -25,7 +25,7 @@ auto CallInst::Create(context::LLVMIRContext *context, std::string callee, const
 
 auto CallInst::Emit(std::ofstream *out) const -> void {
   // Emit the instruction in llvm ir format
-  *out << " ";
+  *out << "  ";
   if (return_type_->GetKind() != type::TypeKind::VOID) {
     GetResult()->Emit(out);
     *out << " = ";

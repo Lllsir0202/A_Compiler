@@ -13,7 +13,7 @@ auto AddInst::Emit(std::ofstream *out) const -> void {
    * where %result is the result operand, i32 is the type of the operands,
    */
 
-  *out << " ";
+  *out << "  ";
   result_->Emit(out);
   *out << " = add ";
 
@@ -71,7 +71,7 @@ auto AddInst::Create(context::LLVMIRContext *context, utils::Operand *operand1, 
 
 // Float add
 auto AddFInst::Emit(std::ofstream *out) const -> void {
-  *out << " ";
+  *out << "  ";
   result_->Emit(out);
   *out << " = fadd ";
 
@@ -126,7 +126,7 @@ auto SubInst::Emit(std::ofstream *out) const -> void {
   /**
    * @brief Emit the sub instruction
    */
-  *out << " ";
+  *out << "  ";
   result_->Emit(out);
   *out << " = sub ";
   // Has checked the operand size and type
@@ -192,7 +192,7 @@ auto SubInst::Create(context::LLVMIRContext *context, utils::Operand *operand1, 
 
 // Float sub
 auto SubFInst::Emit(std::ofstream *out) const -> void {
-  *out << " ";
+  *out << "  ";
   result_->Emit(out);
   *out << " = fsub ";
 
@@ -251,7 +251,7 @@ auto SubFInst::Create(context::LLVMIRContext *context, utils::Operand *operand1,
 
 // Mul
 auto MulInst::Emit(std::ofstream *out) const -> void {
-  *out << " ";
+  *out << "  ";
   result_->Emit(out);
   *out << " = mul ";
 
@@ -309,7 +309,7 @@ auto MulInst::Create(context::LLVMIRContext *context, utils::Operand *operand1, 
 
 // Float mul
 auto MulFInst::Emit(std::ofstream *out) const -> void {
-  *out << " ";
+  *out << "  ";
   result_->Emit(out);
   *out << " = fmul ";
   auto type = operands_[0]->GetType();
@@ -367,7 +367,7 @@ auto MulFInst::Create(context::LLVMIRContext *context, utils::Operand *operand1,
 
 // Div
 auto DivInst::Emit(std::ofstream *out) const -> void {
-  *out << " ";
+  *out << "  ";
   result_->Emit(out);
   *out << " = sdiv ";
   auto type = operands_[0]->GetType();
@@ -424,7 +424,7 @@ auto DivInst::Create(context::LLVMIRContext *context, utils::Operand *operand1, 
 
 // Float div
 auto DivFInst::Emit(std::ofstream *out) const -> void {
-  *out << " ";
+  *out << "  ";
   result_->Emit(out);
   *out << " = fdiv ";
   auto type = operands_[0]->GetType();
@@ -486,7 +486,7 @@ auto DivFInst::Create(context::LLVMIRContext *context, utils::Operand *operand1,
  * because it only supports integer
  */
 auto ModInst::Emit(std::ofstream *out) const -> void {
-  *out << " ";
+  *out << "  ";
   result_->Emit(out);
   *out << " = srem ";
   auto type = operands_[0]->GetType();

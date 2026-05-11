@@ -1,14 +1,18 @@
 #include "middleend/llvm/inst/memory/alloca.h"
 #include <cstddef>
 #include "context/compiler_context.h"
-#include "llvm/utils/operand/operand.h"
-#include "type/type.h"
+#include "middleend/llvm/utils/operand/operand.h"
+#include "utils/type/type.h"
 namespace middleend::llvm::inst {
-auto AllocaInst::Create(context::LLVMIRContext *context, type::Type *allocated_type,
+auto AllocaInst::Create(context::LLVMIRContext *context, type::Type *result_type, type::Type *allocated_type,
                         std::vector<int> dimensions) -> AllocaInst * {
   auto inst = new AllocaInst(allocated_type, std::move(dimensions));
-  // To be simpler, we just record the instruction result as a pointer to the allocated_type
-  auto ptr_type = context->GetTypeContext()->GetPtrType(allocated_type);
+  // The allocated type should be the element type of the allocated memory
+  // For example, if we allocate an array of int,
+  // the allocated type should be int, not the array type
+  auto type_context = context->GetTypeContext();
+  // ptr to the res's original type
+  auto ptr_type = type_context->GetPtrType(result_type);
   auto res = context->GetNewRegOperand(ptr_type);
   inst->SetResult(res);
   return inst;
@@ -18,7 +22,7 @@ auto AllocaInst::Emit(std::ofstream *out) const -> void {
   // Emit the instruction in llvm ir format
   *out << "  ";
   GetResult()->Emit(out);
-  *out << " = alloca " << utils::Operand::GetTypeInLLVMIR(allocated_type_);
+  *out << " = alloca ";
   // If the allocated type is an array type, we need to emit the dimensions
   if (!dimensions_.empty()) {
     for (const auto &dim : dimensions_) {
@@ -28,6 +32,8 @@ auto AllocaInst::Emit(std::ofstream *out) const -> void {
     for (size_t i = 0; i < dimensions_.size(); ++i) {
       *out << "]";
     }
+  } else {
+    *out << utils::Operand::GetTypeInLLVMIR(allocated_type_);
   }
   *out << ", align " << utils::Operand::GetTypeInLLVMIR(result_->GetType()) << "\n";
 }

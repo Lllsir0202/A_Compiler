@@ -20,7 +20,7 @@ class AllocaInst : public Instruction {
  private:
   explicit AllocaInst(type::Type *allocated_type, std::vector<int> dimensions)
       : Instruction(OpKind::Alloca), allocated_type_(allocated_type), dimensions_(std::move(dimensions)) {}
-  static auto Create(context::LLVMIRContext *context, type::Type *allocated_type,
+  static auto Create(context::LLVMIRContext *context, type::Type *result_type, type::Type *allocated_type,
                      std::vector<int> dimensions) -> AllocaInst *;
   friend class utils::factory::InstFactory;
   // Type of the allocated memory

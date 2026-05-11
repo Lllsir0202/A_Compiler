@@ -4,7 +4,7 @@
 
 namespace middleend::llvm::inst {
 auto RetInst::Emit(std::ofstream *out) const -> void {
-  *out << " ";
+  *out << "  ";
   *out << "ret ";
   if (ret_value_ != nullptr) {
     auto type = ret_value_->GetType();

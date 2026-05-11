@@ -6,7 +6,7 @@
 namespace middleend::llvm::inst {
 auto PhiInst::Emit(std::ofstream *out) const -> void {
   // Emit the phi instruction in LLVM IR format
-  *out << " ";
+  *out << "  ";
   result_->Emit(out);
   *out << " = phi " << utils::Operand::GetTypeInLLVMIR(result_->GetType()) << " ";
   for (size_t i = 0; i < incoming_values_.size(); ++i) {
@@ -26,13 +26,17 @@ auto PhiInst::Verify(context::CompilerContext *context) const -> bool {
   // Verify the phi instruction
   // Check if the number of incoming values and blocks are the same
   if (incoming_values_.size() != incoming_blocks_.size()) {
-    context->Print("Mismatched number of incoming values and blocks in phi instruction");
+    context->Print("Mismatched number of incoming values and blocks in phi instruction\n");
     return false;
   }
   // Check if the types of incoming values are consistent with the result type
   for (const auto &value : incoming_values_) {
+    if (value == nullptr) {
+      context->Print("Null incoming value in phi instruction\n");
+      return false;
+    }
     if (value->GetType() != result_->GetType()) {
-      context->Print("Inconsistent types in phi instruction");
+      context->Print("Inconsistent types in phi instruction\n");
       return false;
     }
   }

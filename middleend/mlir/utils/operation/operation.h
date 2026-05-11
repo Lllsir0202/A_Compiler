@@ -33,6 +33,9 @@ class Operation {
   // Provide interface to verify the operation, which will be used to check
   virtual auto Verify(context::CompilerContext *context) -> bool = 0;
 
+  // Get the result of the operation, which is a vector of values
+  virtual auto GetResults() -> std::vector<Value *> { return results_; }
+
   // Operands of the operation
   std::vector<Value *> operands_;  // the operands of this operation
   // Result of the operation, can be a nullptr if the operation has no result

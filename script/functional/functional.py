@@ -74,18 +74,18 @@ def execute_ir(input, output, opt, stdin, stdout, testout):
         print(f"\033[93mCompile Error on \033[0m{input}")
         return 0
 
-    result = execute(["clang", output, "-c", "-o", "tmp.o", "-w"])
+    result = execute(["clang", output, "-c", "-o", "../../tmp.o", "-w"])
     if result.returncode != 0:
         print(f"\033[93mOutput Error on \033[0m{input}")
         return 0
 
-    result = execute(["clang", "-static", "tmp.o", "-L./libs", "-l:libx86"])
+    result = execute(["clang", "-static", "../../tmp.o", "-L../../libs", "-l:libx86.a"])
     if result.returncode != 0:
-        execute(["rm", "-rf", "tmp.o"])
+        execute(["rm", "-rf", "../../tmp.o"])
         print(f"\033[93mLink Error on \033[0m{input}")
         return 0
 
-    execute(["rm", "-rf", "tmp.o"])
+    execute(["rm", "-rf", "../../tmp.o"])
 
     result = 0
     if stdin == "none":
@@ -116,18 +116,18 @@ def execute_asm(input, output, opt, stdin, stdout, testout):
         print(f"\033[93mCompile Error on \033[0m{input}")
         return 0
 
-    result = execute(["riscv64-unknown-linux-gnu-gcc", output, "-c", "-o", "tmp.o", "-w"])
+    result = execute(["riscv64-unknown-linux-gnu-gcc", output, "-c", "-o", "../../tmp.o", "-w"])
     if result.returncode != 0:
         print(f"\033[93mOutput Error on \033[0m{input}")
         return 0
 
-    result = execute(["riscv64-unknown-linux-gnu-gcc", "-static", "tmp.o", "-L./lib", "-lsysy_riscv", "-mcmodel=medany"])
+    result = execute(["riscv64-unknown-linux-gnu-gcc", "-static", "../../tmp.o", "-L../../libs", "-lsysy_riscv", "-mcmodel=medany"])
     if result.returncode != 0:
-        execute(["rm", "-rf", "tmp.o"])
+        execute(["rm", "-rf", "../../tmp.o"])
         print(f"\033[93mLink Error on \033[0m{input}")
         return 0
 
-    execute(["rm", "-rf", "tmp.o"])
+    execute(["rm", "-rf", "../../tmp.o"])
 
     result = 0
     if stdin == "none":
