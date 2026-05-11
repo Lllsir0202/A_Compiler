@@ -37,7 +37,7 @@ class LLVMIRResourceContext {
    */
   auto GetRegOperand(size_t id) -> middleend::llvm::utils::RegOperand *;
   auto GetIntLiteral(int value) -> middleend::llvm::utils::IntLiteral *;
-  auto GetFloatLiteral(float value) -> middleend::llvm::utils::FloatLiteral *;
+  auto GetFloatLiteral(double value) -> middleend::llvm::utils::FloatLiteral *;
   auto GetGlobalOperand(const std::string &name) -> middleend::llvm::utils::GlobalOperand *;
 
   /**
@@ -98,7 +98,7 @@ class LLVMIRResourceContext {
   std::unordered_map<size_t, middleend::llvm::utils::RegOperand *> reg_operands_;
   std::unordered_map<size_t, middleend::llvm::utils::LabelOperand *> label_operands_;
   std::unordered_map<int, middleend::llvm::utils::IntLiteral *> int_literals_;
-  std::unordered_map<float, middleend::llvm::utils::FloatLiteral *> float_literals_;
+  std::unordered_map<double, middleend::llvm::utils::FloatLiteral *> float_literals_;
   std::unordered_map<std::string, middleend::llvm::utils::GlobalOperand *> global_operands_;
 
   // Top module
@@ -182,7 +182,7 @@ class LLVMIRContext {
     return resource_context_->GetIntLiteral(value);
   }
 
-  auto GetFloatLiteral(float value) -> middleend::llvm::utils::FloatLiteral * {
+  auto GetFloatLiteral(double value) -> middleend::llvm::utils::FloatLiteral * {
     return resource_context_->GetFloatLiteral(value);
   }
 

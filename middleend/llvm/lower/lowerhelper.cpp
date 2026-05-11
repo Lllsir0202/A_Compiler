@@ -239,7 +239,7 @@ auto LowerHelper::LowerNegFOp(mlir::base::NegFOp *op) -> void {
   auto operand = op->GetOperand();
   auto result = op->GetRes();
   auto llvm_operand = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(operand);
-  auto zero_literal = GET_LLVMIR_CONTEXT()->GetFloatLiteral(0.0F);
+  auto zero_literal = GET_LLVMIR_CONTEXT()->GetFloatLiteral(0.0);
   auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::SubFInst>(GET_LLVMIR_CONTEXT(), zero_literal,
                                                                                      llvm_operand);
 
@@ -276,7 +276,7 @@ auto LowerHelper::LowerFloatLiteralOp(mlir::base::ConstFloatOp *op) -> void {
   auto value = op->GetValue();
   auto result = op->GetRes();
   auto float_literal = GET_LLVMIR_CONTEXT()->GetFloatLiteral(value);
-  auto zero_literal = GET_LLVMIR_CONTEXT()->GetFloatLiteral(0.0F);
+  auto zero_literal = GET_LLVMIR_CONTEXT()->GetFloatLiteral(0.0);
   auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::AddFInst>(GET_LLVMIR_CONTEXT(),
                                                                                      float_literal, zero_literal);
 
@@ -343,7 +343,7 @@ auto LowerHelper::LowerFloat2BoolOp(mlir::base::Float2BoolOp *op) -> void {
   auto operand = op->GetOperand();
   auto result = op->GetRes();
   auto llvm_operand = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(operand);
-  auto zero_literal = GET_LLVMIR_CONTEXT()->GetFloatLiteral(0.0F);
+  auto zero_literal = GET_LLVMIR_CONTEXT()->GetFloatLiteral(0.0);
   auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FCmpInst>(
       GET_LLVMIR_CONTEXT(), inst::CmpPredicate::NE, llvm_operand, zero_literal);
   GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);

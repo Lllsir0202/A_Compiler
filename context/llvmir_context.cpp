@@ -52,7 +52,7 @@ auto LLVMIRResourceContext::GetIntLiteral(int value) -> middleend::llvm::utils::
   return op;
 }
 
-auto LLVMIRResourceContext::GetFloatLiteral(float value) -> middleend::llvm::utils::FloatLiteral * {
+auto LLVMIRResourceContext::GetFloatLiteral(double value) -> middleend::llvm::utils::FloatLiteral * {
   if (float_literals_.count(value) > 0) {
     return float_literals_[value];
   }

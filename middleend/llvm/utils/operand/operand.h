@@ -95,13 +95,13 @@ class Operand {
 
 // Interface for printing the float value in llvm ir format,
 // which is 0X followed by the hexadecimal representation of the float value
-inline auto FloatToLLVMIRFormat(float value) -> std::string {
+inline auto FloatToLLVMIRFormat(double value) -> std::string {
   if (value == static_cast<int>(value)) {
     // If the float value is actually an integer, we can just return the integer value
     return std::to_string(value);
   }
-  uint32_t bits;
-  std::memcpy(&bits, &value, sizeof(uint32_t));
+  uint64_t bits;
+  std::memcpy(&bits, &value, sizeof(uint64_t));
 
   std::ostringstream oss;
   oss << "0x" << std::hex << std::uppercase << bits;

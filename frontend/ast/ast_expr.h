@@ -143,13 +143,14 @@ class IntLiteralExprNode : public VisitAble<IntLiteralExprNode, ExprNode> {
 
 /**
  * @brief FloatLiteralExprNode represents a floating-point literal
+ * @note We store the value as double
  */
 
 class FloatLiteralExprNode : public VisitAble<FloatLiteralExprNode, ExprNode> {
  public:
-  explicit FloatLiteralExprNode(SourceRange range, TypePtr type, float value)
+  explicit FloatLiteralExprNode(SourceRange range, TypePtr type, double value)
       : VisitAble<FloatLiteralExprNode, ExprNode>(range, type, true), value_(value) {}
-  float value_;
+  double value_;
 };
 
 }  // namespace frontend::ast
