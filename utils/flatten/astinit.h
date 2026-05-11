@@ -22,16 +22,16 @@ class ConstInitializer : public Initializer {
  public:
   ConstInitializer() = default;
   auto SetIntValue(int value) -> void;
-  auto SetFloatValue(float value) -> void;
+  auto SetFloatValue(double value) -> void;
   auto GetIntValue() const -> std::optional<int>;
-  auto GetFloatValue() const -> std::optional<float>;
+  auto GetFloatValue() const -> std::optional<double>;
   auto GetValue() const -> frontend::ast::Value;
   auto IsScalar() const -> bool override { return true; }
   auto IsConst() const -> bool override { return true; }
 
  private:
   std::optional<int> int_value_;
-  std::optional<float> float_value_;
+  std::optional<double> float_value_;
 };
 
 auto HandleInAst(frontend::ast::Initializer *init_node) -> InitializerPtr;

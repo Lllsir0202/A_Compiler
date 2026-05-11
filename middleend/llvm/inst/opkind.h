@@ -1,11 +1,12 @@
 #ifndef MIDDLEEND_LLVM_INST_OPKIND_H
 #define MIDDLEEND_LLVM_INST_OPKIND_H
 
+#include <cstdint>
 namespace middleend::llvm::inst {
 /**
  * @note Not all opkind might be used in our llvm ir
  */
-enum class OpKind {
+enum class OpKind : uint8_t {
   // Arithmetic operations
   // Integer
   Add,

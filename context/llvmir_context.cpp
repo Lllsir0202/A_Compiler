@@ -77,7 +77,7 @@ auto LLVMIRResourceContext::AddFunctionDef(const std::string &func_name,
   if (module_ == nullptr) {
     throw std::logic_error("Module is not set in LLVMIRContext");
   }
-  return module_->AddFunctionDef(func_name, func_def);
+  module_->AddFunctionDef(func_name, func_def);
 }
 
 auto LLVMIRResourceContext::GetFunctionDef(const std::string &func_name) -> middleend::llvm::inst::FuncDefInst * {

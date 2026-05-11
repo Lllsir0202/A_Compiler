@@ -1,8 +1,9 @@
 #ifndef MIDDLEEND_LLVM_INST_CMP_H
 #define MIDDLEEND_LLVM_INST_CMP_H
+#include <cstdint>
 #include "middleend/llvm/inst/inst.h"
 namespace middleend::llvm::inst {
-enum class CmpPredicate {
+enum class CmpPredicate : uint8_t {
   EQ,  // equal
   NE,  // not equal
   LT,  // less than

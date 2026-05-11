@@ -14,7 +14,7 @@ class GlobalDefInst : public Instruction {
   auto GetName() const -> const std::string & { return name_; }
   auto GetAllocatedType() const -> type::Type * { return allocated_type_; }
   auto GetIntInitialValues() const -> const std::vector<int> & { return int_initial_values_; }
-  auto GetFloatInitialValues() const -> const std::vector<float> & { return float_initial_values_; }
+  auto GetFloatInitialValues() const -> const std::vector<double> & { return float_initial_values_; }
   auto GetDimensions() const -> const std::vector<int> & { return dimensions_; }
 
  private:
@@ -26,24 +26,24 @@ class GlobalDefInst : public Instruction {
         name_(std::move(name)),
         int_initial_values_(std::move(initial_values)) {}
   explicit GlobalDefInst(type::Type *allocated_type, std::string name, std::vector<int> dimensions,
-                         std::vector<float> initial_values)
+                         std::vector<double> initial_values)
       : Instruction(OpKind::GlobalDef),
         allocated_type_(allocated_type),
         dimensions_(std::move(dimensions)),
         name_(std::move(name)),
         float_initial_values_(std::move(initial_values)) {}
 
-  static auto Create(context::LLVMIRContext *context, type::Type *allocated_type, std::string name,
+  static auto Create(context::LLVMIRContext *context, type::Type *allocated_type, const std::string &name,
                      std::vector<int> dimensions, std::vector<int> initial_values) -> GlobalDefInst *;
-  static auto Create(context::LLVMIRContext *context, type::Type *allocated_type, std::string name,
-                     std::vector<int> dimensions, std::vector<float> initial_values) -> GlobalDefInst *;
+  static auto Create(context::LLVMIRContext *context, type::Type *allocated_type, const std::string &name,
+                     std::vector<int> dimensions, std::vector<double> initial_values) -> GlobalDefInst *;
   friend class utils::factory::InstFactory;
   type::Type *allocated_type_;
   std::vector<int> dimensions_;
   std::string name_;
 
   std::vector<int> int_initial_values_;
-  std::vector<float> float_initial_values_;
+  std::vector<double> float_initial_values_;
 };
 }  // namespace middleend::llvm::inst
 #endif
