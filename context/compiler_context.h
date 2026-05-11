@@ -5,6 +5,7 @@
 #include "ast/ast_base.h"
 #include "context/ast_context.h"
 #include "context/ir_context.h"
+#include "context/pass_context.h"
 #include "context/symboltable_context.h"
 #include "context/type_context.h"
 namespace context {
@@ -24,17 +25,20 @@ class CompilerContext {
     symboltable_context_ = new SymbolTableContext();
     InitializeLibFunc();
     ir_context_ = new IRContext(type_context_);
+    pass_context_ = new PassContext(this);
   }
   ~CompilerContext() {
     delete type_context_;
     delete ast_context_;
     delete symboltable_context_;
     delete ir_context_;
+    delete pass_context_;
   }
   auto GetTypeContext() -> TypeContext * { return type_context_; }
   auto GetAstContext() -> AstContext * { return ast_context_; }
   auto GetSymbolTableContext() -> SymbolTableContext * { return symboltable_context_; }
   auto GetIRContext() -> IRContext * { return ir_context_; }
+  auto GetPassContext() -> PassContext * { return pass_context_; }
   auto ReportError(frontend::SourceRange source_range, const std::string &msg) -> void;
   auto ReportError(frontend::ast::ASTNode *node, const std::string &msg) -> void;
   auto ReportError(const std::string &msg) -> void;
@@ -56,6 +60,9 @@ class CompilerContext {
 
   // we will use the ircontext to control the resources of the IR
   IRContext *ir_context_;
+
+  // Pass context, used in optimization
+  PassContext *pass_context_;
 
   // Using this compiler context to control ALL resources in the compiler
 

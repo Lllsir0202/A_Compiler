@@ -21,6 +21,9 @@ class CFGNode {
 
   virtual auto VerifyNodeType() -> bool = 0;
 
+  auto SetId(size_t id) -> void { id_ = id; }
+  auto GetId() -> size_t { return id_; }
+
  protected:
   explicit CFGNode(CFGType node_type) : node_type_(node_type) {}
   std::vector<CFGNode *> successors_;
@@ -28,6 +31,7 @@ class CFGNode {
   // Verify node type
   const CFGType node_type_;
   // Implement the CFGNode for Block and BasicBlock
+  size_t id_;
 };
 
 // Each function has a CFG
@@ -35,7 +39,10 @@ class FunctionCFG {
  public:
   virtual ~FunctionCFG() = 0;
   auto GetNodes() -> std::vector<CFGNode *> { return nodes_; }
-  auto AddNode(CFGNode *node) -> void { nodes_.emplace_back(node); }
+  auto AddNode(CFGNode *node) -> void {
+    node->SetId(id_++);
+    nodes_.emplace_back(node);
+  }
   // SetEntryNode and GetEntryNode are used to
   // get the entry node of the CFG,
   // which is the node that has no predecessor
@@ -59,6 +66,7 @@ class FunctionCFG {
   // to unify the return point
   std::vector<CFGNode *> exit_nodes_;
   // Add information to recognize the function in concrete class
+  size_t id_;
 };
 
 // Used to build CFG
@@ -80,6 +88,24 @@ class CFGPass : public Pass {
       : Pass(compiler_context), cfg_builder_(cfg_builder) {}
   auto Run() -> void override { cfg_builder_->BuildCFG(); }
   ~CFGPass() override { delete cfg_builder_; }
+  auto Name() const -> std::string override { return "CFGPass"; }
+  auto Print() -> void {
+    printf("CFGPass: \n");
+    for (const auto &func_cfg : cfg_builder_->GetFunctionCFGs()) {
+      printf("Function CFG with entry node id: %zu\n", func_cfg->GetEntryNode()->GetId());
+      for (const auto &node : func_cfg->GetNodes()) {
+        printf("Node id: %zu, Successors: ", node->GetId());
+        for (const auto &succ : node->GetSuccessors()) {
+          printf("%zu ", succ->GetId());
+        }
+        printf(", Predecessors: ");
+        for (const auto &pred : node->GetPredecessors()) {
+          printf("%zu ", pred->GetId());
+        }
+        printf("\n");
+      }
+    }
+  }
 
  protected:
   CFGBuilder *cfg_builder_;

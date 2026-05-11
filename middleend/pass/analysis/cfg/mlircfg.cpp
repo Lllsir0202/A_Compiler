@@ -8,12 +8,15 @@
 #include "mlir/utils/operation/operation.h"
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()
 namespace middleend::pass::analysis {
+#include "middleend/checklibrary.ck"
 auto MLIRCFGBuilder::BuildCFG() -> void {
   auto mlir_module = GET_MLIR_CONTEXT()->GetModuleOp();
   auto block = mlir_module->GetBlock();
   for (auto op : block->operations_) {
     if (auto func_def_op = mlir::DynamicOrNull<mlir::base::FuncDefOp>(op)) {
-      BuildFunctionCFG(func_def_op);
+      if (!IsLibraryFunction(func_def_op->GetName())) {
+        BuildFunctionCFG(func_def_op);
+      }
     }
   }
 }

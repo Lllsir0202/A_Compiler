@@ -9,6 +9,7 @@
 #include "middleend/llvm/verifer/verifer.h"
 #include "middleend/mlir/lower/lower.h"
 #include "middleend/mlir/verifer/verifer.h"
+#include "middleend/pass/analysis/cfg/mlircfg.h"
 #include "stages/ast/ast_stage.h"
 #include "stages/lexer/lexer_stage.h"
 #include "stages/llvm/llvm_stage.h"
@@ -231,6 +232,15 @@ auto main(int argc, char *argv[]) -> int {
   if (!lower_verifier->Verify()) {
     return -1;
   }
+
+  auto pass_manager = compiler_context.GetPassContext();
+  auto mlir_cfg_builder = new middleend::pass::analysis::MLIRCFGBuilder(&compiler_context);
+  auto cfg_pass =
+      context::PassContext::CreatePass<middleend::pass::analysis::CFGPass>(&compiler_context, mlir_cfg_builder);
+  pass_manager->AddPass(cfg_pass);
+  pass_manager->RunPasses();
+
+  cfg_pass->Print();
 
   if (stage == "baseir" && ret == 0) {
     stage_ptr = std::make_unique<stages::MLIRStage>(&compiler_context);
