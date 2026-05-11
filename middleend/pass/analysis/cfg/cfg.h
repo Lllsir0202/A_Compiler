@@ -3,7 +3,6 @@
 #include <vector>
 #include "middleend/pass/pass.h"
 namespace middleend::pass::analysis {
-enum class CFGType { MLIR, LLVMIR };
 
 class CFGNode {
  public:
@@ -25,11 +24,11 @@ class CFGNode {
   auto GetId() -> size_t { return id_; }
 
  protected:
-  explicit CFGNode(CFGType node_type) : node_type_(node_type) {}
+  explicit CFGNode(PassStage pass_stage) : pass_stage_(pass_stage) {}
   std::vector<CFGNode *> successors_;
   std::vector<CFGNode *> predecessors_;
-  // Verify node type
-  const CFGType node_type_;
+  // pass stage
+  PassStage pass_stage_;
   // Implement the CFGNode for Block and BasicBlock
   size_t id_;
 };
@@ -55,10 +54,10 @@ class FunctionCFG {
   virtual auto VerifyFunctionCFG() -> bool = 0;
 
  protected:
-  explicit FunctionCFG(CFGType cfg_type) : cfg_type_(cfg_type) {}
+  explicit FunctionCFG(PassStage cfg_stage) : cfg_stage_(cfg_stage) {}
 
-  // Type
-  const CFGType cfg_type_;
+  // pass stage
+  const PassStage cfg_stage_;
 
   std::vector<CFGNode *> nodes_;
   CFGNode *entry_node_;
@@ -84,8 +83,8 @@ class CFGBuilder {
 
 class CFGPass : public Pass {
  public:
-  explicit CFGPass(context::CompilerContext *compiler_context, CFGBuilder *cfg_builder)
-      : Pass(compiler_context), cfg_builder_(cfg_builder) {}
+  explicit CFGPass(context::CompilerContext *compiler_context, CFGBuilder *cfg_builder, PassStage pass_stage)
+      : Pass(compiler_context, pass_stage), cfg_builder_(cfg_builder) {}
   auto Run() -> void override { cfg_builder_->BuildCFG(); }
   ~CFGPass() override { delete cfg_builder_; }
   auto Name() const -> std::string override { return "CFGPass"; }

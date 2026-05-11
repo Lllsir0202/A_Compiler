@@ -1,15 +1,30 @@
 #include "middleend/pass/manager/passmanager.h"
 #include "context/compiler_context.h"
+#include "middleend/pass/pass.h"
 namespace middleend::pass {
 auto PassManager::AddPass(Pass *pass) -> void { passes_.emplace_back(pass); }
 
-auto PassManager::RunPasses() -> void {
+// Verify all passes, make sure all passes are same as the current pass type,
+// and all passes' dependencies are satisfied, etc.
+auto PassManager::VerifyPasses() -> bool {
   for (auto pass : passes_) {
-    if (!pass->Verify()) {
-      // If verification failed, report error and stop running the pass
-      compiler_context_->Print(pass->Name() + ": Pass verification failed, cannot run the pass\n");
-      return;
+    if (pass->GetPassStage() != current_pass_type_) {
+      compiler_context_->Print(pass->Name() + ": Pass stage mismatch, expected " +
+                               Pass::PassStageToString(current_pass_type_) + ", but got " +
+                               Pass::PassStageToString(pass->GetPassStage()) + "\n");
+      return false;
     }
+    if (!pass->Verify()) {
+      compiler_context_->Print(pass->Name() + ": Pass verification failed\n");
+      return false;
+    }
+  }
+  return true;
+}
+
+auto PassManager::RunPasses() -> void {
+  VerifyPasses();
+  for (auto pass : passes_) {
     try {
       pass->Run();
     } catch (const std::exception &e) {

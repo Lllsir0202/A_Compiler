@@ -10,6 +10,7 @@
 #include "middleend/mlir/lower/lower.h"
 #include "middleend/mlir/verifer/verifer.h"
 #include "middleend/pass/analysis/cfg/mlircfg.h"
+#include "pass_context.h"
 #include "stages/ast/ast_stage.h"
 #include "stages/lexer/lexer_stage.h"
 #include "stages/llvm/llvm_stage.h"
@@ -77,10 +78,11 @@ auto static inline ParseArgs(int argc, char *argv[]) -> bool {
 auto main(int argc, char *argv[]) -> int {
   // Now we use different args to control different Stages
   if (argc <= 1 || !ParseArgs(argc, argv)) {
-    std::cerr << "Usage: " << argv[0]
-              << " <input_file> -o <output_file> [-<stage>{lexer, parser, ast, mlir, llvm, S/s}] [-O<level>{0,1,2}] "
-                 "[--Werror|-Werror]"
-              << '\n';
+    std::cerr
+        << "Usage: " << argv[0]
+        << " <input_file> -o <output_file> [-<stage>{lexer, parser, ast, mlir, baseir, llvm, S/s}] [-O<level>{0,1,2}] "
+           "[--Werror|-Werror]"
+        << '\n';
     return 1;
   }
   // Parser successful
@@ -233,12 +235,13 @@ auto main(int argc, char *argv[]) -> int {
     return -1;
   }
 
-  auto pass_manager = compiler_context.GetPassContext();
+  auto mlirpass_context = new context::PassContext(&compiler_context, middleend::pass::PassStage::MLIR);
+  compiler_context.SetPassContext(mlirpass_context);
   auto mlir_cfg_builder = new middleend::pass::analysis::MLIRCFGBuilder(&compiler_context);
-  auto cfg_pass =
-      context::PassContext::CreatePass<middleend::pass::analysis::CFGPass>(&compiler_context, mlir_cfg_builder);
-  pass_manager->AddPass(cfg_pass);
-  pass_manager->RunPasses();
+  auto cfg_pass = context::PassContext::CreatePass<middleend::pass::analysis::CFGPass>(
+      &compiler_context, mlir_cfg_builder, middleend::pass::PassStage::MLIR);
+  mlirpass_context->AddPass(cfg_pass);
+  mlirpass_context->RunPasses();
 
   cfg_pass->Print();
 

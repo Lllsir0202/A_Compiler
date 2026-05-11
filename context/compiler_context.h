@@ -25,7 +25,6 @@ class CompilerContext {
     symboltable_context_ = new SymbolTableContext();
     InitializeLibFunc();
     ir_context_ = new IRContext(type_context_);
-    pass_context_ = new PassContext(this);
   }
   ~CompilerContext() {
     delete type_context_;
@@ -38,6 +37,7 @@ class CompilerContext {
   auto GetAstContext() -> AstContext * { return ast_context_; }
   auto GetSymbolTableContext() -> SymbolTableContext * { return symboltable_context_; }
   auto GetIRContext() -> IRContext * { return ir_context_; }
+  auto SetPassContext(PassContext *pass_context) -> void { pass_context_ = pass_context; }
   auto GetPassContext() -> PassContext * { return pass_context_; }
   auto ReportError(frontend::SourceRange source_range, const std::string &msg) -> void;
   auto ReportError(frontend::ast::ASTNode *node, const std::string &msg) -> void;

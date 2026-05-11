@@ -1,6 +1,7 @@
 #ifndef MIDDLEEND_PASS_ANALYSIS_CFG_MLIRCFG_H
 #define MIDDLEEND_PASS_ANALYSIS_CFG_MLIRCFG_H
 #include "middleend/pass/analysis/cfg/cfg.h"
+#include "pass/pass.h"
 namespace middleend::mlir {
 class Block;
 }
@@ -12,9 +13,9 @@ namespace middleend::pass::analysis {
 class MLIRCFGNode : public CFGNode {
  public:
   ~MLIRCFGNode() override { block_ = nullptr; }
-  explicit MLIRCFGNode(mlir::Block *block) : CFGNode(CFGType::MLIR), block_(block) {}
+  explicit MLIRCFGNode(mlir::Block *block) : CFGNode(PassStage::MLIR), block_(block) {}
   auto GetBlock() -> mlir::Block * { return block_; }
-  auto VerifyNodeType() -> bool override { return block_ != nullptr && node_type_ == CFGType::MLIR; }
+  auto VerifyNodeType() -> bool override { return block_ != nullptr && pass_stage_ == PassStage::MLIR; }
 
  private:
   mlir::Block *block_;
@@ -23,9 +24,9 @@ class MLIRCFGNode : public CFGNode {
 class MLIRFunctionCFG : public FunctionCFG {
  public:
   ~MLIRFunctionCFG() override { func_op_ = nullptr; };
-  explicit MLIRFunctionCFG(mlir::base::FuncDefOp *func_op) : FunctionCFG(CFGType::MLIR), func_op_(func_op) {}
+  explicit MLIRFunctionCFG(mlir::base::FuncDefOp *func_op) : FunctionCFG(PassStage::MLIR), func_op_(func_op) {}
   auto GetFuncOp() -> mlir::base::FuncDefOp * { return func_op_; }
-  auto VerifyFunctionCFG() -> bool override { return func_op_ != nullptr && cfg_type_ == CFGType::MLIR; }
+  auto VerifyFunctionCFG() -> bool override { return func_op_ != nullptr && cfg_stage_ == PassStage::MLIR; }
 
  private:
   mlir::base::FuncDefOp *func_op_;

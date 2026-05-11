@@ -3,12 +3,13 @@
 #include "middleend/llvm/utils/struct/block.h"
 #include "middleend/llvm/utils/struct/function.h"
 #include "middleend/pass/analysis/cfg/cfg.h"
+#include "pass/pass.h"
 namespace middleend::pass::analysis {
 class LLVMIRCFGNode : public CFGNode {
  public:
-  explicit LLVMIRCFGNode(middleend::llvm::utils::BasicBlock *block) : CFGNode(CFGType::LLVMIR), block_(block) {}
+  explicit LLVMIRCFGNode(middleend::llvm::utils::BasicBlock *block) : CFGNode(PassStage::LLVMIR), block_(block) {}
   auto GetBlock() -> middleend::llvm::utils::BasicBlock * { return block_; }
-  auto VerifyNodeType() -> bool override { return block_ != nullptr && node_type_ == CFGType::LLVMIR; }
+  auto VerifyNodeType() -> bool override { return block_ != nullptr && pass_stage_ == PassStage::LLVMIR; }
 
  private:
   middleend::llvm::utils::BasicBlock *block_;
@@ -17,9 +18,9 @@ class LLVMIRCFGNode : public CFGNode {
 class LLVMIRFunctionCFG : public FunctionCFG {
  public:
   explicit LLVMIRFunctionCFG(middleend::llvm::utils::Function *function)
-      : FunctionCFG(CFGType::LLVMIR), function_(function) {}
+      : FunctionCFG(PassStage::LLVMIR), function_(function) {}
   auto GetFunction() -> middleend::llvm::utils::Function * { return function_; }
-  auto VerifyFunctionCFG() -> bool override { return function_ != nullptr && cfg_type_ == CFGType::LLVMIR; }
+  auto VerifyFunctionCFG() -> bool override { return function_ != nullptr && cfg_stage_ == PassStage::LLVMIR; }
 
  private:
   middleend::llvm::utils::Function *function_;
