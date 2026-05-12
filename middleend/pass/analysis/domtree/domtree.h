@@ -105,6 +105,9 @@ class DomTree {
   // Build the dominator tree using the Lengauer-Tarjan algorithm
   auto BuildDomTree(FunctionCFG *function_cfg) -> void;
 
+  auto BuildPostOrder(DomTreeNode *node) -> void;
+  auto GetPostOrder() -> std::vector<DomTreeNode *> { return post_order_; }
+
  private:
   /**
    * @brief Build the dominator tree using the Lengauer-Tarjan algorithm
@@ -115,6 +118,7 @@ class DomTree {
 
   // Get DomTreeNode by CFGNode, used in the BuildDomTree function
   std::unordered_map<CFGNode *, DomTreeNode *> cfg_node_to_dom_tree_node_;
+  std::unordered_map<DomTreeNode *, CFGNode *> dom_tree_node_to_cfg_node_;
 
   // The root node of the dominator tree.
   DomTreeNode *entry_node_;
@@ -129,6 +133,9 @@ class DomTree {
 
   // context for debug printing
   context::CompilerContext *compiler_context_;
+
+  // post order
+  std::vector<DomTreeNode *> post_order_;
 };
 
 class NormalDomTreeHelper : public DomTreeHelper {

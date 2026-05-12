@@ -6,9 +6,9 @@ namespace middleend::llvm::inst {
 static inline auto GetPredicateStringForInt(CmpPredicate predicate) -> std::string {
   switch (predicate) {
     case CmpPredicate::EQ:
-      return "seq";
+      return "eq";
     case CmpPredicate::NE:
-      return "sne";
+      return "ne";
     case CmpPredicate::LT:
       return "slt";
     case CmpPredicate::LE:

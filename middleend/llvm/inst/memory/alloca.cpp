@@ -15,6 +15,7 @@ auto AllocaInst::Create(context::LLVMIRContext *context, type::Type *result_type
   auto ptr_type = type_context->GetPtrType(result_type);
   auto res = context->GetNewRegOperand(ptr_type);
   inst->SetResult(res);
+  res->SetInstruction(inst);
   return inst;
 }
 

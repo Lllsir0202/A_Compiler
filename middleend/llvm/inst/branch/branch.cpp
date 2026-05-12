@@ -4,7 +4,7 @@
 namespace middleend::llvm::inst {
 auto BrInst::Emit(std::ofstream *out) const -> void {
   *out << "  ";
-  *out << "br ";
+  *out << "br label ";
   target_->Emit(out);
   *out << "\n";
 }
@@ -34,9 +34,9 @@ auto BrCondInst::Emit(std::ofstream *out) const -> void {
   // Has checked in verify that condition_ is a boolean
   *out << "i1 ";
   GetCondition()->Emit(out);
-  *out << ", ";
+  *out << ", label ";
   true_target_->Emit(out);
-  *out << ", ";
+  *out << ", label ";
   false_target_->Emit(out);
   *out << "\n";
 }

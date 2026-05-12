@@ -146,6 +146,28 @@ auto LowerHelper::LowerFuncDefOp(mlir::base::FuncDefOp *func_def) -> void {
         LowerDispatch(op);
       }
     }
+
+    // After lowering the function body,
+    // we will update the pending phi instructions
+    // with the incoming values and corresponding blocks
+    while (!pending_phi_insts_.empty() && !pending_phi_ops_.empty()) {
+      auto phi_inst = pending_phi_insts_.front();
+      pending_phi_insts_.pop();
+      auto phi_op = pending_phi_ops_.front();
+      pending_phi_ops_.pop();
+      auto incomings = phi_op->GetIncoming();
+      for (auto &incoming : incomings) {
+        auto incoming_value = incoming.first;
+        auto incoming_block = incoming.second;
+        auto llvm_incoming_value =
+            GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(incoming_value);
+        auto llvm_incoming_block = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIRBlockFromMLIRBlock(incoming_block);
+        auto llvm_incoming_block_operand =
+            GET_LLVMIR_CONTEXT()->GetResourceContext()->GetLabelOperand(llvm_incoming_block->GetID());
+        phi_inst->AddIncoming(llvm_incoming_value, llvm_incoming_block_operand);
+      }
+    }
+
     // Exit the function, reset the current function in lower context
     GET_LLVMIR_CONTEXT()->GetLowerContext()->SetCurrentFunction(nullptr);
     GET_LLVMIR_CONTEXT()->GetResourceContext()->ResetFunctionLevelResource();
@@ -457,22 +479,16 @@ auto LowerHelper::LowerCondBrOp(mlir::base::CondBrOp *cond_br_op) -> void {
 auto LowerHelper::LowerPhiOp(mlir::base::PhiOp *phi_op) -> void {
   // lower phi instruction
   auto result = phi_op->GetRes();
-  auto incomings = phi_op->GetIncoming();
-  std::vector<llvm::utils::Operand *> llvm_incoming_values;
-  std::vector<llvm::utils::LabelOperand *> llvm_incoming_labels;
-  for (auto &incoming : incomings) {
-    auto value = incoming.first;
-    auto block = incoming.second;
-    auto llvm_value = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(value);
-    auto llvm_block = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIRBlockFromMLIRBlock(block);
-    auto llvm_label_op = GET_LLVMIR_CONTEXT()->GetResourceContext()->GetLabelOperand(llvm_block->GetID());
-    llvm_incoming_values.emplace_back(llvm_value);
-    llvm_incoming_labels.emplace_back(llvm_label_op);
-  }
+
   auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::PhiInst>(
-      GET_LLVMIR_CONTEXT(), llvm_incoming_values, llvm_incoming_labels, result->GetType());
+      GET_LLVMIR_CONTEXT(), std::vector<llvm::utils::Operand *>{}, std::vector<llvm::utils::LabelOperand *>{},
+      result->GetType());
   GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
   GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());
+  // Since the phi instruction needs to be updated with the incoming values and corresponding blocks later,
+  // we will store the phi instruction and corresponding mlir phi operation in the pending list, and update
+  pending_phi_ops_.push(phi_op);
+  pending_phi_insts_.push(inst);
   inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());
 }
 

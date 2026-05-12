@@ -1,4 +1,5 @@
 #include "middleend/pass/analysis/domtree/domtree.h"
+#include <stack>
 #include "context/compiler_context.h"
 #include "middleend/pass/analysis/cfg/cfg.h"
 #define GET_PASS_CONTEXT() (compiler_context_->GetPassContext())
@@ -49,9 +50,6 @@ auto DomTreeNode::ProcessBucket() -> void {
   auto &bucket = parent_->bucket_;
   for (auto *node : bucket) {
     auto *y = node->Eval();
-    if (y == nullptr) {
-      printf("ProcessBucket: node %zu, eval returns nullptr\n", node->dfs_order_);
-    }
     if (y->semi_dominator_ == node->semi_dominator_) {
       node->idom_ = node->parent_;
     } else {
@@ -109,6 +107,7 @@ auto DomTree::Initialize(CFGNode *cfg_node) -> void {
   // Add the new DomTreeNode to the nodes_ vector and the mapping
   nodes_.emplace_back(dom_node);
   cfg_node_to_dom_tree_node_[cfg_node] = dom_node;
+  dom_tree_node_to_cfg_node_[dom_node] = cfg_node;
 
   // Traverse the successors of the cfg_node, and recursively initialize the DomTreeNode for each successor
   auto successors = helper_->GetSuccessors(cfg_node);
@@ -149,8 +148,11 @@ auto DomTree::BuildDomTree(FunctionCFG *function_cfg) -> void {
   // Calculate the immediate dominator for each node
   CalculateImmediateDominator();
 
+  // Build the post order for the domtree,
+  BuildPostOrder(entry_node_);
+
 // Print for debug
-#define DEBUG
+// #define DEBUG
 #ifdef DEBUG
   // Print the dominator tree for debug
   printf("Dominator Tree:\n");
@@ -163,7 +165,23 @@ auto DomTree::BuildDomTree(FunctionCFG *function_cfg) -> void {
     }
     printf("semi_dominator = %zu\n", node->semi_dominator_->dfs_order_);
   }
+
+  // Print the post order for debug
+  printf("Post Order:\n");
+  for (auto &node : post_order_) {
+    printf("Node %zu\n", node->dfs_order_);
+  }
 #endif
+}
+
+// Build the post order for the domtree,
+// which will be used in some optimizations like code motion
+auto DomTree::BuildPostOrder(DomTreeNode *node) -> void {
+  // A tree, never has cycle
+  for (auto &child : node->children_) {
+    BuildPostOrder(child);
+  }
+  post_order_.emplace_back(node);
 }
 
 // DomTreePass implementation

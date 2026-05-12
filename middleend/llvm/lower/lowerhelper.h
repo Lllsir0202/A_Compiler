@@ -1,10 +1,13 @@
 #ifndef MIDDLEEND_LLVM_LOWER_LOWERHELPER_H
 #define MIDDLEEND_LLVM_LOWER_LOWERHELPER_H
+#include <queue>
 #include "context/compiler_context.h"
+#include "middleend/llvm/inst/branch/phi.h"
 #include "middleend/mlir/dialect/base/base.h"
 #include "middleend/mlir/dialect/func/return.h"
 #include "middleend/mlir/dialect/var/var.h"
 #include "middleend/mlir/utils/operation/operation.h"
+#include "mlir/dialect/base/phi.h"
 #include "mlir/dialect/var/set.h"
 namespace middleend::llvm::lower {
 class LowerHelper {
@@ -87,6 +90,9 @@ class LowerHelper {
   auto LowerGlobalVarDefOp(middleend::mlir::var::GlobalVarDefOp *global_var_def_op) -> void;
   auto LowerVarGetValOp(middleend::mlir::var::VarGetValOp *var_get_val_op) -> void;
   auto LowerVarSetOp(middleend::mlir::var::VarSetOp *var_set_val_op) -> void;
+
+  std::queue<mlir::base::PhiOp *> pending_phi_ops_;
+  std::queue<llvm::inst::PhiInst *> pending_phi_insts_;
 };
 
 }  // namespace middleend::llvm::lower

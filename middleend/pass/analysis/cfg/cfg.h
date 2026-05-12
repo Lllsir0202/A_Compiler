@@ -89,7 +89,7 @@ class CFGPass : public AnalysisPass {
     // Since CFG has no previous pass dependency,
     // we can directly build the CFG in the Run function,
     cfg_builder_->BuildCFG();
-    Print();
+    // Print();
     // Validate the pass after building the CFG,
     // since some passes might depend on the CFG information,
     Validate();
