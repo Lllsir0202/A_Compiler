@@ -2,6 +2,7 @@
 #include <memory>
 #include <unordered_set>
 #include "context/compiler_context.h"
+#include "context/pass_context.h"
 #include "frontend/ast/visitor/semantic/sem_analysis.h"
 #include "frontend/frontend.h"
 #include "middleend/builder/mlir/mlirbuilder.h"
@@ -10,7 +11,7 @@
 #include "middleend/mlir/lower/lower.h"
 #include "middleend/mlir/verifer/verifer.h"
 #include "middleend/pass/analysis/cfg/mlircfg.h"
-#include "pass_context.h"
+#include "middleend/pass/analysis/domtree/domtree.h"
 #include "stages/ast/ast_stage.h"
 #include "stages/lexer/lexer_stage.h"
 #include "stages/llvm/llvm_stage.h"
@@ -241,9 +242,14 @@ auto main(int argc, char *argv[]) -> int {
   auto cfg_pass = context::PassContext::CreatePass<middleend::pass::analysis::CFGPass>(
       &compiler_context, mlir_cfg_builder, middleend::pass::PassStage::MLIR);
   mlirpass_context->AddPass(cfg_pass);
-  mlirpass_context->RunPasses();
+  auto domtree_pass = context::PassContext::CreatePass<middleend::pass::analysis::DomTreePass>(
+      &compiler_context, middleend::pass::PassStage::MLIR);
+  mlirpass_context->AddPass(domtree_pass);
+  ret = mlirpass_context->RunPasses();
 
-  cfg_pass->Print();
+  if (ret != 0) {
+    return 1;
+  }
 
   if (stage == "baseir" && ret == 0) {
     stage_ptr = std::make_unique<stages::MLIRStage>(&compiler_context);

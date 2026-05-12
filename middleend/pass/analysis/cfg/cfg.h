@@ -1,7 +1,7 @@
 #ifndef MIDDLEEND_PASS_ANALYSIS_CFG_CFG_H
 #define MIDDLEEND_PASS_ANALYSIS_CFG_CFG_H
 #include <vector>
-#include "middleend/pass/pass.h"
+#include "middleend/pass/analysis/analysis.h"
 namespace middleend::pass::analysis {
 
 class CFGNode {
@@ -30,7 +30,7 @@ class CFGNode {
   // pass stage
   PassStage pass_stage_;
   // Implement the CFGNode for Block and BasicBlock
-  size_t id_;
+  size_t id_{0};
 };
 
 // Each function has a CFG
@@ -60,12 +60,12 @@ class FunctionCFG {
   const PassStage cfg_stage_;
 
   std::vector<CFGNode *> nodes_;
-  CFGNode *entry_node_;
+  CFGNode *entry_node_{nullptr};
   // Might be a list of exit nodes, we will use it in the future
   // to unify the return point
   std::vector<CFGNode *> exit_nodes_;
   // Add information to recognize the function in concrete class
-  size_t id_;
+  size_t id_{0};
 };
 
 // Used to build CFG
@@ -81,13 +81,30 @@ class CFGBuilder {
   std::vector<FunctionCFG *> function_cfgs_;
 };
 
-class CFGPass : public Pass {
+class CFGPass : public AnalysisPass {
  public:
   explicit CFGPass(context::CompilerContext *compiler_context, CFGBuilder *cfg_builder, PassStage pass_stage)
-      : Pass(compiler_context, pass_stage), cfg_builder_(cfg_builder) {}
-  auto Run() -> void override { cfg_builder_->BuildCFG(); }
+      : AnalysisPass(compiler_context, pass_stage), cfg_builder_(cfg_builder) {}
+  auto Run() -> void override {
+    // Since CFG has no previous pass dependency,
+    // we can directly build the CFG in the Run function,
+    cfg_builder_->BuildCFG();
+    Print();
+    // Validate the pass after building the CFG,
+    // since some passes might depend on the CFG information,
+    Validate();
+  }
   ~CFGPass() override { delete cfg_builder_; }
   auto Name() const -> std::string override { return "CFGPass"; }
+  // CFG has no specific verification logic for now, we can just return true
+  auto Verify() -> bool override { return true; }
+  auto IsAnalysisPass() -> bool override { return true; }
+
+  /**
+   * @brief Get the CFG information for other passes
+   */
+  auto Get() -> std::vector<FunctionCFG *> { return cfg_builder_->GetFunctionCFGs(); }
+
   auto Print() -> void {
     printf("CFGPass: \n");
     for (const auto &func_cfg : cfg_builder_->GetFunctionCFGs()) {

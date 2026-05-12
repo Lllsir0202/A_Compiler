@@ -12,11 +12,21 @@ class PassContext {
   }
 
   auto AddPass(middleend::pass::Pass *pass) -> void { pass_manager_->AddPass(pass); }
-  auto RunPasses() -> void { pass_manager_->RunPasses(); }
+  auto RunPasses() -> int { return pass_manager_->RunPasses(); }
+
+  // Interfaces to get a pass by name
+  auto GetPassByName(const std::string &pass_name) -> middleend::pass::Pass * {
+    return pass_manager_->GetPassByName(pass_name);
+  }
 
   template <typename PassType, typename... Args>
   static auto CreatePass(Args &&...args) -> PassType * {
     return new PassType(std::forward<Args>(args)...);
+  }
+
+  template <typename PassType>
+  auto GetSpecPass(const std::string &pass_name) -> PassType * {
+    return pass_manager_->GetSpecPass<PassType>(pass_name);
   }
 
  private:
