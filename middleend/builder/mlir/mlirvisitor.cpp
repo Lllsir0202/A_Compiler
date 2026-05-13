@@ -237,6 +237,7 @@ inline auto MLIRVisitor::HandleShortCircuitOperator(frontend::ast::BinaryExprNod
      */
     // Add yield operation in then block
     auto yield_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::YieldOp>(GET_MLIR_CONTEXT(), rhs_value);
+    rhs_value->AddUse(yield_op, 0);
     then_block->AddOperation(yield_op);
     auto if_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::IfOp>(GET_MLIR_CONTEXT(), 1, lhs_value, then_region,
                                                                       else_region);
@@ -272,6 +273,7 @@ inline auto MLIRVisitor::HandleShortCircuitOperator(frontend::ast::BinaryExprNod
     then_region->blocks_.emplace_back(then_block);
     // Remember to set and reset the current region and insert point while generating the then block
     auto then_yield_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::YieldOp>(GET_MLIR_CONTEXT(), lhs_value);
+    lhs_value->AddUse(then_yield_op, 0);
     then_block->AddOperation(then_yield_op);
 
     // in or(||) operater, the rhs will only be calculated when the lhs is false,

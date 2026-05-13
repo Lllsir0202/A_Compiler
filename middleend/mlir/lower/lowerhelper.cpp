@@ -285,6 +285,9 @@ auto LowerHelper::LowerCopyOp(middleend::mlir::arithm::CopyOp *copy_op) -> void 
 auto LowerHelper::LowerFuncCallOp(middleend::mlir::func::FuncCallOp *func_call_op) -> void {
   auto new_func_call_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::FuncCallOp>(
       func_call_op->GetRes(), func_call_op->GetName(), func_call_op->GetOperands());
+  for (auto &operand : func_call_op->GetOperands()) {
+    operand->ReplaceAllOpUsesWith(func_call_op, new_func_call_op);
+  }
   GetInsertPoint()->AddOperation(new_func_call_op);
 }
 
@@ -612,6 +615,7 @@ auto LowerHelper::LowerWhileOp(middleend::mlir::scf::WhileOp *while_op) -> void 
     // In exit block, most of the time, the value is from condition block.
     auto phi_node = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::PhiOp>(result);
     phi_node->AddIncoming(cond_block_args[i], new_cond_block);
+    cond_block_args[i]->ReplaceAllOpUsesWith(condition_op, phi_node, 0);
     exit_block->AddOperation(phi_node);
   }
 

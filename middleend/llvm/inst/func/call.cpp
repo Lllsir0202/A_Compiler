@@ -49,52 +49,60 @@ auto CallInst::Verify(context::CompilerContext *context) const -> bool {
     // check if it is a library function
     auto func_declare = context->GetIRContext()->GetLLVMIRContext()->GetResourceContext()->GetLibraryFunction(callee_);
     if (func_declare == nullptr) {
-      context->Print("Callee function is not defined");
+      context->Print("Callee function is not defined\n");
       return false;
     }
+
     // check if the argument types match
     if (func_declare->GetArgTypes().size() != operands_.size()) {
       // If the number of arguments does not match, report error
-      context->Print("Number of arguments of the call instruction does not match the library function definition");
+      context->Print("Number of arguments of the call instruction does not match the library function definition\n");
       return false;
     }
     for (size_t i = 0; i < operands_.size(); ++i) {
+      if (operands_[i] == nullptr) {
+        context->Print("Argument operand of the call instruction is not set correctly\n");
+        return false;
+      }
+
       if (operands_[i]->GetType() == nullptr || operands_[i]->GetType() != func_declare->GetArgTypes()[i]) {
         // If the argument type is not compatible, report error
-        context->Print("Argument type of the call instruction does not match the library function definition");
+        context->Print("Argument type of the call instruction does not match the library function definition\n");
         return false;
       }
     }
+
     if (return_type_ == nullptr || return_type_ != func_declare->GetReturnType()) {
       // If the return type is not compatible, report error
-      context->Print("Return type of the call instruction does not match the library function definition");
+      context->Print("Return type of the call instruction does not match the library function definition\n");
       return false;
     }
+
     return true;
   }
 
   if (func_def->GetArgTypes().size() != operands_.size()) {
     // If the number of arguments does not match, report error
-    context->Print("Number of arguments of the call instruction does not match the function definition");
+    context->Print("Number of arguments of the call instruction does not match the function definition\n");
     return false;
   }
   for (size_t i = 0; i < operands_.size(); ++i) {
     if (operands_[i]->GetType() == nullptr || operands_[i]->GetType() != func_def->GetArgTypes()[i]) {
       // If the argument type is not compatible, report error
-      context->Print("Argument type of the call instruction does not match the function definition");
+      context->Print("Argument type of the call instruction does not match the function definition\n");
       return false;
     }
   }
 
   if (return_type_ == nullptr || return_type_ != func_def->GetReturnType()) {
     // If the return type is not compatible, report error
-    context->Print("Return type of the call instruction does not match the function definition");
+    context->Print("Return type of the call instruction does not match the function definition\n");
     return false;
   }
 
   if (result_ != nullptr && result_->GetInstruction() != this) {
     // If the result operand is not set correctly, report error
-    context->Print("Result operand of the call instruction is not set correctly");
+    context->Print("Result operand of the call instruction is not set correctly\n");
     return false;
   }
 

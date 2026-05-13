@@ -538,7 +538,6 @@ auto LowerHelper::LowerGlobalVarDefOp(mlir::var::GlobalVarDefOp *global_var_def)
   if (type->GetKind() == type::TypeKind::ARRAY) {
     type = static_cast<type::ArrayType *>(var_type)->GetElementType();
   }
-  printf("var type is %s\n", type->ToString().c_str());
   // Get result type, which should be a pointer type pointing to the variable type
   auto result_type = var_type;
   if (type->GetKind() == type::TypeKind::INT) {
