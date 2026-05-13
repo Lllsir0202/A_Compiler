@@ -87,14 +87,15 @@ auto LLVMIRResourceContext::GetFunctionDef(const std::string &func_name) -> midd
   return module_->GetFunctionDef(func_name);
 }
 
-auto LLVMIRResourceContext::AddLibraryFunction(middleend::llvm::inst::FuncDefInst *func_def) -> void {
+auto LLVMIRResourceContext::AddLibraryFunction(middleend::llvm::inst::FuncDeclareInst *func_def) -> void {
   if (module_ == nullptr) {
     throw std::logic_error("Module is not set in LLVMIRContext");
   }
   module_->AddLibraryFuncDef(func_def);
 }
 
-auto LLVMIRResourceContext::GetLibraryFunction(const std::string &func_name) -> middleend::llvm::inst::FuncDefInst * {
+auto LLVMIRResourceContext::GetLibraryFunction(const std::string &func_name)
+    -> middleend::llvm::inst::FuncDeclareInst * {
   // First check if the function is a library function
   if (module_ == nullptr) {
     throw std::logic_error("Module is not set in LLVMIRContext");

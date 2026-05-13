@@ -1,12 +1,14 @@
 #ifndef MIDDLEEND_LLVM_UTILS_STRUCT_MODULE_H
 #define MIDDLEEND_LLVM_UTILS_STRUCT_MODULE_H
 #include <unordered_map>
-#include "llvm/inst/memory/globaldef.h"
+#include "middleend/llvm/inst/func/funcdeclare.h"
+#include "middleend/llvm/inst/memory/globaldef.h"
 #include "middleend/llvm/utils/struct/function.h"
-#include "mlir/dialect/var/globaldef.h"
+#include "middleend/mlir/dialect/var/globaldef.h"
 
 namespace middleend::llvm::inst {
 class FuncDefInst;
+class FuncDeclareInst;
 }  // namespace middleend::llvm::inst
 
 namespace middleend::mlir::var {
@@ -58,12 +60,12 @@ class Module {
     global_var_defs_[var_name] = global_var_def;
   }
 
-  auto GetLibraryFuncDefs() const -> const std::vector<middleend::llvm::inst::FuncDefInst *> & {
-    return library_func_def_insts_;
+  auto GetLibraryFuncDefs() const -> const std::vector<middleend::llvm::inst::FuncDeclareInst *> & {
+    return library_func_declare_insts_;
   }
 
-  auto AddLibraryFuncDef(middleend::llvm::inst::FuncDefInst *func_def) -> void {
-    library_func_def_insts_.emplace_back(func_def);
+  auto AddLibraryFuncDef(middleend::llvm::inst::FuncDeclareInst *func_def) -> void {
+    library_func_declare_insts_.emplace_back(func_def);
   }
 
   auto Emit(std::ofstream *out) const -> void;
@@ -81,7 +83,7 @@ class Module {
   std::unordered_map<std::string, middleend::llvm::inst::GlobalDefInst *> global_var_defs_;
 
   // Record libraray functions
-  std::vector<middleend::llvm::inst::FuncDefInst *> library_func_def_insts_;
+  std::vector<middleend::llvm::inst::FuncDeclareInst *> library_func_declare_insts_;
 };
 
 }  // namespace middleend::llvm::utils

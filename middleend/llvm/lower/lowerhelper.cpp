@@ -44,56 +44,63 @@ namespace middleend::llvm::lower {
 auto LowerHelper::LowerDispatch(mlir::Operation *op) -> void {
   // Dispatch the lowering operation in base dialect
   // Function-related operations
-  LOWER_DISPATCH(mlir::base::FuncDefOp, FuncDefOp)
-  LOWER_DISPATCH(mlir::base::FuncCallOp, FuncCallOp)
-  LOWER_DISPATCH(mlir::func::ReturnOp, ReturnOp)
-  // Branch
-  LOWER_DISPATCH(mlir::base::BrOp, BrOp)
-  LOWER_DISPATCH(mlir::base::CondBrOp, CondBrOp)
-  LOWER_DISPATCH(mlir::base::PhiOp, PhiOp)
-  // Arithmetic operations
-  LOWER_DISPATCH(mlir::base::AddOp, AddOp)
-  LOWER_DISPATCH(mlir::base::SubOp, SubOp)
-  LOWER_DISPATCH(mlir::base::MulOp, MulOp)
-  LOWER_DISPATCH(mlir::base::DivOp, DivOp)
-  LOWER_DISPATCH(mlir::base::ModOp, ModOp)
-  LOWER_DISPATCH(mlir::base::AddFOp, AddFOp)
-  LOWER_DISPATCH(mlir::base::SubFOp, SubFOp)
-  LOWER_DISPATCH(mlir::base::MulFOp, MulFOp)
-  LOWER_DISPATCH(mlir::base::DivFOp, DivFOp)
-  // Lower comparison operations
-  LOWER_DISPATCH(mlir::base::EqualOp, ICmpOp)
-  LOWER_DISPATCH(mlir::base::NotEqualOp, ICmpOp)
-  LOWER_DISPATCH(mlir::base::LessOp, ICmpOp)
-  LOWER_DISPATCH(mlir::base::LessEqualOp, ICmpOp)
-  LOWER_DISPATCH(mlir::base::GreaterOp, ICmpOp)
-  LOWER_DISPATCH(mlir::base::GreaterEqualOp, ICmpOp)
-  LOWER_DISPATCH(mlir::base::EqualFOp, FCmpOp)
-  LOWER_DISPATCH(mlir::base::NotEqualFOp, FCmpOp)
-  LOWER_DISPATCH(mlir::base::LessFOp, FCmpOp)
-  LOWER_DISPATCH(mlir::base::LessEqualFOp, FCmpOp)
-  LOWER_DISPATCH(mlir::base::GreaterFOp, FCmpOp)
-  LOWER_DISPATCH(mlir::base::GreaterEqualFOp, FCmpOp)
-  // Unary operations
-  LOWER_DISPATCH(mlir::base::NegOp, NegOp)
-  LOWER_DISPATCH(mlir::base::NegFOp, NegFOp)
-  LOWER_DISPATCH(mlir::base::NotOp, NotOp)
-  LOWER_DISPATCH(mlir::base::ConstIntOp, IntLiteralOp)
-  LOWER_DISPATCH(mlir::base::ConstFloatOp, FloatLiteralOp)
-  // Cast operations
-  LOWER_DISPATCH(mlir::base::Int2FloatOp, Int2FloatOp)
-  LOWER_DISPATCH(mlir::base::Float2IntOp, Float2IntOp)
-  LOWER_DISPATCH(mlir::base::Int2BoolOp, Int2BoolOp)
-  LOWER_DISPATCH(mlir::base::Float2BoolOp, Float2BoolOp)
-  LOWER_DISPATCH(mlir::base::Bool2IntOp, Bool2IntOp)
-  // Variable-related operations
-  LOWER_DISPATCH(middleend::mlir::var::VarGetPtrOp, VarGetPtrOp)
-  LOWER_DISPATCH(middleend::mlir::var::VarDefOp, VarDefOp)
-  LOWER_DISPATCH(middleend::mlir::var::GlobalVarDefOp, GlobalVarDefOp)
-  LOWER_DISPATCH(middleend::mlir::var::VarGetValOp, VarGetValOp)
-  LOWER_DISPATCH(middleend::mlir::var::VarSetOp, VarSetOp)
-  // Copy operation
-  LOWER_DISPATCH(middleend::mlir::base::CopyOp, CopyOp)
+  try {
+    LOWER_DISPATCH(mlir::base::FuncDefOp, FuncDefOp)
+    LOWER_DISPATCH(mlir::base::FuncCallOp, FuncCallOp)
+    LOWER_DISPATCH(mlir::func::ReturnOp, ReturnOp)
+    // Branch
+    LOWER_DISPATCH(mlir::base::BrOp, BrOp)
+    LOWER_DISPATCH(mlir::base::CondBrOp, CondBrOp)
+    LOWER_DISPATCH(mlir::base::PhiOp, PhiOp)
+    // Arithmetic operations
+    LOWER_DISPATCH(mlir::base::AddOp, AddOp)
+    LOWER_DISPATCH(mlir::base::SubOp, SubOp)
+    LOWER_DISPATCH(mlir::base::MulOp, MulOp)
+    LOWER_DISPATCH(mlir::base::DivOp, DivOp)
+    LOWER_DISPATCH(mlir::base::ModOp, ModOp)
+    LOWER_DISPATCH(mlir::base::AddFOp, AddFOp)
+    LOWER_DISPATCH(mlir::base::SubFOp, SubFOp)
+    LOWER_DISPATCH(mlir::base::MulFOp, MulFOp)
+    LOWER_DISPATCH(mlir::base::DivFOp, DivFOp)
+    // Lower comparison operations
+    LOWER_DISPATCH(mlir::base::EqualOp, ICmpOp)
+    LOWER_DISPATCH(mlir::base::NotEqualOp, ICmpOp)
+    LOWER_DISPATCH(mlir::base::LessOp, ICmpOp)
+    LOWER_DISPATCH(mlir::base::LessEqualOp, ICmpOp)
+    LOWER_DISPATCH(mlir::base::GreaterOp, ICmpOp)
+    LOWER_DISPATCH(mlir::base::GreaterEqualOp, ICmpOp)
+    LOWER_DISPATCH(mlir::base::EqualFOp, FCmpOp)
+    LOWER_DISPATCH(mlir::base::NotEqualFOp, FCmpOp)
+    LOWER_DISPATCH(mlir::base::LessFOp, FCmpOp)
+    LOWER_DISPATCH(mlir::base::LessEqualFOp, FCmpOp)
+    LOWER_DISPATCH(mlir::base::GreaterFOp, FCmpOp)
+    LOWER_DISPATCH(mlir::base::GreaterEqualFOp, FCmpOp)
+    // Unary operations
+    LOWER_DISPATCH(mlir::base::NegOp, NegOp)
+    LOWER_DISPATCH(mlir::base::NegFOp, NegFOp)
+    LOWER_DISPATCH(mlir::base::NotOp, NotOp)
+    LOWER_DISPATCH(mlir::base::ConstIntOp, IntLiteralOp)
+    LOWER_DISPATCH(mlir::base::ConstFloatOp, FloatLiteralOp)
+    // Cast operations
+    LOWER_DISPATCH(mlir::base::Int2FloatOp, Int2FloatOp)
+    LOWER_DISPATCH(mlir::base::Float2IntOp, Float2IntOp)
+    LOWER_DISPATCH(mlir::base::Int2BoolOp, Int2BoolOp)
+    LOWER_DISPATCH(mlir::base::Float2BoolOp, Float2BoolOp)
+    LOWER_DISPATCH(mlir::base::Bool2IntOp, Bool2IntOp)
+    // Variable-related operations
+    LOWER_DISPATCH(middleend::mlir::var::VarGetPtrOp, VarGetPtrOp)
+    LOWER_DISPATCH(middleend::mlir::var::VarDefOp, VarDefOp)
+    LOWER_DISPATCH(middleend::mlir::var::GlobalVarDefOp, GlobalVarDefOp)
+    LOWER_DISPATCH(middleend::mlir::var::VarGetValOp, VarGetValOp)
+    LOWER_DISPATCH(middleend::mlir::var::VarSetOp, VarSetOp)
+    // Copy operation
+    LOWER_DISPATCH(middleend::mlir::base::CopyOp, CopyOp)
+  } catch (const std::logic_error &e) {
+    throw std::logic_error("Error in LowerDispatch for operation: " + op->Name() + ", error message: " + e.what());
+  } catch (const std::runtime_error &e) {
+    throw std::runtime_error("Runtime error in LowerDispatch for operation: " + op->Name() +
+                             ", error message: " + e.what());
+  }
   // If not recognized, throw an error
   throw std::logic_error("Unsupported operation type in LowerDispatch: " + op->Name());
 }
@@ -138,14 +145,40 @@ auto LowerHelper::LowerFuncDefOp(mlir::base::FuncDefOp *func_def) -> void {
         GET_LLVMIR_CONTEXT(), func_def->GetName(), func_def->GetReturnType(), llvm_arg_types, llvm_args);
     GET_LLVMIR_CONTEXT()->GetResourceContext()->AddFunctionDef(func_def->GetName(), func_def_inst);
     // Then lower the function body
+
     auto blocks = func_def->GetBlocks();
+
+    // Create all alloca instructions in the entry block,
+    // and then initialize in the point of the original variable definition
+    for (auto block : blocks) {
+      for (auto *op : block->operations_) {
+        if (auto var_def_op = mlir::DynamicOrNull<middleend::mlir::var::VarDefOp>(op)) {
+          auto var_type = var_def_op->GetRes()->type_;
+          if (var_type->GetKind() == type::TypeKind::ARRAY) {
+            auto array_type = dynamic_cast<type::ArrayType *>(var_type);
+            var_type = array_type->GetElementType();
+          }
+          auto result_type = var_def_op->GetRes()->GetType();
+          auto alloca_inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::AllocaInst>(
+              GET_LLVMIR_CONTEXT(), result_type, var_type, var_def_op->GetDimensions());
+          GET_LLVMIR_CONTEXT()->GetLowerContext()->GetCurrentFunction()->GetEntryBlock()->AddInstBack(alloca_inst);
+          GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(var_def_op->GetRes(),
+                                                                               alloca_inst->GetResult());
+          alloca_inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetLowerContext()->GetCurrentFunction()->GetEntryBlock());
+        }
+      }
+    }
+
     for (auto block : blocks) {
       auto llvm_block = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIRBlockFromMLIRBlock(block);
       GET_LLVMIR_CONTEXT()->GetLowerContext()->SetInsertPoint(llvm_block);
+      printf("Lowering block with id: %zu\n", llvm_block->GetID());
       for (auto *op : block->operations_) {
+        printf("Lowering operation: %s\n", op->Name().c_str());
         LowerDispatch(op);
       }
     }
+    printf("Finished lowering function: %s\n", func_def->GetName().c_str());
 
     // After lowering the function body,
     // we will update the pending phi instructions
@@ -528,19 +561,12 @@ auto LowerHelper::LowerGlobalVarDefOp(mlir::var::GlobalVarDefOp *global_var_def)
 
 auto LowerHelper::LowerVarDefOp(mlir::var::VarDefOp *var_def) -> void {
   // Local variable definition will definitely be an alloca instruction
-  // Get allocated type
-  auto res = var_def->GetRes();
-  auto var_type = res->GetType();
-  if (var_type->GetKind() == type::TypeKind::ARRAY) {
-    var_type = static_cast<type::ArrayType *>(var_type)->GetElementType();
-  }
-  // Has got allocated operand type
-  auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::AllocaInst>(
-      GET_LLVMIR_CONTEXT(), res->GetType(), var_type, var_def->GetDimensions());
-  GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstFront(inst);
-  GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(res, inst->GetResult());
-  inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());
+  // For initializations,
+  // we will create store instructions to
+  // store the initial values to the allocated memory
+  
 }
+
 /**
  * @note: Important Operations:
  * 1. GetPtrOp: Currently the pointer might be :

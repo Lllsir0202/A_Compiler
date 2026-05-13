@@ -14,16 +14,16 @@ Module::~Module() {
   for (auto &pair : global_var_defs_) {
     delete pair.second;
   }
-  for (auto func_def : library_func_def_insts_) {
-    delete func_def;
+  for (auto func_declare : library_func_declare_insts_) {
+    delete func_declare;
   }
 }
 
 auto Module::Emit(std::ofstream *out) const -> void {
   // Emit the module in llvm ir format
   // Emit the library functions first
-  for (const auto &func_def : library_func_def_insts_) {
-    func_def->Emit(out);
+  for (const auto &func_declare : library_func_declare_insts_) {
+    func_declare->Emit(out);
   }
   // Emit the global variable definitions
   for (const auto &pair : global_var_defs_) {

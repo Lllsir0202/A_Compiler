@@ -36,7 +36,7 @@ auto AllocaInst::Emit(std::ofstream *out) const -> void {
   } else {
     *out << utils::Operand::GetTypeInLLVMIR(allocated_type_);
   }
-  *out << ", align " << utils::Operand::GetTypeInLLVMIR(result_->GetType()) << "\n";
+  *out << ", align " << allocated_type_->GetAlign() << "\n";
 }
 
 auto AllocaInst::Verify(context::CompilerContext *context) const -> bool {
@@ -47,6 +47,14 @@ auto AllocaInst::Verify(context::CompilerContext *context) const -> bool {
   }
   if (result_ == nullptr) {
     context->Print("Result operand of alloca instruction cannot be null");
+    return false;
+  }
+  if (GetParentBlock() == nullptr) {
+    context->Print("Parent block of alloca instruction cannot be null");
+    return false;
+  }
+  if (result_->GetInstruction() != this) {
+    context->Print("Result operand of alloca instruction must point to the instruction itself");
     return false;
   }
   if (!result_->IsRegister()) {

@@ -41,6 +41,7 @@ enum class OpKind : uint8_t {
   Ret,
   // Other operations
   FuncDef,
+  FuncDeclare,
   Call,
   Alloca,
   GlobalDef,

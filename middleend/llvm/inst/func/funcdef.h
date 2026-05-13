@@ -30,10 +30,6 @@ class FuncDefInst : public Instruction {
   static auto Create(context::LLVMIRContext *context, const std::string &func_name, type::Type *return_type,
                      std::vector<type::Type *> arg_types, std::vector<utils::Operand *> arg_operands) -> FuncDefInst *;
 
-  // Used for library functions, which do not have argument operands
-  static auto Create(context::LLVMIRContext *context, const std::string &func_name, type::Type *return_type,
-                     std::vector<type::Type *> arg_types) -> FuncDefInst *;
-
   friend class utils::factory::InstFactory;
 
   // Function name

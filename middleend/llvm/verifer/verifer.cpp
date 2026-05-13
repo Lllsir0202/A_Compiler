@@ -12,6 +12,7 @@ auto LLVMVerifer::Verify() -> bool {
       compiler_context_->Print("Null function found in module");
       return false;
     }
+
     for (auto block : function->GetBasicBlocks()) {
       if (block == nullptr) {
         compiler_context_->Print("Null block found in function: " + function->GetFuncName());

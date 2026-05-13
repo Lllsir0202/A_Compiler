@@ -13,13 +13,6 @@ auto FuncDefInst::Create([[maybe_unused]] context::LLVMIRContext *context, const
   return inst;
 }
 
-auto FuncDefInst::Create([[maybe_unused]] context::LLVMIRContext *context, const std::string &func_name,
-                         type::Type *return_type, std::vector<type::Type *> arg_types) -> FuncDefInst * {
-  // Create a new function definition instruction for library functions, which do not have argument operands
-  auto *inst = new FuncDefInst(func_name, return_type, std::move(arg_types), {});
-  return inst;
-}
-
 auto FuncDefInst::Verify(context::CompilerContext *context) const -> bool {
   // Verify that the function definition is valid
   // For example, we can check that the function name is not empty,
@@ -34,15 +27,6 @@ auto FuncDefInst::Verify(context::CompilerContext *context) const -> bool {
   }
 
   // Allow library functions to have no argument operands, but still check the argument types
-  if (arg_operands_.empty() && IsLibraryFunction(func_name_)) {
-    for (const auto &arg_type : arg_types_) {
-      if (arg_type == nullptr) {
-        context->Print("Argument type cannot be null");
-        return false;
-      }
-    }
-    return true;
-  }
 
   if (arg_types_.size() != arg_operands_.size()) {
     context->Print("Argument types and operands size mismatch");
@@ -67,23 +51,6 @@ auto FuncDefInst::Verify(context::CompilerContext *context) const -> bool {
 }
 
 auto FuncDefInst::Emit(std::ofstream *out) const -> void {
-  if (IsLibraryFunction(func_name_)) {
-    // format be like:
-    /**
-     * @example:
-     * declare declare i32 @printf(i8*, ...)
-     */
-    *out << "declare " << utils::Operand::GetTypeInLLVMIR(return_type_) << " @" << func_name_ << "(";
-    for (size_t i = 0; i < arg_types_.size(); ++i) {
-      *out << utils::Operand::GetTypeInLLVMIR(arg_types_[i]) << " ";
-      if (i != arg_types_.size() - 1) {
-        *out << ", ";
-      }
-    }
-    *out << ")\n";
-    return;
-  }
-
   // Emit the function definition instruction in LLVM IR format
   *out << "define " << utils::Operand::GetTypeInLLVMIR(return_type_) << " @" << func_name_ << "(";
   for (size_t i = 0; i < arg_types_.size(); ++i) {

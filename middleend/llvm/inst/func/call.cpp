@@ -45,27 +45,27 @@ auto CallInst::Verify(context::CompilerContext *context) const -> bool {
   // Verify the instruction, check if the callee function is defined and the argument types match
   auto func_def = context->GetIRContext()->GetLLVMIRContext()->GetResourceContext()->GetFunctionDef(callee_);
   if (func_def == nullptr) {
-    // If the callee function is not defined, report error
-    // Check if it is a library function
-    func_def = context->GetIRContext()->GetLLVMIRContext()->GetResourceContext()->GetLibraryFunction(callee_);
-    if (func_def == nullptr) {
+    // If the callee function is not defined,
+    // check if it is a library function
+    auto func_declare = context->GetIRContext()->GetLLVMIRContext()->GetResourceContext()->GetLibraryFunction(callee_);
+    if (func_declare == nullptr) {
       context->Print("Callee function is not defined");
       return false;
     }
     // check if the argument types match
-    if (func_def->GetArgTypes().size() != operands_.size()) {
+    if (func_declare->GetArgTypes().size() != operands_.size()) {
       // If the number of arguments does not match, report error
       context->Print("Number of arguments of the call instruction does not match the library function definition");
       return false;
     }
     for (size_t i = 0; i < operands_.size(); ++i) {
-      if (operands_[i]->GetType() == nullptr || operands_[i]->GetType() != func_def->GetArgTypes()[i]) {
+      if (operands_[i]->GetType() == nullptr || operands_[i]->GetType() != func_declare->GetArgTypes()[i]) {
         // If the argument type is not compatible, report error
         context->Print("Argument type of the call instruction does not match the library function definition");
         return false;
       }
     }
-    if (return_type_ == nullptr || return_type_ != func_def->GetReturnType()) {
+    if (return_type_ == nullptr || return_type_ != func_declare->GetReturnType()) {
       // If the return type is not compatible, report error
       context->Print("Return type of the call instruction does not match the library function definition");
       return false;

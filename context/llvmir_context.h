@@ -57,8 +57,8 @@ class LLVMIRResourceContext {
   auto AddFunction(middleend::llvm::utils::Function *function) -> void;
   [[maybe_unused]] auto GetFunction(const std::string &func_name) -> middleend::llvm::utils::Function *;
 
-  auto AddLibraryFunction(middleend::llvm::inst::FuncDefInst *func_def) -> void;
-  auto GetLibraryFunction(const std::string &func_name) -> middleend::llvm::inst::FuncDefInst *;
+  auto AddLibraryFunction(middleend::llvm::inst::FuncDeclareInst *func_def) -> void;
+  auto GetLibraryFunction(const std::string &func_name) -> middleend::llvm::inst::FuncDeclareInst *;
   /**
    * @brief Interfaces to manage global variable-related resources
    */

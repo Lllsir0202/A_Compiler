@@ -1,7 +1,7 @@
 #include "middleend/llvm/lower/lower.h"
 #include <stdexcept>
 #include "context/llvmir_context.h"
-#include "llvm/inst/func/funcdef.h"
+#include "llvm/inst/func/funcdeclare.h"
 #include "middleend/llvm/utils/factory/modulefactory.h"
 #define GET_LLVMIR_CONTEXT() compiler_context_->GetIRContext()->GetLLVMIRContext()
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()
@@ -10,40 +10,40 @@ namespace middleend::llvm::lower {
  * @brief Register Library functions
  */
 auto LLVMLower::RegisterLibraryFunctions() -> void {
-  auto putint_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDefInst>(
+  auto putint_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDeclareInst>(
       GET_LLVMIR_CONTEXT(), "putint", GET_LLVMIR_CONTEXT()->GetVoidType(),
       std::vector<type::Type *>{GET_LLVMIR_CONTEXT()->GetIntegerType()});
 
-  auto getint_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDefInst>(
+  auto getint_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDeclareInst>(
       GET_LLVMIR_CONTEXT(), "getint", GET_LLVMIR_CONTEXT()->GetIntegerType(), std::vector<type::Type *>{});
 
-  auto putfloat_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDefInst>(
+  auto putfloat_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDeclareInst>(
       GET_LLVMIR_CONTEXT(), "putfloat", GET_LLVMIR_CONTEXT()->GetVoidType(),
       std::vector<type::Type *>{GET_LLVMIR_CONTEXT()->GetFloatType()});
-  auto getfloat_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDefInst>(
+  auto getfloat_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDeclareInst>(
       GET_LLVMIR_CONTEXT(), "getfloat", GET_LLVMIR_CONTEXT()->GetFloatType(), std::vector<type::Type *>{});
 
-  auto getch_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDefInst>(
+  auto getch_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDeclareInst>(
       GET_LLVMIR_CONTEXT(), "getch", GET_LLVMIR_CONTEXT()->GetIntegerType(), std::vector<type::Type *>{});
-  auto putch_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDefInst>(
+  auto putch_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDeclareInst>(
       GET_LLVMIR_CONTEXT(), "putch", GET_LLVMIR_CONTEXT()->GetVoidType(),
       std::vector<type::Type *>{GET_LLVMIR_CONTEXT()->GetIntegerType()});
 
-  auto putarray_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDefInst>(
+  auto putarray_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDeclareInst>(
       GET_LLVMIR_CONTEXT(), "putarray", GET_LLVMIR_CONTEXT()->GetVoidType(),
       std::vector<type::Type *>{GET_LLVMIR_CONTEXT()->GetIntegerType(), GET_LLVMIR_CONTEXT()->GetIntegerType()});
-  auto getarray_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDefInst>(
+  auto getarray_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDeclareInst>(
       GET_LLVMIR_CONTEXT(), "getarray", GET_LLVMIR_CONTEXT()->GetIntegerType(),
       std::vector<type::Type *>{GET_LLVMIR_CONTEXT()->GetIntegerType(), GET_LLVMIR_CONTEXT()->GetIntegerType()});
-  auto putfloatarray_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDefInst>(
+  auto putfloatarray_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDeclareInst>(
       GET_LLVMIR_CONTEXT(), "putfarray", GET_LLVMIR_CONTEXT()->GetVoidType(),
       std::vector<type::Type *>{GET_LLVMIR_CONTEXT()->GetIntegerType(), GET_LLVMIR_CONTEXT()->GetIntegerType()});
-  auto getfloatarray_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDefInst>(
+  auto getfloatarray_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDeclareInst>(
       GET_LLVMIR_CONTEXT(), "getfarray", GET_LLVMIR_CONTEXT()->GetFloatType(),
       std::vector<type::Type *>{GET_LLVMIR_CONTEXT()->GetIntegerType(), GET_LLVMIR_CONTEXT()->GetIntegerType()});
-  auto starttime_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDefInst>(
+  auto starttime_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDeclareInst>(
       GET_LLVMIR_CONTEXT(), "starttime", GET_LLVMIR_CONTEXT()->GetVoidType(), std::vector<type::Type *>{});
-  auto stoptime_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDefInst>(
+  auto stoptime_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDeclareInst>(
       GET_LLVMIR_CONTEXT(), "stoptime", GET_LLVMIR_CONTEXT()->GetVoidType(), std::vector<type::Type *>{});
 
   // Register the library functions in the module
