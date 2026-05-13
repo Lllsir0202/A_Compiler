@@ -4,7 +4,6 @@
 #include "mlir/dialect/func/funccall.h"
 #include "mlir/dialect/func/funcdef.h"
 #include "mlir/dialect/func/return.h"
-#include "mlir/dialect/scf/inits.h"
 #include "mlir/dialect/scf/while.h"
 #include "mlir/dialect/var/def.h"
 #include "mlir/dialect/var/getptr.h"
@@ -57,7 +56,6 @@ auto LowerHelper::LowerDispatch(Operation *op) -> void {
   LOWER_DISPATCH(mlir::scf::ConditionOp, ConditionOp)
   LOWER_DISPATCH(mlir::scf::YieldOp, YieldOp)
   LOWER_DISPATCH(mlir::scf::IfOp, IfOp)
-  LOWER_DISPATCH(mlir::scf::InitsOp, InitsOp)
   compiler_context_->ReportError("Unsupported operation for lowering: " + op->Name());
 }
 
@@ -763,9 +761,5 @@ auto LowerHelper::LowerContinueOp([[maybe_unused]] middleend::mlir::scf::Continu
 auto LowerHelper::LowerConditionOp([[maybe_unused]] middleend::mlir::scf::ConditionOp *condition_op) -> void {}
 
 auto LowerHelper::LowerYieldOp([[maybe_unused]] middleend::mlir::scf::YieldOp *yield_op) -> void {}
-
-auto LowerHelper::LowerInitsOp(middleend::mlir::scf::InitsOp *inits_op) -> void {
-  GetInsertPoint()->AddOperation(inits_op);
-}
 
 }  // namespace middleend::mlir::lower

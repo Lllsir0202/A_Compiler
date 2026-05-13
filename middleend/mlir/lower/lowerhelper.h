@@ -102,7 +102,6 @@ class LowerHelper {
   auto LowerBreakOp(middleend::mlir::scf::BreakOp *break_op) -> void;
   auto LowerContinueOp(middleend::mlir::scf::ContinueOp *continue_op) -> void;
   auto LowerConditionOp(middleend::mlir::scf::ConditionOp *condition_op) -> void;
-  auto LowerInitsOp(middleend::mlir::scf::InitsOp *inits_op) -> void;
 
   // Get Block id
   // Allow default block prefix

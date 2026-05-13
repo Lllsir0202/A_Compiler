@@ -1036,12 +1036,18 @@ void MLIRVisitor::Visit(frontend::ast::WhileStmtNode *while_stmt) {
     auto block_args = std::vector<mlir::Value *>();
 
     // GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(inits_op);
-    for (size_t i = 0; i < original_values.size(); ++i) {
+    for (auto *origin : original_values) {
       auto arg = GET_MLIR_CONTEXT()->CreateValue();
-      arg->SetType(original_values[i]->GetType());
+      arg->SetType(origin->GetType());
       block_args.emplace_back(arg);
-      original_values[i]->ReplaceAllUsesWith(arg);
-      GET_MLIR_CONTEXT()->GetResourceContext()->SetArgValueName(arg, i);
+      // origin->ReplaceAllUsesWith(arg);
+      /**
+       * @note: TODO(loki): might be able to optimize in the future
+       */
+      origin->ReplaceUsesWithInBlock(arg, cond_block);
+      origin->ReplaceUsesWithInBlock(arg, body_block);
+
+      GET_MLIR_CONTEXT()->GetResourceContext()->SetArgValueName(arg);
     }
 
     // Add arguments to block and body block

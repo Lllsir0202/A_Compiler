@@ -5,7 +5,6 @@
 #include "middleend/mlir/dialect/scf/condition.h"
 #include "middleend/mlir/dialect/scf/continue.h"
 #include "middleend/mlir/dialect/scf/if.h"
-#include "middleend/mlir/dialect/scf/inits.h"
 #include "middleend/mlir/dialect/scf/while.h"
 #include "middleend/mlir/dialect/scf/yield.h"
 

@@ -108,9 +108,9 @@ class MLIRResourceContext {
   /**
    * @brief Set the argument value name
    */
-  auto SetArgValueName(middleend::mlir::Value *value, size_t index) -> void {
+  auto SetArgValueName(middleend::mlir::Value *value) -> void {
     value->name_ = "arg";
-    value->num_ = index;
+    value->num_ = arg_num_++;
     value_num_--;  // Decrement the global value number since we are reusing the same variable name
   }
 
@@ -245,6 +245,8 @@ class MLIRResourceContext {
  private:
   std::vector<middleend::mlir::Value *> values_;  // all values created by this builder, used for memory management
   size_t value_num_ = 0;                          // for generating unique value numbers, i.e. %0, %1, etc.
+
+  size_t arg_num_ = 0;  // for generating unique argument numbers, i.e. %arg0, %arg1, etc.
   std::unordered_map<std::string, size_t> name_count_map_;
   // map from variable name to the num,
   // used for distinguishing different variables with the same name

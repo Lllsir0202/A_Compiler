@@ -2,6 +2,9 @@
 #define MIDDLEEND_LLVM_LOWER_LOWER_H
 
 #include "llvm/lower/lowerhelper.h"
+#include "mlir/dialect/base/funcdef.h"
+#include "pass/analysis/cfg/cfg.h"
+#include "pass/analysis/cfg/mlircfg.h"
 namespace context {
 class CompilerContext;
 }

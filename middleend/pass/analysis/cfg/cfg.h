@@ -51,6 +51,9 @@ class FunctionCFG {
   auto GetExitNodes() -> std::vector<CFGNode *> { return exit_nodes_; }
   auto AddExitNode(CFGNode *exit_node) -> void { exit_nodes_.emplace_back(exit_node); }
 
+  auto GetDFSOrder() -> std::vector<CFGNode *> { return dfs_order_; }
+  auto PushDFSOrder(CFGNode *node) -> void { dfs_order_.emplace_back(node); }
+
   virtual auto VerifyFunctionCFG() -> bool = 0;
 
  protected:
@@ -66,6 +69,10 @@ class FunctionCFG {
   std::vector<CFGNode *> exit_nodes_;
   // Add information to recognize the function in concrete class
   size_t id_{0};
+
+  // DFS order of the nodes in the CFG,
+  // which will be used for some analyses
+  std::vector<CFGNode *> dfs_order_;
 };
 
 // Used to build CFG

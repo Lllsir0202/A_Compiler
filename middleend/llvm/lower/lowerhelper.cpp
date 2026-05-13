@@ -8,16 +8,19 @@
 #include "middleend/llvm/inst/cmp/cmp.h"
 #include "middleend/llvm/inst/func/call.h"
 #include "middleend/llvm/inst/func/funcdef.h"
+#include "middleend/llvm/inst/inst.h"
 #include "middleend/llvm/inst/memory/alloca.h"
 #include "middleend/llvm/inst/memory/gep.h"
 #include "middleend/llvm/inst/memory/globaldef.h"
 #include "middleend/llvm/inst/memory/load.h"
 #include "middleend/llvm/inst/memory/store.h"
+#include "middleend/llvm/inst/pseudo/pseudo.h"
 #include "middleend/llvm/utils/factory/blockfactory.h"
 #include "middleend/llvm/utils/factory/funcfactory.h"
 #include "middleend/llvm/utils/factory/instfactory.h"
 #include "middleend/llvm/utils/factory/opfactory.h"
 #include "middleend/llvm/utils/operand/operand.h"
+#include "middleend/llvm/utils/struct/block.h"
 #include "middleend/mlir/dialect/base/binaryop.h"
 #include "middleend/mlir/dialect/base/branch.h"
 #include "middleend/mlir/dialect/base/funccall.h"
@@ -26,6 +29,8 @@
 #include "middleend/mlir/dialect/var/getptr.h"
 #include "middleend/mlir/dialect/var/globaldef.h"
 #include "middleend/mlir/utils/operation/operation.h"
+#include "pass/analysis/cfg/cfg.h"
+#include "pass/analysis/cfg/mlircfg.h"
 #include "utils/type/type.h"
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()
 #define GET_LLVMIR_CONTEXT() compiler_context_->GetIRContext()->GetLLVMIRContext()
@@ -107,7 +112,16 @@ auto LowerHelper::LowerDispatch(mlir::Operation *op) -> void {
 
 auto LowerHelper::LowerBasicBlocks(mlir::base::FuncDefOp *func_def) -> void {
   // Get blocks from mlir base function definition
-  auto blocks = func_def->GetBlocks();
+  auto func_cfg = func_cfgs_[func_def];
+  auto cfg_blocks = func_cfg->GetDFSOrder();
+  std::vector<mlir::Block *> blocks;
+  for (auto cfg_block : cfg_blocks) {
+    auto mlir_block = dynamic_cast<pass::analysis::MLIRCFGNode *>(cfg_block);
+    if (mlir_block == nullptr) {
+      throw std::logic_error("CFG block is not of type MLIRBlock");
+    }
+    blocks.emplace_back(mlir_block->GetBlock());
+  }
   for (auto block : blocks) {
     // Create a corresponding llvm ir basic block for each mlir block
     auto basic_block = GET_LLVMIR_CONTEXT()->GetResourceContext()->GetNewBasicBlock();
@@ -128,6 +142,7 @@ auto LowerHelper::LowerFuncDefOp(mlir::base::FuncDefOp *func_def) -> void {
         GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateFunction(func_def->GetName(), func_def->GetReturnType());
     // Set the current function in lower context, which will be used for instruction insertion
     GET_LLVMIR_CONTEXT()->GetLowerContext()->SetCurrentFunction(llvm_function);
+
     // Lower the basic blocks in the function, which will also create llvm ir basic blocks and
     LowerBasicBlocks(func_def);
 
@@ -198,6 +213,26 @@ auto LowerHelper::LowerFuncDefOp(mlir::base::FuncDefOp *func_def) -> void {
       }
     }
 
+    // // After finishing the lowering of the function, we will update the pending copy instructions
+    // std::queue<utils::BasicBlock *> blocks_to_erase;
+    // std::unordered_set<inst::Instruction *> copy_insts_to_erase;
+    // while (!pending_copy_insts_.empty()) {
+    //   auto copy_inst = pending_copy_insts_.front();
+    //   pending_copy_insts_.pop();
+    //   // replace all users with the source operand
+    //   auto src_operand = copy_inst->GetOperands()[0];
+    //   copy_inst->ReplaceAllUsersWith(src_operand);
+    //   // Record the block to erase the copy instruction later
+    //   blocks_to_erase.push(copy_inst->GetParentBlock());
+    //   copy_insts_to_erase.insert(copy_inst);
+    // }
+    // while (!blocks_to_erase.empty()) {
+    //   auto block = blocks_to_erase.front();
+    //   blocks_to_erase.pop();
+    //   // Erase the copy instruction in the block
+    //   block->RemoveInsts(copy_insts_to_erase);
+    // }
+
     // Exit the function, reset the current function in lower context
     GET_LLVMIR_CONTEXT()->GetLowerContext()->SetCurrentFunction(nullptr);
     GET_LLVMIR_CONTEXT()->GetResourceContext()->ResetFunctionLevelResource();
@@ -218,6 +253,12 @@ auto LowerHelper::LowerFuncDefOp(mlir::base::FuncDefOp *func_def) -> void {
     auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::OP_NAME##Inst>(GET_LLVMIR_CONTEXT(), \
                                                                                             llvm_lhs, llvm_rhs);  \
                                                                                                                   \
+    if (llvm_lhs->GetInstruction() != nullptr) {                                                                  \
+      llvm_lhs->GetInstruction()->AddUser(inst);                                                                  \
+    }                                                                                                             \
+    if (llvm_rhs->GetInstruction() != nullptr) {                                                                  \
+      llvm_rhs->GetInstruction()->AddUser(inst);                                                                  \
+    }                                                                                                             \
     GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);                                 \
     GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());              \
     inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());                                                 \
@@ -245,6 +286,12 @@ LOWER_BINARY_OP(DivF);
     auto llvm_rhs = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(rhs);     \
     auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::ICmpInst>(              \
         GET_LLVMIR_CONTEXT(), inst::CmpPredicate::PREDICATE, llvm_lhs, llvm_rhs);                    \
+    if (llvm_lhs->GetInstruction() != nullptr) {                                                     \
+      llvm_lhs->GetInstruction()->AddUser(inst);                                                     \
+    }                                                                                                \
+    if (llvm_rhs->GetInstruction() != nullptr) {                                                     \
+      llvm_rhs->GetInstruction()->AddUser(inst);                                                     \
+    }                                                                                                \
     GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);                    \
     GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult()); \
     inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());                                    \
@@ -281,6 +328,9 @@ auto LowerHelper::LowerNegOp(mlir::base::NegOp *op) -> void {
   auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::SubInst>(GET_LLVMIR_CONTEXT(), zero_literal,
                                                                                     llvm_operand);
 
+  if (llvm_operand->GetInstruction() != nullptr) {
+    llvm_operand->GetInstruction()->AddUser(inst);
+  }
   GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
   GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());
   inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());
@@ -294,7 +344,9 @@ auto LowerHelper::LowerNegFOp(mlir::base::NegFOp *op) -> void {
   auto zero_literal = GET_LLVMIR_CONTEXT()->GetFloatLiteral(0.0);
   auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::SubFInst>(GET_LLVMIR_CONTEXT(), zero_literal,
                                                                                      llvm_operand);
-
+  if (llvm_operand->GetInstruction() != nullptr) {
+    llvm_operand->GetInstruction()->AddUser(inst);
+  }
   GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
   GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());
   inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());
@@ -305,6 +357,10 @@ auto LowerHelper::LowerNotOp(mlir::base::NotOp *op) -> void {
   auto result = op->GetRes();
   auto llvm_operand = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(operand);
   auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::XorInst>(GET_LLVMIR_CONTEXT(), llvm_operand);
+
+  if (llvm_operand->GetInstruction() != nullptr) {
+    llvm_operand->GetInstruction()->AddUser(inst);
+  }
 
   GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
   GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());
@@ -319,6 +375,13 @@ auto LowerHelper::LowerIntLiteralOp(mlir::base::ConstIntOp *op) -> void {
   auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::AddInst>(GET_LLVMIR_CONTEXT(), int_literal,
                                                                                     zero_literal);
 
+  if (int_literal->GetInstruction() != nullptr) {
+    int_literal->GetInstruction()->AddUser(inst);
+  }
+  if (zero_literal->GetInstruction() != nullptr) {
+    zero_literal->GetInstruction()->AddUser(inst);
+  }
+
   GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
   GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());
   inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());
@@ -331,6 +394,12 @@ auto LowerHelper::LowerFloatLiteralOp(mlir::base::ConstFloatOp *op) -> void {
   auto zero_literal = GET_LLVMIR_CONTEXT()->GetFloatLiteral(0.0);
   auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::AddFInst>(GET_LLVMIR_CONTEXT(),
                                                                                      float_literal, zero_literal);
+  if (float_literal->GetInstruction() != nullptr) {
+    float_literal->GetInstruction()->AddUser(inst);
+  }
+  if (zero_literal->GetInstruction() != nullptr) {
+    zero_literal->GetInstruction()->AddUser(inst);
+  }
 
   GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
   GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());
@@ -351,6 +420,11 @@ auto LowerHelper::LowerInt2FloatOp(mlir::base::Int2FloatOp *op) -> void {
   auto llvm_operand = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(operand);
   auto inst =
       GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::SitoFpInst>(GET_LLVMIR_CONTEXT(), llvm_operand);
+
+  if (llvm_operand->GetInstruction() != nullptr) {
+    llvm_operand->GetInstruction()->AddUser(inst);
+  }
+
   GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
   GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());
   inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());
@@ -366,6 +440,11 @@ auto LowerHelper::LowerFloat2IntOp(mlir::base::Float2IntOp *op) -> void {
   auto llvm_operand = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(operand);
   auto inst =
       GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FptoSiInst>(GET_LLVMIR_CONTEXT(), llvm_operand);
+
+  if (llvm_operand->GetInstruction() != nullptr) {
+    llvm_operand->GetInstruction()->AddUser(inst);
+  }
+
   GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
   GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());
   inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());
@@ -382,6 +461,14 @@ auto LowerHelper::LowerInt2BoolOp(mlir::base::Int2BoolOp *op) -> void {
   auto zero_literal = GET_LLVMIR_CONTEXT()->GetIntLiteral(0);
   auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::ICmpInst>(
       GET_LLVMIR_CONTEXT(), inst::CmpPredicate::NE, llvm_operand, zero_literal);
+
+  if (llvm_operand->GetInstruction() != nullptr) {
+    llvm_operand->GetInstruction()->AddUser(inst);
+  }
+  if (zero_literal->GetInstruction() != nullptr) {
+    zero_literal->GetInstruction()->AddUser(inst);
+  }
+
   GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
   GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());
   inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());
@@ -398,6 +485,14 @@ auto LowerHelper::LowerFloat2BoolOp(mlir::base::Float2BoolOp *op) -> void {
   auto zero_literal = GET_LLVMIR_CONTEXT()->GetFloatLiteral(0.0);
   auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FCmpInst>(
       GET_LLVMIR_CONTEXT(), inst::CmpPredicate::NE, llvm_operand, zero_literal);
+
+  if (llvm_operand->GetInstruction() != nullptr) {
+    llvm_operand->GetInstruction()->AddUser(inst);
+  }
+  if (zero_literal->GetInstruction() != nullptr) {
+    zero_literal->GetInstruction()->AddUser(inst);
+  }
+
   GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
   GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());
   inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());
@@ -413,6 +508,11 @@ auto LowerHelper::LowerBool2IntOp(mlir::base::Bool2IntOp *op) -> void {
   auto llvm_operand = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(operand);
   auto inst =
       GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::ZextInst>(GET_LLVMIR_CONTEXT(), llvm_operand);
+
+  if (llvm_operand->GetInstruction() != nullptr) {
+    llvm_operand->GetInstruction()->AddUser(inst);
+  }
+
   GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
   GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());
   inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());
@@ -428,6 +528,11 @@ auto LowerHelper::LowerBool2FloatOp(mlir::base::Bool2FloatOp *op) -> void {
   auto llvm_operand = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(operand);
   auto inst =
       GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::UitoFpInst>(GET_LLVMIR_CONTEXT(), llvm_operand);
+
+  if (llvm_operand->GetInstruction() != nullptr) {
+    llvm_operand->GetInstruction()->AddUser(inst);
+  }
+
   GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
   GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());
   inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());
@@ -448,6 +553,13 @@ auto LowerHelper::LowerFuncCallOp(mlir::base::FuncCallOp *func_call) -> void {
   }
   auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::CallInst>(GET_LLVMIR_CONTEXT(), func_name,
                                                                                      llvm_args, result->GetType());
+
+  for (auto llvm_arg : inst->GetArgs()) {
+    if (llvm_arg->GetInstruction() != nullptr) {
+      llvm_arg->GetInstruction()->AddUser(inst);
+    }
+  }
+
   GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
   if (inst->GetResult() != nullptr) {
     GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());
@@ -460,6 +572,11 @@ auto LowerHelper::LowerReturnOp(mlir::func::ReturnOp *return_op) -> void {
   auto llvm_ret =
       ret == nullptr ? nullptr : GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(ret);
   auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::RetInst>(GET_LLVMIR_CONTEXT(), llvm_ret);
+
+  if (llvm_ret != nullptr && llvm_ret->GetInstruction() != nullptr) {
+    llvm_ret->GetInstruction()->AddUser(inst);
+  }
+
   GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
   inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());
 }
@@ -502,6 +619,10 @@ auto LowerHelper::LowerCondBrOp(mlir::base::CondBrOp *cond_br_op) -> void {
   // Create a conditional branch instruction to jump to the target blocks based on the condition
   auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::BrCondInst>(
       GET_LLVMIR_CONTEXT(), llvm_condition, llvm_true_label_op, llvm_false_label_op);
+
+  if (llvm_condition->GetInstruction() != nullptr) {
+    llvm_condition->GetInstruction()->AddUser(inst);
+  }
   GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
   inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());
 }
@@ -513,8 +634,10 @@ auto LowerHelper::LowerPhiOp(mlir::base::PhiOp *phi_op) -> void {
   auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::PhiInst>(
       GET_LLVMIR_CONTEXT(), std::vector<llvm::utils::Operand *>{}, std::vector<llvm::utils::LabelOperand *>{},
       result->GetType());
+
   GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
   GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());
+
   // Since the phi instruction needs to be updated with the incoming values and corresponding blocks later,
   // we will store the phi instruction and corresponding mlir phi operation in the pending list, and update
   pending_phi_ops_.push(phi_op);
@@ -592,6 +715,12 @@ auto LowerHelper::LowerVarGetPtrOp(mlir::var::VarGetPtrOp *get_ptr_op) -> void {
     // Otherwise, get the indices to get the pointer to the specified element
     std::vector<llvm::utils::Operand *> indices;
     // It must be an array
+    // Add a zero index to get the pointer to the first element
+    // if it is an array
+    if (allocated_type->GetKind() == type::TypeKind::ARRAY) {
+      indices.emplace_back(GET_LLVMIR_CONTEXT()->GetIntLiteral(0));
+    }
+
     for (auto &index : get_ptr_op->GetIndices()) {
       auto llvm_index = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(index);
       indices.emplace_back(llvm_index);
@@ -602,6 +731,18 @@ auto LowerHelper::LowerVarGetPtrOp(mlir::var::VarGetPtrOp *get_ptr_op) -> void {
     }
     auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::GetElementPtrInst>(
         GET_LLVMIR_CONTEXT(), result_type, llvm_ptr, indices);
+
+    // Use of index
+    for (auto llvm_index : indices) {
+      if (llvm_index->GetInstruction() != nullptr) {
+        llvm_index->GetInstruction()->AddUser(inst);
+      }
+    }
+    // Use of ptr
+    if (llvm_ptr->GetInstruction() != nullptr) {
+      llvm_ptr->GetInstruction()->AddUser(inst);
+    }
+
     GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
     GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());
     inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());
@@ -614,6 +755,10 @@ auto LowerHelper::LowerVarGetValOp(mlir::var::VarGetValOp *get_val_op) -> void {
   auto llvm_ptr = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(ptr);
   auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::LoadInst>(GET_LLVMIR_CONTEXT(),
                                                                                      result->GetType(), llvm_ptr);
+  if (llvm_ptr->GetInstruction() != nullptr) {
+    llvm_ptr->GetInstruction()->AddUser(inst);
+  }
+
   GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
   GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());
   inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());
@@ -627,18 +772,35 @@ auto LowerHelper::LowerVarSetOp(mlir::var::VarSetOp *set_val_op) -> void {
   auto llvm_value = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(value);
   auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::StoreInst>(GET_LLVMIR_CONTEXT(), llvm_value,
                                                                                       llvm_ptr);
+
+  if (llvm_value->GetInstruction() != nullptr) {
+    llvm_value->GetInstruction()->AddUser(inst);
+  }
+  if (llvm_ptr->GetInstruction() != nullptr) {
+    llvm_ptr->GetInstruction()->AddUser(inst);
+  }
+
   GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
   inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());
 }
 
-// Then lowering copy instruction, but it seems to be eliminated in the future.
+// Then lowering copy instruction,
+// but it seems to be eliminated in the future.
 auto LowerHelper::LowerCopyOp(mlir::base::CopyOp *copy_op) -> void {
   auto src = copy_op->GetSrc();
   auto dst = copy_op->GetRes();
+  // Create a pseudo copy instruction,
+  // which will be eliminated in the future optimization
   auto llvm_src = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(src);
-  // Since copy instruction is used to copy the value from src to dst,
-  // we can directly map the dst to the same operand as src
-  GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(dst, llvm_src);
-}
+  auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::CopyInst>(GET_LLVMIR_CONTEXT(),
+                                                                                     dst->GetType(), llvm_src);
+  // No need to record use, since we will eliminate them later.
 
+  auto res = inst->GetResult();
+  GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
+  GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(dst, res);
+  inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());
+
+  pending_copy_insts_.push(inst);
+}
 }  // namespace middleend::llvm::lower

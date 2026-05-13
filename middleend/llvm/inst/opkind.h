@@ -64,7 +64,9 @@ enum class OpKind : uint8_t {
   // Use fcmp oeq with 0.0
   // Bool 2 Float
   // UitoFp
-  Uitofp
+  Uitofp,
+  // Followed by pseudo instructions
+  Copy
 };
 
 }  // namespace middleend::llvm::inst

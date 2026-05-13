@@ -50,6 +50,27 @@ auto Value::ReplaceAllOpUsesWith(Operation *old_op, Operation *new_op, size_t ne
   }
 }
 
+auto Value::ReplaceUsesWithInBlock(Value *new_value, Block *block) -> void {
+  for (auto use : uses_) {
+    auto op = use->operation_;
+    if (op == nullptr) {
+      throw std::runtime_error("The operation that uses this value is nullptr");
+    }
+    for (auto op : block->operations_) {
+      if (op == use->operation_) {
+        use->operation_ = op;
+        for (auto &operand : op->operands_) {
+          if (operand == this) {
+            operand = new_value;
+          }
+        }
+        new_value->AddUse(op, use->operand_index_);
+        this->RemoveUse(op);
+      }
+    }
+  }
+}
+
 // This function is used for those operations that have the same operands and result
 auto Value::ReplaceAllOpUsesWith(Operation *old_op, Operation *new_op) -> void {
   for (auto &use : uses_) {

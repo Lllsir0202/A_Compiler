@@ -2,17 +2,33 @@
 #define MIDDLEEND_LLVM_LOWER_LOWERHELPER_H
 #include <queue>
 #include "context/compiler_context.h"
+#include "llvm/inst/pseudo/pseudo.h"
 #include "middleend/llvm/inst/branch/phi.h"
 #include "middleend/mlir/dialect/base/base.h"
+#include "middleend/mlir/dialect/base/phi.h"
 #include "middleend/mlir/dialect/func/return.h"
+#include "middleend/mlir/dialect/var/set.h"
 #include "middleend/mlir/dialect/var/var.h"
 #include "middleend/mlir/utils/operation/operation.h"
-#include "mlir/dialect/base/phi.h"
-#include "mlir/dialect/var/set.h"
+#include "middleend/pass/analysis/cfg/mlircfg.h"
 namespace middleend::llvm::lower {
 class LowerHelper {
  public:
-  explicit LowerHelper(context::CompilerContext *compiler_context) : compiler_context_(compiler_context) {}
+  explicit LowerHelper(context::CompilerContext *compiler_context) : compiler_context_(compiler_context) {
+    auto cfg_pass = compiler_context_->GetPassContext()->GetSpecPass<pass::analysis::CFGPass>("CFGPass");
+    if (cfg_pass == nullptr) {
+      throw std::logic_error("CFG pass is not registered in the pass context");
+    }
+    auto func_cfgs = cfg_pass->Get();
+    for (auto *func_cfg : func_cfgs) {
+      if (auto mlir_func_cfg = dynamic_cast<pass::analysis::MLIRFunctionCFG *>(func_cfg)) {
+        auto func_def_op = mlir_func_cfg->GetFuncOp();
+        func_cfgs_[func_def_op] = func_cfg;
+      } else {
+        throw std::logic_error("Function CFG is not of type MLIRFunctionCFG");
+      }
+    }
+  }
   ~LowerHelper() = default;
 
   /**
@@ -93,6 +109,10 @@ class LowerHelper {
 
   std::queue<mlir::base::PhiOp *> pending_phi_ops_;
   std::queue<llvm::inst::PhiInst *> pending_phi_insts_;
+  std::queue<llvm::inst::CopyInst *> pending_copy_insts_;
+
+  // Map from op to the corresponding function CFG
+  std::unordered_map<mlir::base::FuncDefOp *, pass::analysis::FunctionCFG *> func_cfgs_;
 };
 
 }  // namespace middleend::llvm::lower

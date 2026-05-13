@@ -36,6 +36,8 @@ auto MLIRCFGBuilder::BuildFunctionCFG(mlir::base::FuncDefOp *func_op) -> void {
   while (!worklist.empty()) {
     auto current_node = worklist.front();
     worklist.pop();
+    // it represents a dfs naturally.
+    func_cfg->PushDFSOrder(current_node);
     auto current_block = current_node->GetBlock();
     // Get the terminator operation of the current block, and find its successor blocks
     for (auto op : current_block->operations_) {

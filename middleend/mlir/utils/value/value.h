@@ -9,7 +9,7 @@
 
 namespace middleend::mlir {
 class Operation;
-
+class Block;
 /**
  * @brief Represents a use of a value in the MLIR
  * this class is used to represent the use of a value in an operation
@@ -75,6 +75,8 @@ class Value {
    * %2 = base.mul %1, %3
    */
   auto ReplaceAllUsesWith(Value *new_value) -> void;
+
+  auto ReplaceUsesWithInBlock(Value *new_value, Block *block) -> void;
 
   /**
    * @brief Replace all operations that use this value with another operation

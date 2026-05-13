@@ -5,6 +5,7 @@
 #include <deque>
 #include <fstream>
 #include <string>
+#include <unordered_set>
 namespace middleend::llvm::inst {
 class Instruction;
 }
@@ -27,6 +28,25 @@ class BasicBlock {
   auto SetInstructions(const std::deque<inst::Instruction *> &instructions) -> void { instructions_ = instructions; }
   auto AddInstBack(inst::Instruction *inst) -> void { instructions_.emplace_back(inst); }
   auto AddInstFront(inst::Instruction *inst) -> void { instructions_.emplace_front(inst); }
+  auto RemoveInst(inst::Instruction *inst) -> void {
+    std::deque<inst::Instruction *> new_insts;
+    for (auto *i : instructions_) {
+      if (i != inst) {
+        new_insts.emplace_back(i);
+      }
+    }
+    instructions_ = new_insts;
+  }
+
+  auto RemoveInsts(std::unordered_set<inst::Instruction *> &insts) -> void {
+    std::deque<inst::Instruction *> new_insts;
+    for (auto *i : instructions_) {
+      if (insts.count(i) == 0) {
+        new_insts.emplace_back(i);
+      }
+    }
+    instructions_ = new_insts;
+  }
 
   // Interface for debug, comment
   auto GetComment() const -> const std::string & { return comment_; }
