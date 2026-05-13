@@ -172,13 +172,10 @@ auto LowerHelper::LowerFuncDefOp(mlir::base::FuncDefOp *func_def) -> void {
     for (auto block : blocks) {
       auto llvm_block = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIRBlockFromMLIRBlock(block);
       GET_LLVMIR_CONTEXT()->GetLowerContext()->SetInsertPoint(llvm_block);
-      printf("Lowering block with id: %zu\n", llvm_block->GetID());
       for (auto *op : block->operations_) {
-        printf("Lowering operation: %s\n", op->Name().c_str());
         LowerDispatch(op);
       }
     }
-    printf("Finished lowering function: %s\n", func_def->GetName().c_str());
 
     // After lowering the function body,
     // we will update the pending phi instructions
@@ -564,7 +561,6 @@ auto LowerHelper::LowerVarDefOp(mlir::var::VarDefOp *var_def) -> void {
   // For initializations,
   // we will create store instructions to
   // store the initial values to the allocated memory
-  
 }
 
 /**

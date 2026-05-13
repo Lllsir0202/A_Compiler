@@ -22,7 +22,10 @@ auto StoreInst::Verify(context::CompilerContext *context) const -> bool {
     return false;
   }
   auto base_type = static_cast<type::PtrType *>(ptr_type)->GetBaseType();
+
   if (value_type == nullptr || value_type != base_type) {
+    printf("Value type of the store instruction: %s, and expect %s\n", value_type->ToString().c_str(),
+           base_type->ToString().c_str());  // --- IGNORE ---
     context->Print("Value type of store instruction must be compatible with the base type of the pointer\n");
     return false;
   }

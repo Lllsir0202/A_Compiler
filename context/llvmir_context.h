@@ -199,6 +199,8 @@ class LLVMIRContext {
   auto GetFloatType() -> type::Type * { return type_context_->GetFloatType(); }
   auto GetBoolType() -> type::Type * { return type_context_->GetBooleanType(); }
   auto GetVoidType() -> type::Type * { return type_context_->GetVoidType(); }
+  auto GetCharType() -> type::Type * { return type_context_->GetCharType(); }
+  auto GetLongType() -> type::Type * { return type_context_->GetLongType(); }
 
   // Get contexts
   auto GetResourceContext() -> LLVMIRResourceContext * { return resource_context_; }

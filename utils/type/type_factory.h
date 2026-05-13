@@ -20,6 +20,8 @@ class TypeFactory {
   static auto GetVoidType() -> Type * { return new VoidType(); }
   static auto GetPtrType(Type *base_type) -> Type * { return new PtrType(base_type); }
   static auto GetArrayType(Type *element_type, size_t size) -> Type * { return new ArrayType(element_type, size); }
+  static auto GetLongType() -> Type * { return new LongType(); }
+  static auto GetCharType() -> Type * { return new CharType(); }
 };
 
 }  // namespace type

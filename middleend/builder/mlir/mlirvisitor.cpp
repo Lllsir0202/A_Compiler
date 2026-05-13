@@ -658,6 +658,19 @@ void MLIRVisitor::Visit(frontend::ast::AssignStmtNode *assign_stmt) {
   }
 
   if (is_array) {  // Create a var.set operation to set the value of the variables
+    // if it is an array, we need to do cast to ensure the type of the value
+    // is the same as the type of the lval pointer
+    auto allocated_type = lval_ptr->GetType();
+    if (allocated_type->GetKind() == type::TypeKind::PTR) {
+      allocated_type = static_cast<type::PtrType *>(allocated_type)->GetBaseType();
+    }
+    if (allocated_type != value->type_) {
+      auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), value, value->type_,
+                                                                               allocated_type);
+      GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(cast_op);
+      value->AddUse(cast_op, 0);
+      value = cast_op->GetRes();
+    }
     auto var_set_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarSetOp>(GET_MLIR_CONTEXT(), lval_ptr, value);
     GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(var_set_op);
     // It should not generate any value, even though I set the result

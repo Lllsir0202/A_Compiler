@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <string>
 namespace type {
-enum class TypeKind : uint8_t { UNKNOWN, BOOL, INT, FLOAT, VOID, PTR, ARRAY };
+enum class TypeKind : uint8_t { UNKNOWN, BOOL, INT, FLOAT, VOID, PTR, ARRAY, LONG, CHAR };
 
 class Type {
  public:
@@ -53,6 +53,22 @@ class BooleanType : public Type {
 };
 
 /**
+ * @brief Char type will be used for specific function parameters
+ * @example
+ * llvm.memset.p0.i64(ptr %dest, i8 %val, i64 %len, i1 %isvolatile)
+ */
+class CharType : public Type {
+ public:
+  auto ToString() const -> std::string override { return "Char"; }
+  auto GetAlign() const -> size_t override { return 1; }
+  ~CharType() override = default;
+
+ private:
+  CharType() : Type(TypeKind::CHAR) {}
+  friend class TypeFactory;
+};
+
+/**
  * @brief Int type will be used for integer values
  */
 class IntegerType : public Type {
@@ -77,6 +93,22 @@ class FloatType : public Type {
 
  private:
   FloatType() : Type(TypeKind::FLOAT) {}
+  friend class TypeFactory;
+};
+
+/**
+ * @brief Long type will be used for specific function parameters
+ * @example
+ * llvm.memset.p0.i64(ptr %dest, i8 %val, i64 %len, i1 %isvolatile)
+ */
+class LongType : public Type {
+ public:
+  auto ToString() const -> std::string override { return "Long"; }
+  auto GetAlign() const -> size_t override { return 8; }
+  ~LongType() override = default;
+
+ private:
+  LongType() : Type(TypeKind::LONG) {}
   friend class TypeFactory;
 };
 

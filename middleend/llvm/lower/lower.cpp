@@ -46,6 +46,26 @@ auto LLVMLower::RegisterLibraryFunctions() -> void {
   auto stoptime_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDeclareInst>(
       GET_LLVMIR_CONTEXT(), "stoptime", GET_LLVMIR_CONTEXT()->GetVoidType(), std::vector<type::Type *>{});
 
+  /** Following are the library functions we will use in the future, which include
+   * 1. llvm.memset(ptr pointer, i8 value, i64 size, i1 isvolatile)
+   * 2. llvm.memcpy(ptr dest, ptr src, i64 size, i1 isvolatile)
+   * We will use these two functions to implement the initialization of
+   * local variables and the copy instruction in the future.
+   */
+  auto llvm_memset_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDeclareInst>(
+      GET_LLVMIR_CONTEXT(), "llvm.memset.p0.i64", GET_LLVMIR_CONTEXT()->GetVoidType(),
+      std::vector<type::Type *>{
+          GET_LLVMIR_CONTEXT()->GetTypeContext()->GetPtrType(GET_LLVMIR_CONTEXT()->GetIntegerType()),
+          GET_LLVMIR_CONTEXT()->GetCharType(), GET_LLVMIR_CONTEXT()->GetLongType(),
+          GET_LLVMIR_CONTEXT()->GetBoolType()});
+
+  auto llvm_memcpy_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDeclareInst>(
+      GET_LLVMIR_CONTEXT(), "llvm.memcpy.p0.p0.i64", GET_LLVMIR_CONTEXT()->GetVoidType(),
+      std::vector<type::Type *>{
+          GET_LLVMIR_CONTEXT()->GetTypeContext()->GetPtrType(GET_LLVMIR_CONTEXT()->GetIntegerType()),
+          GET_LLVMIR_CONTEXT()->GetTypeContext()->GetPtrType(GET_LLVMIR_CONTEXT()->GetIntegerType()),
+          GET_LLVMIR_CONTEXT()->GetLongType(), GET_LLVMIR_CONTEXT()->GetBoolType()});
+
   // Register the library functions in the module
   GET_LLVMIR_CONTEXT()->GetResourceContext()->AddLibraryFunction(putint_func);
   GET_LLVMIR_CONTEXT()->GetResourceContext()->AddLibraryFunction(getint_func);
@@ -59,6 +79,8 @@ auto LLVMLower::RegisterLibraryFunctions() -> void {
   GET_LLVMIR_CONTEXT()->GetResourceContext()->AddLibraryFunction(getfloatarray_func);
   GET_LLVMIR_CONTEXT()->GetResourceContext()->AddLibraryFunction(starttime_func);
   GET_LLVMIR_CONTEXT()->GetResourceContext()->AddLibraryFunction(stoptime_func);
+  GET_LLVMIR_CONTEXT()->GetResourceContext()->AddLibraryFunction(llvm_memset_func);
+  GET_LLVMIR_CONTEXT()->GetResourceContext()->AddLibraryFunction(llvm_memcpy_func);
 }
 
 auto LLVMLower::Lower() -> int {

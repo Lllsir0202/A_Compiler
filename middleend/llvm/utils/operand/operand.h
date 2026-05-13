@@ -54,6 +54,12 @@ class Operand {
     if (type->GetKind() == type::TypeKind::PTR) {
       return "ptr";
     }
+    if (type->GetKind() == type::TypeKind::CHAR) {
+      return "i8";
+    }
+    if (type->GetKind() == type::TypeKind::LONG) {
+      return "i64";
+    }
     // For other types, we can just return the type name as a string
     return type->ToString();
   }

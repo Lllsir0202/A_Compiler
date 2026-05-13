@@ -18,6 +18,8 @@ class TypeContext {
     float_type_ = type::TypeFactory::GetFloatType();
     void_type_ = type::TypeFactory::GetVoidType();
     boolean_type_ = type::TypeFactory::GetBooleanType();
+    char_type_ = type::TypeFactory::GetCharType();
+    long_type_ = type::TypeFactory::GetLongType();
   }
 
   ~TypeContext() {
@@ -36,6 +38,8 @@ class TypeContext {
     delete float_type_;
     delete void_type_;
     delete boolean_type_;
+    delete char_type_;
+    delete long_type_;
   }
 
   // Provide methods to get types
@@ -44,6 +48,8 @@ class TypeContext {
   auto GetFloatType() -> type::Type * { return float_type_; }
   auto GetVoidType() -> type::Type * { return void_type_; }
   auto GetBooleanType() -> type::Type * { return boolean_type_; }
+  auto GetCharType() -> type::Type * { return char_type_; }
+  auto GetLongType() -> type::Type * { return long_type_; }
   auto GetPtrType(type::Type *base_type) -> type::Type * {
     // Check if we have already created this ptr type
     if (ptr_type_map_.find(base_type) != ptr_type_map_.end()) {
@@ -73,6 +79,8 @@ class TypeContext {
   type::Type *float_type_;
   type::Type *void_type_;
   type::Type *boolean_type_;
+  type::Type *char_type_;
+  type::Type *long_type_;
   // following types will be created on demand, such as ptr type, we need to know the base type first
   // and we will create a map to manage them later
   /**
