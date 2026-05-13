@@ -36,7 +36,11 @@ auto AllocaInst::Emit(std::ofstream *out) const -> void {
   } else {
     *out << utils::Operand::GetTypeInLLVMIR(allocated_type_);
   }
-  *out << ", align " << allocated_type_->GetAlign() << "\n";
+  auto type = GetResult()->GetType();
+  if (type->GetKind() == type::TypeKind::PTR) {
+    type = static_cast<type::PtrType *>(type)->GetBaseType();
+  }
+  *out << ", align " << type->GetAlign() << "\n";
 }
 
 auto AllocaInst::Verify(context::CompilerContext *context) const -> bool {

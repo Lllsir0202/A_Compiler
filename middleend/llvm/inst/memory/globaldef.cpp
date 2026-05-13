@@ -5,22 +5,24 @@
 #include "type/type.h"
 
 namespace middleend::llvm::inst {
-auto GlobalDefInst::Create(context::LLVMIRContext *context, type::Type *allocated_type, const std::string &name,
-                           std::vector<int> dimensions, std::vector<int> initial_values) -> GlobalDefInst * {
+auto GlobalDefInst::Create(context::LLVMIRContext *context, type::Type *result_type, type::Type *allocated_type,
+                           const std::string &name, std::vector<int> dimensions,
+                           std::vector<int> initial_values) -> GlobalDefInst * {
   auto *inst = new GlobalDefInst(allocated_type, name, std::move(dimensions), std::move(initial_values));
   // Set all result's type to pointer
-  auto ptr_type = context->GetTypeContext()->GetPtrType(allocated_type);
+  auto ptr_type = context->GetTypeContext()->GetPtrType(result_type);
   auto res = context->GetNewGlobalOperand(name, ptr_type);
   res->SetInstruction(inst);
   inst->SetResult(res);
   return inst;
 }
 
-auto GlobalDefInst::Create(context::LLVMIRContext *context, type::Type *allocated_type, const std::string &name,
-                           std::vector<int> dimensions, std::vector<double> initial_values) -> GlobalDefInst * {
+auto GlobalDefInst::Create(context::LLVMIRContext *context, type::Type *result_type, type::Type *allocated_type,
+                           const std::string &name, std::vector<int> dimensions,
+                           std::vector<double> initial_values) -> GlobalDefInst * {
   auto *inst = new GlobalDefInst(allocated_type, name, std::move(dimensions), std::move(initial_values));
   // Set all result's type to pointer
-  auto ptr_type = context->GetTypeContext()->GetPtrType(allocated_type);
+  auto ptr_type = context->GetTypeContext()->GetPtrType(result_type);
   auto res = context->GetNewGlobalOperand(name, ptr_type);
   res->SetInstruction(inst);
   inst->SetResult(res);
@@ -39,15 +41,21 @@ auto GlobalDefInst::Verify(context::CompilerContext *context) const -> bool {
     context->Print("Global variable cannot have both integer and float initializers");
     return false;
   }
-  auto type = allocated_type_;
-  if (type->GetKind() == type::TypeKind::ARRAY) {
-    type = static_cast<type::ArrayType *>(allocated_type_)->GetElementType();
+  if (allocated_type_->GetKind() == type::TypeKind::ARRAY) {
+    context->Print("Global variable cannot be of array type, it should be a pointer to the array type");
+    return false;
   }
-  if (!int_initial_values_.empty() && type->GetKind() != type::TypeKind::INT) {
+
+  auto base_type = result_->GetType();
+  if (base_type->GetKind() == type::TypeKind::PTR) {
+    base_type = static_cast<type::PtrType *>(base_type)->GetBaseType();
+  }
+
+  if (!int_initial_values_.empty() && allocated_type_->GetKind() != type::TypeKind::INT) {
     context->Print("Type of the global variable does not match the type of the initializers");
     return false;
   }
-  if (!float_initial_values_.empty() && type->GetKind() != type::TypeKind::FLOAT) {
+  if (!float_initial_values_.empty() && allocated_type_->GetKind() != type::TypeKind::FLOAT) {
     context->Print("Type of the global variable does not match the type of the initializers");
     return false;
   }
@@ -62,11 +70,7 @@ auto GlobalDefInst::Emit(std::ofstream *out) const -> void {
       *out << "[" << dim << " x ";
     }
     // output the element type
-    auto type = allocated_type_;
-    if (type->GetKind() == type::TypeKind::ARRAY) {
-      type = static_cast<type::ArrayType *>(allocated_type_)->GetElementType();
-    }
-    *out << utils::Operand::GetTypeInLLVMIR(type);
+    *out << utils::Operand::GetTypeInLLVMIR(allocated_type_);
     for (size_t i = 0; i < dimensions_.size(); ++i) {
       *out << "]";
     }
@@ -112,7 +116,11 @@ auto GlobalDefInst::Emit(std::ofstream *out) const -> void {
       throw std::runtime_error("Unsupported type for global variable initializer");
     }
   }
-  *out << ", align " << allocated_type_->GetAlign();
+  auto type = result_->GetType();
+  if (type->GetKind() == type::TypeKind::PTR) {
+    type = static_cast<type::PtrType *>(type)->GetBaseType();
+  }
+  *out << ", align " << type->GetAlign();
   *out << "\n";
 }
 

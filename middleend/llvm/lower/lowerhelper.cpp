@@ -533,21 +533,24 @@ auto LowerHelper::LowerGlobalVarDefOp(mlir::var::GlobalVarDefOp *global_var_def)
   /**
    * @note: var_type might be array type
    */
-  auto var_type = global_var_def->GetRes()->GetType();
+  auto var_type = result->GetType();
   auto type = var_type;
   if (type->GetKind() == type::TypeKind::ARRAY) {
     type = static_cast<type::ArrayType *>(var_type)->GetElementType();
   }
+  printf("var type is %s\n", type->ToString().c_str());
+  // Get result type, which should be a pointer type pointing to the variable type
+  auto result_type = var_type;
   if (type->GetKind() == type::TypeKind::INT) {
     auto &inits = global_var_def->GetIntInitValues();
     auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::GlobalDefInst>(
-        GET_LLVMIR_CONTEXT(), var_type, var_name, global_var_def->GetDimensions(), inits);
+        GET_LLVMIR_CONTEXT(), result_type, type, var_name, global_var_def->GetDimensions(), inits);
     GET_LLVMIR_CONTEXT()->GetResourceContext()->AddGlobalVarDef(var_name, inst);
     GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());
   } else if (type->GetKind() == type::TypeKind::FLOAT) {
     auto &inits = global_var_def->GetFloatInitValues();
     auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::GlobalDefInst>(
-        GET_LLVMIR_CONTEXT(), var_type, var_name, global_var_def->GetDimensions(), inits);
+        GET_LLVMIR_CONTEXT(), result_type, type, var_name, global_var_def->GetDimensions(), inits);
     GET_LLVMIR_CONTEXT()->GetResourceContext()->AddGlobalVarDef(var_name, inst);
     GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());
   } else {
@@ -576,8 +579,14 @@ auto LowerHelper::LowerVarGetPtrOp(mlir::var::VarGetPtrOp *get_ptr_op) -> void {
   auto ptr = get_ptr_op->GetPtr();
   auto result = get_ptr_op->GetRes();
   auto llvm_ptr = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(ptr);
+  auto allocated_type = llvm_ptr->GetType();
+  if (allocated_type->GetKind() == type::TypeKind::PTR) {
+    // Since the allocated type is a pointer type,
+    // we need to get the base type to check if it is an array
+    allocated_type = static_cast<type::PtrType *>(allocated_type)->GetBaseType();
+  }
   // If llvm_ptr is a global variable as well as it is not an array
-  if (llvm_ptr->IsGlobal() && llvm_ptr->GetType()->GetKind() != type::TypeKind::ARRAY) {
+  if (llvm_ptr->IsGlobal() && allocated_type->GetKind() != type::TypeKind::ARRAY) {
     // directly map the result to the global variable operand
     GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, llvm_ptr);
   } else {
@@ -588,8 +597,12 @@ auto LowerHelper::LowerVarGetPtrOp(mlir::var::VarGetPtrOp *get_ptr_op) -> void {
       auto llvm_index = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(index);
       indices.emplace_back(llvm_index);
     }
+    auto result_type = result->GetType();
+    if (result_type->GetKind() == type::TypeKind::ARRAY) {
+      result_type = static_cast<type::ArrayType *>(result_type)->GetElementType();
+    }
     auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::GetElementPtrInst>(
-        GET_LLVMIR_CONTEXT(), result->GetType(), llvm_ptr, indices);
+        GET_LLVMIR_CONTEXT(), result_type, llvm_ptr, indices);
     GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
     GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());
     inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());
@@ -611,6 +624,7 @@ auto LowerHelper::LowerVarSetOp(mlir::var::VarSetOp *set_val_op) -> void {
   auto ptr = set_val_op->GetPtr();
   auto value = set_val_op->GetNewValue();
   auto llvm_ptr = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(ptr);
+
   auto llvm_value = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(value);
   auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::StoreInst>(GET_LLVMIR_CONTEXT(), llvm_value,
                                                                                       llvm_ptr);

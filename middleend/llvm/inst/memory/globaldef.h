@@ -33,10 +33,12 @@ class GlobalDefInst : public Instruction {
         name_(std::move(name)),
         float_initial_values_(std::move(initial_values)) {}
 
-  static auto Create(context::LLVMIRContext *context, type::Type *allocated_type, const std::string &name,
-                     std::vector<int> dimensions, std::vector<int> initial_values) -> GlobalDefInst *;
-  static auto Create(context::LLVMIRContext *context, type::Type *allocated_type, const std::string &name,
-                     std::vector<int> dimensions, std::vector<double> initial_values) -> GlobalDefInst *;
+  static auto Create(context::LLVMIRContext *context, type::Type *result_type, type::Type *allocated_type,
+                     const std::string &name, std::vector<int> dimensions,
+                     std::vector<int> initial_values) -> GlobalDefInst *;
+  static auto Create(context::LLVMIRContext *context, type::Type *result_type, type::Type *allocated_type,
+                     const std::string &name, std::vector<int> dimensions,
+                     std::vector<double> initial_values) -> GlobalDefInst *;
   friend class utils::factory::InstFactory;
   type::Type *allocated_type_;
   std::vector<int> dimensions_;

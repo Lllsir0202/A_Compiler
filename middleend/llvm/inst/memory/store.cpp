@@ -21,6 +21,7 @@ auto StoreInst::Verify(context::CompilerContext *context) const -> bool {
     context->Print("Pointer operand of store instruction must be of pointer type\n");
     return false;
   }
+
   auto base_type = static_cast<type::PtrType *>(ptr_type)->GetBaseType();
 
   if (value_type == nullptr || value_type != base_type) {
