@@ -6,6 +6,7 @@ class Value;
 
 class ReplaceAdapter : public Adapter {
  public:
+  ~ReplaceAdapter() override = default;
   auto Adapt(Operation *op) -> void override;
   auto SetReplace(Value *old_value, Value *new_value) -> void {
     old_value_ = old_value;

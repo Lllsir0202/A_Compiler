@@ -66,7 +66,9 @@ enum class OpKind : uint8_t {
   // UitoFp
   Uitofp,
   // Followed by pseudo instructions
-  Copy
+  Copy,
+  // Const inits, used for initializing variables which are all constant
+  ConstInit
 };
 
 }  // namespace middleend::llvm::inst

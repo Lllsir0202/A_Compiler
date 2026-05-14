@@ -126,7 +126,7 @@ auto LowerHelper::LowerBasicBlocks(mlir::base::FuncDefOp *func_def) -> void {
     }
     blocks.emplace_back(mlir_block->GetBlock());
   }
-  for (auto block : blocks) {
+  for (auto block : func_def->GetBlocks()) {
     // Create a corresponding llvm ir basic block for each mlir block
     auto basic_block = GET_LLVMIR_CONTEXT()->GetResourceContext()->GetNewBasicBlock();
     // Map the mlir block to llvm ir basic block
@@ -563,6 +563,11 @@ auto LowerHelper::LowerFuncCallOp(mlir::base::FuncCallOp *func_call) -> void {
   std::vector<llvm::utils::Operand *> llvm_args;
   for (auto *arg : args) {
     auto llvm_arg = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(arg);
+    if (llvm_arg == nullptr) {
+      printf("Warning: argument %zu of function call %s is not mapped to llvm ir operand, skipping this argument\n",
+             arg->num_, func_name.c_str());
+      continue;
+    }
     llvm_args.emplace_back(llvm_arg);
   }
   auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::CallInst>(GET_LLVMIR_CONTEXT(), func_name,
@@ -726,7 +731,7 @@ auto LowerHelper::LowerVarDefOp(mlir::var::VarDefOp *var_def) -> void {
   if (all_constants) {
     // Use memcpy to initialize the memory
     // TODO(loki) : implement the memcpy and note that need to consider creating the initializer const variable
-    
+
   } else {
     // Call memset to initialize the memory with zero first, and then create store instructions to initialize the memory
     auto ptr = var_def->GetRes();
@@ -788,6 +793,7 @@ auto LowerHelper::LowerVarDefOp(mlir::var::VarDefOp *var_def) -> void {
       }
       auto store_inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::StoreInst>(
           GET_LLVMIR_CONTEXT(), llvm_inits[i], gep_inst->GetResult());
+
       if (llvm_inits[i]->GetInstruction() != nullptr) {
         llvm_inits[i]->GetInstruction()->AddUser(store_inst);
       }
@@ -907,8 +913,8 @@ auto LowerHelper::LowerCopyOp(mlir::base::CopyOp *copy_op) -> void {
   auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::CopyInst>(GET_LLVMIR_CONTEXT(),
                                                                                      dst->GetType(), llvm_src);
   // No need to record use, since we will eliminate them later.
-
   auto res = inst->GetResult();
+
   GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
   GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(dst, res);
   inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());

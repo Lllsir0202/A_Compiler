@@ -12,18 +12,22 @@ auto ReplaceAdapter::ReplaceInOperation(Operation *op) -> void {
   }
   // We only replace the operands of the operation,
   // and do not consider the case which the operation has a block or something else
+  bool changed = false;
   for (auto &operand : op->operands_) {
     if (operand == old_value_) {
       operand = new_value_;
+      changed = true;
     }
   }
   // Update the users of the old value to use the new value
-  for (auto *user : old_value_->GetUses()) {
-    for (auto &operand : user->operation_->operands_) {
-      if (operand == old_value_) {
-        operand = new_value_;
-      }
+  if (changed) {
+    auto use = old_value_->GetUseByOperation(op);
+    if (use == nullptr) {
+      return;
     }
+    auto index = use->operand_index_;
+    old_value_->RemoveUse(op);
+    new_value_->AddUse(op, index);
   }
 }
 

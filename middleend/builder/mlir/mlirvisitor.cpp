@@ -1033,20 +1033,18 @@ void MLIRVisitor::Visit(frontend::ast::WhileStmtNode *while_stmt) {
   }
 
   if (!original_values.empty()) {
-    // auto inits_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::InitsOp>(GET_MLIR_CONTEXT(), original_values);
     // Create block args
     auto block_args = std::vector<mlir::Value *>();
 
-    // GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(inits_op);
     for (auto *origin : original_values) {
       auto arg = GET_MLIR_CONTEXT()->CreateValue();
       arg->SetType(origin->GetType());
       block_args.emplace_back(arg);
-      // origin->ReplaceAllUsesWith(arg);
 
       auto replaceadapter = new mlir::ReplaceAdapter();
       replaceadapter->SetReplace(origin, arg);
       while_op->Walk(replaceadapter);
+      delete replaceadapter;
 
       GET_MLIR_CONTEXT()->GetResourceContext()->SetArgValueName(arg);
     }

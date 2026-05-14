@@ -51,6 +51,7 @@ class Value {
     for (auto it = uses_.begin(); it != uses_.end(); ++it) {
       if ((*it)->operation_ == op) {
         uses_.erase(it);
+        delete *it;
         return;
       }
     }
@@ -60,6 +61,14 @@ class Value {
    * @brief Get all uses
    */
   auto GetUses() -> std::vector<Use *> & { return uses_; }
+  auto GetUseByOperation(Operation *op) -> Use * {
+    for (auto use : uses_) {
+      if (use->operation_ == op) {
+        return use;
+      }
+    }
+    return nullptr;
+  }
 
   /**
    * @brief Replace all uses of this value with another value
@@ -75,8 +84,6 @@ class Value {
    * %2 = base.mul %1, %3
    */
   auto ReplaceAllUsesWith(Value *new_value) -> void;
-
-  auto ReplaceUsesWithInBlock(Value *new_value, Block *block) -> void;
 
   /**
    * @brief Replace all operations that use this value with another operation

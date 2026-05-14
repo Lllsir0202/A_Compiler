@@ -6,6 +6,7 @@ class Operation;
 
 class Adapter {
  public:
+  virtual ~Adapter() = default;
   virtual auto Adapt(Operation *op) -> void = 0;
 };
 
