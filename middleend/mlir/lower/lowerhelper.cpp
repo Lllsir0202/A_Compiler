@@ -261,9 +261,6 @@ auto LowerHelper::LowerCastOp(middleend::mlir::arithm::CastOp *cast_op) -> void 
   auto LowerHelper::Lower##OPERATION_TYPE(middleend::mlir::DIALECT::OPERATION_TYPE *op)->void { \
     auto new_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::DIALECT::OPERATION_TYPE>(op);       \
     GetInsertPoint()->AddOperation(new_op);                                                     \
-    for (auto &value : op->operands_) {                                                         \
-      value->ReplaceAllOpUsesWith(op, new_op);                                                  \
-    }                                                                                           \
   }
 
 // Variable-about operations

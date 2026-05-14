@@ -699,6 +699,7 @@ auto LowerHelper::LowerVarDefOp(mlir::var::VarDefOp *var_def) -> void {
   // For initializations,
   // we will create store instructions to
   // store the initial values to the allocated memory
+  auto inits = var_def->GetInits();
 }
 
 /**
