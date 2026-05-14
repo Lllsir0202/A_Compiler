@@ -36,5 +36,5 @@ libs/*.a
 normalized_initializer.txt
 
 # Ignore the generated llvm ir file
-tmp.o
+tmp.*
 a.out
