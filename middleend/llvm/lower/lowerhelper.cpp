@@ -1,4 +1,5 @@
 #include "middleend/llvm/lower/lowerhelper.h"
+#include <algorithm>
 #include <cstddef>
 #include <stdexcept>
 #include <string>
@@ -700,6 +701,86 @@ auto LowerHelper::LowerVarDefOp(mlir::var::VarDefOp *var_def) -> void {
   // we will create store instructions to
   // store the initial values to the allocated memory
   auto inits = var_def->GetInits();
+  std::vector<llvm::utils::Operand *> llvm_inits;
+  for (auto *init : inits) {
+    auto llvm_init = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(init);
+    llvm_inits.emplace_back(llvm_init);
+  }
+  /**
+   * @brief Initialize method and idea is as follows:
+   *  1. If all constants, we will use memcpy to initialize the memory.
+   *  2. If not all constants, call memset first, and initialize the memory with store instructions
+   */
+  bool all_constants = true;
+  // If no initialization, we can also directly use memset to initialize
+  for (auto llvm_init : llvm_inits) {
+    if (!llvm_init->IsLiteral()) {
+      all_constants = false;
+      break;
+    }
+  }
+  // If empty
+  if (llvm_inits.empty()) {
+    all_constants = false;
+  }
+  if (all_constants) {
+    // Use memcpy to initialize the memory
+    // TODO(loki) : implement the memcpy and note that need to consider creating the initializer const variable
+  } else {
+    // Create store instructions to initialize the memory
+    auto ptr = var_def->GetRes();
+    auto llvm_ptr = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(ptr);
+    auto dimensions = var_def->GetDimensions();
+    // For each initialization value,
+    // we will create a store instruction to
+    // store the value to the corresponding memory location
+    // Calculate the indices for the store instruction
+    // based on the dimensions and the position of the initialization value
+    for (size_t i = 0; i < llvm_inits.size(); ++i) {
+      std::vector<llvm::utils::Operand *> indices;
+      size_t remaining = i;
+      for (auto dim : dimensions) {
+        size_t index = remaining % dim;
+        remaining /= dim;
+        indices.emplace_back(GET_LLVMIR_CONTEXT()->GetIntLiteral(index));
+      }
+      // Since the allocated type is a pointer type,
+      // we need to get the base type to check if it is an array
+      auto allocated_type = llvm_ptr->GetType();
+      if (allocated_type->GetKind() == type::TypeKind::PTR) {
+        allocated_type = static_cast<type::PtrType *>(allocated_type)->GetBaseType();
+      }
+      // If it is an array, we need to add a zero index to get the pointer to the first element
+      if (allocated_type->GetKind() == type::TypeKind::ARRAY) {
+        indices.emplace_back(GET_LLVMIR_CONTEXT()->GetIntLiteral(0));
+      }
+      // Since the indices are calculated in reverse order, we need to reverse them back
+      std::reverse(indices.begin(), indices.end());
+      auto result_ptr_type = GET_LLVMIR_CONTEXT()->GetTypeContext()->GetPtrType(llvm_inits[i]->GetType());
+      auto gep_inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::GetElementPtrInst>(
+          GET_LLVMIR_CONTEXT(), result_ptr_type, llvm_ptr, indices);
+      if (llvm_ptr->GetInstruction() != nullptr) {
+        llvm_ptr->GetInstruction()->AddUser(gep_inst);
+      }
+      for (auto llvm_index : indices) {
+        if (llvm_index->GetInstruction() != nullptr) {
+          llvm_index->GetInstruction()->AddUser(gep_inst);
+        }
+      }
+      auto store_inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::StoreInst>(
+          GET_LLVMIR_CONTEXT(), llvm_inits[i], gep_inst->GetResult());
+      if (llvm_inits[i]->GetInstruction() != nullptr) {
+        llvm_inits[i]->GetInstruction()->AddUser(store_inst);
+      }
+      if (gep_inst->GetResult()->GetInstruction() != nullptr) {
+        gep_inst->GetResult()->GetInstruction()->AddUser(store_inst);
+      }
+      GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(gep_inst);
+      GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(store_inst);
+      gep_inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());
+      store_inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());
+    }
+  }
 }
 
 /**
@@ -739,10 +820,8 @@ auto LowerHelper::LowerVarGetPtrOp(mlir::var::VarGetPtrOp *get_ptr_op) -> void {
       auto llvm_index = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(index);
       indices.emplace_back(llvm_index);
     }
+    // Result type is a pointer type pointing to the allocated type
     auto result_type = result->GetType();
-    if (result_type->GetKind() == type::TypeKind::ARRAY) {
-      result_type = static_cast<type::ArrayType *>(result_type)->GetElementType();
-    }
     auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::GetElementPtrInst>(
         GET_LLVMIR_CONTEXT(), result_type, llvm_ptr, indices);
 
