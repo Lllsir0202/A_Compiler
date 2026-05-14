@@ -15,6 +15,7 @@ class Type {
   virtual ~Type() = default;
   // Added in lowering to llvmir, which is used to decide which size to align to
   virtual auto GetAlign() const -> size_t = 0;
+  virtual auto GetDataSize() const -> size_t = 0;
 
  protected:
   explicit Type(TypeKind kind) : kind_(kind) {}
@@ -30,6 +31,7 @@ class UnknownType : public Type {
  public:
   auto ToString() const -> std::string override { return "Unknown"; }
   auto GetAlign() const -> size_t override { return 0; }
+  auto GetDataSize() const -> size_t override { return 0; }
   ~UnknownType() override = default;
 
  private:
@@ -45,6 +47,7 @@ class BooleanType : public Type {
  public:
   auto ToString() const -> std::string override { return "Bool"; }
   auto GetAlign() const -> size_t override { return 1; }
+  auto GetDataSize() const -> size_t override { return 1; }
   ~BooleanType() override = default;
 
  private:
@@ -61,6 +64,7 @@ class CharType : public Type {
  public:
   auto ToString() const -> std::string override { return "Char"; }
   auto GetAlign() const -> size_t override { return 1; }
+  auto GetDataSize() const -> size_t override { return 1; }
   ~CharType() override = default;
 
  private:
@@ -75,6 +79,7 @@ class IntegerType : public Type {
  public:
   auto ToString() const -> std::string override { return "Int"; }
   auto GetAlign() const -> size_t override { return 4; }
+  auto GetDataSize() const -> size_t override { return 4; }
   ~IntegerType() override = default;
 
  private:
@@ -89,6 +94,7 @@ class FloatType : public Type {
  public:
   auto ToString() const -> std::string override { return "Float"; }
   auto GetAlign() const -> size_t override { return 4; }
+  auto GetDataSize() const -> size_t override { return 4; }
   ~FloatType() override = default;
 
  private:
@@ -105,6 +111,7 @@ class LongType : public Type {
  public:
   auto ToString() const -> std::string override { return "Long"; }
   auto GetAlign() const -> size_t override { return 8; }
+  auto GetDataSize() const -> size_t override { return 8; }
   ~LongType() override = default;
 
  private:
@@ -119,6 +126,7 @@ class VoidType : public Type {
  public:
   auto ToString() const -> std::string override { return "Void"; }
   auto GetAlign() const -> size_t override { return 0; }
+  auto GetDataSize() const -> size_t override { return 0; }
   ~VoidType() override = default;
 
  private:
@@ -138,6 +146,7 @@ class PtrType : public Type {
   auto ToString() const -> std::string override { return "Ptr to " + base_type_->ToString(); }
   auto GetBaseType() const -> Type * { return base_type_; }
   auto GetAlign() const -> size_t override { return 16; }
+  auto GetDataSize() const -> size_t override { return 16; }
   ~PtrType() override = default;
 
  private:
@@ -158,6 +167,7 @@ class ArrayType : public Type {
   }
   auto GetElementType() const -> Type * { return element_type_; }
   auto GetSize() const -> size_t { return size_; }
+  auto GetDataSize() const -> size_t override { return element_type_->GetDataSize() * size_; }
   auto GetAlign() const -> size_t override { return 16; }
   ~ArrayType() override = default;
 

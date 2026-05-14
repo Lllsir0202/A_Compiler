@@ -9,6 +9,34 @@
 #include "middleend/llvm/utils/struct/function.h"
 
 namespace context {
+LLVMIRResourceContext::~LLVMIRResourceContext() {
+  // Delete all the operands in the context
+  for (auto &[_, op] : reg_operands_) {
+    delete op;
+  }
+  for (auto &[_, op] : label_operands_) {
+    delete op;
+  }
+  for (auto &[_, op] : int_literals_) {
+    delete op;
+  }
+  for (auto &[_, op] : float_literals_) {
+    delete op;
+  }
+  for (auto &[_, op] : global_operands_) {
+    delete op;
+  }
+  for (auto &[_, op] : bool_literals_) {
+    delete op;
+  }
+  for (auto &[_, op] : long_literals_) {
+    delete op;
+  }
+  for (auto &[_, op] : char_literals_) {
+    delete op;
+  }
+}
+
 auto LLVMIRResourceContext::GetNewRegOperand(type::Type *type) -> middleend::llvm::utils::RegOperand * {
   auto op = middleend::llvm::utils::factory::OperandFactory::CreateRegOperand(reg_id_counter_++);
   op->SetType(type);
@@ -60,6 +88,39 @@ auto LLVMIRResourceContext::GetFloatLiteral(double value) -> middleend::llvm::ut
   auto op = middleend::llvm::utils::factory::OperandFactory::CreateFloatLiteral(value);
   op->SetType(type_context_->GetFloatType());
   float_literals_[value] = op;
+  return op;
+}
+
+auto LLVMIRResourceContext::GetBoolLiteral(bool value) -> middleend::llvm::utils::BoolLiteral * {
+  if (bool_literals_.count(value) > 0) {
+    return bool_literals_[value];
+  }
+  // If the operand does not exist, create a new one
+  auto op = middleend::llvm::utils::factory::OperandFactory::CreateBoolLiteral(value);
+  op->SetType(type_context_->GetBooleanType());
+  bool_literals_[value] = op;
+  return op;
+}
+
+auto LLVMIRResourceContext::GetLongLiteral(std::int64_t value) -> middleend::llvm::utils::LongLiteral * {
+  if (long_literals_.count(value) > 0) {
+    return long_literals_[value];
+  }
+  // If the operand does not exist, create a new one
+  auto op = middleend::llvm::utils::factory::OperandFactory::CreateLongLiteral(value);
+  op->SetType(type_context_->GetLongType());
+  long_literals_[value] = op;
+  return op;
+}
+
+auto LLVMIRResourceContext::GetCharLiteral(char value) -> middleend::llvm::utils::CharLiteral * {
+  if (char_literals_.count(value) > 0) {
+    return char_literals_[value];
+  }
+  // If the operand does not exist, create a new one
+  auto op = middleend::llvm::utils::factory::OperandFactory::CreateCharLiteral(value);
+  op->SetType(type_context_->GetCharType());
+  char_literals_[value] = op;
   return op;
 }
 

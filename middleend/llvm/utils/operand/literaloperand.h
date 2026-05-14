@@ -25,6 +25,39 @@ class FloatLiteral : public Operand {
   friend class middleend::llvm::utils::factory::OperandFactory;
 };
 
+class LongLiteral : public Operand {
+ public:
+  auto Emit(std::ofstream *out) const -> void override { *out << std::to_string(value_); }
+
+ private:
+  explicit LongLiteral(std::int64_t value) : Operand(OpType::Literal), value_(value) {}
+
+  std::int64_t value_;
+  friend class middleend::llvm::utils::factory::OperandFactory;
+};
+
+class CharLiteral : public Operand {
+ public:
+  auto Emit(std::ofstream *out) const -> void override { *out << std::to_string(value_); }
+
+ private:
+  explicit CharLiteral(char value) : Operand(OpType::Literal), value_(value) {}
+
+  char value_;
+  friend class middleend::llvm::utils::factory::OperandFactory;
+};
+
+class BoolLiteral : public Operand {
+ public:
+  auto Emit(std::ofstream *out) const -> void override { *out << (value_ ? "true" : "false"); }
+
+ private:
+  explicit BoolLiteral(bool value) : Operand(OpType::Literal), value_(value) {}
+
+  bool value_;
+  friend class middleend::llvm::utils::factory::OperandFactory;
+};
+
 }  // namespace middleend::llvm::utils
 
 #endif

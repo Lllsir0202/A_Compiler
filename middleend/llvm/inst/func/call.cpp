@@ -65,7 +65,9 @@ auto CallInst::Verify(context::CompilerContext *context) const -> bool {
         return false;
       }
 
-      if (operands_[i]->GetType() == nullptr || operands_[i]->GetType() != func_declare->GetArgTypes()[i]) {
+      // Just make sure the argument type is compatible with the parameter type in the library function definition
+      if (operands_[i]->GetType() == nullptr ||
+          operands_[i]->GetType()->GetKind() != func_declare->GetArgTypes()[i]->GetKind()) {
         // If the argument type is not compatible, report error
         context->Print("Argument type of the call instruction does not match the library function definition\n");
         return false;

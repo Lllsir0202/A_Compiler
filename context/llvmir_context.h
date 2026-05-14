@@ -24,6 +24,7 @@ namespace context {
 class LLVMIRResourceContext {
  public:
   explicit LLVMIRResourceContext(TypeContext *type_context) : type_context_(type_context) {}
+  ~LLVMIRResourceContext();
   /**
    * @brief Interfaces to create new operands
    */
@@ -38,6 +39,11 @@ class LLVMIRResourceContext {
   auto GetRegOperand(size_t id) -> middleend::llvm::utils::RegOperand *;
   auto GetIntLiteral(int value) -> middleend::llvm::utils::IntLiteral *;
   auto GetFloatLiteral(double value) -> middleend::llvm::utils::FloatLiteral *;
+  // Just for llvm intrinsic functions
+  auto GetBoolLiteral(bool value) -> middleend::llvm::utils::BoolLiteral *;
+  auto GetLongLiteral(std::int64_t value) -> middleend::llvm::utils::LongLiteral *;
+  auto GetCharLiteral(char value) -> middleend::llvm::utils::CharLiteral *;
+
   auto GetGlobalOperand(const std::string &name) -> middleend::llvm::utils::GlobalOperand *;
 
   /**
@@ -100,6 +106,10 @@ class LLVMIRResourceContext {
   std::unordered_map<int, middleend::llvm::utils::IntLiteral *> int_literals_;
   std::unordered_map<double, middleend::llvm::utils::FloatLiteral *> float_literals_;
   std::unordered_map<std::string, middleend::llvm::utils::GlobalOperand *> global_operands_;
+  // Just for llvm intrinsic functions
+  std::unordered_map<bool, middleend::llvm::utils::BoolLiteral *> bool_literals_;
+  std::unordered_map<std::int64_t, middleend::llvm::utils::LongLiteral *> long_literals_;
+  std::unordered_map<char, middleend::llvm::utils::CharLiteral *> char_literals_;
 
   // Top module
   middleend::llvm::utils::Module *module_;
@@ -184,6 +194,18 @@ class LLVMIRContext {
 
   auto GetFloatLiteral(double value) -> middleend::llvm::utils::FloatLiteral * {
     return resource_context_->GetFloatLiteral(value);
+  }
+
+  auto GetBoolLiteral(bool value) -> middleend::llvm::utils::BoolLiteral * {
+    return resource_context_->GetBoolLiteral(value);
+  }
+
+  auto GetLongLiteral(std::int64_t value) -> middleend::llvm::utils::LongLiteral * {
+    return resource_context_->GetLongLiteral(value);
+  }
+
+  auto GetCharLiteral(char value) -> middleend::llvm::utils::CharLiteral * {
+    return resource_context_->GetCharLiteral(value);
   }
 
   auto GetNewGlobalOperand(const std::string &name, type::Type *type) -> middleend::llvm::utils::GlobalOperand * {

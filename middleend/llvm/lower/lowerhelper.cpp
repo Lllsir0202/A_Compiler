@@ -726,10 +726,29 @@ auto LowerHelper::LowerVarDefOp(mlir::var::VarDefOp *var_def) -> void {
   if (all_constants) {
     // Use memcpy to initialize the memory
     // TODO(loki) : implement the memcpy and note that need to consider creating the initializer const variable
+    
   } else {
-    // Create store instructions to initialize the memory
+    // Call memset to initialize the memory with zero first, and then create store instructions to initialize the memory
     auto ptr = var_def->GetRes();
     auto llvm_ptr = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(ptr);
+    // Get the total size of the allocated memory, which is the product of the dimensions and the element type size
+    auto var_type = var_def->GetRes()->GetType();
+    auto element_size = var_type->GetDataSize();
+    // memset(ptr, 0, size, false)
+    auto call_inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::CallInst>(
+        GET_LLVMIR_CONTEXT(), "llvm.memset.p0.i64",
+        std::vector<llvm::utils::Operand *>{llvm_ptr, GET_LLVMIR_CONTEXT()->GetCharLiteral(0),
+                                            GET_LLVMIR_CONTEXT()->GetLongLiteral(element_size),
+                                            GET_LLVMIR_CONTEXT()->GetBoolLiteral(false)},
+        GET_LLVMIR_CONTEXT()->GetTypeContext()->GetVoidType());
+    if (llvm_ptr->GetInstruction() != nullptr) {
+      llvm_ptr->GetInstruction()->AddUser(call_inst);
+    }
+    GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(call_inst);
+    call_inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());
+
+    // Create store instructions to initialize the memory
+
     auto dimensions = var_def->GetDimensions();
     // For each initialization value,
     // we will create a store instruction to

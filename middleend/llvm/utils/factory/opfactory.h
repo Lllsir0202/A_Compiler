@@ -17,6 +17,9 @@ class OperandFactory {
   static auto CreateFloatLiteral(double value) -> FloatLiteral * { return new FloatLiteral(value); }
   static auto CreateLabelOperand(size_t id) -> LabelOperand * { return new LabelOperand(id); }
   static auto CreateGlobalOperand(std::string name) -> GlobalOperand * { return new GlobalOperand(std::move(name)); }
+  static auto CreateBoolLiteral(bool value) -> BoolLiteral * { return new BoolLiteral(value); }
+  static auto CreateLongLiteral(std::int64_t value) -> LongLiteral * { return new LongLiteral(value); }
+  static auto CreateCharLiteral(char value) -> CharLiteral * { return new CharLiteral(value); }
   friend class context::LLVMIRResourceContext;
 };
 
