@@ -6,10 +6,10 @@
 namespace middleend::llvm::inst {
 class PhiInst : public Instruction {
  public:
-  auto GetIncomingValues() const -> const std::vector<utils::Operand *> & { return incoming_values_; }
+  auto GetIncomingValues() const -> const std::vector<utils::Operand *> & { return operands_; }
   auto GetIncomingBlocks() const -> const std::vector<utils::LabelOperand *> & { return incoming_blocks_; }
   auto AddIncoming(utils::Operand *value, utils::LabelOperand *block) -> void {
-    incoming_values_.emplace_back(value);
+    operands_.emplace_back(value);
     incoming_blocks_.emplace_back(block);
   }
 
@@ -24,7 +24,6 @@ class PhiInst : public Instruction {
   friend class utils::factory::InstFactory;
 
   // Operands of the phi instruction
-  std::vector<utils::Operand *> incoming_values_;
   std::vector<utils::LabelOperand *> incoming_blocks_;
 };
 

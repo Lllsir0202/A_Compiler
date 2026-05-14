@@ -43,4 +43,17 @@ auto WhileOp::Verify(context::CompilerContext *context) -> bool {
   return true;
 }
 
+auto WhileOp::Walk(Adapter *adapter) -> void {
+  // Walk the condition region
+  auto cond_region = GetCondRegion();
+  for (const auto &op : cond_region->blocks_[0]->operations_) {
+    op->Walk(adapter);
+  }
+  // Walk the body region
+  auto body_region = GetBodyRegion();
+  for (const auto &op : body_region->blocks_[0]->operations_) {
+    op->Walk(adapter);
+  }
+}
+
 }  // namespace middleend::mlir::scf

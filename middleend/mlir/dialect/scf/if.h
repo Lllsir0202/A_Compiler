@@ -63,6 +63,9 @@ class IfOp : public SCFOps {
 
   auto Verify(context::CompilerContext *context) -> bool override;
 
+  // Override the Walk function
+  auto Walk(Adapter *adapter) -> void override;
+
  private:
   IfOp() : SCFOps("if") {}
   auto SetUp(context::MLIRContext *context, size_t num_results, mlir::Value *condition, mlir::Region *then_region,

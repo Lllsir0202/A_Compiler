@@ -3,7 +3,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
-#include "mlir/utils/struct/block.h"
+#include "middleend/mlir/utils/struct/block.h"
 
 namespace context {
 class CompilerContext;
@@ -12,6 +12,7 @@ class MLIRContext;
 namespace middleend::mlir {
 class Value;
 class Region;
+class Adapter;
 
 /**
  * @brief Represents an operation in the MLIR
@@ -33,8 +34,12 @@ class Operation {
   // Provide interface to verify the operation, which will be used to check
   virtual auto Verify(context::CompilerContext *context) -> bool = 0;
 
-  // Get the result of the operation, which is a vector of values
-  virtual auto GetResults() -> std::vector<Value *> { return results_; }
+  // Walk
+  /**
+   * @brief Since most of the operations are the same ,
+   * we provide a default function
+   */
+  virtual auto Walk(Adapter *adapter) -> void;
 
   // Operands of the operation
   std::vector<Value *> operands_;  // the operands of this operation

@@ -1,5 +1,6 @@
 #include "middleend/mlir/dialect/func/funcdef.h"
 #include "context/compiler_context.h"
+#include "mlir/utils/adapter/adapter.h"
 
 namespace middleend::mlir::func {
 
@@ -34,4 +35,16 @@ auto FuncDefOp::Verify(context::CompilerContext *context) -> bool {
   }
   return true;
 }
+
+auto FuncDefOp::Walk(Adapter *adapter) -> void {
+  // Walk the operations in the function body
+  for (const auto &region : regions_) {
+    for (const auto &block : region->blocks_) {
+      for (const auto &op : block->operations_) {
+        op->Walk(adapter);
+      }
+    }
+  }
+}
+
 }  // namespace middleend::mlir::func

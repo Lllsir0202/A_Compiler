@@ -2,10 +2,10 @@
 #define MIDDLEEND_MLIR_DIALECT_SCF_WHILE_H
 
 #include <stdexcept>
-#include "compiler_context.h"
+#include "context/compiler_context.h"
 #include "context/mlir_context.h"
 #include "middleend/mlir/dialect/scf/basic.h"
-#include "mlir/utils/operation/operation.h"
+#include "middleend/mlir/utils/operation/operation.h"
 namespace middleend::mlir::scf {
 class WhileOp : public SCFOps {
  public:
@@ -62,6 +62,11 @@ class WhileOp : public SCFOps {
   }
 
   auto GetResultsSize() -> size_t { return results_.size(); }
+
+  /**
+   * @brief Override virtual funciton Walk
+   */
+  auto Walk(Adapter *adapter) -> void override;
 
  private:
   WhileOp() : SCFOps("while"){};

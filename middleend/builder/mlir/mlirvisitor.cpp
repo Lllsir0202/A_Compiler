@@ -4,6 +4,7 @@
  */
 #include "middleend/builder/mlir/mlirvisitor.h"
 #include <cstddef>
+#include <memory>
 #include <string>
 #include "flatten/astinit.h"
 #include "frontend/ast/ast_decl.h"
@@ -19,6 +20,7 @@
 #include "middleend/mlir/utils/struct/region.h"
 #include "middleend/mlir/utils/value/value.h"
 #include "mlir/dialect/var/globaldef.h"
+#include "mlir/utils/adapter/replace/replace.h"
 #include "utils/flatten/mlirinit.h"
 #include "utils/type/type.h"
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()
@@ -1041,11 +1043,10 @@ void MLIRVisitor::Visit(frontend::ast::WhileStmtNode *while_stmt) {
       arg->SetType(origin->GetType());
       block_args.emplace_back(arg);
       // origin->ReplaceAllUsesWith(arg);
-      /**
-       * @note: TODO(loki): might be able to optimize in the future
-       */
-      origin->ReplaceUsesWithInBlock(arg, cond_block);
-      origin->ReplaceUsesWithInBlock(arg, body_block);
+
+      auto replaceadapter = new mlir::ReplaceAdapter();
+      replaceadapter->SetReplace(origin, arg);
+      while_op->Walk(replaceadapter);
 
       GET_MLIR_CONTEXT()->GetResourceContext()->SetArgValueName(arg);
     }

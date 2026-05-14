@@ -39,4 +39,15 @@ auto IfOp::Verify(context::CompilerContext *context) -> bool {
   return true;
 }
 
+auto IfOp::Walk(Adapter *adapter) -> void {
+  // Walk the operations in the then region
+  // and else region with the adapter
+  for (auto &op : regions_[0]->blocks_[0]->operations_) {
+    op->Walk(adapter);
+  }
+  for (auto &op : regions_[1]->blocks_[0]->operations_) {
+    op->Walk(adapter);
+  }
+}
+
 }  // namespace middleend::mlir::scf

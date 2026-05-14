@@ -1,4 +1,5 @@
 #include "middleend/mlir/utils/operation/operation.h"
+#include "middleend/mlir/utils/adapter/adapter.h"
 #include "middleend/mlir/utils/struct/block.h"
 #include "middleend/mlir/utils/struct/region.h"
 namespace middleend::mlir {
@@ -94,6 +95,12 @@ auto ModuleOp::Verify(context::CompilerContext *context) -> bool {
     }
   }
   return true;  // If all operations are valid, the module operation is valid
+}
+
+auto Operation::Walk(Adapter *adapter) -> void {
+  // Walk the operation, which means we will call the adapter to adapt the operation
+  // and then we will walk the regions of this operation
+  adapter->Adapt(this);
 }
 
 }  // namespace middleend::mlir

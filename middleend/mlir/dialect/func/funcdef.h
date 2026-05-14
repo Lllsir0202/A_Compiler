@@ -3,9 +3,9 @@
 #include <unordered_set>
 #include "context/mlir_context.h"
 #include "middleend/mlir/dialect/func/basic.h"
-#include "mlir/utils/struct/block.h"
-#include "mlir/utils/struct/region.h"
-#include "mlir/utils/value/value.h"
+#include "middleend/mlir/utils/struct/block.h"
+#include "middleend/mlir/utils/struct/region.h"
+#include "middleend/mlir/utils/value/value.h"
 namespace middleend::mlir::func {
 
 #include "middleend/checklibrary.ck"
@@ -80,6 +80,11 @@ class FuncDefOp : public FuncOps {
     }
     return regions_[0]->blocks_[0];
   }
+
+  /**
+   * @brief Override the function of the virtual function Walk
+   */
+  auto Walk(Adapter *adapter) -> void override;
 
  private:
   FuncDefOp() : FuncOps("def"){};

@@ -1,5 +1,8 @@
 #include "middleend/llvm/lower/lowerhelper.h"
+#include <cstddef>
 #include <stdexcept>
+#include <string>
+#include "llvm/utils/operand/regoperand.h"
 #include "middleend/llvm/inst/arithm/arithm.h"
 #include "middleend/llvm/inst/branch/branch.h"
 #include "middleend/llvm/inst/branch/phi.h"
@@ -195,6 +198,7 @@ auto LowerHelper::LowerFuncDefOp(mlir::base::FuncDefOp *func_def) -> void {
     // After lowering the function body,
     // we will update the pending phi instructions
     // with the incoming values and corresponding blocks
+    size_t i = 0;
     while (!pending_phi_insts_.empty() && !pending_phi_ops_.empty()) {
       auto phi_inst = pending_phi_insts_.front();
       pending_phi_insts_.pop();
@@ -210,28 +214,37 @@ auto LowerHelper::LowerFuncDefOp(mlir::base::FuncDefOp *func_def) -> void {
         auto llvm_incoming_block_operand =
             GET_LLVMIR_CONTEXT()->GetResourceContext()->GetLabelOperand(llvm_incoming_block->GetID());
         phi_inst->AddIncoming(llvm_incoming_value, llvm_incoming_block_operand);
+        if (llvm_incoming_value->GetInstruction() != nullptr) {
+          llvm_incoming_value->GetInstruction()->AddUser(phi_inst);
+        }
+      }
+      auto result = phi_inst->GetResult();
+      if (result->IsRegister()) {
+        auto llvm_result = static_cast<utils::RegOperand *>(result);
+        llvm_result->SetName("phi_result_" + std::to_string(i));
+        ++i;
       }
     }
 
-    // // After finishing the lowering of the function, we will update the pending copy instructions
-    // std::queue<utils::BasicBlock *> blocks_to_erase;
-    // std::unordered_set<inst::Instruction *> copy_insts_to_erase;
-    // while (!pending_copy_insts_.empty()) {
-    //   auto copy_inst = pending_copy_insts_.front();
-    //   pending_copy_insts_.pop();
-    //   // replace all users with the source operand
-    //   auto src_operand = copy_inst->GetOperands()[0];
-    //   copy_inst->ReplaceAllUsersWith(src_operand);
-    //   // Record the block to erase the copy instruction later
-    //   blocks_to_erase.push(copy_inst->GetParentBlock());
-    //   copy_insts_to_erase.insert(copy_inst);
-    // }
-    // while (!blocks_to_erase.empty()) {
-    //   auto block = blocks_to_erase.front();
-    //   blocks_to_erase.pop();
-    //   // Erase the copy instruction in the block
-    //   block->RemoveInsts(copy_insts_to_erase);
-    // }
+    // After finishing the lowering of the function, we will update the pending copy instructions
+    std::queue<utils::BasicBlock *> blocks_to_erase;
+    std::unordered_set<inst::Instruction *> copy_insts_to_erase;
+    while (!pending_copy_insts_.empty()) {
+      auto copy_inst = pending_copy_insts_.front();
+      pending_copy_insts_.pop();
+      // replace all users with the source operand
+      auto src_operand = copy_inst->GetOperands()[0];
+      copy_inst->ReplaceAllUsersWith(src_operand);
+      // Record the block to erase the copy instruction later
+      blocks_to_erase.push(copy_inst->GetParentBlock());
+      copy_insts_to_erase.insert(copy_inst);
+    }
+    while (!blocks_to_erase.empty()) {
+      auto block = blocks_to_erase.front();
+      blocks_to_erase.pop();
+      // Erase the copy instruction in the block
+      block->RemoveInsts(copy_insts_to_erase);
+    }
 
     // Exit the function, reset the current function in lower context
     GET_LLVMIR_CONTEXT()->GetLowerContext()->SetCurrentFunction(nullptr);

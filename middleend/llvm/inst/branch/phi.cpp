@@ -9,13 +9,13 @@ auto PhiInst::Emit(std::ofstream *out) const -> void {
   *out << "  ";
   result_->Emit(out);
   *out << " = phi " << utils::Operand::GetTypeInLLVMIR(result_->GetType()) << " ";
-  for (size_t i = 0; i < incoming_values_.size(); ++i) {
+  for (size_t i = 0; i < operands_.size(); ++i) {
     *out << "[ ";
-    incoming_values_[i]->Emit(out);
+    operands_[i]->Emit(out);
     *out << ", ";
     incoming_blocks_[i]->Emit(out);
     *out << " ]";
-    if (i != incoming_values_.size() - 1) {
+    if (i != operands_.size() - 1) {
       *out << ", ";
     }
   }
@@ -25,12 +25,12 @@ auto PhiInst::Emit(std::ofstream *out) const -> void {
 auto PhiInst::Verify(context::CompilerContext *context) const -> bool {
   // Verify the phi instruction
   // Check if the number of incoming values and blocks are the same
-  if (incoming_values_.size() != incoming_blocks_.size()) {
+  if (operands_.size() != incoming_blocks_.size()) {
     context->Print("Mismatched number of incoming values and blocks in phi instruction\n");
     return false;
   }
   // Check if the types of incoming values are consistent with the result type
-  for (const auto &value : incoming_values_) {
+  for (const auto &value : operands_) {
     if (value == nullptr) {
       context->Print("Null incoming value in phi instruction\n");
       return false;
