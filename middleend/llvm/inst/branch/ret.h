@@ -12,9 +12,6 @@ class RetInst : public Instruction {
   explicit RetInst() : Instruction(OpKind::Ret) {}
   static auto Create(context::LLVMIRContext *context, utils::Operand *ret_value) -> RetInst *;
   friend class utils::factory::InstFactory;
-
-  // Return value operand, can be nullptr for void return
-  utils::Operand *ret_value_;
 };
 
 }  // namespace middleend::llvm::inst

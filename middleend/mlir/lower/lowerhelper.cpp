@@ -261,6 +261,9 @@ auto LowerHelper::LowerCastOp(middleend::mlir::arithm::CastOp *cast_op) -> void 
   auto LowerHelper::Lower##OPERATION_TYPE(middleend::mlir::DIALECT::OPERATION_TYPE *op)->void { \
     auto new_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::DIALECT::OPERATION_TYPE>(op);       \
     GetInsertPoint()->AddOperation(new_op);                                                     \
+    for (auto &value : op->operands_) {                                                         \
+      value->ReplaceAllOpUsesWith(op, new_op);                                                  \
+    }                                                                                           \
   }
 
 // Variable-about operations
@@ -277,6 +280,7 @@ auto LowerHelper::LowerCopyOp(middleend::mlir::arithm::CopyOp *copy_op) -> void 
   // Copy operation is a special case, since it is a high level operation that does not exist in the base dialect,
   // we will just clone the copy operation to the base dialect, and then we will lower it in the next step
   auto new_copy_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::CopyOp>(copy_op->GetRes(), copy_op->GetValue());
+  new_copy_op->GetSrc()->ReplaceAllOpUsesWith(copy_op, new_copy_op);
   GetInsertPoint()->AddOperation(new_copy_op);
 }
 
