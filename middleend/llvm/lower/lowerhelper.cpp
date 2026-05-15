@@ -115,17 +115,6 @@ auto LowerHelper::LowerDispatch(mlir::Operation *op) -> void {
 }
 
 auto LowerHelper::LowerBasicBlocks(mlir::base::FuncDefOp *func_def) -> void {
-  // Get blocks from mlir base function definition
-  auto func_cfg = func_cfgs_[func_def];
-  auto cfg_blocks = func_cfg->GetDFSOrder();
-  std::vector<mlir::Block *> blocks;
-  for (auto cfg_block : cfg_blocks) {
-    auto mlir_block = dynamic_cast<pass::analysis::MLIRCFGNode *>(cfg_block);
-    if (mlir_block == nullptr) {
-      throw std::logic_error("CFG block is not of type MLIRBlock");
-    }
-    blocks.emplace_back(mlir_block->GetBlock());
-  }
   for (auto block : func_def->GetBlocks()) {
     // Create a corresponding llvm ir basic block for each mlir block
     auto basic_block = GET_LLVMIR_CONTEXT()->GetResourceContext()->GetNewBasicBlock();
@@ -370,7 +359,9 @@ auto LowerHelper::LowerNotOp(mlir::base::NotOp *op) -> void {
   auto operand = op->GetOperand();
   auto result = op->GetRes();
   auto llvm_operand = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(operand);
-  auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::XorInst>(GET_LLVMIR_CONTEXT(), llvm_operand);
+  auto zero_literal = GET_LLVMIR_CONTEXT()->GetIntLiteral(0);
+  auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::XorInst>(GET_LLVMIR_CONTEXT(), llvm_operand,
+                                                                                    zero_literal);
 
   if (llvm_operand->GetInstruction() != nullptr) {
     llvm_operand->GetInstruction()->AddUser(inst);
@@ -719,6 +710,9 @@ auto LowerHelper::LowerVarDefOp(mlir::var::VarDefOp *var_def) -> void {
   bool all_constants = true;
   // If no initialization, we can also directly use memset to initialize
   for (auto llvm_init : llvm_inits) {
+    if (llvm_init == nullptr) {
+      continue;
+    }
     if (!llvm_init->IsLiteral()) {
       all_constants = false;
       break;
@@ -761,6 +755,11 @@ auto LowerHelper::LowerVarDefOp(mlir::var::VarDefOp *var_def) -> void {
     // Calculate the indices for the store instruction
     // based on the dimensions and the position of the initialization value
     for (size_t i = 0; i < llvm_inits.size(); ++i) {
+      auto llvm_init = llvm_inits[i];
+      // llvm_init == nullptr means default initialization
+      if (llvm_init == nullptr) {
+        continue;
+      }
       std::vector<llvm::utils::Operand *> indices;
       size_t remaining = i;
       for (auto dim : dimensions) {
@@ -780,7 +779,7 @@ auto LowerHelper::LowerVarDefOp(mlir::var::VarDefOp *var_def) -> void {
       }
       // Since the indices are calculated in reverse order, we need to reverse them back
       std::reverse(indices.begin(), indices.end());
-      auto result_ptr_type = GET_LLVMIR_CONTEXT()->GetTypeContext()->GetPtrType(llvm_inits[i]->GetType());
+      auto result_ptr_type = GET_LLVMIR_CONTEXT()->GetTypeContext()->GetPtrType(llvm_init->GetType());
       auto gep_inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::GetElementPtrInst>(
           GET_LLVMIR_CONTEXT(), result_ptr_type, llvm_ptr, indices);
       if (llvm_ptr->GetInstruction() != nullptr) {
@@ -792,10 +791,10 @@ auto LowerHelper::LowerVarDefOp(mlir::var::VarDefOp *var_def) -> void {
         }
       }
       auto store_inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::StoreInst>(
-          GET_LLVMIR_CONTEXT(), llvm_inits[i], gep_inst->GetResult());
+          GET_LLVMIR_CONTEXT(), llvm_init, gep_inst->GetResult());
 
-      if (llvm_inits[i]->GetInstruction() != nullptr) {
-        llvm_inits[i]->GetInstruction()->AddUser(store_inst);
+      if (llvm_init->GetInstruction() != nullptr) {
+        llvm_init->GetInstruction()->AddUser(store_inst);
       }
       if (gep_inst->GetResult()->GetInstruction() != nullptr) {
         gep_inst->GetResult()->GetInstruction()->AddUser(store_inst);

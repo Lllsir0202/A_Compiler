@@ -181,32 +181,32 @@ auto XorInst::Emit(std::ofstream *out) const -> void {
 auto XorInst::Verify(context::CompilerContext *context) const -> bool {
   // Verify the result operand is a register operand
   if (result_ == nullptr || !result_->IsRegister()) {
-    context->Print("Xor instruction must have a valid result operand");
+    context->Print("Xor instruction must have a valid result operand\n");
     return false;
   }
   // Verify the operands have exactly 2 operands, and both are int32 or bool
   if (operands_.size() != 2) {
-    context->Print("Xor instruction must have exactly 2 operands");
+    context->Print("Xor instruction must have exactly 2 operands\n");
     return false;
   }
 
   if (!operands_[0]->IsInt32() && !operands_[0]->IsBool()) {
-    context->Print("Xor instruction first operand must be int32 or bool");
+    context->Print("Xor instruction first operand must be int32 or bool\n");
     return false;
   }
 
   if (!operands_[1]->IsInt32() && !operands_[1]->IsBool()) {
-    context->Print("Xor instruction second operand must be int32 or bool");
+    context->Print("Xor instruction second operand must be int32 or bool\n");
     return false;
   }
 
   if (GetParentBlock() == nullptr) {
-    context->Print("Xor instruction must have a parent block");
+    context->Print("Xor instruction must have a parent block\n");
     return false;
   }
 
   if (result_->GetInstruction() != this) {
-    context->Print("Xor instruction result operand must point back to the instruction");
+    context->Print("Xor instruction result operand must point back to the instruction\n");
     return false;
   }
 

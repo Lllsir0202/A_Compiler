@@ -105,7 +105,10 @@ auto GlobalDefInst::Emit(std::ofstream *out) const -> void {
     }
   } else {
     // If the initial value is empty, provide a default initializer
-    auto type = allocated_type_;
+    auto type = result_->GetType();
+    if (type->GetKind() == type::TypeKind::PTR) {
+      type = static_cast<type::PtrType *>(type)->GetBaseType();
+    }
     if (type->GetKind() == type::TypeKind::ARRAY) {
       *out << "zeroinitializer";
     } else if (type->GetKind() == type::TypeKind::INT) {
