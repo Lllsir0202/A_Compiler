@@ -36,6 +36,9 @@ class MLIRResourceContext {
  public:
   MLIRResourceContext() = default;
   ~MLIRResourceContext() {
+    for (auto op : operations_) {
+      delete op;
+    }
     for (auto value : values_) {
       delete value;
     }
@@ -56,6 +59,7 @@ class MLIRResourceContext {
   template <typename OperationType, typename... Args>
   auto CreateOperation(Args &&...args) -> OperationType * {
     auto operation = OperationType::Create(std::forward<Args>(args)...);
+    operations_.emplace_back(operation);
     return operation;
   }
 
@@ -243,6 +247,10 @@ class MLIRResourceContext {
   auto GetLoop() -> std::vector<middleend::mlir::scf::WhileOp *> { return loop_info_vec_; }
 
  private:
+  // Manage all operations here
+  std::vector<middleend::mlir::Operation *> operations_;  // all operations created by this builder, used for memory
+                                                          // management
+
   std::vector<middleend::mlir::Value *> values_;  // all values created by this builder, used for memory management
   size_t value_num_ = 0;                          // for generating unique value numbers, i.e. %0, %1, etc.
 
@@ -445,7 +453,6 @@ class MLIRContext {
     // Since the module operation will not be destroyed by other operations,
     // we shall call delete while the MLIRContext is destroyed,
     // so that the memory of the module operation can be released.
-    delete module_op_;
   }
   /**
    * @brief Get the resource context of the MLIR, which can be used to create values and operations
@@ -486,9 +493,7 @@ class MLIRContext {
 
   auto SetModuleOp(middleend::mlir::ModuleOp *module_op) -> void {
     // Set a new module operation, and delete the old one if it exists to avoid memory leak
-    if (module_op_ != module_op) {
-      delete module_op_;
-    } else {
+    if (module_op_ == module_op) {
       // If the module operation is the same, no need to change.
       return;
     }

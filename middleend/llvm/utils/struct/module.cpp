@@ -8,15 +8,16 @@ Module::~Module() {
   for (auto func : functions_) {
     delete func;
   }
-  for (auto &pair : func_def_insts_) {
-    delete pair.second;
-  }
-  for (auto &pair : global_var_defs_) {
-    delete pair.second;
-  }
-  for (auto func_declare : library_func_declare_insts_) {
-    delete func_declare;
-  }
+  // Destroy in context
+  // for (auto &pair : func_def_insts_) {
+  //   delete pair.second;
+  // }
+  // for (auto &pair : global_var_defs_) {
+  //   delete pair.second;
+  // }
+  // for (auto func_declare : library_func_declare_insts_) {
+  //   delete func_declare;
+  // }
 }
 
 auto Module::Emit(std::ofstream *out) const -> void {

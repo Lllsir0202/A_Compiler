@@ -117,7 +117,8 @@ auto LowerHelper::LowerDispatch(mlir::Operation *op) -> void {
 auto LowerHelper::LowerBasicBlocks(mlir::base::FuncDefOp *func_def) -> void {
   for (auto block : func_def->GetBlocks()) {
     // Create a corresponding llvm ir basic block for each mlir block
-    auto basic_block = GET_LLVMIR_CONTEXT()->GetResourceContext()->GetNewBasicBlock();
+    auto function = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetCurrentFunction();
+    auto basic_block = GET_LLVMIR_CONTEXT()->GetResourceContext()->GetNewBasicBlock(function);
     // Map the mlir block to llvm ir basic block
     GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRBlockToLLVMIRBlock(block, basic_block);
     // then we will lower the instructions later

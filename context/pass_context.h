@@ -29,6 +29,9 @@ class PassContext {
     return pass_manager_->GetSpecPass<PassType>(pass_name);
   }
 
+  // Invalidate all the analysis passes
+  auto InvalidateAnalysis() -> void { pass_manager_->InvalidateAnalysis(); }
+
  private:
   [[maybe_unused]] CompilerContext *compiler_context_;
   middleend::pass::PassManager *pass_manager_;

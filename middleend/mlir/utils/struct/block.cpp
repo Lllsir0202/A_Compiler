@@ -9,11 +9,7 @@ namespace middleend::mlir {
  * and these operations will not be reused by other blocks,
  * so we will delete these operations
  */
-Block::~Block() {
-  for (auto op : operations_) {
-    delete op;
-  }
-}
+Block::~Block() = default;
 
 auto Block::PrintIndent(std::ofstream *out) const -> void {
   for (int i = 0; i < indent_level_; ++i) {

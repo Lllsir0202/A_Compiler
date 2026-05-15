@@ -2,6 +2,7 @@
 #define CONTEXT_LLVMIR_CONTEXT_H
 #include <unordered_map>
 #include "context/type_context.h"
+#include "llvm/inst/inst.h"
 #include "llvm/utils/operand/globaloperand.h"
 #include "middleend/llvm/utils/factory/instfactory.h"
 #include "middleend/llvm/utils/factory/opfactory.h"
@@ -53,7 +54,7 @@ class LLVMIRResourceContext {
   auto GetLabelOperand(size_t id) -> middleend::llvm::utils::LabelOperand *;
 
   // Get a new unique block id for the new basic block
-  auto GetNewBasicBlock() -> middleend::llvm::utils::BasicBlock *;
+  auto GetNewBasicBlock(middleend::llvm::utils::Function *function) -> middleend::llvm::utils::BasicBlock *;
 
   /**
    * @brief Interfaces to manage function-related resources
@@ -86,14 +87,30 @@ class LLVMIRResourceContext {
 
   template <typename InstType, typename... Args>
   auto CreateInst(Args &&...args) -> InstType * {
-    return middleend::llvm::utils::factory::InstFactory::CreateInst<InstType>(std::forward<Args>(args)...);
+    auto *inst = middleend::llvm::utils::factory::InstFactory::CreateInst<InstType>(std::forward<Args>(args)...);
+    instructions_.emplace_back(inst);
+    return inst;
   }
 
   // Interface to get and set the top module
   auto GetModule() -> middleend::llvm::utils::Module * { return module_; }
   auto SetModule(middleend::llvm::utils::Module *module) -> void { module_ = module; }
 
+  auto GetBlockByID(middleend::llvm::utils::Function *func, size_t id) -> middleend::llvm::utils::BasicBlock * {
+    if (function_blocks_mapping_.count(func) > 0) {
+      auto &blocks = function_blocks_mapping_[func];
+      if (id < blocks.size()) {
+        return blocks[id];
+      }
+    }
+    // If the block does not exist, report error
+    return nullptr;
+  }
+
  private:
+  // Record all instructions, and manage the memory of instructions.
+  std::vector<middleend::llvm::inst::Instruction *> instructions_;
+
   // type context is needed for operand creation
   TypeContext *type_context_;
   // Id counters for different operand types
@@ -110,6 +127,10 @@ class LLVMIRResourceContext {
   std::unordered_map<bool, middleend::llvm::utils::BoolLiteral *> bool_literals_;
   std::unordered_map<std::int64_t, middleend::llvm::utils::LongLiteral *> long_literals_;
   std::unordered_map<char, middleend::llvm::utils::CharLiteral *> char_literals_;
+
+  // Get block via label operand's id
+  std::unordered_map<middleend::llvm::utils::Function *, std::vector<middleend::llvm::utils::BasicBlock *>>
+      function_blocks_mapping_;
 
   // Top module
   middleend::llvm::utils::Module *module_;

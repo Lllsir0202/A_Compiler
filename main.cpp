@@ -12,6 +12,7 @@
 #include "middleend/mlir/verifer/verifer.h"
 #include "middleend/pass/analysis/cfg/mlircfg.h"
 #include "middleend/pass/analysis/domtree/domtree.h"
+#include "middleend/pass/transform/simplify/simplify.h"
 #include "stages/ast/ast_stage.h"
 #include "stages/lexer/lexer_stage.h"
 #include "stages/llvm/llvm_stage.h"
@@ -236,16 +237,19 @@ auto main(int argc, char *argv[]) -> int {
     return -1;
   }
 
-  auto mlirpass_context = new context::PassContext(&compiler_context, middleend::pass::PassStage::MLIR);
-  compiler_context.SetPassContext(mlirpass_context);
-  auto mlir_cfg_builder = new middleend::pass::analysis::MLIRCFGBuilder(&compiler_context);
+  auto baseirpass_context = new context::PassContext(&compiler_context, middleend::pass::PassStage::BASEIR);
+  compiler_context.SetPassContext(baseirpass_context);
+  auto baseir_cfg_builder = new middleend::pass::analysis::MLIRCFGBuilder(&compiler_context);
   auto cfg_pass = context::PassContext::CreatePass<middleend::pass::analysis::CFGPass>(
-      &compiler_context, mlir_cfg_builder, middleend::pass::PassStage::MLIR);
-  mlirpass_context->AddPass(cfg_pass);
-  auto domtree_pass = context::PassContext::CreatePass<middleend::pass::analysis::DomTreePass>(
-      &compiler_context, middleend::pass::PassStage::MLIR);
-  mlirpass_context->AddPass(domtree_pass);
-  ret = mlirpass_context->RunPasses();
+      &compiler_context, baseir_cfg_builder, middleend::pass::PassStage::BASEIR);
+  baseirpass_context->AddPass(cfg_pass);
+  // auto domtree_pass = context::PassContext::CreatePass<middleend::pass::analysis::DomTreePass>(
+  //     &compiler_context, middleend::pass::PassStage::BASEIR);
+  // baseirpass_context->AddPass(domtree_pass);
+  auto simplify_pass = context::PassContext::CreatePass<middleend::pass::transform::SimplifyPass>(
+      &compiler_context, middleend::pass::PassStage::BASEIR);
+  baseirpass_context->AddPass(simplify_pass);
+  ret = baseirpass_context->RunPasses();
 
   if (ret != 0) {
     return 1;

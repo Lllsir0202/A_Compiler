@@ -89,6 +89,13 @@ class FuncDefOp : public BaseOps {
     return regions_[0]->blocks_;
   }
 
+  auto SetBlocks(std::vector<middleend::mlir::Block *> blocks) -> void {
+    if (regions_.empty()) {
+      throw std::runtime_error("The function definition operation has no region to set blocks.");
+    }
+    regions_[0]->blocks_ = std::move(blocks);
+  }
+
  private:
   FuncDefOp() : BaseOps("funcdef"){};
 

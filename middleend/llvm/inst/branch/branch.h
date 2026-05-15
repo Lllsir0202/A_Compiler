@@ -8,6 +8,8 @@ class BrInst : public Instruction {
   auto Emit(std::ofstream *out) const -> void override;
   auto Verify(context::CompilerContext *context) const -> bool override;
 
+  auto GetTargetBlockID() const -> size_t { return target_->GetID(); }
+
  private:
   explicit BrInst() : Instruction(OpKind::Br) {}
   static auto Create(context::LLVMIRContext *context, utils::LabelOperand *target) -> BrInst *;
@@ -22,6 +24,8 @@ class BrCondInst : public Instruction {
   auto Emit(std::ofstream *out) const -> void override;
   auto Verify(context::CompilerContext *context) const -> bool override;
   auto GetCondition() const -> utils::Operand * { return operands_[0]; }
+  auto GetTrueTargetBlockID() const -> size_t { return true_target_->GetID(); }
+  auto GetFalseTargetBlockID() const -> size_t { return false_target_->GetID(); }
 
  private:
   explicit BrCondInst() : Instruction(OpKind::CondBr) {}

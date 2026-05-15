@@ -1,4 +1,5 @@
 #include "context/llvmir_context.h"
+#include <cassert>
 #include <stdexcept>
 #include "llvm/inst/func/funcdef.h"
 #include "llvm/utils/factory/instfactory.h"
@@ -35,6 +36,10 @@ LLVMIRResourceContext::~LLVMIRResourceContext() {
   for (auto &[_, op] : char_literals_) {
     delete op;
   }
+  for (auto &inst : instructions_) {
+    delete inst;
+  }
+  instructions_.clear();
 }
 
 auto LLVMIRResourceContext::GetNewRegOperand(type::Type *type) -> middleend::llvm::utils::RegOperand * {
@@ -214,11 +219,15 @@ auto LLVMIRResourceContext::GetGlobalVarDef(const std::string &var_name) -> midd
   return module_->GetGlobalVarDef(var_name);
 }
 
-auto LLVMIRResourceContext::GetNewBasicBlock() -> middleend::llvm::utils::BasicBlock * {
+auto LLVMIRResourceContext::GetNewBasicBlock(middleend::llvm::utils::Function *function)
+    -> middleend::llvm::utils::BasicBlock * {
   if (module_ == nullptr) {
     throw std::logic_error("Module is not set in LLVMIRContext");
   }
   auto block = middleend::llvm::utils::factory::BlockFactory::CreateBlock(label_id_counter_++);
+  function_blocks_mapping_[function].push_back(block);
+  assert(block->GetID() == function_blocks_mapping_[function].size() - 1 &&
+         "Block ID should be the index in the blocks vector");
   return block;
 }
 

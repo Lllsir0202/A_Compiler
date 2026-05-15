@@ -40,6 +40,15 @@ class PassManager {
   auto SetCurrentPassType(PassStage pass_stage) -> void { current_pass_type_ = pass_stage; }
   auto GetCurrentPassType() -> PassStage { return current_pass_type_; }
 
+  // Used for transform passes
+  auto InvalidateAnalysis() -> void {
+    for (auto pass : passes_) {
+      if (pass->IsAnalysisPass()) {
+        pass->Invalidate();
+      }
+    }
+  }
+
  private:
   std::vector<Pass *> passes_;
   std::unordered_map<std::string, Pass *> pass_name_to_pass_;

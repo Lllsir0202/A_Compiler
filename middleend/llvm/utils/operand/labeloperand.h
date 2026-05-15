@@ -9,6 +9,7 @@ namespace middleend::llvm::utils {
 class LabelOperand : public Operand {
  public:
   auto Emit(std::ofstream *out) const -> void override { *out << "%" << "label" << id_; }
+  auto GetID() const -> size_t { return id_; }
 
  private:
   explicit LabelOperand(size_t id) : Operand(OpType::Label), id_(id) {}

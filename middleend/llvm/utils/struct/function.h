@@ -22,6 +22,12 @@ class Function {
   auto GetReturnType() const -> type::Type * { return return_type_; }
   auto GetBasicBlocks() const -> const std::vector<BasicBlock *> & { return basic_blocks_; }
   auto GetEntryBlock() const -> BasicBlock * { return entry_block_; }
+  auto SetBasicBlocks(std::vector<BasicBlock *> blocks) -> void {
+    basic_blocks_ = std::move(blocks);
+    if (!basic_blocks_.empty()) {
+      entry_block_ = basic_blocks_[0];
+    }
+  }
 
   // Add block
   auto AddBasicBlock(BasicBlock *block) -> void {

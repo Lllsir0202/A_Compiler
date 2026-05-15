@@ -24,7 +24,7 @@ class BasicBlock {
   ~BasicBlock();
   // Interface for basic block to get block information
   auto GetID() const -> size_t { return id_; }
-  auto GetInstructions() const -> const std::deque<inst::Instruction *> & { return instructions_; }
+  auto GetInstructions() const -> std::deque<inst::Instruction *> { return instructions_; }
   auto SetInstructions(const std::deque<inst::Instruction *> &instructions) -> void { instructions_ = instructions; }
   auto AddInstBack(inst::Instruction *inst) -> void { instructions_.emplace_back(inst); }
   auto AddInstFront(inst::Instruction *inst) -> void { instructions_.emplace_front(inst); }
