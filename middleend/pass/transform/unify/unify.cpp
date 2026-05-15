@@ -3,11 +3,12 @@
 #include <string>
 #include "context/compiler_context.h"
 #include "middleend/mlir/dialect/base/branch.h"
+#include "middleend/mlir/dialect/base/funcdef.h"
 #include "middleend/mlir/dialect/base/phi.h"
 #include "middleend/mlir/dialect/func/return.h"
+#include "middleend/mlir/utils/struct/block.h"
 #include "middleend/pass/analysis/cfg/cfg.h"
 #include "middleend/pass/analysis/cfg/mlircfg.h"
-#include "mlir/utils/struct/block.h"
 
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()
 namespace middleend::pass::transform {

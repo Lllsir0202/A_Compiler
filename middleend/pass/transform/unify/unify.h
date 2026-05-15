@@ -2,7 +2,6 @@
 #define MIDDLEEND_PASS_TRANSFORM_UNIFY_UNIFY_H
 
 #include <stdexcept>
-#include "middleend/mlir/dialect/base/funcdef.h"
 #include "middleend/pass/transform/transform.h"
 namespace middleend::pass::transform {
 /**
