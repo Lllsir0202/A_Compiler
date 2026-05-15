@@ -8,6 +8,12 @@ class CFGNode {
  public:
   // Don't allow create CFGNode
   virtual ~CFGNode() = 0;
+  virtual auto Reset() -> void {
+    successors_.clear();
+    predecessors_.clear();
+    id_ = 0;
+  }
+
   /**
    * @brief GetSuccessors and GetPredecessors are used to
    * get the successors and predecessors of the current node in the CFG
@@ -37,6 +43,16 @@ class CFGNode {
 class FunctionCFG {
  public:
   virtual ~FunctionCFG() = 0;
+  virtual auto Reset() -> void {
+    for (auto node : nodes_) {
+      delete node;
+    }
+    nodes_.clear();
+    entry_node_ = nullptr;
+    exit_nodes_.clear();
+    id_ = 0;
+    dfs_order_.clear();
+  }
   auto GetNodes() -> std::vector<CFGNode *> { return nodes_; }
   auto AddNode(CFGNode *node) -> void {
     node->SetId(id_++);
@@ -81,6 +97,12 @@ class CFGBuilder {
   virtual ~CFGBuilder() = 0;
   virtual auto BuildCFG() -> void = 0;
   auto GetFunctionCFGs() -> std::vector<FunctionCFG *> { return function_cfgs_; }
+  auto Reset() -> void {
+    for (auto cfg : function_cfgs_) {
+      delete cfg;
+    }
+    function_cfgs_.clear();
+  }
 
  protected:
   explicit CFGBuilder(context::CompilerContext *compiler_context) : compiler_context_(compiler_context) {}
@@ -101,6 +123,9 @@ class CFGPass : public AnalysisPass {
     // since some passes might depend on the CFG information,
     Validate();
   }
+
+  auto PreRun() -> void override { this->Run(); }
+
   ~CFGPass() override { delete cfg_builder_; }
   auto Name() const -> std::string override { return "CFGPass"; }
   // CFG has no specific verification logic for now, we can just return true

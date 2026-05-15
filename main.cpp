@@ -13,6 +13,7 @@
 #include "middleend/pass/analysis/cfg/mlircfg.h"
 #include "middleend/pass/analysis/domtree/domtree.h"
 #include "middleend/pass/transform/simplify/simplify.h"
+#include "middleend/pass/transform/unify/unify.h"
 #include "stages/ast/ast_stage.h"
 #include "stages/lexer/lexer_stage.h"
 #include "stages/llvm/llvm_stage.h"
@@ -249,6 +250,9 @@ auto main(int argc, char *argv[]) -> int {
   auto simplify_pass = context::PassContext::CreatePass<middleend::pass::transform::SimplifyPass>(
       &compiler_context, middleend::pass::PassStage::BASEIR);
   baseirpass_context->AddPass(simplify_pass);
+  auto unify_pass = context::PassContext::CreatePass<middleend::pass::transform::UnifyReturnPass>(
+      &compiler_context, middleend::pass::PassStage::BASEIR);
+  baseirpass_context->AddPass(unify_pass);
   ret = baseirpass_context->RunPasses();
 
   if (ret != 0) {

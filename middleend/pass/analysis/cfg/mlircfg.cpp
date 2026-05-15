@@ -10,6 +10,7 @@
 namespace middleend::pass::analysis {
 #include "middleend/checklibrary.ck"
 auto MLIRCFGBuilder::BuildCFG() -> void {
+  Reset();
   auto mlir_module = GET_MLIR_CONTEXT()->GetModuleOp();
   auto block = mlir_module->GetBlock();
   for (auto op : block->operations_) {

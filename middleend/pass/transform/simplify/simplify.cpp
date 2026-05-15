@@ -91,17 +91,17 @@ auto SimplifyPass::SimplifyCFGInFunction(mlir::base::FuncDefOp *func_op) -> void
         break;
       }
     }
-    block->operations_ = new_ops;
+    block->operations_ = std::move(new_ops);
   }
   std::vector<mlir::Block *> new_blocks;
   for (auto block : func_op->GetBlocks()) {
     if (visited.count(block) > 0) {
-      new_blocks.push_back(block);
+      new_blocks.emplace_back(block);
     } else {
       delete block;
     }
   }
-  func_op->SetBlocks(new_blocks);
+  func_op->SetBlocks(std::move(new_blocks));
 }
 
 auto SimplifyPass::SimplifyCFGInLLVMFunction(llvm::utils::Function *function) -> void {
@@ -150,12 +150,12 @@ auto SimplifyPass::SimplifyCFGInLLVMFunction(llvm::utils::Function *function) ->
   std::vector<llvm::utils::BasicBlock *> new_blocks;
   for (auto block : function->GetBasicBlocks()) {
     if (visited.count(block) > 0) {
-      new_blocks.push_back(block);
+      new_blocks.emplace_back(block);
     } else {
       delete block;
     }
   }
-  function->SetBasicBlocks(new_blocks);
+  function->SetBasicBlocks(std::move(new_blocks));
 }
 
 }  // namespace middleend::pass::transform
