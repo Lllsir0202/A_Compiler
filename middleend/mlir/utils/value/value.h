@@ -50,8 +50,9 @@ class Value {
   [[maybe_unused]] auto RemoveUse(Operation *op) -> void {
     for (auto it = uses_.begin(); it != uses_.end(); ++it) {
       if ((*it)->operation_ == op) {
+        auto *use = *it;
         uses_.erase(it);
-        delete *it;
+        delete use;
         return;
       }
     }

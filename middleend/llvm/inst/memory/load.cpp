@@ -12,7 +12,7 @@ auto LoadInst::Emit(std::ofstream *out) const -> void {
   auto base_type = static_cast<type::PtrType *>(ptr_type)->GetBaseType();
   *out << utils::Operand::GetTypeInLLVMIR(base_type) << ", ptr ";
   operands_[0]->Emit(out);
-  *out << ", align " << static_cast<type::PtrType *>(ptr_type)->GetAlign() << "\n";
+  *out << ", align " << static_cast<type::PtrType *>(ptr_type)->GetBaseType()->GetAlign() << "\n";
 }
 
 auto LoadInst::Verify(context::CompilerContext *context) const -> bool {

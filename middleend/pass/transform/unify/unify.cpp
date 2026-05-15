@@ -18,6 +18,7 @@ auto UnifyReturnPass::Run() -> void {
   } catch (const std::exception &e) {
     // If PreRun throws an exception, we catch it and print the error message, then return
     compiler_context_->Print("Error in UnifyReturnPass PreRun: " + std::string(e.what()));
+    throw std::logic_error("PreRun failed in UnifyReturnPass");
     return;
   }
   // Get the module operation
@@ -30,6 +31,7 @@ auto UnifyReturnPass::Run() -> void {
     UnifyReturnInFunction();
   } catch (const std::exception &e) {
     compiler_context_->Print("Error in UnifyReturnInFunction: " + std::string(e.what()));
+    throw std::logic_error("UnifyReturnInFunction failed in UnifyReturnPass");
     return;
   }
 }

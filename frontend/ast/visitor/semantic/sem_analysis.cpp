@@ -852,10 +852,6 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
    * @brief: if the variable is a scalar variable
    */
   else if (entry->is_const_ && entry->dimensions_.empty()) {
-    if (var_def->init_values_ == nullptr) {
-      compiler_context_->ReportError(var_def, "const scalar variable must be initialized");
-      return;
-    }
     // means the variable is a const scalar variable, we can set its value in the symbol table entry
     if (var_def->init_values_ == nullptr) {
       compiler_context_->ReportError(var_def, "const scalar variable must be initialized");
@@ -875,6 +871,35 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
     }
     Normalize(entry, const_value);
     entry->initializer_ = std::move(const_value);
+  } else if (entry->is_global_ && entry->dimensions_.empty()) {
+    // means the variable is a global scalar variable,
+    // we can set its value in the symbol table entry
+    if (var_def->init_values_ != nullptr) {
+      if (!var_def->init_values_->IsScalar()) {
+        compiler_context_->ReportError(var_def,
+                                       "global scalar variable cannot be initialized with a non-scalar initializer");
+        return;
+      }
+      if (!var_def->init_values_->IsConst()) {
+        compiler_context_->ReportError(var_def,
+                                       "global scalar variable must be initialized with a constant expression");
+        return;
+      }
+      auto init_node = static_cast<frontend::ast::InitValNode *>(var_def->init_values_.get());
+      auto value = init_node->value_->GetValue();
+      auto const_value = std::make_unique<initializer::ConstInitializer>();
+      if (value.GetType() == ValueType::INT || value.GetType() == ValueType::BOOL) {
+        const_value->SetIntValue(value.GetIntValue());
+      } else if (value.GetType() == ValueType::FLOAT) {
+        const_value->SetFloatValue(value.GetFloatValue());
+      } else {
+        compiler_context_->ReportError(
+            var_def, "global scalar variable can only be initialized with an integer or float constant expression");
+        return;
+      }
+      Normalize(entry, const_value);
+      entry->initializer_ = std::move(const_value);
+    }
   }
 
   // The circular reference will be checked in LValExprNode

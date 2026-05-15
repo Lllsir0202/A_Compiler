@@ -1321,6 +1321,18 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
         init_values.emplace_back(value);
       }
     }
+    // If all the init_values are null, it can be regarded as default or no initializer
+    bool all_null = true;
+    for (const auto &value : init_values) {
+      if (value != nullptr) {
+        all_null = false;
+        break;
+      }
+    }
+    if (all_null) {
+      init_values.clear();
+    }
+
     // Provide empty initializer for the uninitialized variable,
     // since in C language, the uninitialized variable will be initialized to `0` by default
     // we will accomplish this by `memset` in the lowering phase.

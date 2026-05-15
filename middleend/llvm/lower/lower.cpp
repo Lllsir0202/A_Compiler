@@ -99,19 +99,16 @@ auto LLVMLower::Lower() -> int {
     } catch (const std::logic_error &e) {
       compiler_context_->Print("Error during lowering: " + std::string(e.what()));
       delete lower_helper_;
-      delete module;
       lower_helper_ = nullptr;
       return 1;
     } catch (const std::runtime_error &e) {
       compiler_context_->Print("Runtime error during lowering: " + std::string(e.what()));
       delete lower_helper_;
-      delete module;
       lower_helper_ = nullptr;
       return 2;
     } catch (...) {
       compiler_context_->Print("Unknown error during lowering.");
       delete lower_helper_;
-      delete module;
       lower_helper_ = nullptr;
       return 3;
     }

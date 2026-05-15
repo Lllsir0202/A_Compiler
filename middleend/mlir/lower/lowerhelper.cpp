@@ -596,6 +596,32 @@ auto LowerHelper::LowerWhileOp(middleend::mlir::scf::WhileOp *while_op) -> void 
     new_cond_block->AddOperation(phi_node);
   }
 
+  // We can map whileop to exit_block, so that when we meet `break`,
+  //  we will be able to deal with it correctly.
+  GET_MLIR_CONTEXT()->GetLowerContext()->MapWhileOpToExitBlock(while_op, exit_block);
+  GET_MLIR_CONTEXT()->GetLowerContext()->MapWhileOpToCondBlock(while_op, new_cond_block);
+  GET_MLIR_CONTEXT()->GetLowerContext()->MapWhileOpToBodyBlock(while_op, new_body_block);
+
+  // Add branch from current block to cond block
+  auto br_to_cond = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::BrOp>(new_cond_block);
+  current_block->AddOperation(br_to_cond);
+
+  // Then we need to lower the cond block and body block separately,
+  // Start with cond block
+  SetInsertPoint(new_cond_block);
+  for (auto &op : cond_block->operations_) {
+    LowerDispatch(op);
+  }
+
+  /** Since the while condition might not be a simple block
+   * @note For instance, while(a && b)
+   * it will be lowered to three or more blocks,
+   * so it is not definitely that the condition block will directly jump to the exit block,
+   * it might jump to a new condition, and then jump back to the original exit block
+   * we need to record the condition exit block, it might be condition block or others
+   */
+  auto cond_exit_block = GetInsertPoint();
+
   /**
    * @brief Since the exit block will decide what value to choose,
    * for instance:
@@ -613,26 +639,9 @@ auto LowerHelper::LowerWhileOp(middleend::mlir::scf::WhileOp *while_op) -> void 
     auto result = while_op->GetResultByIndex(i);
     // In exit block, most of the time, the value is from condition block.
     auto phi_node = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::PhiOp>(result);
-    phi_node->AddIncoming(cond_block_args[i], new_cond_block);
+    phi_node->AddIncoming(cond_block_args[i], cond_exit_block);
     cond_block_args[i]->ReplaceAllOpUsesWith(condition_op, phi_node, 0);
     exit_block->AddOperation(phi_node);
-  }
-
-  // We can map whileop to exit_block, so that when we meet `break`,
-  //  we will be able to deal with it correctly.
-  GET_MLIR_CONTEXT()->GetLowerContext()->MapWhileOpToExitBlock(while_op, exit_block);
-  GET_MLIR_CONTEXT()->GetLowerContext()->MapWhileOpToCondBlock(while_op, new_cond_block);
-  GET_MLIR_CONTEXT()->GetLowerContext()->MapWhileOpToBodyBlock(while_op, new_body_block);
-
-  // Add branch from current block to cond block
-  auto br_to_cond = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::BrOp>(new_cond_block);
-  current_block->AddOperation(br_to_cond);
-
-  // Then we need to lower the cond block and body block separately,
-  // Start with cond block
-  SetInsertPoint(new_cond_block);
-  for (auto &op : cond_block->operations_) {
-    LowerDispatch(op);
   }
 
   // Since currently, the phi node will only be added in the condition block,

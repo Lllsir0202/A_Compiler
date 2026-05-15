@@ -497,6 +497,9 @@ class MLIRContext {
       // If the module operation is the same, no need to change.
       return;
     }
+    if (module_op_ != nullptr) {
+      module_op_->Reset();
+    }
     module_op_ = module_op;
   }
 

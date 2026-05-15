@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <stdexcept>
 #include <string>
+#include "llvm/inst/opkind.h"
 #include "llvm/utils/operand/regoperand.h"
 #include "middleend/llvm/inst/arithm/arithm.h"
 #include "middleend/llvm/inst/branch/branch.h"
@@ -225,6 +226,18 @@ auto LowerHelper::LowerFuncDefOp(mlir::base::FuncDefOp *func_def) -> void {
       pending_copy_insts_.pop();
       // replace all users with the source operand
       auto src_operand = copy_inst->GetOperands()[0];
+      if (src_operand->GetInstruction() != nullptr) {
+        if (src_operand->GetInstruction()->VerifyOpKind(inst::OpKind::Copy)) {
+          // If the source operand is also a copy instruction, we need to get the original source operand
+          auto original_src_operand = src_operand;
+          while (original_src_operand->GetInstruction() != nullptr &&
+                 original_src_operand->GetInstruction()->VerifyOpKind(inst::OpKind::Copy)) {
+            auto copy_instruction = static_cast<inst::CopyInst *>(original_src_operand->GetInstruction());
+            original_src_operand = copy_instruction->GetOperands()[0];
+          }
+          src_operand = original_src_operand;
+        }
+      }
       copy_inst->ReplaceAllUsersWith(src_operand);
       // Record the block to erase the copy instruction later
       blocks_to_erase.push(copy_inst->GetParentBlock());
@@ -360,9 +373,9 @@ auto LowerHelper::LowerNotOp(mlir::base::NotOp *op) -> void {
   auto operand = op->GetOperand();
   auto result = op->GetRes();
   auto llvm_operand = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(operand);
-  auto zero_literal = GET_LLVMIR_CONTEXT()->GetIntLiteral(0);
+  auto true_literal = GET_LLVMIR_CONTEXT()->GetBoolLiteral(true);
   auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::XorInst>(GET_LLVMIR_CONTEXT(), llvm_operand,
-                                                                                    zero_literal);
+                                                                                    true_literal);
 
   if (llvm_operand->GetInstruction() != nullptr) {
     llvm_operand->GetInstruction()->AddUser(inst);
@@ -726,7 +739,6 @@ auto LowerHelper::LowerVarDefOp(mlir::var::VarDefOp *var_def) -> void {
   if (all_constants) {
     // Use memcpy to initialize the memory
     // TODO(loki) : implement the memcpy and note that need to consider creating the initializer const variable
-
   } else {
     // Call memset to initialize the memory with zero first, and then create store instructions to initialize the memory
     auto ptr = var_def->GetRes();
@@ -763,7 +775,8 @@ auto LowerHelper::LowerVarDefOp(mlir::var::VarDefOp *var_def) -> void {
       }
       std::vector<llvm::utils::Operand *> indices;
       size_t remaining = i;
-      for (auto dim : dimensions) {
+      for (auto it = dimensions.rbegin(); it != dimensions.rend(); ++it) {
+        size_t dim = *it;
         size_t index = remaining % dim;
         remaining /= dim;
         indices.emplace_back(GET_LLVMIR_CONTEXT()->GetIntLiteral(index));
@@ -912,7 +925,10 @@ auto LowerHelper::LowerCopyOp(mlir::base::CopyOp *copy_op) -> void {
   auto llvm_src = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(src);
   auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::CopyInst>(GET_LLVMIR_CONTEXT(),
                                                                                      dst->GetType(), llvm_src);
-  // No need to record use, since we will eliminate them later.
+
+  if (llvm_src->GetInstruction() != nullptr) {
+    llvm_src->GetInstruction()->AddUser(inst);
+  }
   auto res = inst->GetResult();
 
   GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
