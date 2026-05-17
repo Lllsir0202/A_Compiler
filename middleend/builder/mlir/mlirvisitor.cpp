@@ -702,6 +702,7 @@ void MLIRVisitor::Visit(frontend::ast::AssignStmtNode *assign_stmt) {
     // We don't want change the original value of the expr, so we add a operation which is copy the value
     auto copy_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CopyOp>(GET_MLIR_CONTEXT(), value);
     copy_op->GetRes()->SetType(value->GetType());
+    value->AddUse(copy_op, 0);
     GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(copy_op);
     MapLValExprToValue(lval_expr, copy_op->GetRes());
   }
@@ -808,6 +809,7 @@ void MLIRVisitor::Visit(frontend::ast::IfStmtNode *if_stmt) {
     // Then create the if operation
     if_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::IfOp>(GET_MLIR_CONTEXT(), changed_vars.size(), cond_value,
                                                                  then_region, else_region);
+    cond_value->AddUse(if_op, 0);
   } else {
     GET_MLIR_CONTEXT()->GetResourceContext()->SetVarMap(var_map);
     // Has else statement, we need to create the else region
@@ -865,6 +867,7 @@ void MLIRVisitor::Visit(frontend::ast::IfStmtNode *if_stmt) {
     // Then create the if operation
     if_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::IfOp>(GET_MLIR_CONTEXT(), changed_vars.size(), cond_value,
                                                                  then_region, else_region);
+    cond_value->AddUse(if_op, 0);
   }
 
   GET_MLIR_CONTEXT()->SetCurrentRegion(current_region);
@@ -970,6 +973,7 @@ void MLIRVisitor::Visit(frontend::ast::WhileStmtNode *while_stmt) {
   // Then generate the condition operation
   auto condition_op =
       GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::ConditionOp>(GET_MLIR_CONTEXT(), cond_value, var_map);
+  cond_value->AddUse(condition_op, 0);
   GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(condition_op);
 
   // body region
@@ -1394,6 +1398,7 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
       // change the original value
       auto copy_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CopyOp>(GET_MLIR_CONTEXT(), value);
       copy_op->GetRes()->SetType(value->GetType());
+      value->AddUse(copy_op, 0);
       GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(copy_op);
       value = copy_op->GetRes();
       GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, value);

@@ -25,17 +25,29 @@ class PhiOp : public BaseOps {
   auto GetRes() -> mlir::Value * { return results_[0]; }
 
   // Get incoming pairs, and do not allow modifying.
-  auto GetIncoming() -> const std::vector<std::pair<mlir::Value *, mlir::Block *>> & { return incoming_; }
+  auto GetIncomingValue() const -> const std::vector<mlir::Value *> & { return operands_; }
+  auto GetIncomingBlock() const -> const std::vector<mlir::Block *> & { return blocks_; }
+
+  auto GetIncomingSize() const -> size_t { return operands_.size(); }
 
   // Add an incoming pair, which is used when creating PhiOp without incoming values at first.
-  auto AddIncoming(mlir::Value *value, mlir::Block *block) -> void { incoming_.emplace_back(value, block); }
+  auto AddIncoming(mlir::Value *value, mlir::Block *block) -> void {
+    operands_.emplace_back(value);
+    blocks_.emplace_back(block);
+  }
 
   auto UpdateIncoming(size_t index, mlir::Value *value, mlir::Block *block) -> void {
-    if (index < incoming_.size()) {
-      incoming_[index] = std::make_pair(value, block);
+    if (index < operands_.size()) {
+      operands_[index] = value;
+      blocks_[index] = block;
     } else {
       throw std::out_of_range("Index out of range in UpdateIncoming");
     }
+  }
+
+  auto SetIncomings(const std::vector<mlir::Value *> &values, const std::vector<mlir::Block *> &blocks) -> void {
+    operands_ = values;
+    blocks_ = blocks;
   }
 
   auto Emit(std::ofstream *out) -> void override;
@@ -49,12 +61,15 @@ class PhiOp : public BaseOps {
     results_.reserve(1);
     results_.emplace_back(result);
     result->op_ = this;
-    incoming_.reserve(values.size());
+    operands_.reserve(values.size());
+    blocks_.reserve(values.size());
     for (size_t i = 0; i < values.size(); ++i) {
-      incoming_.emplace_back(values[i], blocks[i]);
+      operands_.emplace_back(values[i]);
+      blocks_.emplace_back(blocks[i]);
     }
   }
-  std::vector<std::pair<mlir::Value *, mlir::Block *>> incoming_;
+
+  std::vector<mlir::Block *> blocks_;
 };
 
 }  // namespace middleend::mlir::base

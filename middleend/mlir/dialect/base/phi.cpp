@@ -8,12 +8,13 @@ auto PhiOp::Emit(std::ofstream *out) -> void {
   PrintIndent(out);
   results_[0]->Emit(out);
   *out << " = " << Name() << " ";
-  for (size_t i = 0; i < incoming_.size(); i++) {
-    auto &[value, block] = incoming_[i];
+  for (size_t i = 0; i < operands_.size(); i++) {
+    auto value = operands_[i];
+    auto block = blocks_[i];
     *out << "[";
     value->Emit(out);
     *out << ", " << block->Name() << "]";
-    if (i != incoming_.size() - 1) {
+    if (i != operands_.size() - 1) {
       *out << ", ";
     }
   }
@@ -25,8 +26,14 @@ auto PhiOp::Verify(context::CompilerContext *context) -> bool {
     context->Print("PhiOp must have exactly one result");
     return false;
   }
+  if (operands_.size() != blocks_.size()) {
+    context->Print("PhiOp must have the same number of incoming values and blocks");
+    return false;
+  }
   auto result_type = results_[0]->GetType();
-  for (const auto &[value, block] : incoming_) {
+  for (size_t i = 0; i < operands_.size(); ++i) {
+    auto value = operands_[i];
+    auto block = blocks_[i];
     if (value == nullptr) {
       context->Print("PhiOp incoming value cannot be null");
       return false;

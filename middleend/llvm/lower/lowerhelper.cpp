@@ -198,10 +198,11 @@ auto LowerHelper::LowerFuncDefOp(mlir::base::FuncDefOp *func_def) -> void {
       pending_phi_insts_.pop();
       auto phi_op = pending_phi_ops_.front();
       pending_phi_ops_.pop();
-      auto incomings = phi_op->GetIncoming();
-      for (auto &incoming : incomings) {
-        auto incoming_value = incoming.first;
-        auto incoming_block = incoming.second;
+      auto incoming_values = phi_op->GetIncomingValue();
+      auto incoming_blocks = phi_op->GetIncomingBlock();
+      for (size_t j = 0; j < incoming_values.size(); ++j) {
+        auto incoming_value = incoming_values[j];
+        auto incoming_block = incoming_blocks[j];
         auto llvm_incoming_value =
             GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(incoming_value);
         auto llvm_incoming_block = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIRBlockFromMLIRBlock(incoming_block);
@@ -645,7 +646,6 @@ auto LowerHelper::LowerCondBrOp(mlir::base::CondBrOp *cond_br_op) -> void {
   // Create a conditional branch instruction to jump to the target blocks based on the condition
   auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::BrCondInst>(
       GET_LLVMIR_CONTEXT(), llvm_condition, llvm_true_label_op, llvm_false_label_op);
-
   if (llvm_condition->GetInstruction() != nullptr) {
     llvm_condition->GetInstruction()->AddUser(inst);
   }

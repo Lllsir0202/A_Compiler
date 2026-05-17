@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include "middleend/llvm/utils/struct/function.h"
 #include "middleend/mlir/dialect/base/funcdef.h"
+#include "middleend/mlir/utils/struct/block.h"
 #include "middleend/pass/transform/transform.h"
 namespace middleend::pass::transform {
 // This pass should invalidate the CFG and all the analyses
@@ -30,6 +31,8 @@ class SimplifyPass : public TransformPass {
 
   auto SimplifyCFGInFunction(mlir::base::FuncDefOp *func_op) -> void;
   auto SimplifyCFGInLLVMFunction(llvm::utils::Function *function) -> void;
+
+  std::vector<mlir::Block *> to_delete_blocks_;
 };
 
 }  // namespace middleend::pass::transform

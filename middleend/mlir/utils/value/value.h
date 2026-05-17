@@ -58,6 +58,13 @@ class Value {
     }
   }
 
+  auto ClearUses() -> void {
+    for (auto use : uses_) {
+      delete use;
+    }
+    uses_.clear();
+  }
+
   /**
    * @brief Get all uses
    */

@@ -9,6 +9,7 @@
 #include "middleend/mlir/dialect/func/return.h"
 #include "middleend/mlir/utils/operation/operation.h"
 #include "middleend/mlir/utils/struct/block.h"
+#include "middleend/pass/transform/canonicalization/phi.h"
 #include "pass/pass.h"
 
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()
@@ -40,6 +41,15 @@ auto SimplifyPass::SimplifyCFGBaseIR() -> void {
       SimplifyCFGInFunction(func_op);
     }
   }
+
+  // After simplification, erase the unreachable blocks.
+  // And do canonicalization for phi nodes
+  auto phi_canonicalization_pass =
+      context::PassContext::CreatePass<pass::transform::PhiCanonicalizationPass>(compiler_context_, PassStage::BASEIR);
+  phi_canonicalization_pass->Run();
+  for (auto block : to_delete_blocks_) {
+    delete block;
+  }
 }
 
 auto SimplifyPass::SimplifyCFGLLVMIR() -> void {
@@ -70,25 +80,35 @@ auto SimplifyPass::SimplifyCFGInFunction(mlir::base::FuncDefOp *func_op) -> void
     visited.insert(block);
     // Get the terminator operation of the block, and push the target blocks to the stack
     std::vector<mlir::Operation *> new_ops;
+    bool is_terminated = false;
     for (auto &op : block->operations_) {
-      new_ops.emplace_back(op);
+      if (!is_terminated) {
+        new_ops.emplace_back(op);
+      } else {
+        // Clear the operations' all uses
+        if (op->results_.size() > 0) {
+          auto result = op->results_[0];
+          result->ClearUses();
+        }
+        continue;
+      }
       // Meet terminator, stop and push the target blocks to the stack
       // So that all ops after the terminator can be removed safely
       if (auto br_op = mlir::DynamicOrNull<mlir::base::BrOp>(op)) {
         auto target_block = br_op->GetTarget();
         stack.push(target_block);
         // Meet terminal, break
-        break;
+        is_terminated = true;
       }
       if (auto cond_br_op = mlir::DynamicOrNull<mlir::base::CondBrOp>(op)) {
         auto true_block = cond_br_op->GetTrueTarget();
         auto false_block = cond_br_op->GetFalseTarget();
         stack.push(true_block);
         stack.push(false_block);
-        break;
+        is_terminated = true;
       }
       if (auto ret_op = mlir::DynamicOrNull<mlir::func::ReturnOp>(op)) {
-        break;
+        is_terminated = true;
       }
     }
     block->operations_ = std::move(new_ops);
@@ -98,7 +118,7 @@ auto SimplifyPass::SimplifyCFGInFunction(mlir::base::FuncDefOp *func_op) -> void
     if (visited.count(block) > 0) {
       new_blocks.emplace_back(block);
     } else {
-      delete block;
+      to_delete_blocks_.emplace_back(block);
     }
   }
   func_op->SetBlocks(std::move(new_blocks));

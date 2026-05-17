@@ -47,11 +47,14 @@ auto MLIRCFGBuilder::BuildFunctionCFG(mlir::base::FuncDefOp *func_op) -> void {
         if (visited.count(target_block) == 0) {
           auto target_node = new MLIRCFGNode(target_block);
           func_cfg->AddNode(target_node);
-          current_node->AddSuccessor(target_node);
-          target_node->AddPredecessor(current_node);
           worklist.push(target_node);
           visited.insert(target_block);
+          func_cfg->MapBlockToNode(target_block, target_node);
         }
+        // Add successor and predecessor
+        auto target_node = func_cfg->GetNodeByBlock(target_block);
+        current_node->AddSuccessor(target_node);
+        target_node->AddPredecessor(current_node);
         break;
       }
       if (auto cond_br_op = mlir::DynamicOrNull<mlir::base::CondBrOp>(op)) {
@@ -60,19 +63,24 @@ auto MLIRCFGBuilder::BuildFunctionCFG(mlir::base::FuncDefOp *func_op) -> void {
         if (visited.count(true_target) == 0) {
           auto true_node = new MLIRCFGNode(true_target);
           func_cfg->AddNode(true_node);
-          current_node->AddSuccessor(true_node);
-          true_node->AddPredecessor(current_node);
           worklist.push(true_node);
           visited.insert(true_target);
+          func_cfg->MapBlockToNode(true_target, true_node);
         }
         if (visited.count(false_target) == 0) {
           auto false_node = new MLIRCFGNode(false_target);
           func_cfg->AddNode(false_node);
-          current_node->AddSuccessor(false_node);
-          false_node->AddPredecessor(current_node);
           worklist.push(false_node);
           visited.insert(false_target);
+          func_cfg->MapBlockToNode(false_target, false_node);
         }
+        // Add successors and predecessors for both true and false targets
+        auto true_node = func_cfg->GetNodeByBlock(true_target);
+        auto false_node = func_cfg->GetNodeByBlock(false_target);
+        current_node->AddSuccessor(true_node);
+        current_node->AddSuccessor(false_node);
+        true_node->AddPredecessor(current_node);
+        false_node->AddPredecessor(current_node);
         break;
       }
       if (auto ret_op = mlir::DynamicOrNull<mlir::func::ReturnOp>(op)) {

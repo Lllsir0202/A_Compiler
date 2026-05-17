@@ -16,6 +16,15 @@ class Block {
   // Interface to add an operation to the block
   auto AddOperation(Operation *op) -> void { operations_.emplace_back(op); }
   auto AddArgument(Value *arg) -> void { arguments_.emplace_back(arg); }
+  auto RemoveOperation(Operation *op) -> void {
+    std::vector<Operation *> new_ops;
+    for (auto &operation : operations_) {
+      if (operation != op) {
+        new_ops.emplace_back(operation);
+      }
+    }
+    operations_ = std::move(new_ops);
+  }
 
   // The vector of arguments is needed for i.e. while(i < 10 || j < 20)
   std::vector<Value *> arguments_;  // the arguments of this block

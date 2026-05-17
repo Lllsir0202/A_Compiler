@@ -124,7 +124,10 @@ class CFGPass : public AnalysisPass {
     Validate();
   }
 
-  auto PreRun() -> void override { this->Run(); }
+  auto PreRun() -> void override {
+    this->Run();
+    // Print();
+  }
 
   ~CFGPass() override { delete cfg_builder_; }
   auto Name() const -> std::string override { return "CFGPass"; }
