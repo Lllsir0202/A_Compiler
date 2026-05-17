@@ -1178,8 +1178,13 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
           compiler_context_->ReportError(var_def, "Initializer is array but variable is not array.");
           return;
         }
-        auto array_type = static_cast<type::ArrayType *>(entry->type_);
-        if (array_type->GetElementType()->GetKind() == type::TypeKind::INT) {
+        // Deal with multi-dimensional array
+        auto allocated_type = entry->type_;
+        while (allocated_type->GetKind() == type::TypeKind::ARRAY) {
+          allocated_type = static_cast<type::ArrayType *>(allocated_type)->GetElementType();
+        }
+        // Here allocated type should be the element type
+        if (allocated_type->GetKind() == type::TypeKind::INT) {
           std::vector<int> init_values;
           for (const auto &value : values) {
             auto const_initializer = static_cast<initializer::ConstInitializer *>(value.get());
@@ -1195,7 +1200,7 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
           global_def->GetRes()->SetType(entry->type_);
           GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(global_def);
           GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, global_def->GetRes());
-        } else if (array_type->GetElementType()->GetKind() == type::TypeKind::FLOAT) {
+        } else if (allocated_type->GetKind() == type::TypeKind::FLOAT) {
           std::vector<double> init_values;
           for (const auto &value : values) {
             auto const_initializer = static_cast<initializer::ConstInitializer *>(value.get());
@@ -1241,10 +1246,16 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
         // since in C language, the uninitialized variable will be initialized to `0` by default
         // we will accomplish this by `memset` in the lowering phase.
         mlir::var::GlobalVarDefOp *global_def = nullptr;
-        if (static_cast<type::ArrayType *>(entry->type_)->GetElementType()->GetKind() == type::TypeKind::INT) {
+        // Same as above, we need to get the element type of the array,
+        // and then we can provide the default initializer according to the element type
+        auto allocated_type = entry->type_;
+        while (allocated_type->GetKind() == type::TypeKind::ARRAY) {
+          allocated_type = static_cast<type::ArrayType *>(allocated_type)->GetElementType();
+        }
+        if (allocated_type->GetKind() == type::TypeKind::INT) {
           global_def = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::GlobalVarDefOp>(
               GET_MLIR_CONTEXT(), entry->name_, entry->dimensions_, std::vector<int>{});
-        } else if (static_cast<type::ArrayType *>(entry->type_)->GetElementType()->GetKind() == type::TypeKind::FLOAT) {
+        } else if (allocated_type->GetKind() == type::TypeKind::FLOAT) {
           global_def = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::GlobalVarDefOp>(
               GET_MLIR_CONTEXT(), entry->name_, entry->dimensions_, std::vector<double>{});
         } else {
@@ -1308,7 +1319,8 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
         // Get the element type of the array
         // Since we need to make sure that the type of the initiaizer
         // same as the element type of the array.
-        if (type->GetKind() == type::TypeKind::ARRAY) {
+        // Deal with multi-dimensional array
+        while (type->GetKind() == type::TypeKind::ARRAY) {
           type = static_cast<type::ArrayType *>(type)->GetElementType();
         }
         if (value->GetType() != type) {
@@ -1358,13 +1370,10 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
         compiler_context_->ReportError(init->value_.get(), "Failed to get value from initializer expression.");
         return;
       }
-      /**
-       * @note: For array-variables, we need to check the type of the initials with the element type
-       */
       auto type = entry->type_;
       if (type->GetKind() == type::TypeKind::ARRAY) {
-        // In definition, type will only be array type instead of pointer
-        type = static_cast<type::ArrayType *>(type)->GetElementType();
+        compiler_context_->ReportError(var_def, "Array variable cannot be initialized with scalar initializer.");
+        return;
       }
       if (value->GetType() != type) {
         auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), value,
@@ -1388,7 +1397,7 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
         default_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), 0);
         default_op->GetRes()->SetType(entry->type_);
       } else if (entry->type_->GetKind() == type::TypeKind::FLOAT) {
-        default_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), 0.0F);
+        default_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), 0.0);
         default_op->GetRes()->SetType(entry->type_);
       } else {
         compiler_context_->ReportError(var_def, "Unsupported variable type for default initializer.");

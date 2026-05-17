@@ -130,10 +130,13 @@ auto SemanticAnalyser::Normalize(symboltable::VarEntry *entry,
     compiler_context_->ReportError("Try to initialize non-array type with array initializers");
     return;
   }
-  auto array_type = static_cast<type::ArrayType *>(type);
-  auto element_type = array_type->GetElementType();
-  auto is_int = element_type->GetKind() == type::TypeKind::INT;
-  auto is_float = element_type->GetKind() == type::TypeKind::FLOAT;
+  // Get the element type of the array
+  auto allocated_type = type;
+  while (allocated_type->GetKind() == type::TypeKind::ARRAY) {
+    allocated_type = static_cast<type::ArrayType *>(allocated_type)->GetElementType();
+  }
+  auto is_int = allocated_type->GetKind() == type::TypeKind::INT;
+  auto is_float = allocated_type->GetKind() == type::TypeKind::FLOAT;
   for (auto &init_val : init->GetUpdateInitializers()) {
     if (init_val == nullptr) {
       if (is_int) {
