@@ -717,13 +717,15 @@ auto LowerHelper::LowerGlobalVarDefOp(mlir::var::GlobalVarDefOp *global_var_def)
   if (allocated_type->GetKind() == type::TypeKind::INT) {
     auto &inits = global_var_def->GetIntInitValues();
     auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::GlobalDefInst>(
-        GET_LLVMIR_CONTEXT(), result_type, allocated_type, var_name, global_var_def->GetDimensions(), inits);
+        GET_LLVMIR_CONTEXT(), result_type, allocated_type, var_name, global_var_def->GetDimensions(), inits,
+        global_var_def->IsConst());
     GET_LLVMIR_CONTEXT()->GetResourceContext()->AddGlobalVarDef(var_name, inst);
     GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());
   } else if (allocated_type->GetKind() == type::TypeKind::FLOAT) {
     auto &inits = global_var_def->GetFloatInitValues();
     auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::GlobalDefInst>(
-        GET_LLVMIR_CONTEXT(), result_type, allocated_type, var_name, global_var_def->GetDimensions(), inits);
+        GET_LLVMIR_CONTEXT(), result_type, allocated_type, var_name, global_var_def->GetDimensions(), inits,
+        global_var_def->IsConst());
     GET_LLVMIR_CONTEXT()->GetResourceContext()->AddGlobalVarDef(var_name, inst);
     GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());
   } else {

@@ -123,7 +123,7 @@ class ConstIntOp : public BaseOps {
 class ConstFloatOp : public BaseOps {
  public:
   ~ConstFloatOp() override = default;
-  static auto Create(mlir::Value *res, double value) {
+  static auto Create(mlir::Value *res, float value) {
     auto op = new ConstFloatOp();
     op->SetUp(res, value);
     return op;
@@ -155,18 +155,18 @@ class ConstFloatOp : public BaseOps {
   /**
    * @brief Interfaces to get the value and result
    */
-  auto GetValue() const -> double { return value_; }
+  auto GetValue() const -> float { return value_; }
   auto GetRes() -> mlir::Value * { return results_[0]; }
 
  private:
   explicit ConstFloatOp() : BaseOps("constfloat") {}
-  auto SetUp(mlir::Value *res, double value) -> void {
+  auto SetUp(mlir::Value *res, float value) -> void {
     results_.reserve(1);
     value_ = value;
     results_.emplace_back(res);
     res->op_ = this;
   }
-  double value_;
+  float value_;
 };
 }  // namespace middleend::mlir::base
 

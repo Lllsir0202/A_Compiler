@@ -6,9 +6,10 @@
 
 namespace middleend::llvm::inst {
 auto GlobalDefInst::Create(context::LLVMIRContext *context, type::Type *result_type, type::Type *allocated_type,
-                           const std::string &name, std::vector<int> dimensions,
-                           std::vector<int> initial_values) -> GlobalDefInst * {
+                           const std::string &name, std::vector<int> dimensions, std::vector<int> initial_values,
+                           bool is_constant) -> GlobalDefInst * {
   auto *inst = new GlobalDefInst(allocated_type, name, std::move(dimensions), std::move(initial_values));
+  inst->is_constant_ = is_constant;
   // Set all result's type to pointer
   auto ptr_type = context->GetTypeContext()->GetPtrType(result_type);
   auto res = context->GetNewGlobalOperand(name, ptr_type);
@@ -18,9 +19,10 @@ auto GlobalDefInst::Create(context::LLVMIRContext *context, type::Type *result_t
 }
 
 auto GlobalDefInst::Create(context::LLVMIRContext *context, type::Type *result_type, type::Type *allocated_type,
-                           const std::string &name, std::vector<int> dimensions,
-                           std::vector<double> initial_values) -> GlobalDefInst * {
+                           const std::string &name, std::vector<int> dimensions, std::vector<float> initial_values,
+                           bool is_constant) -> GlobalDefInst * {
   auto *inst = new GlobalDefInst(allocated_type, name, std::move(dimensions), std::move(initial_values));
+  inst->is_constant_ = is_constant;
   // Set all result's type to pointer
   auto ptr_type = context->GetTypeContext()->GetPtrType(result_type);
   auto res = context->GetNewGlobalOperand(name, ptr_type);
@@ -64,7 +66,12 @@ auto GlobalDefInst::Verify(context::CompilerContext *context) const -> bool {
 }
 
 auto GlobalDefInst::Emit(std::ofstream *out) const -> void {
-  *out << "@" << name_ << " = global ";
+  *out << "@" << name_ << " = ";
+  if (is_constant_) {
+    *out << "constant ";
+  } else {
+    *out << "global ";
+  }
   if (!dimensions_.empty()) {
     for (const auto &dim : dimensions_) {
       *out << "[" << dim << " x ";
@@ -148,7 +155,7 @@ auto GlobalDefInst::OutputArrayInitializer(std::ostream *out, const std::vector<
   *out << "]";
 }
 
-auto GlobalDefInst::OutputArrayInitializer(std::ostream *out, const std::vector<double> &values,
+auto GlobalDefInst::OutputArrayInitializer(std::ostream *out, const std::vector<float> &values,
                                            const std::vector<int> &dimensions, size_t offset) const -> void {
   if (dimensions.empty()) {
     return;

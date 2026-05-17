@@ -21,7 +21,7 @@ class FloatLiteral : public Operand {
  private:
   explicit FloatLiteral(float value) : Operand(OpType::Literal), value_(value) {}
 
-  double value_;
+  float value_;
   friend class middleend::llvm::utils::factory::OperandFactory;
 };
 

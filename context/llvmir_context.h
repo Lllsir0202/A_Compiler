@@ -39,7 +39,7 @@ class LLVMIRResourceContext {
    */
   auto GetRegOperand(size_t id) -> middleend::llvm::utils::RegOperand *;
   auto GetIntLiteral(int value) -> middleend::llvm::utils::IntLiteral *;
-  auto GetFloatLiteral(double value) -> middleend::llvm::utils::FloatLiteral *;
+  auto GetFloatLiteral(float value) -> middleend::llvm::utils::FloatLiteral *;
   // Just for llvm intrinsic functions
   auto GetBoolLiteral(bool value) -> middleend::llvm::utils::BoolLiteral *;
   auto GetLongLiteral(std::int64_t value) -> middleend::llvm::utils::LongLiteral *;
@@ -121,7 +121,7 @@ class LLVMIRResourceContext {
   std::unordered_map<size_t, middleend::llvm::utils::RegOperand *> reg_operands_;
   std::unordered_map<size_t, middleend::llvm::utils::LabelOperand *> label_operands_;
   std::unordered_map<int, middleend::llvm::utils::IntLiteral *> int_literals_;
-  std::unordered_map<double, middleend::llvm::utils::FloatLiteral *> float_literals_;
+  std::unordered_map<float, middleend::llvm::utils::FloatLiteral *> float_literals_;
   std::unordered_map<std::string, middleend::llvm::utils::GlobalOperand *> global_operands_;
   // Just for llvm intrinsic functions
   std::unordered_map<bool, middleend::llvm::utils::BoolLiteral *> bool_literals_;
@@ -213,7 +213,7 @@ class LLVMIRContext {
     return resource_context_->GetIntLiteral(value);
   }
 
-  auto GetFloatLiteral(double value) -> middleend::llvm::utils::FloatLiteral * {
+  auto GetFloatLiteral(float value) -> middleend::llvm::utils::FloatLiteral * {
     return resource_context_->GetFloatLiteral(value);
   }
 
@@ -244,6 +244,7 @@ class LLVMIRContext {
   auto GetVoidType() -> type::Type * { return type_context_->GetVoidType(); }
   auto GetCharType() -> type::Type * { return type_context_->GetCharType(); }
   auto GetLongType() -> type::Type * { return type_context_->GetLongType(); }
+  auto GetPtrType(type::Type *base_type) -> type::Type * { return type_context_->GetPtrType(base_type); }
 
   // Get contexts
   auto GetResourceContext() -> LLVMIRResourceContext * { return resource_context_; }

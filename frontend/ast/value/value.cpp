@@ -8,7 +8,7 @@ auto Value::GetIntValue() const -> int {
   return int_value_;
 }
 
-auto Value::GetFloatValue() const -> double {
+auto Value::GetFloatValue() const -> float {
   assert(type_ == ValueType::FLOAT);
   return float_value_;
 }
@@ -23,7 +23,7 @@ auto Value::SetIntValue(int int_value) -> void {
   type_ = ValueType::INT;
 }
 
-auto Value::SetFloatValue(double float_value) -> void {
+auto Value::SetFloatValue(float float_value) -> void {
   float_value_ = float_value;
   type_ = ValueType::FLOAT;
 }
@@ -59,12 +59,12 @@ auto Value::AsInt() const -> int {
   throw std::runtime_error("Cannot convert UNKNOWN value to int");
 }
 
-auto Value::AsFloat() const -> double {
+auto Value::AsFloat() const -> float {
   if (type_ == ValueType::FLOAT) {
     return float_value_;
   }
   if (type_ == ValueType::INT) {
-    return static_cast<double>(int_value_);
+    return static_cast<float>(int_value_);
   }
   if (type_ == ValueType::BOOL) {
     return int_value_ != 0 ? 1.0 : 0.0;
@@ -123,7 +123,7 @@ auto Value::operator*(const Value &other) const -> Value {
 auto Value::operator/(const Value &other) const -> Value {
   // Need to check if other is zero
   if (NeedFloat(other)) {
-    double other_float = other.AsFloat();
+    float other_float = other.AsFloat();
     if (other_float == 0.0) {
       throw std::runtime_error("Division by zero");
     }

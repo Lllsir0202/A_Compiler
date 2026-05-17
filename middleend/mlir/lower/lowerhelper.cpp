@@ -188,12 +188,12 @@ auto LowerHelper::LowerConstOp(middleend::mlir::arithm::ConstOp *const_op) -> vo
     GetInsertPoint()->AddOperation(new_const_op);
   } else if (type->GetKind() == type::TypeKind::FLOAT) {
     auto value = const_op->GetValue();
-    if (!std::holds_alternative<double>(value)) {
+    if (!std::holds_alternative<float>(value)) {
       compiler_context_->ReportError("ConstOp: result type is not same as constant value\n");
       return;
     }
     auto new_const_op =
-        GET_MLIR_CONTEXT()->CreateOperation<mlir::base::ConstFloatOp>(const_op->GetRes(), std::get<double>(value));
+        GET_MLIR_CONTEXT()->CreateOperation<mlir::base::ConstFloatOp>(const_op->GetRes(), std::get<float>(value));
     GetInsertPoint()->AddOperation(new_const_op);
   } else {
     compiler_context_->ReportError("Unsupported type for const operation: " + type->ToString());

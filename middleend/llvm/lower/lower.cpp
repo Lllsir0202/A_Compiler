@@ -31,16 +31,19 @@ auto LLVMLower::RegisterLibraryFunctions() -> void {
 
   auto putarray_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDeclareInst>(
       GET_LLVMIR_CONTEXT(), "putarray", GET_LLVMIR_CONTEXT()->GetVoidType(),
-      std::vector<type::Type *>{GET_LLVMIR_CONTEXT()->GetIntegerType(), GET_LLVMIR_CONTEXT()->GetIntegerType()});
+      std::vector<type::Type *>{GET_LLVMIR_CONTEXT()->GetIntegerType(),
+                                GET_LLVMIR_CONTEXT()->GetPtrType(GET_LLVMIR_CONTEXT()->GetIntegerType())});
   auto getarray_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDeclareInst>(
       GET_LLVMIR_CONTEXT(), "getarray", GET_LLVMIR_CONTEXT()->GetIntegerType(),
-      std::vector<type::Type *>{GET_LLVMIR_CONTEXT()->GetIntegerType(), GET_LLVMIR_CONTEXT()->GetIntegerType()});
+      std::vector<type::Type *>{GET_LLVMIR_CONTEXT()->GetPtrType(GET_LLVMIR_CONTEXT()->GetIntegerType())});
   auto putfloatarray_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDeclareInst>(
       GET_LLVMIR_CONTEXT(), "putfarray", GET_LLVMIR_CONTEXT()->GetVoidType(),
-      std::vector<type::Type *>{GET_LLVMIR_CONTEXT()->GetIntegerType(), GET_LLVMIR_CONTEXT()->GetIntegerType()});
+      std::vector<type::Type *>{GET_LLVMIR_CONTEXT()->GetIntegerType(),
+                                GET_LLVMIR_CONTEXT()->GetPtrType(GET_LLVMIR_CONTEXT()->GetFloatType())});
   auto getfloatarray_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDeclareInst>(
-      GET_LLVMIR_CONTEXT(), "getfarray", GET_LLVMIR_CONTEXT()->GetFloatType(),
-      std::vector<type::Type *>{GET_LLVMIR_CONTEXT()->GetIntegerType(), GET_LLVMIR_CONTEXT()->GetIntegerType()});
+      GET_LLVMIR_CONTEXT(), "getfarray", GET_LLVMIR_CONTEXT()->GetIntegerType(),
+      std::vector<type::Type *>{
+          GET_LLVMIR_CONTEXT()->GetTypeContext()->GetPtrType(GET_LLVMIR_CONTEXT()->GetFloatType())});
   auto starttime_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDeclareInst>(
       GET_LLVMIR_CONTEXT(), "starttime", GET_LLVMIR_CONTEXT()->GetVoidType(), std::vector<type::Type *>{});
   auto stoptime_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDeclareInst>(

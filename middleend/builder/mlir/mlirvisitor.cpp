@@ -1164,7 +1164,7 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
           }
           value = int_opt.value();
           auto global_def = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::GlobalVarDefOp>(
-              GET_MLIR_CONTEXT(), entry->name_, std::vector<int>{}, std::vector<int>{value});
+              GET_MLIR_CONTEXT(), entry->name_, std::vector<int>{}, std::vector<int>{value}, entry->is_const_);
           global_def->GetRes()->SetType(entry->type_);
           GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(global_def);
           GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, global_def->GetRes());
@@ -1176,7 +1176,7 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
           }
           auto value = float_opt.value();
           auto global_def = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::GlobalVarDefOp>(
-              GET_MLIR_CONTEXT(), entry->name_, std::vector<int>{}, std::vector<double>{value});
+              GET_MLIR_CONTEXT(), entry->name_, std::vector<int>{}, std::vector<float>{value}, entry->is_const_);
           global_def->GetRes()->SetType(entry->type_);
           GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(global_def);
           GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, global_def->GetRes());
@@ -1209,12 +1209,12 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
             init_values.emplace_back(int_opt.value());
           }
           auto global_def = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::GlobalVarDefOp>(
-              GET_MLIR_CONTEXT(), entry->name_, entry->dimensions_, init_values);
+              GET_MLIR_CONTEXT(), entry->name_, entry->dimensions_, init_values, entry->is_const_);
           global_def->GetRes()->SetType(entry->type_);
           GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(global_def);
           GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, global_def->GetRes());
         } else if (allocated_type->GetKind() == type::TypeKind::FLOAT) {
-          std::vector<double> init_values;
+          std::vector<float> init_values;
           for (const auto &value : values) {
             auto const_initializer = static_cast<initializer::ConstInitializer *>(value.get());
             auto float_opt = const_initializer->GetFloatValue();
@@ -1225,7 +1225,7 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
             init_values.emplace_back(float_opt.value());
           }
           auto global_def = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::GlobalVarDefOp>(
-              GET_MLIR_CONTEXT(), entry->name_, entry->dimensions_, init_values);
+              GET_MLIR_CONTEXT(), entry->name_, entry->dimensions_, init_values, entry->is_const_);
           global_def->GetRes()->SetType(entry->type_);
           GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(global_def);
           GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, global_def->GetRes());
@@ -1240,7 +1240,7 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
     switch (entry->type_->GetKind()) {
       case type::TypeKind::INT: {
         auto global_def = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::GlobalVarDefOp>(
-            GET_MLIR_CONTEXT(), entry->name_, std::vector<int>{}, std::vector<int>{});
+            GET_MLIR_CONTEXT(), entry->name_, std::vector<int>{}, std::vector<int>{}, entry->is_const_);
         global_def->GetRes()->SetType(entry->type_);
         GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(global_def);
         GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, global_def->GetRes());
@@ -1248,7 +1248,7 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
       }
       case type::TypeKind::FLOAT: {
         auto global_def = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::GlobalVarDefOp>(
-            GET_MLIR_CONTEXT(), entry->name_, std::vector<int>{}, std::vector<double>{});
+            GET_MLIR_CONTEXT(), entry->name_, std::vector<int>{}, std::vector<float>{}, entry->is_const_);
         global_def->GetRes()->SetType(entry->type_);
         GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(global_def);
         GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, global_def->GetRes());
@@ -1267,10 +1267,10 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
         }
         if (allocated_type->GetKind() == type::TypeKind::INT) {
           global_def = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::GlobalVarDefOp>(
-              GET_MLIR_CONTEXT(), entry->name_, entry->dimensions_, std::vector<int>{});
+              GET_MLIR_CONTEXT(), entry->name_, entry->dimensions_, std::vector<int>{}, entry->is_const_);
         } else if (allocated_type->GetKind() == type::TypeKind::FLOAT) {
           global_def = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::GlobalVarDefOp>(
-              GET_MLIR_CONTEXT(), entry->name_, entry->dimensions_, std::vector<double>{});
+              GET_MLIR_CONTEXT(), entry->name_, entry->dimensions_, std::vector<float>{}, entry->is_const_);
         } else {
           compiler_context_->ReportError(var_def, "Unsupported type for global variable initializer.");
           return;
@@ -1411,7 +1411,7 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
         default_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), 0);
         default_op->GetRes()->SetType(entry->type_);
       } else if (entry->type_->GetKind() == type::TypeKind::FLOAT) {
-        default_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), 0.0);
+        default_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), 0.0F);
         default_op->GetRes()->SetType(entry->type_);
       } else {
         compiler_context_->ReportError(var_def, "Unsupported variable type for default initializer.");

@@ -113,7 +113,7 @@
 
 /* Tokens with values */
 %token <int> INTCONST "integer constant"
-%token <double> FLOATCONST "float constant"
+%token <float> FLOATCONST "float constant"
 %token <std::string> IDENTIFIER "identifier"
 
 /* Some Punctuation */

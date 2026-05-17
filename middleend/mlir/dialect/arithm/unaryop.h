@@ -24,7 +24,7 @@ class ConstOp : public ArithmOps {
     op->SetUp(context, value);
     return op;
   }
-  static auto Create(context::MLIRContext *context, double value) {
+  static auto Create(context::MLIRContext *context, float value) {
     auto op = new ConstOp();
     op->SetUp(context, value);
     return op;
@@ -33,7 +33,7 @@ class ConstOp : public ArithmOps {
    * Since we might need to use and change the value and result of the operation
    * we should not make them const
    */
-  auto GetValue() -> std::variant<int, double> { return const_value_; }
+  auto GetValue() -> std::variant<int, float> { return const_value_; }
   auto GetRes() -> mlir::Value * { return results_[0]; }
 
   auto Emit(std::ofstream *out) -> void override {
@@ -42,8 +42,8 @@ class ConstOp : public ArithmOps {
     *out << " = " << Name() << " ";
     if (std::holds_alternative<int>(const_value_)) {
       *out << std::get<int>(const_value_);
-    } else if (std::holds_alternative<double>(const_value_)) {
-      *out << std::get<double>(const_value_);
+    } else if (std::holds_alternative<float>(const_value_)) {
+      *out << std::get<float>(const_value_);
     }
     *out << "\n";
   }
@@ -67,7 +67,7 @@ class ConstOp : public ArithmOps {
       return true;
     }
     if (results_[0]->type_->GetKind() == type::TypeKind::FLOAT) {
-      if (!std::holds_alternative<double>(const_value_)) {
+      if (!std::holds_alternative<float>(const_value_)) {
         context->Print("ConstOp: result type is not same as constant value\n");
         return false;
       }
@@ -86,14 +86,14 @@ class ConstOp : public ArithmOps {
     results_.emplace_back(res);
     res->op_ = this;
   };
-  auto SetUp(context::MLIRContext *context, double value) -> void {
+  auto SetUp(context::MLIRContext *context, float value) -> void {
     const_value_ = value;
     results_.reserve(1);
     auto res = context->CreateValue();
     results_.emplace_back(res);
     res->op_ = this;
   };
-  std::variant<int, double> const_value_;
+  std::variant<int, float> const_value_;
 };
 
 /**

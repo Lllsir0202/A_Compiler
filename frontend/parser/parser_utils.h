@@ -14,7 +14,7 @@ namespace frontend {
  */
 static inline auto StringToInt(const std::string &str) -> int { return std::strtol(str.c_str(), nullptr, 0); }
 
-static inline auto StringToFloat(const std::string &str) -> double { return std::strtod(str.c_str(), nullptr); }
+static inline auto StringToFloat(const std::string &str) -> float { return std::strtod(str.c_str(), nullptr); }
 
 }  // namespace frontend
 

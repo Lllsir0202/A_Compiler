@@ -7,7 +7,7 @@ auto ConstInitializer::SetIntValue(int value) -> void {
   float_value_ = std::nullopt;
 }
 
-auto ConstInitializer::SetFloatValue(double value) -> void {
+auto ConstInitializer::SetFloatValue(float value) -> void {
   float_value_ = value;
   int_value_ = std::nullopt;
 }
@@ -20,7 +20,7 @@ the type.
 */
 auto ConstInitializer::GetIntValue() const -> std::optional<int> { return int_value_; }
 
-auto ConstInitializer::GetFloatValue() const -> std::optional<double> { return float_value_; }
+auto ConstInitializer::GetFloatValue() const -> std::optional<float> { return float_value_; }
 
 /**
  * @brief Handle the initializer in the AST, which is used for constant expression evaluation

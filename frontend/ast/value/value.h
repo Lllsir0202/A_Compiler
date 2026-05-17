@@ -20,16 +20,16 @@ class Value {
  public:
   Value() : int_value_(0), type_(ValueType::UNKNOWN){};
   explicit Value(int int_value) : int_value_(int_value), type_(ValueType::INT) {}
-  explicit Value(double float_value) : float_value_(float_value), type_(ValueType::FLOAT) {}
+  explicit Value(float float_value) : float_value_(float_value), type_(ValueType::FLOAT) {}
   explicit Value(bool bool_value) : int_value_(static_cast<int>(bool_value)), type_(ValueType::BOOL) {}
 
   auto GetType() const -> ValueType { return type_; }
 
   auto GetIntValue() const -> int;
-  auto GetFloatValue() const -> double;
+  auto GetFloatValue() const -> float;
   auto GetBoolValue() const -> bool;
   auto SetIntValue(int int_value) -> void;
-  auto SetFloatValue(double float_value) -> void;
+  auto SetFloatValue(float float_value) -> void;
   auto SetBoolValue(bool bool_value) -> void;
 
   auto ToString() const -> std::string;
@@ -55,7 +55,7 @@ class Value {
  private:
   union {
     int int_value_;
-    double float_value_;
+    float float_value_;
   };
   enum ValueType type_;
 
@@ -63,7 +63,7 @@ class Value {
    * @brief Helper function to convert
    */
   auto AsInt() const -> int;
-  auto AsFloat() const -> double;
+  auto AsFloat() const -> float;
   auto AsBool() const -> bool;
 
   auto NeedFloat(const Value &other) const -> bool;
