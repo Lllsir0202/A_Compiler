@@ -22,10 +22,6 @@ auto Value::ReplaceAllUsesWith(Value *new_value) -> void {
       throw std::runtime_error("The operation that uses this value is nullptr");
     }
     if (index >= op->operands_.size()) {
-      printf("op name is : %s\n", op->Name().c_str());
-      printf("operand size is : %zu\n", op->operands_.size());
-      printf("index is : %zu\n", index);
-      printf("new value op is : %s\n", new_value->op_ == nullptr ? "nullptr" : new_value->op_->Name().c_str());
       throw std::runtime_error("The operand index is out of range");
     }
     // Replace the operand in the operation with the new value

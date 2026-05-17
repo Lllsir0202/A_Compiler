@@ -251,7 +251,7 @@ inline auto MLIRVisitor::HandleShortCircuitOperator(frontend::ast::BinaryExprNod
     then_block->AddOperation(yield_op);
     auto if_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::IfOp>(GET_MLIR_CONTEXT(), 1, lhs_value, then_region,
                                                                       else_region);
-
+    lhs_value->AddUse(if_op, 0);
     // Reset region and insert point
     GET_MLIR_CONTEXT()->SetCurrentRegion(current_region);
     GET_MLIR_CONTEXT()->SetInsertPoint(current_insert_point);
@@ -311,6 +311,7 @@ inline auto MLIRVisitor::HandleShortCircuitOperator(frontend::ast::BinaryExprNod
     else_block->AddOperation(else_yield_op);
     auto if_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::IfOp>(GET_MLIR_CONTEXT(), 1, lhs_value, then_region,
                                                                       else_region);
+    lhs_value->AddUse(if_op, 0);
 
     // Reset region and insert point
     GET_MLIR_CONTEXT()->SetCurrentRegion(current_region);

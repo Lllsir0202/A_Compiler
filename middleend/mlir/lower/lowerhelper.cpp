@@ -651,6 +651,7 @@ auto LowerHelper::LowerWhileOp(middleend::mlir::scf::WhileOp *while_op) -> void 
   // so we don't need to consider the scf change the br operation's `from`.
   auto br_cond_to_body =
       GET_MLIR_CONTEXT()->CreateOperation<mlir::base::CondBrOp>(condition, new_body_block, exit_block);
+  condition->ReplaceAllOpUsesWith(condition_op, br_cond_to_body);
   GetInsertPoint()->AddOperation(br_cond_to_body);
 
   // Since the condition operation has been handled, we can directly pop back

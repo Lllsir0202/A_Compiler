@@ -318,6 +318,27 @@ LOWER_BINARY_OP(DivF);
     return;                                                                                          \
   }
 
+#define FCMP_DISPTACH(OP_NAME, PREDICATE)                                                            \
+  if (auto specific_op = mlir::DynamicOrNull<mlir::base::OP_NAME##Op>(op)) {                         \
+    auto lhs = specific_op->GetLHS();                                                                \
+    auto rhs = specific_op->GetRHS();                                                                \
+    auto result = specific_op->GetRes();                                                             \
+    auto llvm_lhs = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(lhs);     \
+    auto llvm_rhs = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(rhs);     \
+    auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FCmpInst>(              \
+        GET_LLVMIR_CONTEXT(), inst::CmpPredicate::PREDICATE, llvm_lhs, llvm_rhs);                    \
+    if (llvm_lhs->GetInstruction() != nullptr) {                                                     \
+      llvm_lhs->GetInstruction()->AddUser(inst);                                                     \
+    }                                                                                                \
+    if (llvm_rhs->GetInstruction() != nullptr) {                                                     \
+      llvm_rhs->GetInstruction()->AddUser(inst);                                                     \
+    }                                                                                                \
+    GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);                    \
+    GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult()); \
+    inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());                                    \
+    return;                                                                                          \
+  }
+
 auto LowerHelper::LowerICmpOp(mlir::Operation *op) -> void {
   ICMP_DISPTACH(Equal, EQ)
   ICMP_DISPTACH(NotEqual, NE)
@@ -328,12 +349,12 @@ auto LowerHelper::LowerICmpOp(mlir::Operation *op) -> void {
 }
 
 auto LowerHelper::LowerFCmpOp(mlir::Operation *op) -> void {
-  ICMP_DISPTACH(Equal, EQ)
-  ICMP_DISPTACH(NotEqual, NE)
-  ICMP_DISPTACH(Less, LT)
-  ICMP_DISPTACH(LessEqual, LE)
-  ICMP_DISPTACH(Greater, GT)
-  ICMP_DISPTACH(GreaterEqual, GE)
+  FCMP_DISPTACH(EqualF, EQ)
+  FCMP_DISPTACH(NotEqualF, NE)
+  FCMP_DISPTACH(LessF, LT)
+  FCMP_DISPTACH(LessEqualF, LE)
+  FCMP_DISPTACH(GreaterF, GT)
+  FCMP_DISPTACH(GreaterEqualF, GE)
 }
 
 /**
@@ -633,6 +654,9 @@ auto LowerHelper::LowerCondBrOp(mlir::base::CondBrOp *cond_br_op) -> void {
   auto llvm_condition = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(condition);
   auto llvm_true_block = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIRBlockFromMLIRBlock(true_block);
   auto llvm_false_block = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIRBlockFromMLIRBlock(false_block);
+  if (llvm_condition == nullptr) {
+    throw std::logic_error("Condition operand not found in LowerCondBrOp");
+  }
   if (llvm_true_block == nullptr) {
     throw std::logic_error("True target block not found in LowerCondBrOp");
   }
