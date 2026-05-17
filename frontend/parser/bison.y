@@ -381,15 +381,16 @@ func_fparam:
     }
     |
     /* Array parameter */
+    /* Just record the allocated type */
     INT IDENTIFIER func_fparam_indices
     {
-      $$ = std::make_unique<frontend::ast::FuncFParamNode>(@$, driver.GetContext().GetTypeContext()->GetPtrType(driver.GetContext().GetTypeContext()->GetIntegerType()), std::move($2), std::move(*$3));
+      $$ = std::make_unique<frontend::ast::FuncFParamNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), std::move($2), std::move(*$3));
       delete $3;
     }
     |
     FLOAT IDENTIFIER func_fparam_indices
     {
-      $$ = std::make_unique<frontend::ast::FuncFParamNode>(@$, driver.GetContext().GetTypeContext()->GetPtrType(driver.GetContext().GetTypeContext()->GetFloatType()), std::move($2), std::move(*$3));
+      $$ = std::make_unique<frontend::ast::FuncFParamNode>(@$, driver.GetContext().GetTypeContext()->GetFloatType(), std::move($2), std::move(*$3));
       delete $3;
     }
     ;

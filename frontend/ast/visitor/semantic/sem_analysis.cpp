@@ -1,4 +1,5 @@
 #include "frontend/ast/visitor/semantic/sem_analysis.h"
+#include <algorithm>
 #include <climits>
 #include <cstddef>
 #include <memory>
@@ -457,6 +458,11 @@ void SemanticAnalyser::Visit(LValExprNode *LVal) {
    * @note: we use pointer to represent those variables which represents as a pointer
    * @note: we deal with parameter variables as Pointer type.
    */
+  if (LVal->indices_.size() > def_dims.size()) {
+    printf("Debug: variable %s has too many indices: %zu, but definition has only %zu dimensions\n",
+           LVal->ident_.c_str(), LVal->indices_.size(), def_dims.size());
+  }
+
   if (!def_dims.empty() && LVal->indices_.size() == def_dims.size()) {
     if (var_def->type_->GetKind() != type::TypeKind::ARRAY && var_def->type_->GetKind() != type::TypeKind::PTR) {
       compiler_context_->ReportError(LVal, "variable (" + LVal->ident_ + ") is not an array variable, but has indices");
@@ -488,7 +494,6 @@ void SemanticAnalyser::Visit(LValExprNode *LVal) {
     } else {
       element_type = var_def->type_;
     }
-
     result_type = compiler_context_->GetTypeContext()->GetPtrType(element_type);
   } else if (!def_dims.empty() && LVal->indices_.size() > def_dims.size()) {
     compiler_context_->ReportError(LVal, "too many indices for array variable (" + LVal->ident_ + ")");
@@ -773,9 +778,18 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
   }
 
   if (!var_def->indices_.empty()) {
+    // Element type is the allocated type for the variable
+    auto element_type = entry->type_;
+    auto array_type = element_type;
     std::vector<int> dimensions;
-    size_t total_size = 1;
-    for (const auto &index : var_def->indices_) {
+    // Reserve space for dimensions to avoid multiple allocations
+
+    // Since we should visit the indices from the last one to the first,
+    // so that the array type can be constructed
+    // from the element type to the outermost array type step by step
+    dimensions.reserve(var_def->indices_.size());
+    for (int i = var_def->indices_.size() - 1; i >= 0; i--) {
+      auto &index = var_def->indices_[i];
       auto value = index->GetValue();
       auto int_value = value.GetIntValue();
       if (int_value < 0) {
@@ -787,12 +801,13 @@ void SemanticAnalyser::Visit(VarDefNode *var_def) {
         return;
       }
       // Then we can store the dimension size
-      dimensions.push_back(int_value);
-      total_size *= int_value;
+      dimensions.emplace_back(int_value);
+      // Get the array type every time we get a new dimension
+      array_type = compiler_context_->GetTypeContext()->GetArrayType(array_type, int_value);
     }
+    // Reverse the dimensions to make it in the correct order
+    std::reverse(dimensions.begin(), dimensions.end());
     // Reach here means the variable is an array variable, we need to set its type to array type
-    auto element_type = entry->type_;
-    auto array_type = compiler_context_->GetTypeContext()->GetArrayType(element_type, total_size);
     entry->type_ = array_type;
     entry->dimensions_ = dimensions;
   }
@@ -994,7 +1009,6 @@ void SemanticAnalyser::Visit(FuncDefNode *func_def) {
 
 void SemanticAnalyser::Visit(FuncFParamNode *func_fparam) {
   const int dimension_count = func_fparam->indices_.size();
-  size_t total_size = 1;
   for (int i = 0; i < dimension_count; i++) {
     auto &index = func_fparam->indices_[i];
     if (index == nullptr && i == 0) {
@@ -1019,20 +1033,31 @@ void SemanticAnalyser::Visit(FuncFParamNode *func_fparam) {
                                      "In function parameter definition, array size must be a constant expression");
       return;
     }
-    total_size *= index->GetValue().GetIntValue();
   }
-  /**
-   * @note we have set it to the true type during parser phase.
-   */
+
   // Regard function definition params as pointer type of an alloca
   if (dimension_count > 0) {
+    // for instance, int a[][5][4] should be regarded as :
+    /**
+     * @example:
+     * ptr {
+     *   array{
+     *    array{
+     *     int
+     *    }[4]
+     *   }[5]
+     * }
+     */
     auto element_type = func_fparam->type_;
-    if (element_type->GetKind() == type::TypeKind::PTR) {
-      element_type = static_cast<type::PtrType *>(element_type)->GetBaseType();
+    auto array_type = element_type;
+    // Since we do not visit dimension 0, so we can use size_t
+    for (size_t i = dimension_count - 1; i > 0; i--) {
+      auto &index = func_fparam->indices_[i];
+      auto value = index->GetValue();
+      auto int_value = value.GetIntValue();
+      array_type = compiler_context_->GetTypeContext()->GetArrayType(array_type, int_value);
     }
-    // Create an array
-    auto array_type = compiler_context_->GetTypeContext()->GetArrayType(element_type, total_size);
-    // Pointer of the array
+    // Ths last one is the first dimension, it will be regarded as a ptr
     auto ptr_type = compiler_context_->GetTypeContext()->GetPtrType(array_type);
     func_fparam->type_ = ptr_type;
   }
