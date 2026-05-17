@@ -42,7 +42,18 @@ auto GetElementPtrInst::Emit(std::ofstream *out) const -> void {
     if (base_type != nullptr && base_type->GetKind() == type::TypeKind::PTR) {
       base_type = static_cast<type::PtrType *>(base_type)->GetBaseType();
     }
+    // Print the base type of an recursive array type
+    int array_dim = 0;
+    while (base_type != nullptr && base_type->GetKind() == type::TypeKind::ARRAY) {
+      auto array_type = static_cast<type::ArrayType *>(base_type);
+      *out << "[" << array_type->GetSize() << " x ";
+      base_type = array_type->GetElementType();
+      array_dim++;
+    }
     *out << utils::Operand::GetTypeInLLVMIR(base_type);
+    for (int i = 0; i < array_dim; i++) {
+      *out << "]";
+    }
   } else {
     // Unknown instruction kind
     throw std::logic_error(

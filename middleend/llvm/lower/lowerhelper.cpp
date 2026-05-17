@@ -163,14 +163,16 @@ auto LowerHelper::LowerFuncDefOp(mlir::base::FuncDefOp *func_def) -> void {
     for (auto block : blocks) {
       for (auto *op : block->operations_) {
         if (auto var_def_op = mlir::DynamicOrNull<middleend::mlir::var::VarDefOp>(op)) {
-          auto var_type = var_def_op->GetRes()->type_;
-          if (var_type->GetKind() == type::TypeKind::ARRAY) {
-            auto array_type = dynamic_cast<type::ArrayType *>(var_type);
-            var_type = array_type->GetElementType();
+          auto allocated_type = var_def_op->GetRes()->type_;
+          // Get allocated type
+          // it should only be array or basic type, no ptr type included
+          while (allocated_type->GetKind() == type::TypeKind::ARRAY) {
+            auto array_type = dynamic_cast<type::ArrayType *>(allocated_type);
+            allocated_type = array_type->GetElementType();
           }
           auto result_type = var_def_op->GetRes()->GetType();
           auto alloca_inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::AllocaInst>(
-              GET_LLVMIR_CONTEXT(), result_type, var_type, var_def_op->GetDimensions());
+              GET_LLVMIR_CONTEXT(), result_type, allocated_type, var_def_op->GetDimensions());
           GET_LLVMIR_CONTEXT()->GetLowerContext()->GetCurrentFunction()->GetEntryBlock()->AddInstBack(alloca_inst);
           GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(var_def_op->GetRes(),
                                                                                alloca_inst->GetResult());
@@ -680,23 +682,24 @@ auto LowerHelper::LowerGlobalVarDefOp(mlir::var::GlobalVarDefOp *global_var_def)
   /**
    * @note: var_type might be array type
    */
-  auto var_type = result->GetType();
-  auto type = var_type;
-  if (type->GetKind() == type::TypeKind::ARRAY) {
-    type = static_cast<type::ArrayType *>(var_type)->GetElementType();
+
+  // Get allocated type which must be basic type
+  auto allocated_type = result->GetType();
+  while (allocated_type->GetKind() == type::TypeKind::ARRAY) {
+    allocated_type = static_cast<type::ArrayType *>(allocated_type)->GetElementType();
   }
   // Get result type, which should be a pointer type pointing to the variable type
-  auto result_type = var_type;
-  if (type->GetKind() == type::TypeKind::INT) {
+  auto result_type = result->GetType();
+  if (allocated_type->GetKind() == type::TypeKind::INT) {
     auto &inits = global_var_def->GetIntInitValues();
     auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::GlobalDefInst>(
-        GET_LLVMIR_CONTEXT(), result_type, type, var_name, global_var_def->GetDimensions(), inits);
+        GET_LLVMIR_CONTEXT(), result_type, allocated_type, var_name, global_var_def->GetDimensions(), inits);
     GET_LLVMIR_CONTEXT()->GetResourceContext()->AddGlobalVarDef(var_name, inst);
     GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());
-  } else if (type->GetKind() == type::TypeKind::FLOAT) {
+  } else if (allocated_type->GetKind() == type::TypeKind::FLOAT) {
     auto &inits = global_var_def->GetFloatInitValues();
     auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::GlobalDefInst>(
-        GET_LLVMIR_CONTEXT(), result_type, type, var_name, global_var_def->GetDimensions(), inits);
+        GET_LLVMIR_CONTEXT(), result_type, allocated_type, var_name, global_var_def->GetDimensions(), inits);
     GET_LLVMIR_CONTEXT()->GetResourceContext()->AddGlobalVarDef(var_name, inst);
     GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());
   } else {
@@ -834,12 +837,11 @@ auto LowerHelper::LowerVarGetPtrOp(mlir::var::VarGetPtrOp *get_ptr_op) -> void {
   auto ptr = get_ptr_op->GetPtr();
   auto result = get_ptr_op->GetRes();
   auto llvm_ptr = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(ptr);
+
+  // the ptr type will never be a pointer type,
+  // but it might be an array type
   auto allocated_type = llvm_ptr->GetType();
-  if (allocated_type->GetKind() == type::TypeKind::PTR) {
-    // Since the allocated type is a pointer type,
-    // we need to get the base type to check if it is an array
-    allocated_type = static_cast<type::PtrType *>(allocated_type)->GetBaseType();
-  }
+
   // If llvm_ptr is a global variable as well as it is not an array
   if (llvm_ptr->IsGlobal() && allocated_type->GetKind() != type::TypeKind::ARRAY) {
     // directly map the result to the global variable operand
@@ -847,9 +849,7 @@ auto LowerHelper::LowerVarGetPtrOp(mlir::var::VarGetPtrOp *get_ptr_op) -> void {
   } else {
     // Otherwise, get the indices to get the pointer to the specified element
     std::vector<llvm::utils::Operand *> indices;
-    if (allocated_type->GetKind() == type::TypeKind::PTR) {
-      allocated_type = static_cast<type::PtrType *>(allocated_type)->GetBaseType();
-    }
+
     // It must be an array
     // Add a zero index to get the pointer to the first element
     // if it is an array
@@ -863,8 +863,6 @@ auto LowerHelper::LowerVarGetPtrOp(mlir::var::VarGetPtrOp *get_ptr_op) -> void {
     }
     // Result type is a pointer type pointing to the allocated type
     auto result_type = result->GetType();
-    printf("llvm_ptr->type is %s, allocated_type is %s, result_type is %s\n", llvm_ptr->GetType()->ToString().c_str(),
-           allocated_type->ToString().c_str(), result_type->ToString().c_str());
     auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::GetElementPtrInst>(
         GET_LLVMIR_CONTEXT(), result_type, llvm_ptr, indices);
 

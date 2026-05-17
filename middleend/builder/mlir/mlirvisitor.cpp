@@ -101,7 +101,8 @@ inline auto MLIRVisitor::HandleLValExpr(frontend::ast::LValExprNode *lval_expr, 
     return nullptr;
   }
   mlir::var::VarGetPtrOp *var_get_op = nullptr;
-  // if the variable is a array
+  // if the variable is not an array
+  // It will be directly used as a value,and do not set value
   if (entry->dimensions_.empty() && !entry->is_global_) {
     // Not an array variable, we can directly get the value from the symbol table entry
     // var_get_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetPtrOp>(GET_MLIR_CONTEXT(), ptr);
@@ -139,6 +140,13 @@ inline auto MLIRVisitor::HandleLValExpr(frontend::ast::LValExprNode *lval_expr, 
   GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(lval_expr, var_get_op->GetRes());
   // The type of the lval expression has been calculated in the semantic analysis phase.
   auto type = lval_expr->GetType();
+  /**
+   * if: type is ptr:
+   * means the lval expression is used in a function call with array
+   * or at least, its type has been calculated in semantic analysis phase
+   * if: type is not ptr:
+   * means the lval expression is used in value, we need to get the pointer
+   */
   if (type->GetKind() == type::TypeKind::PTR) {
     // The lval is a pointer, so we can just set the type
     var_get_op->GetRes()->SetType(type);

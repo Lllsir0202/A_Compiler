@@ -486,17 +486,26 @@ void SemanticAnalyser::Visit(LValExprNode *LVal) {
       result_type = array_type->GetElementType();
     }
   } else if (!def_dims.empty() && LVal->indices_.size() < def_dims.size()) {
+    // Since the lval's def will be :
+    // 1. an array type for local variable
+    // 2. a pointer type for parameter variable
     TypePtr element_type = nullptr;
     if (var_def->type_->GetKind() != type::TypeKind::ARRAY && var_def->type_->GetKind() != type::TypeKind::PTR) {
       compiler_context_->ReportError(LVal, "variable (" + LVal->ident_ + ") is not an array variable, but has indices");
       return;
     }
-    if (var_def->type_->GetKind() == type::TypeKind::PTR) {
-      // means a parameter variable, which is represented as pointer type
-      element_type = static_cast<type::PtrType *>(var_def->type_)->GetBaseType();
-    } else {
-      element_type = var_def->type_;
+    for (size_t i = LVal->indices_.size(); i < def_dims.size(); i++) {
+      if (var_def->type_->GetKind() == type::TypeKind::PTR) {
+        // Deal with parameter variable, which is represented as pointer type
+        auto ptr_type = static_cast<type::PtrType *>(var_def->type_);
+        element_type = ptr_type->GetBaseType();
+      } else {
+        // Deal with local variable, which is represented as array type
+        auto array_type = static_cast<type::ArrayType *>(var_def->type_);
+        element_type = array_type->GetElementType();
+      }
     }
+    // The result type will be a pointer type of the element type
     result_type = compiler_context_->GetTypeContext()->GetPtrType(element_type);
   } else if (!def_dims.empty() && LVal->indices_.size() > def_dims.size()) {
     compiler_context_->ReportError(LVal, "too many indices for array variable (" + LVal->ident_ + ")");
