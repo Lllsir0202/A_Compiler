@@ -847,6 +847,9 @@ auto LowerHelper::LowerVarGetPtrOp(mlir::var::VarGetPtrOp *get_ptr_op) -> void {
   } else {
     // Otherwise, get the indices to get the pointer to the specified element
     std::vector<llvm::utils::Operand *> indices;
+    if (allocated_type->GetKind() == type::TypeKind::PTR) {
+      allocated_type = static_cast<type::PtrType *>(allocated_type)->GetBaseType();
+    }
     // It must be an array
     // Add a zero index to get the pointer to the first element
     // if it is an array
@@ -860,6 +863,8 @@ auto LowerHelper::LowerVarGetPtrOp(mlir::var::VarGetPtrOp *get_ptr_op) -> void {
     }
     // Result type is a pointer type pointing to the allocated type
     auto result_type = result->GetType();
+    printf("llvm_ptr->type is %s, allocated_type is %s, result_type is %s\n", llvm_ptr->GetType()->ToString().c_str(),
+           allocated_type->ToString().c_str(), result_type->ToString().c_str());
     auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::GetElementPtrInst>(
         GET_LLVMIR_CONTEXT(), result_type, llvm_ptr, indices);
 

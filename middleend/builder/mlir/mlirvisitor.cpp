@@ -549,7 +549,7 @@ void MLIRVisitor::Visit(frontend::ast::FuncCallExprNode *func_call) {
     } else {
       param->Accept(this);
       auto param_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(param);
-      if (param->GetType() != type) {
+      if (param->GetType()->GetKind() != type->GetKind()) {
         // Need to do cast to ensure the type of the parameter
         param_value = GET_MLIR_CONTEXT()->GetResourceContext()->GetValueFromExpr(param);
         auto cast_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(GET_MLIR_CONTEXT(), param_value,
@@ -1222,7 +1222,7 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
     switch (entry->type_->GetKind()) {
       case type::TypeKind::INT: {
         auto global_def = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::GlobalVarDefOp>(
-            GET_MLIR_CONTEXT(), entry->name_, std::vector<int>{}, std::vector<int>{0});
+            GET_MLIR_CONTEXT(), entry->name_, std::vector<int>{}, std::vector<int>{});
         global_def->GetRes()->SetType(entry->type_);
         GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(global_def);
         GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, global_def->GetRes());
@@ -1230,7 +1230,7 @@ void MLIRVisitor::Visit(frontend::ast::VarDefNode *var_def) {
       }
       case type::TypeKind::FLOAT: {
         auto global_def = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::GlobalVarDefOp>(
-            GET_MLIR_CONTEXT(), entry->name_, std::vector<int>{}, std::vector<double>{0.0});
+            GET_MLIR_CONTEXT(), entry->name_, std::vector<int>{}, std::vector<double>{});
         global_def->GetRes()->SetType(entry->type_);
         GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(global_def);
         GET_MLIR_CONTEXT()->GetResourceContext()->MapVarToValue(entry, global_def->GetRes());

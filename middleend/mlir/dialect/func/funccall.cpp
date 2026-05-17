@@ -32,7 +32,7 @@ auto FuncCallOp::Verify(context::CompilerContext *context) -> bool {
 
   // Check if the type of each argument matches
   for (size_t i = 0; i < operands_.size(); ++i) {
-    if (operands_[i]->GetType() != func_def_op->GetArguments()[i]->GetType()) {
+    if (operands_[i]->GetType()->GetKind() != func_def_op->GetArguments()[i]->GetType()->GetKind()) {
       context->Print("FuncCallOp: argument type mismatch\n");
       return false;
     }

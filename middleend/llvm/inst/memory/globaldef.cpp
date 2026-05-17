@@ -77,32 +77,14 @@ auto GlobalDefInst::Emit(std::ofstream *out) const -> void {
     *out << " ";
   }
 
-  if (!int_initial_values_.empty()) {
-    if (int_initial_values_.size() > 1) {
-      *out << "[";
-    }
-    for (size_t i = 0; i < int_initial_values_.size(); ++i) {
-      *out << "i32 " << int_initial_values_[i];
-      if (i != int_initial_values_.size() - 1) {
-        *out << ", ";
-      }
-    }
-    if (int_initial_values_.size() > 1) {
-      *out << "]";
-    }
-  } else if (!float_initial_values_.empty()) {
-    if (float_initial_values_.size() > 1) {
-      *out << "[";
-    }
-    for (size_t i = 0; i < float_initial_values_.size(); ++i) {
-      *out << "float " << utils::FloatToLLVMIRFormat(float_initial_values_[i]);
-      if (i != float_initial_values_.size() - 1) {
-        *out << ", ";
-      }
-    }
-    if (float_initial_values_.size() > 1) {
-      *out << "]";
-    }
+  if (!int_initial_values_.empty() && int_initial_values_.size() > 1) {
+    OutputArrayInitializer(out, int_initial_values_, dimensions_);
+  } else if (!float_initial_values_.empty() && float_initial_values_.size() > 1) {
+    OutputArrayInitializer(out, float_initial_values_, dimensions_);
+  } else if (!int_initial_values_.empty() && int_initial_values_.size() == 1) {
+    *out << "i32 " << int_initial_values_[0];
+  } else if (!float_initial_values_.empty() && float_initial_values_.size() == 1) {
+    *out << "float " << utils::FloatToLLVMIRFormat(float_initial_values_[0]);
   } else {
     // If the initial value is empty, provide a default initializer
     auto type = result_->GetType();
@@ -125,6 +107,84 @@ auto GlobalDefInst::Emit(std::ofstream *out) const -> void {
   }
   *out << ", align " << type->GetAlign();
   *out << "\n";
+}
+
+auto GlobalDefInst::OutputArrayInitializer(std::ostream *out, const std::vector<int> &values,
+                                           const std::vector<int> &dimensions, size_t offset) const -> void {
+  if (dimensions.empty()) {
+    return;
+  }
+
+  auto print_sub_array_type = [&](const std::vector<int> &dims) {
+    for (auto dim : dims) {
+      *out << "[" << dim << " x ";
+    }
+    *out << utils::Operand::GetTypeInLLVMIR(allocated_type_);
+    for (size_t i = 0; i < dims.size(); ++i) {
+      *out << "]";
+    }
+  };
+
+  *out << "[";
+  size_t dim_size = dimensions[0];
+  size_t inner_size = 1;
+  for (size_t i = 1; i < dimensions.size(); ++i) {
+    inner_size *= dimensions[i];
+  }
+
+  std::vector<int> sub_dims(dimensions.begin() + 1, dimensions.end());
+  for (size_t i = 0; i < dim_size; ++i) {
+    if (i != 0) {
+      *out << ", ";
+    }
+    if (dimensions.size() > 1) {
+      print_sub_array_type(sub_dims);
+      *out << " ";
+      OutputArrayInitializer(out, values, sub_dims, offset + i * inner_size);
+    } else {
+      *out << "i32 " << values[offset + i];
+    }
+  }
+  *out << "]";
+}
+
+auto GlobalDefInst::OutputArrayInitializer(std::ostream *out, const std::vector<double> &values,
+                                           const std::vector<int> &dimensions, size_t offset) const -> void {
+  if (dimensions.empty()) {
+    return;
+  }
+
+  auto print_sub_array_type = [&](const std::vector<int> &dims) {
+    for (auto dim : dims) {
+      *out << "[" << dim << " x ";
+    }
+    *out << utils::Operand::GetTypeInLLVMIR(allocated_type_);
+    for (size_t i = 0; i < dims.size(); ++i) {
+      *out << "]";
+    }
+  };
+
+  *out << "[";
+  size_t dim_size = dimensions[0];
+  size_t inner_size = 1;
+  for (size_t i = 1; i < dimensions.size(); ++i) {
+    inner_size *= dimensions[i];
+  }
+
+  std::vector<int> sub_dims(dimensions.begin() + 1, dimensions.end());
+  for (size_t i = 0; i < dim_size; ++i) {
+    if (i != 0) {
+      *out << ", ";
+    }
+    if (dimensions.size() > 1) {
+      print_sub_array_type(sub_dims);
+      *out << " ";
+      OutputArrayInitializer(out, values, sub_dims, offset + i * inner_size);
+    } else {
+      *out << "float " << utils::FloatToLLVMIRFormat(values[offset + i]);
+    }
+  }
+  *out << "]";
 }
 
 }  // namespace middleend::llvm::inst

@@ -89,7 +89,8 @@ auto CallInst::Verify(context::CompilerContext *context) const -> bool {
     return false;
   }
   for (size_t i = 0; i < operands_.size(); ++i) {
-    if (operands_[i]->GetType() == nullptr || operands_[i]->GetType() != func_def->GetArgTypes()[i]) {
+    if (operands_[i]->GetType() == nullptr ||
+        operands_[i]->GetType()->GetKind() != func_def->GetArgTypes()[i]->GetKind()) {
       // If the argument type is not compatible, report error
       context->Print("Argument type of the call instruction does not match the function definition\n");
       return false;

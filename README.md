@@ -107,6 +107,35 @@ So I decided to create two separate visitor interfaces:
 
 I believe this separation helps to clarify the intent of each visitor and prevents accidental modifications to the AST during read-only operations.
 
+### Type System
+Since the type system is quite important for every stage, and honestly, I meet some troubles about the type-related issues. So I decided to redesign the type system to make it more clear and easier to be used in the compiler.
+
+We provide a type system to represent the types of variables, and it is simple for basic types, but it can be a lot more complex for array types, especially multi-dimensional array types and the array parameters in function definitions. Originally, I designed an array type of element type to represent all kinds of array types including the multi-dimensional array types, but it does not work well in the ir stage. So I would like to redesign the type system as follows:
+1. For basic types, please refer to the `utils/type/type.h` file.
+2. For array types, it will be represented as a recursive type, for instance:
+```c
+// for a 2D array type like int arr[10][20], it will be represented as:
+ArrayType {
+    base_type: ArrayType {
+        base_type: IntType,
+        dimensions: [20]
+    },
+    dimensions: [10]
+}
+```
+so that we can use less instances of array type to represent a multi-dimensional array type.
+
+For function parameters, for instance:
+```c
+// for a function parameter like int arr[][5], it will be represented as:
+PtrType {
+    base_type: ArrayType {
+        base_type: IntType,
+        dimensions: [5]
+    }
+}
+```
+
 ## Frontend
 To summarize, I offer multiple frontends, just need to obey our rules. 
 

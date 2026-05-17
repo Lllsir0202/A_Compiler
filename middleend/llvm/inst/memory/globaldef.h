@@ -46,6 +46,11 @@ class GlobalDefInst : public Instruction {
 
   std::vector<int> int_initial_values_;
   std::vector<double> float_initial_values_;
+
+  auto OutputArrayInitializer(std::ostream *out, const std::vector<int> &values, const std::vector<int> &dimensions,
+                              size_t offset = 0) const -> void;
+  auto OutputArrayInitializer(std::ostream *out, const std::vector<double> &values, const std::vector<int> &dimensions,
+                              size_t offset = 0) const -> void;
 };
 }  // namespace middleend::llvm::inst
 #endif

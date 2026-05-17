@@ -422,7 +422,7 @@ void SemanticAnalyser::Visit(FuncCallExprNode *func_call) {
                                      param->GetType()->ToString());
       return;
     }
-    if (def != param->GetType()) {
+    if (def->GetKind() != param->GetType()->GetKind()) {
       compiler_context_->ReportWarning("Implicit type conversion for parameter " + std::to_string(i) + " of function " +
                                        func_call->func_name_ + ": expected " + def->ToString() + ", but got " +
                                        param->GetType()->ToString());
@@ -458,30 +458,37 @@ void SemanticAnalyser::Visit(LValExprNode *LVal) {
    * @note: we deal with parameter variables as Pointer type.
    */
   if (!def_dims.empty() && LVal->indices_.size() == def_dims.size()) {
-    if (var_def->type_->GetKind() == type::TypeKind::ARRAY) {
-      // Deal with array definition
-      auto array_type = static_cast<type::ArrayType *>(var_def->type_);
-      result_type = array_type->GetElementType();
-    } else if (var_def->type_->GetKind() == type::TypeKind::PTR) {
+    if (var_def->type_->GetKind() != type::TypeKind::ARRAY && var_def->type_->GetKind() != type::TypeKind::PTR) {
+      compiler_context_->ReportError(LVal, "variable (" + LVal->ident_ + ") is not an array variable, but has indices");
+      return;
+    }
+    if (var_def->type_->GetKind() == type::TypeKind::PTR) {
       // Deal with parameter variable, which is represented as pointer type
       auto ptr_type = static_cast<type::PtrType *>(var_def->type_);
       result_type = ptr_type->GetBaseType();
     } else {
-      compiler_context_->ReportError(LVal, "variable (" + LVal->ident_ + ") is not an array variable, but has indices");
-      return;
+      result_type = var_def->type_;
+    }
+    // If it is not empty, then the definition will be an pointer of an array
+    // or an array for local variable(not parameter variable)
+    while (result_type->GetKind() == type::TypeKind::ARRAY) {
+      // Deal with array definition
+      auto array_type = static_cast<type::ArrayType *>(result_type);
+      result_type = array_type->GetElementType();
     }
   } else if (!def_dims.empty() && LVal->indices_.size() < def_dims.size()) {
     TypePtr element_type = nullptr;
-    if (var_def->type_->GetKind() == type::TypeKind::ARRAY) {
-      // means a variable defined
-      element_type = static_cast<type::ArrayType *>(var_def->type_)->GetElementType();
-    } else if (var_def->type_->GetKind() == type::TypeKind::PTR) {
-      // means a parameter variable, which is represented as pointer type
-      element_type = static_cast<type::PtrType *>(var_def->type_)->GetBaseType();
-    } else {
+    if (var_def->type_->GetKind() != type::TypeKind::ARRAY && var_def->type_->GetKind() != type::TypeKind::PTR) {
       compiler_context_->ReportError(LVal, "variable (" + LVal->ident_ + ") is not an array variable, but has indices");
       return;
     }
+    if (var_def->type_->GetKind() == type::TypeKind::PTR) {
+      // means a parameter variable, which is represented as pointer type
+      element_type = static_cast<type::PtrType *>(var_def->type_)->GetBaseType();
+    } else {
+      element_type = var_def->type_;
+    }
+
     result_type = compiler_context_->GetTypeContext()->GetPtrType(element_type);
   } else if (!def_dims.empty() && LVal->indices_.size() > def_dims.size()) {
     compiler_context_->ReportError(LVal, "too many indices for array variable (" + LVal->ident_ + ")");
@@ -987,6 +994,7 @@ void SemanticAnalyser::Visit(FuncDefNode *func_def) {
 
 void SemanticAnalyser::Visit(FuncFParamNode *func_fparam) {
   const int dimension_count = func_fparam->indices_.size();
+  size_t total_size = 1;
   for (int i = 0; i < dimension_count; i++) {
     auto &index = func_fparam->indices_[i];
     if (index == nullptr && i == 0) {
@@ -1011,10 +1019,23 @@ void SemanticAnalyser::Visit(FuncFParamNode *func_fparam) {
                                      "In function parameter definition, array size must be a constant expression");
       return;
     }
+    total_size *= index->GetValue().GetIntValue();
   }
   /**
    * @note we have set it to the true type during parser phase.
    */
+  // Regard function definition params as pointer type of an alloca
+  if (dimension_count > 0) {
+    auto element_type = func_fparam->type_;
+    if (element_type->GetKind() == type::TypeKind::PTR) {
+      element_type = static_cast<type::PtrType *>(element_type)->GetBaseType();
+    }
+    // Create an array
+    auto array_type = compiler_context_->GetTypeContext()->GetArrayType(element_type, total_size);
+    // Pointer of the array
+    auto ptr_type = compiler_context_->GetTypeContext()->GetPtrType(array_type);
+    func_fparam->type_ = ptr_type;
+  }
 }
 
 }  // namespace frontend::ast

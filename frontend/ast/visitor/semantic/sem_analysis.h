@@ -91,7 +91,7 @@ class SemanticAnalyser : public ASTVisitor {
                          from->GetKind() == type::TypeKind::BOOL;
     bool to_is_basic = to->GetKind() == type::TypeKind::INT || to->GetKind() == type::TypeKind::FLOAT ||
                        to->GetKind() == type::TypeKind::BOOL;
-    return (from_is_basic && to_is_basic) || from == to;
+    return (from_is_basic && to_is_basic) || from->GetKind() == to->GetKind();
   };
 
   auto CheckZero(Value &value) -> bool {
