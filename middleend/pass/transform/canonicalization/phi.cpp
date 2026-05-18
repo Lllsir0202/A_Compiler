@@ -60,7 +60,7 @@ auto PhiCanonicalizationPass::CanonicalizePhiInFunction() -> void {
                 auto incoming_block = blocks[i];
                 if (compiler_context_->GetPassContext()->IsDeletedValue(value)) {
                   // the value has been deleted
-                  printf("value is %s%zu, but it has been deleted\n", value->name_.c_str(), value->num_);
+                  // printf("value is %s%zu, but it has been deleted\n", value->name_.c_str(), value->num_);
                   continue;
                 }
                 if (seen_blocks.count(incoming_block) > 0) {

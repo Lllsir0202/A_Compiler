@@ -17,6 +17,13 @@ auto Value::AddUse(Operation *op, std::size_t index) -> void {
 }
 
 auto Value::ReplaceAllUsesWith(Value *new_value) -> void {
+  // %1 = phi [%0, %cond_block], [%1, %body_block]
+  // In this case, if we want to replace all uses of %1 with %2,
+  // then we might meet:
+  /**
+   * @brief
+   * use of %1 : %1 = phi [%0, %cond_block], [%1, %body_block]
+   */
   for (auto use : uses_) {
     auto op = use->operation_;
     auto index = use->operand_index_;

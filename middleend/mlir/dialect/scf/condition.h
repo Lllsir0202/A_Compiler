@@ -6,6 +6,7 @@
 #include "compiler_context.h"
 #include "context/mlir_context.h"
 #include "middleend/mlir/dialect/scf/basic.h"
+#include "mlir/utils/adapter/adapter.h"
 #include "mlir/utils/value/value.h"
 #include "symboltable_context.h"
 namespace middleend::mlir::scf {
@@ -68,6 +69,13 @@ class ConditionOp : public SCFOps {
   }
 
   auto GetOriginalValues() -> std::vector<mlir::Value *> { return original_values_; }
+
+  auto UpdateOriginalValue(size_t index, mlir::Value *new_value) -> void {
+    if (index >= original_values_.size()) {
+      throw std::runtime_error("The index of the original value is out of range");
+    }
+    original_values_[index] = new_value;
+  }
 
  private:
   ConditionOp() : SCFOps("condition"){};

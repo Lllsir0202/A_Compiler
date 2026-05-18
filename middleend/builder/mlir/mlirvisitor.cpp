@@ -1034,11 +1034,7 @@ void MLIRVisitor::Visit(frontend::ast::WhileStmtNode *while_stmt) {
     continue_op->SetLoopCarriedVars(iter_args);
   }
 
-  // In front of the while operation, we import an operation to initialize the iter_args,
-  // which is used to initialize the loop carried variables,
-  // and since the iter_args will be changed in the loop, we can just replace all the uses of the original value
-  // with the value of the iter_args,
-  // so that we can ensure the correctness of the loop carried variables in the loop
+  // We should record the original_values of the iter_args
   auto original_values = std::vector<mlir::Value *>();
   for (const auto &entry : iter_args) {
     auto original_value = var_map[entry];

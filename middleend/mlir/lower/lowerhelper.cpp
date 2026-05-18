@@ -641,6 +641,7 @@ auto LowerHelper::LowerWhileOp(middleend::mlir::scf::WhileOp *while_op) -> void 
     auto phi_node = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::PhiOp>(result);
     phi_node->AddIncoming(cond_block_args[i], cond_exit_block);
     cond_block_args[i]->ReplaceAllOpUsesWith(condition_op, phi_node, 0);
+
     exit_block->AddOperation(phi_node);
   }
 
