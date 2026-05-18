@@ -461,10 +461,6 @@ void SemanticAnalyser::Visit(LValExprNode *LVal) {
    * @note: we use pointer to represent those variables which represents as a pointer
    * @note: we deal with parameter variables as Pointer type.
    */
-  if (LVal->indices_.size() > def_dims.size()) {
-    printf("Debug: variable %s has too many indices: %zu, but definition has only %zu dimensions\n",
-           LVal->ident_.c_str(), LVal->indices_.size(), def_dims.size());
-  }
 
   if (!def_dims.empty() && LVal->indices_.size() == def_dims.size()) {
     if (var_def->type_->GetKind() != type::TypeKind::ARRAY && var_def->type_->GetKind() != type::TypeKind::PTR) {

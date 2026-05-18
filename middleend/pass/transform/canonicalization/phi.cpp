@@ -12,7 +12,6 @@
 namespace middleend::pass::transform {
 auto PhiCanonicalizationPass::Run() -> void {
   PreRun();
-  printf("Running %s...\n", Name().c_str());
   if (pass_stage_ == PassStage::BASEIR) {
     CanonicalizePhiInFunction();
   } else if (pass_stage_ == PassStage::LLVMIR) {
@@ -60,8 +59,6 @@ auto PhiCanonicalizationPass::CanonicalizePhiInFunction() -> void {
                   new_values.emplace_back(value);
                   new_blocks.emplace_back(incoming_block);
                   value->AddUse(phi_op, i);
-                  printf("\nAdd Phi node incoming value: %s%zu from block %s\n\n", value->name_.c_str(), value->num_,
-                         incoming_block->Name().c_str());
                 }
               }
               // Update all phi incomings first
@@ -113,8 +110,6 @@ auto PhiCanonicalizationPass::CanonicalizePhiInFunction() -> void {
                 }
               }
               // Get final value after replacement, replace all uses of the phi node with the value
-              printf("value num before replacement: %s%zu\n", phi_op->GetRes()->name_.c_str(), phi_op->GetRes()->num_);
-              printf("value num after replacement: %s%zu\n", value->name_.c_str(), value->num_);
               phi_op->GetRes()->ReplaceAllUsesWith(value);
             }
           }

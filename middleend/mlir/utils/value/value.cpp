@@ -28,8 +28,6 @@ auto Value::ReplaceAllUsesWith(Value *new_value) -> void {
     op->operands_[index] = new_value;
     // Add the use of the new value to the operation
     new_value->AddUse(op, index);
-    printf("\nReplaced use of value %s%zu in operation %s with value %s%zu\n\n", name_.c_str(), num_,
-           op->Name().c_str(), new_value->name_.c_str(), new_value->num_);
   }
   for (auto use : uses_) {
     delete use;
