@@ -73,7 +73,11 @@ auto PhiCanonicalizationPass::CanonicalizePhiInFunction() -> void {
                 if (predecessor_set.count(incoming_block) > 0) {
                   new_values.emplace_back(value);
                   new_blocks.emplace_back(incoming_block);
+                  // printf("Incoming block %s is a predecessor, value is %s%zu\n", incoming_block->Name().c_str(),
+                  //        value->name_.c_str(), value->num_);
 
+                  // printf("before adding , new use index is %zu, new blocks size is %zu\n", new_values.size() - 1,
+                  //        new_blocks.size());
                   value->AddUse(phi_op, new_values.size() - 1);
                   seen_blocks.insert(incoming_block);
                   block_to_value[incoming_block] = value;

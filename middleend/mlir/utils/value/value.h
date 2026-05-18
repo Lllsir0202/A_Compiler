@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <fstream>
 #include <string>
+#include <unordered_set>
 #include <vector>
 #include "utils/type/type.h"
 
@@ -48,14 +49,21 @@ class Value {
 
   auto AddUse(Operation *op, std::size_t index) -> void;
   [[maybe_unused]] auto RemoveUse(Operation *op) -> void {
-    for (auto it = uses_.begin(); it != uses_.end(); ++it) {
-      if ((*it)->operation_ == op) {
-        auto *use = *it;
-        uses_.erase(it);
-        delete use;
-        return;
+    std::unordered_set<Use *> to_remove;
+    for (auto *use : uses_) {
+      if (use->operation_ == op) {
+        to_remove.insert(use);
       }
     }
+    std::vector<Use *> new_uses;
+    for (auto *use : uses_) {
+      if (to_remove.count(use) == 0) {
+        new_uses.emplace_back(use);
+      } else {
+        delete use;
+      }
+    }
+    uses_ = std::move(new_uses);
   }
 
   auto ClearUses() -> void {
