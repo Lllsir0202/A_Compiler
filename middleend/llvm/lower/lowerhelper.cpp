@@ -34,6 +34,7 @@
 #include "middleend/mlir/dialect/var/getptr.h"
 #include "middleend/mlir/dialect/var/globaldef.h"
 #include "middleend/mlir/utils/operation/operation.h"
+#include "mlir/dialect/base/cast.h"
 #include "pass/analysis/cfg/cfg.h"
 #include "pass/analysis/cfg/mlircfg.h"
 #include "utils/type/type.h"
@@ -97,6 +98,7 @@ auto LowerHelper::LowerDispatch(mlir::Operation *op) -> void {
     LOWER_DISPATCH(mlir::base::Int2BoolOp, Int2BoolOp)
     LOWER_DISPATCH(mlir::base::Float2BoolOp, Float2BoolOp)
     LOWER_DISPATCH(mlir::base::Bool2IntOp, Bool2IntOp)
+    LOWER_DISPATCH(mlir::base::Bool2FloatOp, Bool2FloatOp)
     // Variable-related operations
     LOWER_DISPATCH(middleend::mlir::var::VarGetPtrOp, VarGetPtrOp)
     LOWER_DISPATCH(middleend::mlir::var::VarDefOp, VarDefOp)

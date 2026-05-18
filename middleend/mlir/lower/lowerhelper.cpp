@@ -721,6 +721,7 @@ auto LowerHelper::LowerBreakOp(middleend::mlir::scf::BreakOp *break_op) -> void 
     auto phi_node = exit_block->operations_[i];
     if (auto phi_op = DynamicOrNull<mlir::base::PhiOp>(phi_node)) {
       phi_op->AddIncoming(operand, current_block);
+      operand->AddUse(phi_op, phi_op->GetIncomingSize() - 1);
       operand->ReplaceAllOpUsesWith(break_op, phi_op, phi_op->GetIncomingSize() - 1);
     } else {
       compiler_context_->ReportError("The operation in the exit block is not a PhiOp\n");

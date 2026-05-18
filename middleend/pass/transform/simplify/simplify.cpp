@@ -89,6 +89,10 @@ auto SimplifyPass::SimplifyCFGInFunction(mlir::base::FuncDefOp *func_op) -> void
         if (op->results_.size() > 0) {
           auto result = op->results_[0];
           result->ClearUses();
+          // Record the result as an undef value, so that
+          // In the future, if there are any uses of the result,
+          // we know that it has been deleted
+          compiler_context_->GetPassContext()->InsertDeletedValue(result);
         }
         continue;
       }

@@ -4,6 +4,7 @@
 #include "middleend/mlir/dialect/base/funcdef.h"
 #include "middleend/mlir/dialect/base/phi.h"
 #include "mlir/utils/operation/operation.h"
+#include "mlir/utils/struct/block.h"
 #include "mlir/utils/value/value.h"
 #include "pass/analysis/cfg/cfg.h"
 #include "pass/analysis/cfg/mlircfg.h"
@@ -52,13 +53,30 @@ auto PhiCanonicalizationPass::CanonicalizePhiInFunction() -> void {
               auto blocks = phi_op->GetIncomingBlock();
               std::vector<mlir::Value *> new_values;
               std::vector<mlir::Block *> new_blocks;
+              std::unordered_set<mlir::Block *> seen_blocks;
+              std::unordered_map<mlir::Block *, mlir::Value *> block_to_value;
               for (size_t i = 0; i < values.size(); ++i) {
                 auto value = values[i];
                 auto incoming_block = blocks[i];
+                if (compiler_context_->GetPassContext()->IsDeletedValue(value)) {
+                  // the value has been deleted
+                  printf("value is %s%zu, but it has been deleted\n", value->name_.c_str(), value->num_);
+                  continue;
+                }
+                if (seen_blocks.count(incoming_block) > 0) {
+                  // it must be the same value for the same block
+                  if (block_to_value[incoming_block] != value) {
+                    throw std::logic_error("Inconsistent phi node incoming values for the same block");
+                  }
+                  continue;
+                }
                 if (predecessor_set.count(incoming_block) > 0) {
                   new_values.emplace_back(value);
                   new_blocks.emplace_back(incoming_block);
-                  value->AddUse(phi_op, i);
+
+                  value->AddUse(phi_op, new_values.size() - 1);
+                  seen_blocks.insert(incoming_block);
+                  block_to_value[incoming_block] = value;
                 }
               }
               // Update all phi incomings first
@@ -82,7 +100,7 @@ auto PhiCanonicalizationPass::CanonicalizePhiInFunction() -> void {
             // 1 or 0 incoming
             if (phi_op->GetIncomingSize() < 2) {
               to_remove_ops.insert(phi_op);
-              break;
+              continue;
             }
             // All same incoming
             auto incoming_values = phi_op->GetIncomingValue();
@@ -95,6 +113,7 @@ auto PhiCanonicalizationPass::CanonicalizePhiInFunction() -> void {
             }
             if (all_same) {
               to_remove_ops.insert(phi_op);
+              continue;
             }
           }
           for (auto phi_op : phi_ops) {
