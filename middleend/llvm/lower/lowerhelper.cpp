@@ -140,7 +140,6 @@ auto LowerHelper::LowerFuncDefOp(mlir::base::FuncDefOp *func_def) -> void {
 
     // Lower the basic blocks in the function, which will also create llvm ir basic blocks and
     LowerBasicBlocks(func_def);
-
     // Then create a function definition instruction to hold the function information
     auto args = func_def->GetArguments();
     std::vector<llvm::utils::Operand *> llvm_args;
@@ -205,6 +204,10 @@ auto LowerHelper::LowerFuncDefOp(mlir::base::FuncDefOp *func_def) -> void {
         auto incoming_block = incoming_blocks[j];
         auto llvm_incoming_value =
             GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(incoming_value);
+        if (llvm_incoming_value == nullptr) {
+          printf("Incoming value num is : %s%zu\n", incoming_value->name_.c_str(), incoming_value->num_);
+          throw std::logic_error("Failed to get LLVM IR operand from MLIR value for phi instruction.");
+        }
         auto llvm_incoming_block = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIRBlockFromMLIRBlock(incoming_block);
         auto llvm_incoming_block_operand =
             GET_LLVMIR_CONTEXT()->GetResourceContext()->GetLabelOperand(llvm_incoming_block->GetID());

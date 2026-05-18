@@ -30,6 +30,10 @@ auto PhiCanonicalizationPass::CanonicalizePhiInFunction() -> void {
   auto cfgs = cfgpass->Get();
   for (auto cfg : cfgs) {
     if (auto mlir_cfg = dynamic_cast<analysis::MLIRFunctionCFG *>(cfg)) {
+      // Update and canonicalize phi nodes in the block
+      // Deal with phi nodes per function basis.
+      std::unordered_set<mlir::Operation *> to_remove_ops;
+      std::vector<mlir::base::PhiOp *> phi_ops;
       for (auto cfg_node : mlir_cfg->GetNodes()) {
         if (auto mlir_block = dynamic_cast<analysis::MLIRCFGNode *>(cfg_node)) {
           // For each phi node in the block, do canonicalization
@@ -40,9 +44,6 @@ auto PhiCanonicalizationPass::CanonicalizePhiInFunction() -> void {
           for (auto predecessor : predecessors) {
             predecessor_set.insert(static_cast<analysis::MLIRCFGNode *>(predecessor)->GetBlock());
           }
-          // Update and canonicalize phi nodes in the block
-          std::unordered_set<mlir::Operation *> to_remove_ops;
-          std::vector<mlir::base::PhiOp *> phi_ops;
           for (auto op : block->operations_) {
             if (auto phi_op = mlir::DynamicOrNull<mlir::base::PhiOp>(op)) {
               auto values = phi_op->GetIncomingValue();
@@ -59,6 +60,8 @@ auto PhiCanonicalizationPass::CanonicalizePhiInFunction() -> void {
                   new_values.emplace_back(value);
                   new_blocks.emplace_back(incoming_block);
                   value->AddUse(phi_op, i);
+                  printf("\nAdd Phi node incoming value: %s%zu from block %s\n\n", value->name_.c_str(), value->num_,
+                         incoming_block->Name().c_str());
                 }
               }
               // Update all phi incomings first
@@ -67,9 +70,16 @@ auto PhiCanonicalizationPass::CanonicalizePhiInFunction() -> void {
               phi_ops.emplace_back(phi_op);
             }
           }
+        } else {
+          throw std::logic_error("Unsupported CFG node type in PhiCanonicalizationPass");
+        }
+      }
 
+      // Record and replace the phi nodes
+      for (auto cfg_node : mlir_cfg->GetNodes()) {
+        if (auto mlir_block = dynamic_cast<analysis::MLIRCFGNode *>(cfg_node)) {
+          auto block = mlir_block->GetBlock();
           // Deal with the phi nodes that have only one incoming value
-          std::unordered_map<mlir::base::PhiOp *, mlir::Value *> phi_to_value;
           // Mark all the phi nodes we need to remove
           for (auto phi_op : phi_ops) {
             // 1 or 0 incoming
@@ -93,14 +103,18 @@ auto PhiCanonicalizationPass::CanonicalizePhiInFunction() -> void {
           for (auto phi_op : phi_ops) {
             if (to_remove_ops.count(phi_op) > 0) {
               auto value = phi_op->GetIncomingValue()[0];
-              while (auto final_value = mlir::DynamicOrNull<mlir::base::PhiOp>(value->op_)) {
-                if (to_remove_ops.count(final_value) == 0) {
-                  // If the final value is not marked to be removed, we can stop here
+              // if the value's op is also a phi node, and it is in the to_remove_ops,
+              // we should get the final value after replacement
+              while (auto value_op = mlir::DynamicOrNull<mlir::base::PhiOp>(value->op_)) {
+                if (to_remove_ops.count(value_op) != 0) {
+                  value = value_op->GetIncomingValue()[0];
+                } else {
                   break;
                 }
-                value = final_value->GetIncomingValue()[0];
               }
-              // Get final value , replace
+              // Get final value after replacement, replace all uses of the phi node with the value
+              printf("value num before replacement: %s%zu\n", phi_op->GetRes()->name_.c_str(), phi_op->GetRes()->num_);
+              printf("value num after replacement: %s%zu\n", value->name_.c_str(), value->num_);
               phi_op->GetRes()->ReplaceAllUsesWith(value);
             }
           }
@@ -115,8 +129,6 @@ auto PhiCanonicalizationPass::CanonicalizePhiInFunction() -> void {
           }
           // Set the new operations to the block
           block->operations_ = std::move(new_ops);
-        } else {
-          throw std::logic_error("Unsupported CFG node type in PhiCanonicalizationPass");
         }
       }
     } else {
