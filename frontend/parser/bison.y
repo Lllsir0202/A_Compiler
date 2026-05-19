@@ -700,7 +700,25 @@ funccall:
     /* No parameters */
     IDENTIFIER LPAREN RPAREN
     {
-      $$ = std::make_unique<frontend::ast::FuncCallExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), std::move($1));
+      if($1 == "starttime") {
+        int line = @1.GetBegin().line_;
+        auto tmp = std::make_unique<frontend::ast::IntLiteralExprNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), line);
+        tmp->GetValue().SetIntValue(line);
+        auto rparams = new std::vector<frontend::ExprNodePtr>();
+        rparams->emplace_back(std::move(tmp));
+        $$ = std::make_unique<frontend::ast::FuncCallExprNode>(@$, driver.GetContext().GetTypeContext()->GetVoidType(), "_sysy_starttime", std::move(*rparams));
+        delete rparams;
+      }else if($1 == "stoptime") {
+        int line = @1.GetBegin().line_;
+        auto tmp = std::make_unique<frontend::ast::IntLiteralExprNode>(@$, driver.GetContext().GetTypeContext()->GetIntegerType(), line);
+        tmp->GetValue().SetIntValue(line);
+        auto rparams = new std::vector<frontend::ExprNodePtr>();
+        rparams->emplace_back(std::move(tmp));
+        $$ = std::make_unique<frontend::ast::FuncCallExprNode>(@$, driver.GetContext().GetTypeContext()->GetVoidType(), "_sysy_stoptime", std::move(*rparams));
+        delete rparams;
+      }else {
+        $$ = std::make_unique<frontend::ast::FuncCallExprNode>(@$, driver.GetContext().GetTypeContext()->GetUnknownType(), std::move($1));
+      }
     }
     |
     /* With parameters */

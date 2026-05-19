@@ -45,9 +45,11 @@ auto LLVMLower::RegisterLibraryFunctions() -> void {
       std::vector<type::Type *>{
           GET_LLVMIR_CONTEXT()->GetTypeContext()->GetPtrType(GET_LLVMIR_CONTEXT()->GetFloatType())});
   auto starttime_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDeclareInst>(
-      GET_LLVMIR_CONTEXT(), "starttime", GET_LLVMIR_CONTEXT()->GetVoidType(), std::vector<type::Type *>{});
+      GET_LLVMIR_CONTEXT(), "_sysy_starttime", GET_LLVMIR_CONTEXT()->GetVoidType(),
+      std::vector<type::Type *>{GET_LLVMIR_CONTEXT()->GetIntegerType()});
   auto stoptime_func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDeclareInst>(
-      GET_LLVMIR_CONTEXT(), "stoptime", GET_LLVMIR_CONTEXT()->GetVoidType(), std::vector<type::Type *>{});
+      GET_LLVMIR_CONTEXT(), "_sysy_stoptime", GET_LLVMIR_CONTEXT()->GetVoidType(),
+      std::vector<type::Type *>{GET_LLVMIR_CONTEXT()->GetIntegerType()});
 
   /** Following are the library functions we will use in the future, which include
    * 1. llvm.memset(ptr pointer, i8 value, i64 size, i1 isvolatile)
