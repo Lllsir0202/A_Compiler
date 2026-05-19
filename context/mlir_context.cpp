@@ -82,13 +82,17 @@ auto MLIRContext::RegisterLibraryFunction() -> void {
   // void putf(char[], int);
   // Not deal with now
 
-  // void starttime();
+  // void starttime(); -> void _sysy_starttime(int);
+  auto starttime_val = CreateValue();
+  starttime_val->SetType(int_type);
   auto starttime_func_def_op = CreateOperation<middleend::mlir::func::FuncDefOp>(
-      this, "starttime", std::vector<middleend::mlir::Value *>{}, void_type);
+      this, "_sysy_starttime", std::vector<middleend::mlir::Value *>{starttime_val}, void_type);
 
-  // void stoptime();
+  // void stoptime(); -> void _sysy_stoptime(int);
+  auto stoptime_val = CreateValue();
+  stoptime_val->SetType(int_type);
   auto stoptime_func_def_op = CreateOperation<middleend::mlir::func::FuncDefOp>(
-      this, "stoptime", std::vector<middleend::mlir::Value *>{}, void_type);
+      this, "_sysy_stoptime", std::vector<middleend::mlir::Value *>{stoptime_val}, void_type);
 
   // Add the function definition operations to the module operation
   if (module_op_ == nullptr || module_op_->regions_.empty() || module_op_->regions_[0]->blocks_.empty()) {
@@ -118,8 +122,8 @@ auto MLIRContext::RegisterLibraryFunction() -> void {
   resource_context_->MapFuncToFuncDefOp("putfloat", putfloat_func_def_op);
   resource_context_->MapFuncToFuncDefOp("putarray", putarray_func_def_op);
   resource_context_->MapFuncToFuncDefOp("putfarray", putfarray_func_def_op);
-  resource_context_->MapFuncToFuncDefOp("starttime", starttime_func_def_op);
-  resource_context_->MapFuncToFuncDefOp("stoptime", stoptime_func_def_op);
+  resource_context_->MapFuncToFuncDefOp("_sysy_starttime", starttime_func_def_op);
+  resource_context_->MapFuncToFuncDefOp("_sysy_stoptime", stoptime_func_def_op);
 }
 
 }  // namespace context
