@@ -21,18 +21,6 @@ auto ReplaceAdapter::ReplaceInOperation(Operation *op) -> void {
       changed = true;
     }
   }
-  if (auto condition_op = DynamicOrNull<mlir::scf::ConditionOp>(op)) {
-    // If the operation is a condition operation, we also need to replace the original values
-    auto original_values = condition_op->GetOriginalValues();
-    for (size_t i = 0; i < original_values.size(); ++i) {
-      if (original_values[i] == old_value_) {
-        printf("Replace original value in condition operation: %s%zu with %s%zu\n", old_value_->name_.c_str(),
-               old_value_->num_, new_value_->name_.c_str(), new_value_->num_);
-        condition_op->UpdateOriginalValue(i, new_value_);
-        changed = true;
-      }
-    }
-  }
 
   // Update the users of the old value to use the new value
   if (changed) {
@@ -43,6 +31,30 @@ auto ReplaceAdapter::ReplaceInOperation(Operation *op) -> void {
     auto index = use->operand_index_;
     old_value_->RemoveUse(op);
     new_value_->AddUse(op, index);
+  }
+}
+
+auto ReplaceOriginsExceptOpAdapter::Adapt(Operation *op) -> void { ReplaceInOperation(op); }
+
+auto ReplaceOriginsExceptOpAdapter::ReplaceInOperation(Operation *op) -> void {
+  // Make sure the operation is not null
+  if (!Verify()) {
+    throw std::runtime_error(
+        "ReplaceOriginsExceptOp is not properly set up, origin_value, new_value or except_op is nullptr");
+    return;
+  }
+  // We only replace the operands of the operation,
+  // and do not consider the case which the operation has a block or something else
+  if (op == except_op_) {
+    return;
+  }
+  if (auto condition_op = DynamicOrNull<scf::ConditionOp>(op)) {
+    auto original_values = condition_op->GetOriginalValues();
+    for (size_t i = 0; i < original_values.size(); ++i) {
+      if (original_values[i] == origin_value_) {
+        condition_op->UpdateOriginalValue(i, new_value_);
+      }
+    }
   }
 }
 

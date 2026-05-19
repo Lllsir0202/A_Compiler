@@ -1055,6 +1055,12 @@ void MLIRVisitor::Visit(frontend::ast::WhileStmtNode *while_stmt) {
       while_op->Walk(replaceadapter);
       delete replaceadapter;
 
+      auto replaceoriginadapter = new mlir::ReplaceOriginsExceptOpAdapter();
+      replaceoriginadapter->SetReplace(origin, arg);
+      replaceoriginadapter->SetExcept(condition_op);
+      while_op->Walk(replaceoriginadapter);
+      delete replaceoriginadapter;
+
       GET_MLIR_CONTEXT()->GetResourceContext()->SetArgValueName(arg);
     }
 
