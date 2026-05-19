@@ -84,13 +84,13 @@ auto GlobalDefInst::Emit(std::ofstream *out) const -> void {
     *out << " ";
   }
 
-  if (!int_initial_values_.empty() && int_initial_values_.size() > 1) {
+  if (!int_initial_values_.empty() && !dimensions_.empty()) {
     OutputArrayInitializer(out, int_initial_values_, dimensions_);
-  } else if (!float_initial_values_.empty() && float_initial_values_.size() > 1) {
+  } else if (!float_initial_values_.empty() && !dimensions_.empty()) {
     OutputArrayInitializer(out, float_initial_values_, dimensions_);
-  } else if (!int_initial_values_.empty() && int_initial_values_.size() == 1) {
+  } else if (!int_initial_values_.empty() && dimensions_.empty()) {
     *out << "i32 " << int_initial_values_[0];
-  } else if (!float_initial_values_.empty() && float_initial_values_.size() == 1) {
+  } else if (!float_initial_values_.empty() && dimensions_.empty()) {
     *out << "float " << utils::FloatToLLVMIRFormat(float_initial_values_[0]);
   } else {
     // If the initial value is empty, provide a default initializer

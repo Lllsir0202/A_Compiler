@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <string>
 #include "llvm/inst/opkind.h"
+#include "llvm/utils/operand/literaloperand.h"
 #include "llvm/utils/operand/regoperand.h"
 #include "middleend/llvm/inst/arithm/arithm.h"
 #include "middleend/llvm/inst/branch/branch.h"
@@ -416,42 +417,25 @@ auto LowerHelper::LowerNotOp(mlir::base::NotOp *op) -> void {
 }
 
 auto LowerHelper::LowerIntLiteralOp(mlir::base::ConstIntOp *op) -> void {
+  /**
+   * @brief For integer literal, we will just create a new literal operand in llvm ir
+   * and map the mlir value to the llvm ir operand, which will be used in the future instruction lowering
+   */
   auto value = op->GetValue();
   auto result = op->GetRes();
   auto int_literal = GET_LLVMIR_CONTEXT()->GetIntLiteral(value);
-  auto zero_literal = GET_LLVMIR_CONTEXT()->GetIntLiteral(0);
-  auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::AddInst>(GET_LLVMIR_CONTEXT(), int_literal,
-                                                                                    zero_literal);
-
-  if (int_literal->GetInstruction() != nullptr) {
-    int_literal->GetInstruction()->AddUser(inst);
-  }
-  if (zero_literal->GetInstruction() != nullptr) {
-    zero_literal->GetInstruction()->AddUser(inst);
-  }
-
-  GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
-  GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());
-  inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());
+  GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, int_literal);
 }
 
 auto LowerHelper::LowerFloatLiteralOp(mlir::base::ConstFloatOp *op) -> void {
+  /**
+   * @brief For float literal, we will just create a new literal operand in llvm ir
+   * and map the mlir value to the llvm ir operand, which will be used in the future instruction lowering
+   */
   auto value = op->GetValue();
   auto result = op->GetRes();
   auto float_literal = GET_LLVMIR_CONTEXT()->GetFloatLiteral(value);
-  auto zero_literal = GET_LLVMIR_CONTEXT()->GetFloatLiteral(0.0);
-  auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::AddFInst>(GET_LLVMIR_CONTEXT(),
-                                                                                     float_literal, zero_literal);
-  if (float_literal->GetInstruction() != nullptr) {
-    float_literal->GetInstruction()->AddUser(inst);
-  }
-  if (zero_literal->GetInstruction() != nullptr) {
-    zero_literal->GetInstruction()->AddUser(inst);
-  }
-
-  GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
-  GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());
-  inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());
+  GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, float_literal);
 }
 
 /**
@@ -773,6 +757,71 @@ auto LowerHelper::LowerVarDefOp(mlir::var::VarDefOp *var_def) -> void {
   if (all_constants) {
     // Use memcpy to initialize the memory
     // TODO(loki) : implement the memcpy and note that need to consider creating the initializer const variable
+    // Get a constant global variable to hold the initialization values
+
+    // It must be a local array, so the allocated type must be an array type
+    auto func_name = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetCurrentFunction()->GetFuncName();
+    auto const_var_name = func_name + "_" + var_def->GetRes()->name_ + "_init_" + var_def->GetRes()->name_ + "_" +
+                          std::to_string(var_def->GetRes()->num_);
+    auto var_type = var_def->GetRes()->GetType();
+    auto allocated_type = var_type;
+    while (allocated_type->GetKind() == type::TypeKind::ARRAY) {
+      allocated_type = static_cast<type::ArrayType *>(allocated_type)->GetElementType();
+    }
+    // Get the var type
+    // get the allocated type, which must be basic type
+    auto dimensions = var_def->GetDimensions();
+    inst::GlobalDefInst *global_def_inst = nullptr;
+    if (allocated_type->GetKind() == type::TypeKind::INT) {
+      std::vector<int> int_inits = {};
+      for (auto llvm_init : llvm_inits) {
+        if (llvm_init == nullptr) {
+          int_inits.emplace_back(0);
+        } else {
+          int_inits.emplace_back(static_cast<utils::IntLiteral *>(llvm_init)->GetValue());
+        }
+      }
+      global_def_inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::GlobalDefInst>(
+          GET_LLVMIR_CONTEXT(), var_type, allocated_type, const_var_name, var_def->GetDimensions(), int_inits, true);
+    } else if (allocated_type->GetKind() == type::TypeKind::FLOAT) {
+      std::vector<float> float_inits = {};
+      for (auto llvm_init : llvm_inits) {
+        if (llvm_init == nullptr) {
+          float_inits.emplace_back(0.0F);
+        } else {
+          float_inits.emplace_back(static_cast<utils::FloatLiteral *>(llvm_init)->GetValue());
+        }
+      }
+      global_def_inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::GlobalDefInst>(
+          GET_LLVMIR_CONTEXT(), var_type, allocated_type, const_var_name, var_def->GetDimensions(), float_inits, true);
+    } else {
+      auto msg = "Unsupported variable type in LowerVarDefOp for constant initialization, variable name: " +
+                 var_def->GetRes()->name_;
+      compiler_context_->ReportError(msg);
+    }
+
+    GET_LLVMIR_CONTEXT()->GetResourceContext()->AddGlobalVarDef(const_var_name, global_def_inst);
+    // Get the pointer to the constant global variable
+    auto llvm_const_ptr = global_def_inst->GetResult();
+    // Get the pointer to the allocated memory
+    auto llvm_ptr = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(var_def->GetRes());
+    // Get the total size of the allocated memory, which is the product of the dimensions and the element type size
+    auto element_size = var_type->GetDataSize();
+    // memcpy(dest, src, size)
+    auto call_inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::CallInst>(
+        GET_LLVMIR_CONTEXT(), "llvm.memcpy.p0.p0.i64",
+        std::vector<llvm::utils::Operand *>{llvm_ptr, llvm_const_ptr,
+                                            GET_LLVMIR_CONTEXT()->GetLongLiteral(element_size),
+                                            GET_LLVMIR_CONTEXT()->GetBoolLiteral(false)},
+        GET_LLVMIR_CONTEXT()->GetTypeContext()->GetVoidType());
+    if (llvm_ptr->GetInstruction() != nullptr) {
+      llvm_ptr->GetInstruction()->AddUser(call_inst);
+    }
+    if (llvm_const_ptr->GetInstruction() != nullptr) {
+      llvm_const_ptr->GetInstruction()->AddUser(call_inst);
+    }
+    GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(call_inst);
+    call_inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());
   } else {
     // Call memset to initialize the memory with zero first, and then create store instructions to initialize the memory
     auto ptr = var_def->GetRes();

@@ -3,9 +3,13 @@
 
 #include "middleend/llvm/utils/operand/operand.h"
 namespace middleend::llvm::utils {
+/**
+ * @note Only allow access to the value once the type is verified.
+ */
 class IntLiteral : public Operand {
  public:
   auto Emit(std::ofstream *out) const -> void override { *out << std::to_string(value_); }
+  auto GetValue() const -> int { return value_; }
 
  private:
   explicit IntLiteral(int value) : Operand(OpType::Literal), value_(value) {}
@@ -17,6 +21,7 @@ class IntLiteral : public Operand {
 class FloatLiteral : public Operand {
  public:
   auto Emit(std::ofstream *out) const -> void override { *out << FloatToLLVMIRFormat(value_); }
+  auto GetValue() const -> float { return value_; }
 
  private:
   explicit FloatLiteral(float value) : Operand(OpType::Literal), value_(value) {}
@@ -28,6 +33,7 @@ class FloatLiteral : public Operand {
 class LongLiteral : public Operand {
  public:
   auto Emit(std::ofstream *out) const -> void override { *out << std::to_string(value_); }
+  auto GetValue() const -> std::int64_t { return value_; }
 
  private:
   explicit LongLiteral(std::int64_t value) : Operand(OpType::Literal), value_(value) {}
@@ -39,6 +45,7 @@ class LongLiteral : public Operand {
 class CharLiteral : public Operand {
  public:
   auto Emit(std::ofstream *out) const -> void override { *out << std::to_string(value_); }
+  auto GetValue() const -> char { return value_; }
 
  private:
   explicit CharLiteral(char value) : Operand(OpType::Literal), value_(value) {}
@@ -50,6 +57,7 @@ class CharLiteral : public Operand {
 class BoolLiteral : public Operand {
  public:
   auto Emit(std::ofstream *out) const -> void override { *out << (value_ ? "true" : "false"); }
+  auto GetValue() const -> bool { return value_; }
 
  private:
   explicit BoolLiteral(bool value) : Operand(OpType::Literal), value_(value) {}
