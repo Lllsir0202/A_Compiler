@@ -79,11 +79,7 @@ class ModuleOp : public Operation {
   // Since the module operation has been copied,
   // we need to reset the state of the module operation,
   // such as the blocks and regions, etc.
-  auto Reset() -> void {
-    regions_.clear();
-    operands_.clear();
-    results_.clear();
-  }
+  auto Reset() -> void;
 
   /**
    * @brief the module operation will always have only one region and one block

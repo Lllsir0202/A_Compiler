@@ -97,6 +97,16 @@ auto ModuleOp::Verify(context::CompilerContext *context) -> bool {
   return true;  // If all operations are valid, the module operation is valid
 }
 
+auto ModuleOp::Reset() -> void {
+  // Reset the state of the module operation, such as the blocks and regions, etc.
+  for (auto region : regions_) {
+    delete region;
+  }
+  regions_.clear();
+  operands_.clear();
+  results_.clear();
+}
+
 auto Operation::Walk(Adapter *adapter) -> void {
   // Walk the operation, which means we will call the adapter to adapt the operation
   // and then we will walk the regions of this operation

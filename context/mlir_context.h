@@ -59,7 +59,7 @@ class MLIRResourceContext {
   template <typename OperationType, typename... Args>
   auto CreateOperation(Args &&...args) -> OperationType * {
     auto operation = OperationType::Create(std::forward<Args>(args)...);
-    operations_.emplace_back(operation);
+    operations_.push_back(operation);
     return operation;
   }
 

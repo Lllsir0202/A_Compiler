@@ -2,12 +2,7 @@
 #include "middleend/llvm/inst/inst.h"
 
 namespace middleend::llvm::utils {
-BasicBlock::~BasicBlock() {
-  for (auto inst : instructions_) {
-    delete inst;
-  }
-  instructions_.clear();
-}
+BasicBlock::~BasicBlock() { instructions_.clear(); }
 
 auto BasicBlock::Emit(std::ofstream *out) const -> void {
   *out << "label" << id_ << ":  ; " << comment_ << "\n";

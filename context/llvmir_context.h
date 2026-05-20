@@ -128,6 +128,9 @@ class LLVMIRResourceContext {
   std::unordered_map<std::int64_t, middleend::llvm::utils::LongLiteral *> long_literals_;
   std::unordered_map<char, middleend::llvm::utils::CharLiteral *> char_literals_;
 
+  // Record the operands created in the context, which can be used for memory management
+  std::vector<middleend::llvm::utils::Operand *> operands_;
+
   // Get block via label operand's id
   std::unordered_map<middleend::llvm::utils::Function *, std::vector<middleend::llvm::utils::BasicBlock *>>
       function_blocks_mapping_;
@@ -198,6 +201,11 @@ class LLVMIRContext {
   explicit LLVMIRContext(TypeContext *type_context) : type_context_(type_context) {
     resource_context_ = new LLVMIRResourceContext(type_context_);
     lower_context_ = new LLVMIRLowerContext();
+  }
+
+  ~LLVMIRContext() {
+    delete resource_context_;
+    delete lower_context_;
   }
   // Get different types of operands from the context,
   // and we will ensure that the same operand will always be the same instance of operand.

@@ -38,3 +38,6 @@ normalized_initializer.txt
 # Ignore the generated llvm ir file
 tmp.*
 a.out
+
+# Ignore valgrind output files
+valgrind_output.*

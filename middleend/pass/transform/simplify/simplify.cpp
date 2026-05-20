@@ -50,6 +50,7 @@ auto SimplifyPass::SimplifyCFGBaseIR() -> void {
   for (auto block : to_delete_blocks_) {
     delete block;
   }
+  delete phi_canonicalization_pass;
 }
 
 auto SimplifyPass::SimplifyCFGLLVMIR() -> void {

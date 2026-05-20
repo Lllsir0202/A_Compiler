@@ -13,6 +13,8 @@ class PassContext {
     pass_manager_ = new middleend::pass::PassManager(compiler_context, pass_stage);
   }
 
+  ~PassContext() { delete pass_manager_; }
+
   auto AddPass(middleend::pass::Pass *pass) -> void { pass_manager_->AddPass(pass); }
   auto RunPasses() -> int { return pass_manager_->RunPasses(); }
 

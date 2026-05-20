@@ -107,6 +107,8 @@ check-tidy-fast:
 		esac; \
 		echo "Checked $$file"; \
 	'
+check-mem: ./bin/compiler
+	valgrind --leak-check=full --show-leak-kinds=all ./bin/compiler test.sy -o test.ll -llvm > valgrind_output.txt 2>&1
 
 clean:
 	@rm -rf bin
