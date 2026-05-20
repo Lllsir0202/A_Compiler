@@ -99,9 +99,9 @@ auto GetElementPtrInst::Verify(context::CompilerContext *context) const -> bool 
 }
 
 auto GetElementPtrInst::Create(context::LLVMIRContext *context, type::Type *result_type, utils::Operand *base_ptr,
-                               std::vector<utils::Operand *> indices) -> GetElementPtrInst * {
+                               const std::vector<utils::Operand *> &indices) -> GetElementPtrInst * {
   // Create a new GEP instruction
-  auto *inst = new GetElementPtrInst(base_ptr, std::move(indices));
+  auto *inst = new GetElementPtrInst(base_ptr, indices);
   // Create result
   // result type will be the pointer type of the allocated type
   auto res = context->GetNewRegOperand(result_type);

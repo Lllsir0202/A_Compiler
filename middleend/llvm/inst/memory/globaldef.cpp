@@ -48,11 +48,6 @@ auto GlobalDefInst::Verify(context::CompilerContext *context) const -> bool {
     return false;
   }
 
-  auto base_type = result_->GetType();
-  if (base_type->GetKind() == type::TypeKind::PTR) {
-    base_type = static_cast<type::PtrType *>(base_type)->GetBaseType();
-  }
-
   if (!int_initial_values_.empty() && allocated_type_->GetKind() != type::TypeKind::INT) {
     context->Print("Type of the global variable does not match the type of the initializers");
     return false;

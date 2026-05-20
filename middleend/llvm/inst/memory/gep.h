@@ -12,7 +12,7 @@ class GetElementPtrInst : public Instruction {
   auto Verify(context::CompilerContext *context) const -> bool override;
 
  private:
-  explicit GetElementPtrInst(utils::Operand *base_ptr, std::vector<utils::Operand *> indices)
+  explicit GetElementPtrInst(utils::Operand *base_ptr, const std::vector<utils::Operand *> &indices)
       : Instruction(OpKind::GetElementPtr) {
     operands_.reserve(indices.size() + 1);
     operands_.emplace_back(base_ptr);
@@ -22,7 +22,7 @@ class GetElementPtrInst : public Instruction {
   }
 
   static auto Create(context::LLVMIRContext *context, type::Type *result_type, utils::Operand *base_ptr,
-                     std::vector<utils::Operand *> indices) -> GetElementPtrInst *;
+                     const std::vector<utils::Operand *> &indices) -> GetElementPtrInst *;
   friend class utils::factory::InstFactory;
 
   /**

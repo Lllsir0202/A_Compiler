@@ -103,9 +103,7 @@ class Operand {
 // Interface for printing the float value in llvm ir format,
 // which is 0X followed by the hexadecimal representation of the float value
 inline auto FloatToLLVMIRFormat(float value) -> std::string {
-  auto f = static_cast<float>(value);
-
-  if (f == 0.0F) {
+  if (value == 0.0F) {
     return "0.000000e+00";
   }
 
@@ -115,7 +113,7 @@ inline auto FloatToLLVMIRFormat(float value) -> std::string {
    * for IEEE754 float format: 1 bit sign, 11 bits exponent, 52 bits mantissa
    */
   uint64_t u_value = 0;
-  std::memcpy(&u_value, &f, sizeof(float));
+  std::memcpy(&u_value, &value, sizeof(float));
   uint64_t sign = (u_value >> 31) & 0x1;
   uint64_t exponent = (u_value >> 23) & 0xFF;
   uint64_t mantissa = u_value & 0x7FFFFF;

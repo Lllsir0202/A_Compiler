@@ -86,7 +86,7 @@ auto SimplifyPass::SimplifyCFGInFunction(mlir::base::FuncDefOp *func_op) -> void
         new_ops.emplace_back(op);
       } else {
         // Clear the operations' all uses
-        if (op->results_.size() > 0) {
+        if (!op->results_.empty()) {
           auto result = op->results_[0];
           result->ClearUses();
           // Record the result as an undef value, so that
