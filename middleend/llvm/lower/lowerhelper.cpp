@@ -35,9 +35,9 @@
 #include "middleend/mlir/dialect/var/getptr.h"
 #include "middleend/mlir/dialect/var/globaldef.h"
 #include "middleend/mlir/utils/operation/operation.h"
-#include "mlir/dialect/base/cast.h"
-#include "pass/analysis/cfg/cfg.h"
-#include "pass/analysis/cfg/mlircfg.h"
+#include "middleend/mlir/dialect/base/cast.h"
+#include "middleend/pass/analysis/cfg/cfg.h"
+#include "middleend/pass/analysis/cfg/mlircfg.h"
 #include "utils/type/type.h"
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()
 #define GET_LLVMIR_CONTEXT() compiler_context_->GetIRContext()->GetLLVMIRContext()
