@@ -11,7 +11,13 @@ enum class OpType : uint8_t { Register, Literal, Memory, Label, Global };
 
 class Operand {
  public:
+  auto GetOpType() const -> OpType { return op_type_; }
+
+ protected:
+  explicit Operand(OpType op_type) : op_type_(op_type) {}
+
  private:
+  const OpType op_type_;
 };
 }  // namespace backend::utils
 

@@ -78,12 +78,14 @@ auto LowerHelper::LowerDispatch(Operation *op) -> void {
           GET_MLIR_CONTEXT()->CreateOperation<mlir::base::OP_NAME##Op>(op->GetRes(), op->GetLHS(), op->GetRHS());  \
       op->GetLHS()->ReplaceAllOpUsesWith(op, new_op);                                                              \
       op->GetRHS()->ReplaceAllOpUsesWith(op, new_op);                                                              \
+      op->GetRes()->op_ = new_op;                                                                                  \
       GetInsertPoint()->AddOperation(new_op);                                                                      \
     } else if (type->GetKind() == type::TypeKind::FLOAT) {                                                         \
       auto new_op =                                                                                                \
           GET_MLIR_CONTEXT()->CreateOperation<mlir::base::OP_NAME##FOp>(op->GetRes(), op->GetLHS(), op->GetRHS()); \
       op->GetLHS()->ReplaceAllOpUsesWith(op, new_op);                                                              \
       op->GetRHS()->ReplaceAllOpUsesWith(op, new_op);                                                              \
+      op->GetRes()->op_ = new_op;                                                                                  \
       GetInsertPoint()->AddOperation(new_op);                                                                      \
     } else {                                                                                                       \
       compiler_context_->ReportError("Unsupported type for " #OP_NAME " operation: " + type->ToString());          \
@@ -102,6 +104,7 @@ auto LowerHelper::LowerModOp(middleend::mlir::arithm::ModOp *mod_op) -> void {
         GET_MLIR_CONTEXT()->CreateOperation<mlir::base::ModOp>(mod_op->GetRes(), mod_op->GetLHS(), mod_op->GetRHS());
     mod_op->GetLHS()->ReplaceAllOpUsesWith(mod_op, modi_op_base);
     mod_op->GetRHS()->ReplaceAllOpUsesWith(mod_op, modi_op_base);
+    mod_op->GetRes()->op_ = modi_op_base;
     GetInsertPoint()->AddOperation(modi_op_base);
   } else {
     compiler_context_->ReportError("Unsupported type for mod operation: " + type->ToString());
@@ -122,12 +125,14 @@ auto LowerHelper::LowerModOp(middleend::mlir::arithm::ModOp *mod_op) -> void {
           GET_MLIR_CONTEXT()->CreateOperation<mlir::base::OP_NAME##Op>(op->GetRes(), op->GetLHS(), op->GetRHS());  \
       op->GetLHS()->ReplaceAllOpUsesWith(op, new_op);                                                              \
       op->GetRHS()->ReplaceAllOpUsesWith(op, new_op);                                                              \
+      op->GetRes()->op_ = new_op;                                                                                  \
       GetInsertPoint()->AddOperation(new_op);                                                                      \
     } else if (type->GetKind() == type::TypeKind::FLOAT) {                                                         \
       auto new_op =                                                                                                \
           GET_MLIR_CONTEXT()->CreateOperation<mlir::base::OP_NAME##FOp>(op->GetRes(), op->GetLHS(), op->GetRHS()); \
       op->GetLHS()->ReplaceAllOpUsesWith(op, new_op);                                                              \
       op->GetRHS()->ReplaceAllOpUsesWith(op, new_op);                                                              \
+      op->GetRes()->op_ = new_op;                                                                                  \
       GetInsertPoint()->AddOperation(new_op);                                                                      \
     } else {                                                                                                       \
       compiler_context_->ReportError("Unsupported type for " #OP_NAME " operation: " + type->ToString());          \
@@ -146,10 +151,12 @@ auto LowerHelper::LowerNegOp(middleend::mlir::arithm::NegOp *neg_op) -> void {
   if (type->GetKind() == type::TypeKind::INT) {
     auto new_neg_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::NegOp>(neg_op->GetRes(), neg_op->GetOperand());
     neg_op->GetOperand()->ReplaceAllOpUsesWith(neg_op, new_neg_op);
+    neg_op->GetRes()->op_ = new_neg_op;
     GetInsertPoint()->AddOperation(new_neg_op);
   } else if (type->GetKind() == type::TypeKind::FLOAT) {
     auto new_neg_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::NegFOp>(neg_op->GetRes(), neg_op->GetOperand());
     neg_op->GetOperand()->ReplaceAllOpUsesWith(neg_op, new_neg_op);
+    neg_op->GetRes()->op_ = new_neg_op;
     GetInsertPoint()->AddOperation(new_neg_op);
   } else {
     compiler_context_->ReportError("Unsupported type for neg operation: " + type->ToString());
@@ -168,6 +175,7 @@ auto LowerHelper::LowerNotOp(middleend::mlir::arithm::NotOp *not_op) -> void {
   if (type->GetKind() == type::TypeKind::BOOL) {
     auto new_not_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::NotOp>(not_op->GetRes(), not_op->GetOperand());
     not_op->GetOperand()->ReplaceAllOpUsesWith(not_op, new_not_op);
+    not_op->GetRes()->op_ = new_not_op;
     GetInsertPoint()->AddOperation(new_not_op);
   } else {
     compiler_context_->ReportError("Unsupported type for not operation: " + type->ToString());
@@ -185,6 +193,7 @@ auto LowerHelper::LowerConstOp(middleend::mlir::arithm::ConstOp *const_op) -> vo
     }
     auto new_const_op =
         GET_MLIR_CONTEXT()->CreateOperation<mlir::base::ConstIntOp>(const_op->GetRes(), std::get<int>(value));
+    const_op->GetRes()->op_ = new_const_op;
     GetInsertPoint()->AddOperation(new_const_op);
   } else if (type->GetKind() == type::TypeKind::FLOAT) {
     auto value = const_op->GetValue();
@@ -194,6 +203,7 @@ auto LowerHelper::LowerConstOp(middleend::mlir::arithm::ConstOp *const_op) -> vo
     }
     auto new_const_op =
         GET_MLIR_CONTEXT()->CreateOperation<mlir::base::ConstFloatOp>(const_op->GetRes(), std::get<float>(value));
+    const_op->GetRes()->op_ = new_const_op;
     GetInsertPoint()->AddOperation(new_const_op);
   } else {
     compiler_context_->ReportError("Unsupported type for const operation: " + type->ToString());
@@ -209,6 +219,7 @@ auto LowerHelper::LowerCastOp(middleend::mlir::arithm::CastOp *cast_op) -> void 
     auto new_cast_op =
         GET_MLIR_CONTEXT()->CreateOperation<mlir::base::Int2FloatOp>(cast_op->GetRes(), cast_op->GetOperand());
     cast_op->GetOperand()->ReplaceAllOpUsesWith(cast_op, new_cast_op);
+    cast_op->GetRes()->op_ = new_cast_op;
     GetInsertPoint()->AddOperation(new_cast_op);
   }
   // FLOAT 2 INT
@@ -216,6 +227,7 @@ auto LowerHelper::LowerCastOp(middleend::mlir::arithm::CastOp *cast_op) -> void 
     auto new_cast_op =
         GET_MLIR_CONTEXT()->CreateOperation<mlir::base::Float2IntOp>(cast_op->GetRes(), cast_op->GetOperand());
     cast_op->GetOperand()->ReplaceAllOpUsesWith(cast_op, new_cast_op);
+    cast_op->GetRes()->op_ = new_cast_op;
     GetInsertPoint()->AddOperation(new_cast_op);
   }
   // BOOL 2 INT
@@ -223,6 +235,7 @@ auto LowerHelper::LowerCastOp(middleend::mlir::arithm::CastOp *cast_op) -> void 
     auto new_cast_op =
         GET_MLIR_CONTEXT()->CreateOperation<mlir::base::Bool2IntOp>(cast_op->GetRes(), cast_op->GetOperand());
     cast_op->GetOperand()->ReplaceAllOpUsesWith(cast_op, new_cast_op);
+    cast_op->GetRes()->op_ = new_cast_op;
     GetInsertPoint()->AddOperation(new_cast_op);
   }
   // INT 2 BOOL
@@ -230,6 +243,7 @@ auto LowerHelper::LowerCastOp(middleend::mlir::arithm::CastOp *cast_op) -> void 
     auto new_cast_op =
         GET_MLIR_CONTEXT()->CreateOperation<mlir::base::Int2BoolOp>(cast_op->GetRes(), cast_op->GetOperand());
     cast_op->GetOperand()->ReplaceAllOpUsesWith(cast_op, new_cast_op);
+    cast_op->GetRes()->op_ = new_cast_op;
     GetInsertPoint()->AddOperation(new_cast_op);
   }
   // BOOL 2 FLOAT
@@ -237,6 +251,7 @@ auto LowerHelper::LowerCastOp(middleend::mlir::arithm::CastOp *cast_op) -> void 
     auto new_cast_op =
         GET_MLIR_CONTEXT()->CreateOperation<mlir::base::Bool2FloatOp>(cast_op->GetRes(), cast_op->GetOperand());
     cast_op->GetOperand()->ReplaceAllOpUsesWith(cast_op, new_cast_op);
+    cast_op->GetRes()->op_ = new_cast_op;
     GetInsertPoint()->AddOperation(new_cast_op);
   }
   // FLOAT 2 BOOL
@@ -244,6 +259,7 @@ auto LowerHelper::LowerCastOp(middleend::mlir::arithm::CastOp *cast_op) -> void 
     auto new_cast_op =
         GET_MLIR_CONTEXT()->CreateOperation<mlir::base::Float2BoolOp>(cast_op->GetRes(), cast_op->GetOperand());
     cast_op->GetOperand()->ReplaceAllOpUsesWith(cast_op, new_cast_op);
+    cast_op->GetRes()->op_ = new_cast_op;
     GetInsertPoint()->AddOperation(new_cast_op);
   } else {
     compiler_context_->ReportError("Unsupported type for cast operation: from " + from_type->ToString() + " to " +
@@ -278,6 +294,7 @@ auto LowerHelper::LowerCopyOp(middleend::mlir::arithm::CopyOp *copy_op) -> void 
   // we will just clone the copy operation to the base dialect, and then we will lower it in the next step
   auto new_copy_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::CopyOp>(copy_op->GetRes(), copy_op->GetValue());
   new_copy_op->GetSrc()->ReplaceAllOpUsesWith(copy_op, new_copy_op);
+  copy_op->GetRes()->op_ = new_copy_op;
   GetInsertPoint()->AddOperation(new_copy_op);
 }
 
@@ -287,6 +304,7 @@ auto LowerHelper::LowerFuncCallOp(middleend::mlir::func::FuncCallOp *func_call_o
   for (auto &operand : func_call_op->GetOperands()) {
     operand->ReplaceAllOpUsesWith(func_call_op, new_func_call_op);
   }
+  func_call_op->GetRes()->op_ = new_func_call_op;
   GetInsertPoint()->AddOperation(new_func_call_op);
 }
 
@@ -300,6 +318,7 @@ auto LowerHelper::LowerFuncDefOp(middleend::mlir::func::FuncDefOp *func_def_op) 
   for (auto &arg : func_op_base->GetArguments()) {
     arg->ReplaceAllOpUsesWith(func_def_op, func_op_base);
   }
+  func_def_op->GetRes()->op_ = func_op_base;
   GetInsertPoint()->AddOperation(func_op_base);
 
   // Record current region and block
