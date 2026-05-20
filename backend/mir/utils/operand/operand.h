@@ -1,5 +1,5 @@
-#ifndef BACKEND_VIRTUAL_UTILS_OPERAND_OPERAND_H_
-#define BACKEND_VIRTUAL_UTILS_OPERAND_OPERAND_H_
+#ifndef BACKEND_MIR_UTILS_OPERAND_OPERAND_H_
+#define BACKEND_MIR_UTILS_OPERAND_OPERAND_H_
 
 #include <cstdint>
 #include "utils/type/type.h"
@@ -8,6 +8,9 @@ namespace backend::utils {
  * @brief This class represents the operand in the virtual machine instruction,
  * which can be a register, a literal, a memory address(maybe unused), a label or a global variable.
  */
+
+// Memory operand will be used as a pointer to the memory address,
+// and the actual memory address will be calculated in lowering.
 enum class OpType : uint8_t { Register, Literal, Memory, Label, Global };
 
 class Operand {
@@ -29,6 +32,8 @@ class Operand {
   auto IsBool() const -> bool { return type_ != nullptr && type_->GetKind() == type::TypeKind::BOOL; }
   auto IsVoid() const -> bool { return type_ != nullptr && type_->GetKind() == type::TypeKind::VOID; }
   auto IsPtr() const -> bool { return type_ != nullptr && type_->GetKind() == type::TypeKind::PTR; }
+
+  virtual ~Operand() = default;
 
  protected:
   explicit Operand(OpType op_type) : op_type_(op_type) {}
