@@ -3,6 +3,9 @@
 #include <vector>
 #include "utils/type/type.h"
 
+namespace backend::utils::factory {
+class FunctionFactory;
+}
 namespace backend::utils {
 class Block;
 // This class represents the function struct in the mir
@@ -25,6 +28,7 @@ class Function {
   std::string func_name_;
   // Record the return type
   type::Type *return_type_;
+  friend class factory::FunctionFactory;
 };
 
 }  // namespace backend::utils

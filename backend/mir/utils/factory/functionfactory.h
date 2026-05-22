@@ -1,0 +1,13 @@
+#ifndef BACKEND_MIR_UTILS_FACTORY_FUNCTIONFACTORY_H
+#define BACKEND_MIR_UTILS_FACTORY_FUNCTIONFACTORY_H
+#include "backend/mir/utils/struct/function.h"
+namespace backend::utils::factory {
+class FunctionFactory {
+ public:
+  static auto CreateFunction(const std::string &name, type::Type *return_type) -> Function * {
+    return new Function(name, return_type);
+  }
+};
+}  // namespace backend::utils::factory
+
+#endif
