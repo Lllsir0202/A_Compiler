@@ -10,7 +10,7 @@ class GlobalOperand : public Operand {
  private:
   explicit GlobalOperand(std::string name) : Operand(OpType::Global), name_(std::move(name)) {}
   std::string name_;
-  friend class factory::Operandfactory;
+  friend class factory::OperandFactory;
 };
 }  // namespace backend::utils
 #endif

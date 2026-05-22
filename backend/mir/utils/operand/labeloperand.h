@@ -9,7 +9,7 @@ class LabelOperand : public Operand {
  private:
   explicit LabelOperand(size_t id) : Operand(OpType::Label), id_(id) {}
   size_t id_;
-  friend class factory::Operandfactory;
+  friend class factory::OperandFactory;
 };
 
 }  // namespace backend::utils

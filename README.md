@@ -7,7 +7,7 @@ Make sure you have the following toolchains installed:
 - ARM GCC: `aarch64-linux-gnu-gcc`
 
 ## Compile libs
-Since I need to build our compiler from very scratch, I have to build our libs from sourcecode. So I provide Makefile command to build sylibs easily.
+Since we need to build our compiler from very scratch, we have to build our libs from the sourcecode. So I provide a Makefile command to build ths sylibs easily.
 
 Over here, I provide different architectures libraries(RISC-V 64-bit, AArch64), and the commands are as follows:
 

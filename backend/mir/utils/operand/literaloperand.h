@@ -12,7 +12,7 @@ class IntLiteral : public Operand {
  private:
   explicit IntLiteral(int value) : Operand(OpType::Literal), value_(value) {}
   int value_;
-  friend class factory::Operandfactory;
+  friend class factory::OperandFactory;
 };
 
 class FloatLiteral : public Operand {
@@ -22,7 +22,7 @@ class FloatLiteral : public Operand {
  private:
   explicit FloatLiteral(float value) : Operand(OpType::Literal), value_(value) {}
   float value_;
-  friend class factory::Operandfactory;
+  friend class factory::OperandFactory;
 };
 
 class BoolLiteral : public Operand {
@@ -32,7 +32,7 @@ class BoolLiteral : public Operand {
  private:
   explicit BoolLiteral(bool value) : Operand(OpType::Literal), value_(value) {}
   bool value_;
-  friend class factory::Operandfactory;
+  friend class factory::OperandFactory;
 };
 
 class LongLiteral : public Operand {
@@ -42,7 +42,7 @@ class LongLiteral : public Operand {
  private:
   explicit LongLiteral(std::int64_t value) : Operand(OpType::Literal), value_(value) {}
   std::int64_t value_;
-  friend class factory::Operandfactory;
+  friend class factory::OperandFactory;
 };
 
 class CharLiteral : public Operand {
@@ -52,7 +52,7 @@ class CharLiteral : public Operand {
  private:
   explicit CharLiteral(char value) : Operand(OpType::Literal), value_(value) {}
   char value_;
-  friend class factory::Operandfactory;
+  friend class factory::OperandFactory;
 };
 
 }  // namespace backend::utils

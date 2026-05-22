@@ -4,7 +4,7 @@
 #include <cstdint>
 #include "utils/type/type.h"
 namespace backend::utils::factory {
-class Operandfactory;
+class OperandFactory;
 }
 
 namespace backend::utils {
@@ -52,7 +52,7 @@ class Operand {
    * we need to make sure that the same physical register can be recognized as the same in allocation.
    */
   type::Type *type_ = nullptr;
-  friend class factory::Operandfactory;
+  friend class factory::OperandFactory;
 };
 }  // namespace backend::utils
 
