@@ -1,0 +1,57 @@
+#ifndef BACKEND_MIR_INST_OPKIND_H
+#define BACKEND_MIR_INST_OPKIND_H
+
+#include <cstdint>
+namespace backend::inst {
+enum class OpKind : uint16_t {
+  // Arithemic operations
+  // Integer
+  Add,
+  Sub,
+  Mul,
+  Div,
+  Mod,
+  // Float
+  AddF,
+  SubF,
+  MulF,
+  DivF,
+  // Comparison operations
+  // Integer
+  ICmp,
+  // Float
+  FCmp,
+  // Logical operations
+  And,
+  Or,
+  Xor,
+  // Shift operations
+  Shl,
+  LShr,
+  AShr,
+  // Memory operations
+  Load,
+  Store,
+  // Control flow operations
+  Br,
+  CondBr,
+  Ret,
+  // Other operations
+  FuncDef,
+  FuncDeclare,
+  Call,
+  Alloca,
+  GlobalDef,
+  GetElementPtr,
+
+  // Cast operations
+  Cast,
+
+  // Pseudo operations
+  Copy
+
+};
+
+}  // namespace backend::inst
+
+#endif

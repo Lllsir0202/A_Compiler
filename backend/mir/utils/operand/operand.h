@@ -7,6 +7,10 @@ namespace backend::utils::factory {
 class OperandFactory;
 }
 
+namespace backend::inst {
+class Instruction;
+}
+
 namespace backend::utils {
 
 /**
@@ -24,6 +28,9 @@ class Operand {
   auto GetType() const -> type::Type * { return type_; }
   auto SetType(type::Type *type) -> void { type_ = type; }
 
+  auto GetDefInst() const -> inst::Instruction * { return def_inst_; }
+  auto SetDefInst(inst::Instruction *def_inst) -> void { def_inst_ = def_inst; }
+
   // Interface to check the optype of the operand
   auto IsRegister() const -> bool { return op_type_ == OpType::Register; }
   auto IsLiteral() const -> bool { return op_type_ == OpType::Literal; }
@@ -37,6 +44,9 @@ class Operand {
   auto IsBool() const -> bool { return type_ != nullptr && type_->GetKind() == type::TypeKind::BOOL; }
   auto IsVoid() const -> bool { return type_ != nullptr && type_->GetKind() == type::TypeKind::VOID; }
   auto IsPtr() const -> bool { return type_ != nullptr && type_->GetKind() == type::TypeKind::PTR; }
+
+  // Verify the optype
+  auto VerifyOpKind(OpType expected_op_type) const -> bool { return op_type_ == expected_op_type; }
 
   virtual ~Operand() = default;
 
@@ -53,6 +63,8 @@ class Operand {
    */
   type::Type *type_ = nullptr;
   friend class factory::OperandFactory;
+  // Record the instruction that defines the operand
+  inst::Instruction *def_inst_ = nullptr;
 };
 }  // namespace backend::utils
 

@@ -35,7 +35,7 @@ class BasicBlock {
         new_insts.emplace_back(i);
       }
     }
-    instructions_ = new_insts;
+    instructions_ = std::move(new_insts);
   }
 
   auto RemoveInsts(std::unordered_set<inst::Instruction *> &insts) -> void {
@@ -45,7 +45,7 @@ class BasicBlock {
         new_insts.emplace_back(i);
       }
     }
-    instructions_ = new_insts;
+    instructions_ = std::move(new_insts);
   }
 
   // Interface for debug, comment
