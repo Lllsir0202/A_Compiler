@@ -5,11 +5,11 @@
 #include "backend/mir/utils/factory/opfactory.h"
 #include "backend/mir/utils/memory/frameinfo.h"
 #include "backend/mir/utils/operand/frameoperand.h"
+#include "backend/mir/utils/operand/memoryoperand.h"
 #include "backend/mir/utils/operand/operand.h"
 #include "backend/mir/utils/struct/module.h"
+#include "context/type_context.h"
 #include "middleend/llvm/utils/operand/operand.h"
-#include "mir/utils/operand/memoryoperand.h"
-#include "type_context.h"
 
 namespace context {
 class MIRResourceContext {
@@ -37,6 +37,10 @@ class MIRResourceContext {
   // Get and set the module
   auto GetModule() -> backend::utils::Module * { return module_; }
   auto SetModule(backend::utils::Module *module) -> void { module_ = module; }
+
+  // Get the funcdef or declare instruction by the function name
+  auto GetFuncDefByName(const std::string &name) -> backend::inst::FuncDefInst *;
+  auto GetFuncDeclareByName(const std::string &name) -> backend::inst::FuncDeclareInst *;
 
   auto Reset() -> void {
     label_operands_.clear();
@@ -179,6 +183,9 @@ class MIRContext {
   // Access the module
   auto GetModule() -> backend::utils::Module * { return resource_context_->GetModule(); }
   auto SetModule(backend::utils::Module *module) -> void { resource_context_->SetModule(module); }
+
+  auto GetFuncDefByName(const std::string &name) -> backend::inst::FuncDefInst *;
+  auto GetFuncDeclareByName(const std::string &name) -> backend::inst::FuncDeclareInst *;
 
  private:
   MIRResourceContext *resource_context_;

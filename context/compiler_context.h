@@ -8,6 +8,7 @@
 #include "context/pass_context.h"
 #include "context/symboltable_context.h"
 #include "context/type_context.h"
+#include "mir_context.h"
 namespace context {
 
 /**
@@ -25,6 +26,7 @@ class CompilerContext {
     symboltable_context_ = new SymbolTableContext();
     InitializeLibFunc();
     ir_context_ = new IRContext(type_context_);
+    mir_context_ = new MIRContext(type_context_);
   }
   ~CompilerContext() {
     delete type_context_;
@@ -32,11 +34,13 @@ class CompilerContext {
     delete symboltable_context_;
     delete ir_context_;
     delete pass_context_;
+    delete mir_context_;
   }
   auto GetTypeContext() -> TypeContext * { return type_context_; }
   auto GetAstContext() -> AstContext * { return ast_context_; }
   auto GetSymbolTableContext() -> SymbolTableContext * { return symboltable_context_; }
   auto GetIRContext() -> IRContext * { return ir_context_; }
+  auto GetMIRContext() -> MIRContext * { return mir_context_; }
   auto SetPassContext(PassContext *pass_context) -> void { pass_context_ = pass_context; }
   auto GetPassContext() -> PassContext * { return pass_context_; }
   auto ReportError(frontend::SourceRange source_range, const std::string &msg) -> void;
@@ -63,6 +67,9 @@ class CompilerContext {
 
   // Pass context, used in optimization
   PassContext *pass_context_;
+
+  // Machine IR context
+  MIRContext *mir_context_;
 
   // Using this compiler context to control ALL resources in the compiler
 

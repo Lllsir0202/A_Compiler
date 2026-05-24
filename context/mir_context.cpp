@@ -115,4 +115,23 @@ auto MIRResourceContext::SetMemorySize(backend::utils::MemSize mem_size) -> void
   }
 }
 
+// Get the funcdef or declare instruction by the function name
+auto MIRResourceContext::GetFuncDefByName(const std::string &name) -> backend::inst::FuncDefInst * {
+  auto module = GetModule();
+  if (module == nullptr) {
+    return nullptr;
+  }
+
+  return module->GetFuncDefByName(name);
+}
+
+auto MIRResourceContext::GetFuncDeclareByName(const std::string &name) -> backend::inst::FuncDeclareInst * {
+  auto module = GetModule();
+  if (module == nullptr) {
+    return nullptr;
+  }
+
+  return module->GetFuncDeclareByName(name);
+}
+
 }  // namespace context

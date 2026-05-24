@@ -1,0 +1,25 @@
+#include "backend/mir/inst/func/funcdef.h"
+#include "context/compiler_context.h"
+
+namespace backend::inst {
+auto FuncDefInst::Verify(context::CompilerContext *context) const -> bool {
+  // The funcdef instruction should have no operand
+  if (!operands_.empty()) {
+    context->Print("Operand size of funcdef instruction should be 0, but got " + std::to_string(operands_.size()));
+    return false;
+  }
+  if (func_name_.empty()) {
+    context->Print("Function name of funcdef instruction should not be empty");
+    return false;
+  }
+  return true;
+}
+
+auto FuncDefInst::Create([[maybe_unused]] context::MIRContext *context, const std::string &func_name,
+                         type::Type *return_type) -> FuncDefInst * {
+  auto *inst = new FuncDefInst(func_name, return_type);
+  inst->op_kind_ = OpKind::FuncDef;
+  return inst;
+}
+
+}  // namespace backend::inst

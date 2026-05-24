@@ -14,6 +14,10 @@ class Module {
  public:
   ~Module();
 
+  auto GetFuncDefByName(const std::string &name) -> inst::FuncDefInst *;
+  auto GetFuncDeclareByName(const std::string &name) -> inst::FuncDeclareInst *;
+  auto GetGlobalDefByName(const std::string &name) -> inst::GlobalDefInst *;
+
  private:
   /**
    * @brief A module represents a programme, and it should alse record:
