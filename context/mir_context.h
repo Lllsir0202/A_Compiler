@@ -159,6 +159,9 @@ class MIRContext {
     delete lower_context_;
   }
 
+  auto GetResourceContext() -> MIRResourceContext * { return resource_context_; }
+  auto GetLowerContext() -> MIRLowerContext * { return lower_context_; }
+
   // Get types
   auto GetIntegerType() -> type::Type * { return type_context_->GetIntegerType(); }
   auto GetFloatType() -> type::Type * { return type_context_->GetFloatType(); }

@@ -81,6 +81,12 @@ class Instruction {
   utils::Operand *result_ = nullptr;
   std::vector<Instruction *> users_;
 };
+
+template <typename InstType>
+auto DynamicOrNull(Instruction *inst) {
+  return dynamic_cast<InstType *>(inst);
+}
+
 }  // namespace middleend::llvm::inst
 
 #endif
