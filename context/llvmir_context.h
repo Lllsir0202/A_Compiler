@@ -37,7 +37,6 @@ class LLVMIRResourceContext {
    * @brief Interfaces to get existing operands by id(or value for literals),
    * to ensure that the same operand will always be the same instance of operand.
    */
-  auto GetRegOperand(size_t id) -> middleend::llvm::utils::RegOperand *;
   auto GetIntLiteral(int value) -> middleend::llvm::utils::IntLiteral *;
   auto GetFloatLiteral(float value) -> middleend::llvm::utils::FloatLiteral *;
   // Just for llvm intrinsic functions
@@ -79,7 +78,6 @@ class LLVMIRResourceContext {
   auto ResetFunctionLevelResource() -> void {
     reg_id_counter_ = 0;
     label_id_counter_ = 0;
-    reg_operands_.clear();
     label_operands_.clear();
     bool_literals_.clear();
     int_literals_.clear();
@@ -123,7 +121,6 @@ class LLVMIRResourceContext {
   size_t label_id_counter_ = 0;
 
   // Map from id to operand instance, to ensure that the same operand will be mapped to the same operand
-  std::unordered_map<size_t, middleend::llvm::utils::RegOperand *> reg_operands_;
   std::unordered_map<size_t, middleend::llvm::utils::LabelOperand *> label_operands_;
   std::unordered_map<int, middleend::llvm::utils::IntLiteral *> int_literals_;
   std::unordered_map<float, middleend::llvm::utils::FloatLiteral *> float_literals_;

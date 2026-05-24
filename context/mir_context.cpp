@@ -12,20 +12,12 @@ MIRResourceContext::~MIRResourceContext() {
   }
 }
 
-auto MIRResourceContext::GetNewRegOperand(size_t reg_num, type::Type *type) -> backend::utils::Operand * {
-  auto *reg_operand = backend::utils::factory::OperandFactory::CreateRegOperand(reg_num);
+// Interfaces to create the operands
+auto MIRResourceContext::GetNewRegOperand(type::Type *type) -> backend::utils::Operand * {
+  auto *reg_operand = backend::utils::factory::OperandFactory::CreateRegOperand(reg_num_counter_++);
   reg_operand->SetType(type);
-  operands_.emplace_back(reg_operand);
-  reg_operands_[reg_num] = reg_operand;
+  operands_.push_back(reg_operand);
   return reg_operand;
-}
-
-auto MIRResourceContext::GetRegOperand(size_t reg_num) -> backend::utils::Operand * {
-  if (reg_operands_.count(reg_num) > 0) {
-    return reg_operands_[reg_num];
-  }
-  // Do not allow to get a register operand that has not been created, report error
-  return nullptr;
 }
 
 auto MIRResourceContext::GetIntLiteral(int value) -> backend::utils::Operand * {
@@ -98,23 +90,29 @@ auto MIRResourceContext::GetLongLiteral(std::int64_t value) -> backend::utils::O
   return long_literal;
 }
 
-auto MIRResourceContext::GetMemoryOperand(size_t reg_num) -> backend::utils::Operand * {
-  if (memory_operands_.count(reg_num) > 0) {
-    return memory_operands_[reg_num];
-  }
-  // Do not allow directly get a memory operand that has not been created, report error
-  return nullptr;
+auto MIRResourceContext::GetNewMemoryOperand() -> backend::utils::Operand * {
+  auto *memory_operand = backend::utils::factory::OperandFactory::CreateMemoryOperand();
+  operands_.emplace_back(memory_operand);
+  memory_operands_.emplace_back(memory_operand);
+  return memory_operand;
 }
 
-auto MIRResourceContext::GetNewMemoryOperand(size_t reg_num, type::Type *type) -> backend::utils::Operand * {
-  if (memory_operands_.count(reg_num) > 0) {
-    return memory_operands_[reg_num];
+auto MIRResourceContext::GetFrameOperand() -> backend::utils::Operand * {
+  /**
+   * @note: We should always make sure that the size of frame_operands_
+   * is equal to the frame_info's size, so that the slot_id will always be the index
+   * of the vector
+   */
+  auto *frame_operand = backend::utils::factory::OperandFactory::CreateFrameOperand(frame_slot_counter_++);
+  operands_.emplace_back(frame_operand);
+  return frame_operand;
+}
+
+// Used in target-specific lowering
+auto MIRResourceContext::SetMemorySize(backend::utils::MemSize mem_size) -> void {
+  for (auto *memory_operand : memory_operands_) {
+    memory_operand->SetMemSize(mem_size);
   }
-  auto *memory_operand = backend::utils::factory::OperandFactory::CreateMemoryOperand(reg_num);
-  memory_operand->SetType(type);
-  operands_.emplace_back(memory_operand);
-  memory_operands_[reg_num] = memory_operand;
-  return memory_operand;
 }
 
 }  // namespace context

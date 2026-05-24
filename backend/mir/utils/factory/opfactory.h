@@ -1,5 +1,6 @@
 #ifndef BACKEND_MIR_UTILS_FACTORY_OPFACTORY_H
 #define BACKEND_MIR_UTILS_FACTORY_OPFACTORY_H
+#include "backend/mir/utils/operand/frameoperand.h"
 #include "backend/mir/utils/operand/globaloperand.h"
 #include "backend/mir/utils/operand/labeloperand.h"
 #include "backend/mir/utils/operand/literaloperand.h"
@@ -21,7 +22,8 @@ class OperandFactory {
   static auto CreateBoolLiteral(bool value) -> BoolLiteral * { return new BoolLiteral(value); }
   static auto CreateLongLiteral(std::int64_t value) -> LongLiteral * { return new LongLiteral(value); }
   static auto CreateCharLiteral(char value) -> CharLiteral * { return new CharLiteral(value); }
-  static auto CreateMemoryOperand(size_t reg_num) -> MemoryOperand * { return new MemoryOperand(reg_num); }
+  static auto CreateMemoryOperand() -> MemoryOperand * { return new MemoryOperand(); }
+  static auto CreateFrameOperand(size_t slot_id) -> FrameOperand * { return new FrameOperand(slot_id); }
 
   friend class context::MIRResourceContext;
 };

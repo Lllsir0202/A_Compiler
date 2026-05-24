@@ -26,7 +26,7 @@ LLVMIRResourceContext::~LLVMIRResourceContext() {
 auto LLVMIRResourceContext::GetNewRegOperand(type::Type *type) -> middleend::llvm::utils::RegOperand * {
   auto op = middleend::llvm::utils::factory::OperandFactory::CreateRegOperand(reg_id_counter_++);
   op->SetType(type);
-  operands_.push_back(op);
+  operands_.emplace_back(op);
   return op;
 }
 
@@ -34,17 +34,8 @@ auto LLVMIRResourceContext::GetNewGlobalOperand(const std::string &name,
                                                 type::Type *type) -> middleend::llvm::utils::GlobalOperand * {
   auto op = middleend::llvm::utils::factory::OperandFactory::CreateGlobalOperand(name);
   op->SetType(type);
-  operands_.push_back(op);
+  operands_.emplace_back(op);
   return op;
-}
-
-// Get existing operands by id(or value for literals)
-auto LLVMIRResourceContext::GetRegOperand(size_t id) -> middleend::llvm::utils::RegOperand * {
-  if (reg_operands_.count(id) > 0) {
-    return reg_operands_[id];
-  }
-  // If the operand does not exist, report error
-  return nullptr;
 }
 
 auto LLVMIRResourceContext::GetLabelOperand(size_t id) -> middleend::llvm::utils::LabelOperand * {
@@ -54,7 +45,7 @@ auto LLVMIRResourceContext::GetLabelOperand(size_t id) -> middleend::llvm::utils
   // If the operand does not exist, create a new one
   auto op = middleend::llvm::utils::factory::OperandFactory::CreateLabelOperand(id);
   label_operands_[id] = op;
-  operands_.push_back(op);
+  operands_.emplace_back(op);
   return op;
 }
 
@@ -66,7 +57,7 @@ auto LLVMIRResourceContext::GetIntLiteral(int value) -> middleend::llvm::utils::
   auto op = middleend::llvm::utils::factory::OperandFactory::CreateIntLiteral(value);
   op->SetType(type_context_->GetIntegerType());
   int_literals_[value] = op;
-  operands_.push_back(op);
+  operands_.emplace_back(op);
   return op;
 }
 
@@ -78,7 +69,7 @@ auto LLVMIRResourceContext::GetFloatLiteral(float value) -> middleend::llvm::uti
   auto op = middleend::llvm::utils::factory::OperandFactory::CreateFloatLiteral(value);
   op->SetType(type_context_->GetFloatType());
   float_literals_[value] = op;
-  operands_.push_back(op);
+  operands_.emplace_back(op);
   return op;
 }
 
@@ -90,7 +81,7 @@ auto LLVMIRResourceContext::GetBoolLiteral(bool value) -> middleend::llvm::utils
   auto op = middleend::llvm::utils::factory::OperandFactory::CreateBoolLiteral(value);
   op->SetType(type_context_->GetBooleanType());
   bool_literals_[value] = op;
-  operands_.push_back(op);
+  operands_.emplace_back(op);
   return op;
 }
 
@@ -102,7 +93,7 @@ auto LLVMIRResourceContext::GetLongLiteral(std::int64_t value) -> middleend::llv
   auto op = middleend::llvm::utils::factory::OperandFactory::CreateLongLiteral(value);
   op->SetType(type_context_->GetLongType());
   long_literals_[value] = op;
-  operands_.push_back(op);
+  operands_.emplace_back(op);
   return op;
 }
 
@@ -114,7 +105,7 @@ auto LLVMIRResourceContext::GetCharLiteral(char value) -> middleend::llvm::utils
   auto op = middleend::llvm::utils::factory::OperandFactory::CreateCharLiteral(value);
   op->SetType(type_context_->GetCharType());
   char_literals_[value] = op;
-  operands_.push_back(op);
+  operands_.emplace_back(op);
   return op;
 }
 
@@ -214,7 +205,7 @@ auto LLVMIRResourceContext::GetNewBasicBlock(middleend::llvm::utils::Function *f
     throw std::logic_error("Module is not set in LLVMIRContext");
   }
   auto block = middleend::llvm::utils::factory::BlockFactory::CreateBlock(label_id_counter_++);
-  function_blocks_mapping_[function].push_back(block);
+  function_blocks_mapping_[function].emplace_back(block);
   assert(block->GetID() == function_blocks_mapping_[function].size() - 1 &&
          "Block ID should be the index in the blocks vector");
   return block;

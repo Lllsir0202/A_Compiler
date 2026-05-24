@@ -15,12 +15,17 @@ namespace backend::utils {
 
 /**
  * @brief This class represents the operand in the virtual machine instruction,
- * which can be a register, a literal, a memory address(maybe unused), a label or a global variable.
+ * which can be a register, a literal, a memory address(maybe unused), a label, a global variable or a frame operand.
+ * To be more detailed,
+ * 1. a memory operand will record following information:
+ * base pointer(or stack slot), index operands(or immeidaite), offset
+ * 2. a frame operand will record the stack slot id, the slot id will be able to assist
+ * getting access to the stack-related information
  */
 
 // Memory operand will be used as a pointer to the memory address,
 // and the actual memory address will be calculated in lowering.
-enum class OpType : uint8_t { Register, Literal, Memory, Label, Global };
+enum class OpType : uint8_t { Register, Literal, Memory, Label, Global, Frame };
 
 class Operand {
  public:
@@ -37,7 +42,7 @@ class Operand {
   auto IsMemory() const -> bool { return op_type_ == OpType::Memory; }
   auto IsLabel() const -> bool { return op_type_ == OpType::Label; }
   auto IsGlobal() const -> bool { return op_type_ == OpType::Global; }
-
+  auto IsFrame() const -> bool { return op_type_ == OpType::Frame; }
   // Interface to check the type of the operand
   auto IsInt() const -> bool { return type_ != nullptr && type_->GetKind() == type::TypeKind::INT; }
   auto IsFloat() const -> bool { return type_ != nullptr && type_->GetKind() == type::TypeKind::FLOAT; }
