@@ -40,15 +40,14 @@ enum class OpKind : uint16_t {
   FuncDef,
   FuncDeclare,
   Call,
-  Alloca,
   GlobalDef,
-  GetElementPtr,
 
   // Cast operations
   Cast,
 
   // Pseudo operations
-  Copy
+  Copy,
+  Phi
 
 };
 

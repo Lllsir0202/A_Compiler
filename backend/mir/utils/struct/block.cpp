@@ -3,6 +3,4 @@
 namespace backend::utils {
 Block::~Block() { instructions_.clear(); }
 
-
-
 }  // namespace backend::utils

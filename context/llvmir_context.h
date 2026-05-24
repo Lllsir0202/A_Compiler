@@ -2,10 +2,10 @@
 #define CONTEXT_LLVMIR_CONTEXT_H
 #include <unordered_map>
 #include "context/type_context.h"
-#include "llvm/inst/inst.h"
-#include "llvm/utils/operand/globaloperand.h"
+#include "middleend/llvm/inst/inst.h"
 #include "middleend/llvm/utils/factory/instfactory.h"
 #include "middleend/llvm/utils/factory/opfactory.h"
+#include "middleend/llvm/utils/operand/globaloperand.h"
 #include "middleend/llvm/utils/operand/regoperand.h"
 #include "middleend/llvm/utils/struct/function.h"
 #include "middleend/llvm/utils/struct/module.h"
@@ -81,6 +81,11 @@ class LLVMIRResourceContext {
     label_id_counter_ = 0;
     reg_operands_.clear();
     label_operands_.clear();
+    bool_literals_.clear();
+    int_literals_.clear();
+    float_literals_.clear();
+    long_literals_.clear();
+    char_literals_.clear();
   }
 
   auto CreateFunction(const std::string &func_name, type::Type *return_type) -> middleend::llvm::utils::Function *;

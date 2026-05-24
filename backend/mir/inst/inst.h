@@ -2,10 +2,18 @@
 #define BACKEND_MIR_INST_INST_H
 #include <vector>
 #include "backend/mir/inst/opkind.h"
+
+namespace context {
+class CompilerContext;
+class MIRContext;
+}  // namespace context
 namespace backend::utils {
 class Operand;
-class InstFactory;
+class Block;
 }  // namespace backend::utils
+namespace backend::utils::factory {
+class InstFactory;
+}
 
 namespace backend::inst {
 class Instruction {
@@ -15,6 +23,8 @@ class Instruction {
   // Interface to access the instruction information
   auto GetResult() const -> utils::Operand * { return result_; }
   auto SetResult(utils::Operand *result) -> void { result_ = result; }
+
+  auto AddOperand(utils::Operand *operand) -> void { operands_.emplace_back(operand); }
 
   auto AddUser(Instruction *user) -> void { users_.emplace_back(user); }
   auto GetUsers() const -> const std::vector<Instruction *> & { return users_; }
@@ -29,10 +39,13 @@ class Instruction {
     users_.clear();
   }
 
+  auto GetParentBlock() const -> utils::Block * { return parent_block_; }
+  auto SetParentBlock(utils::Block *block) -> void { parent_block_ = block; }
+
+  virtual auto Verify(context::CompilerContext *context) const -> bool = 0;
+
  protected:
   explicit Instruction(OpKind op_kind) : op_kind_(op_kind) {}
-
- private:
   /**
    * @brief An instruction includes :
    * 1. a result
@@ -41,8 +54,11 @@ class Instruction {
    */
   std::vector<utils::Operand *> operands_;
   utils::Operand *result_ = nullptr;
-  friend class utils::InstFactory;
+  friend class utils::factory::InstFactory;
   OpKind op_kind_;
+
+  // Record the parent block
+  utils::Block *parent_block_;
 
   // Record all users
   std::vector<Instruction *> users_;
