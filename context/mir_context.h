@@ -164,6 +164,8 @@ class MIRContext {
     return resource_context_->GetNewRegOperand(type);
   }
 
+
+
   // Literal values
   auto GetBoolLiteral(bool value) -> backend::utils::Operand * { return resource_context_->GetBoolLiteral(value); }
   auto GetLongLiteral(std::int64_t value) -> backend::utils::Operand * {
