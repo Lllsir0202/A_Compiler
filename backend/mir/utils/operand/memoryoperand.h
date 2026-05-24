@@ -1,9 +1,9 @@
 #ifndef BACKEND_MIR_UTILS_OPERAND_MEMORYOPERAND_H
 #define BACKEND_MIR_UTILS_OPERAND_MEMORYOPERAND_H
 
-#include "backend/mir/utils/operand/operand.h"
 #include "backend/mir/utils/memory/addressinfo.h"
 #include "backend/mir/utils/memory/memoryinfo.h"
+#include "backend/mir/utils/operand/operand.h"
 namespace backend::utils {
 enum class MemSize : uint8_t { UnSet, Bit32, Bit64 };
 /**

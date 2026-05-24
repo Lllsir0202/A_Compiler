@@ -2,6 +2,7 @@
 #define CONTEXT_MIR_CONTEXT_H
 #include <unordered_map>
 #include <vector>
+#include "backend/mir/utils/factory/instfactory.h"
 #include "backend/mir/utils/factory/opfactory.h"
 #include "backend/mir/utils/memory/frameinfo.h"
 #include "backend/mir/utils/operand/frameoperand.h"
@@ -41,6 +42,14 @@ class MIRResourceContext {
   // Get the funcdef or declare instruction by the function name
   auto GetFuncDefByName(const std::string &name) -> backend::inst::FuncDefInst *;
   auto GetFuncDeclareByName(const std::string &name) -> backend::inst::FuncDeclareInst *;
+
+  // Create Instructions
+  template <typename InstType, typename... Args>
+  auto CreateInstruction(Args &&...args) -> InstType * {
+    auto inst = backend::utils::factory::InstFactory::CreateInst<InstType>(std::forward<Args>(args)...);
+    instructions_.emplace_back(inst);
+    return inst;
+  }
 
   auto Reset() -> void {
     label_operands_.clear();
@@ -164,8 +173,6 @@ class MIRContext {
     return resource_context_->GetNewRegOperand(type);
   }
 
-
-
   // Literal values
   auto GetBoolLiteral(bool value) -> backend::utils::Operand * { return resource_context_->GetBoolLiteral(value); }
   auto GetLongLiteral(std::int64_t value) -> backend::utils::Operand * {
@@ -186,8 +193,12 @@ class MIRContext {
   auto GetModule() -> backend::utils::Module * { return resource_context_->GetModule(); }
   auto SetModule(backend::utils::Module *module) -> void { resource_context_->SetModule(module); }
 
-  auto GetFuncDefByName(const std::string &name) -> backend::inst::FuncDefInst *;
-  auto GetFuncDeclareByName(const std::string &name) -> backend::inst::FuncDeclareInst *;
+  auto GetFuncDefByName(const std::string &name) -> backend::inst::FuncDefInst * {
+    return resource_context_->GetFuncDefByName(name);
+  }
+  auto GetFuncDeclareByName(const std::string &name) -> backend::inst::FuncDeclareInst * {
+    return resource_context_->GetFuncDeclareByName(name);
+  }
 
  private:
   MIRResourceContext *resource_context_;

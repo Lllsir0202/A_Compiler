@@ -1,6 +1,6 @@
 #ifndef BACKEND_MIR_UTILS_FACTORY_FUNCTIONFACTORY_H
 #define BACKEND_MIR_UTILS_FACTORY_FUNCTIONFACTORY_H
-#include "backend/mir/utils/stack/frameinfo.h"
+#include "backend/mir/utils/memory/frameinfo.h"
 #include "backend/mir/utils/struct/function.h"
 namespace context {
 class MIRContext;

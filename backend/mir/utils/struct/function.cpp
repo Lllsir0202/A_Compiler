@@ -1,6 +1,6 @@
 #include "backend/mir/utils/struct/function.h"
 #include "backend/mir/utils/factory/functionfactory.h"
-#include "backend/mir/utils/stack/frameinfo.h"
+#include "backend/mir/utils/memory/frameinfo.h"
 #include "backend/mir/utils/struct/block.h"
 namespace backend::utils {
 Function::~Function() {
