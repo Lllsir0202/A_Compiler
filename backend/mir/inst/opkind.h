@@ -43,7 +43,10 @@ enum class OpKind : uint16_t {
   GlobalDef,
 
   // Cast operations
-  Cast,
+  Zext,
+  Int2Float,
+  Float2Int,
+  Bool2Float,
 
   // Pseudo operations
   Copy,
