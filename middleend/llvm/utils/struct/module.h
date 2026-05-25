@@ -37,6 +37,10 @@ class Module {
     return nullptr;
   }
 
+  auto GetFunctionDefs() const -> const std::unordered_map<std::string, middleend::llvm::inst::FuncDefInst *> & {
+    return func_def_insts_;
+  }
+
   auto AddFunctionDef(const std::string &func_name, middleend::llvm::inst::FuncDefInst *func_def) -> void {
     if (func_def_insts_.count(func_name) > 0) {
       throw std::logic_error("Function definition already exists: " + func_name);
@@ -51,6 +55,10 @@ class Module {
       return it->second;
     }
     return nullptr;
+  }
+
+  auto GetGlobalVarDefs() const -> const std::unordered_map<std::string, middleend::llvm::inst::GlobalDefInst *> & {
+    return global_var_defs_;
   }
 
   auto AddGlobalVarDef(const std::string &var_name, middleend::llvm::inst::GlobalDefInst *global_var_def) -> void {

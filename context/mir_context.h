@@ -11,11 +11,13 @@
 #include "backend/mir/utils/operand/operand.h"
 #include "backend/mir/utils/struct/module.h"
 #include "context/type_context.h"
+#include "llvm/utils/struct/block.h"
 #include "middleend/llvm/utils/operand/operand.h"
 #include "mir/utils/operand/globaloperand.h"
 #include "mir/utils/operand/labeloperand.h"
 #include "mir/utils/operand/literaloperand.h"
 #include "mir/utils/operand/regoperand.h"
+#include "mir/utils/struct/function.h"
 
 namespace context {
 class MIRResourceContext {
@@ -42,7 +44,12 @@ class MIRResourceContext {
 
   // Get and set the module
   auto GetModule() -> backend::utils::Module * { return module_; }
-  auto SetModule(backend::utils::Module *module) -> void { module_ = module; }
+  auto SetModule(backend::utils::Module *module) -> void {
+    if (module_ != module) {
+      module_ = module;
+      module_->Reset();
+    }
+  }
 
   // Get the funcdef or declare instruction by the function name
   auto GetFuncDefByName(const std::string &name) -> backend::inst::FuncDefInst *;
@@ -55,6 +62,21 @@ class MIRResourceContext {
     instructions_.emplace_back(inst);
     return inst;
   }
+
+  // Create function
+  auto CreateFunction(const std::string &name, type::Type *return_type) -> backend::utils::Function *;
+
+  auto CreateBlock(size_t id) -> backend::utils::Block *;
+
+  auto AddFuncDefInst(backend::inst::FuncDefInst *func_def_inst) -> void { module_->AddFuncDefInst(func_def_inst); }
+  auto AddFuncDeclareInst(backend::inst::FuncDeclareInst *func_declare_inst) -> void {
+    module_->AddFuncDeclareInst(func_declare_inst);
+  }
+  auto AddGlobalDefInst(backend::inst::GlobalDefInst *global_def_inst) -> void {
+    module_->AddGlobalDefInst(global_def_inst);
+  }
+
+  auto AddFunction(backend::utils::Function *function) -> void { module_->AddFunction(function); }
 
   auto Reset() -> void {
     label_operands_.clear();
@@ -137,15 +159,41 @@ class MIRLowerContext {
 
   auto GetInsertPoint() -> backend::utils::Block * { return insert_point_; }
   auto SetInsertPoint(backend::utils::Block *block) -> void { insert_point_ = block; }
+  auto GetCurrentFunction() -> backend::utils::Function * { return current_func_; }
+  auto SetCurrentFunction(backend::utils::Function *func) -> void { current_func_ = func; }
+
+  // Map from block to get the corresponding block in llvmir
+  auto MapBlockToBasicBlock(backend::utils::Block *block, middleend::llvm::utils::BasicBlock *bb) -> void {
+    if (block_mapping_.count(block) > 0) {
+      throw std::runtime_error("Block has already been mapped to a basic block");
+      return;
+    }
+    block_mapping_[block] = bb;
+  }
+
+  auto GetBasicBlockFromBlock(backend::utils::Block *block) -> middleend::llvm::utils::BasicBlock * {
+    if (block_mapping_.count(block) > 0) {
+      return block_mapping_[block];
+    }
+    // If the block has not been mapped, report error
+    return nullptr;
+  }
 
  private:
   // insert point
   backend::utils::Block *insert_point_;
+
+  // current function
+  backend::utils::Function *current_func_;
+
   // Used to map the llvmir operand to mir operand
   std::unordered_map<middleend::llvm::utils::Operand *, backend::utils::Operand *> llvm_to_mir_operand_map_;
 
   // Map from FrameOperand to StackSlot
   std::unordered_map<backend::utils::FrameOperand *, backend::utils::FrameInfo *> frame_operand_to_frame_info_map_;
+
+  // Map from BasciBlock to Block
+  std::unordered_map<backend::utils::Block *, middleend::llvm::utils::BasicBlock *> block_mapping_;
 };
 
 /**
@@ -214,6 +262,17 @@ class MIRContext {
   auto GetFuncDeclareByName(const std::string &name) -> backend::inst::FuncDeclareInst * {
     return resource_context_->GetFuncDeclareByName(name);
   }
+
+  auto AddFuncDefInst(backend::inst::FuncDefInst *func_def_inst) -> void {
+    resource_context_->AddFuncDefInst(func_def_inst);
+  }
+  auto AddFuncDeclareInst(backend::inst::FuncDeclareInst *func_declare_inst) -> void {
+    resource_context_->AddFuncDeclareInst(func_declare_inst);
+  }
+  auto AddGlobalDefInst(backend::inst::GlobalDefInst *global_def_inst) -> void {
+    resource_context_->AddGlobalDefInst(global_def_inst);
+  }
+  auto AddFunction(backend::utils::Function *function) -> void { resource_context_->AddFunction(function); }
 
  private:
   MIRResourceContext *resource_context_;

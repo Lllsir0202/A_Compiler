@@ -1,8 +1,11 @@
 #include "context/mir_context.h"
 #include <cstddef>
 #include "backend/mir/inst/inst.h"
-#include "mir/utils/operand/frameoperand.h"
-#include "mir/utils/operand/memoryoperand.h"
+#include "backend/mir/utils/factory/blockfactory.h"
+#include "backend/mir/utils/factory/functionfactory.h"
+#include "backend/mir/utils/operand/frameoperand.h"
+#include "backend/mir/utils/operand/memoryoperand.h"
+#include "backend/mir/utils/struct/block.h"
 
 namespace context {
 MIRResourceContext::~MIRResourceContext() {
@@ -134,6 +137,22 @@ auto MIRResourceContext::GetFuncDeclareByName(const std::string &name) -> backen
   }
 
   return module->GetFuncDeclareByName(name);
+}
+
+auto MIRResourceContext::CreateFunction(const std::string &name,
+                                        type::Type *return_type) -> backend::utils::Function * {
+  auto func = backend::utils::factory::FunctionFactory::CreateFunction(name, return_type);
+  if (module_ == nullptr) {
+    delete func;
+    throw std::runtime_error("Module is not set in MIRResourceContext when creating function");
+  }
+  module_->AddFunction(func);
+  return func;
+}
+
+auto MIRResourceContext::CreateBlock(size_t id) -> backend::utils::Block * {
+  auto block = backend::utils::factory::BlockFactory::CreateBlock(id);
+  return block;
 }
 
 }  // namespace context

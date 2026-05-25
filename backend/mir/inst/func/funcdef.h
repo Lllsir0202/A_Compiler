@@ -15,8 +15,8 @@ class FuncDefInst : public Instruction {
  private:
   explicit FuncDefInst(std::string func_name, type::Type *return_type)
       : Instruction(OpKind::FuncDef), func_name_(std::move(func_name)), return_type_(return_type) {}
-  static auto Create(context::MIRContext *context, const std::string &func_name,
-                     type::Type *return_type) -> FuncDefInst *;
+  static auto Create(context::MIRContext *context, const std::string &func_name, type::Type *return_type,
+                     const std::vector<utils::Operand *> &params) -> FuncDefInst *;
 
   std::string func_name_;
   type::Type *return_type_;

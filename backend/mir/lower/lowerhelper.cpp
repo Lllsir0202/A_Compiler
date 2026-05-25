@@ -5,10 +5,13 @@
 #include "backend/mir/inst/cast/cast.h"
 #include "backend/mir/inst/cmp/cmp.h"
 #include "backend/mir/inst/func/call.h"
+#include "backend/mir/inst/func/funcdef.h"
+#include "backend/mir/utils/operand/operand.h"
 #include "backend/mir/utils/struct/block.h"
+#include "backend/mir/utils/struct/function.h"
 #include "middleend/llvm/inst/arithm/arithm.h"
 #include "middleend/llvm/inst/inst.h"
-#include "mir/utils/operand/operand.h"
+#include "middleend/llvm/utils/struct/block.h"
 
 #define GET_MIR_CONTEXT() compiler_context_->GetMIRContext()
 #define GET_RESOURCE_CONTEXT() compiler_context_->GetMIRContext()->GetResourceContext()
@@ -21,6 +24,7 @@ namespace backend::lower {
     return;                                                                        \
   }
 
+// For globaldef, funcdef, funcdeclare, we will lower them in advance
 auto LowerHelper::LowerDispatch(middleend::llvm::inst::Instruction *inst) -> void {
   try {
     DISPATCH_LOWERING(AddInst)
@@ -39,7 +43,6 @@ auto LowerHelper::LowerDispatch(middleend::llvm::inst::Instruction *inst) -> voi
     DISPATCH_LOWERING(FptoSiInst)
     DISPATCH_LOWERING(UitoFpInst)
     DISPATCH_LOWERING(CallInst)
-    DISPATCH_LOWERING(FuncDefInst)
     DISPATCH_LOWERING(RetInst)
     DISPATCH_LOWERING(BrInst)
     DISPATCH_LOWERING(BrCondInst)
@@ -54,6 +57,39 @@ auto LowerHelper::LowerDispatch(middleend::llvm::inst::Instruction *inst) -> voi
   }
   // If we reach here, it means the instruction type is not supported for lowering
   compiler_context_->ReportError("Unsupported instruction type for lowering");
+}
+
+auto LowerHelper::LowerBlock(middleend::llvm::utils::BasicBlock *bb) -> utils::Block * {
+  auto block = GET_RESOURCE_CONTEXT()->CreateBlock(bb->GetID());
+  // Add the block to the current function
+  GET_LOWER_CONTEXT()->GetCurrentFunction()->AddBlock(block);
+  // Map
+  return block;
+}
+
+/**
+ * @brief Lower specific llvmir function definition instruction
+ */
+
+auto LowerHelper::LowerFunction(middleend::llvm::utils::Function *function) -> void {
+  try {
+    auto mir_function =
+        GET_MIR_CONTEXT()->GetResourceContext()->CreateFunction(function->GetFuncName(), function->GetReturnType());
+
+    // Add the function to the MIR context
+    GET_LOWER_CONTEXT()->SetCurrentFunction(mir_function);
+    GET_MIR_CONTEXT()->AddFunction(mir_function);
+    for (auto basicblock : function->GetBasicBlocks()) {
+      auto block = LowerBlock(basicblock);
+      GET_MIR_CONTEXT()->GetLowerContext()->SetInsertPoint(block);
+      for (auto inst : basicblock->GetInstructions()) {
+        LowerDispatch(inst);
+      }
+    }
+  } catch (std::exception &e) {
+    compiler_context_->ReportError("Error during function lowering: " + std::string(e.what()));
+    return;
+  }
 }
 
 /**
@@ -95,7 +131,7 @@ LOWER_BINARY_INST(DivInst)
 LOWER_BINARY_INST(DivFInst)
 LOWER_BINARY_INST(ModInst)
 
-auto LowerHelper::LowerICmpInst(middleend::llvm::inst::ICmpInst *icmp_inst) -> void {
+    auto LowerHelper::LowerICmpInst(middleend::llvm::inst::ICmpInst *icmp_inst) -> void {
   auto predicate = inst::CmpPredicateFromLLVM(icmp_inst->GetPredicate());
   auto lhs = icmp_inst->GetLHS();
   auto rhs = icmp_inst->GetRHS();

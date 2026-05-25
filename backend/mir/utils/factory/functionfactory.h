@@ -3,7 +3,7 @@
 #include "backend/mir/utils/memory/frameinfo.h"
 #include "backend/mir/utils/struct/function.h"
 namespace context {
-class MIRContext;
+class MIRResourceContext;
 }
 namespace backend::utils::factory {
 class FunctionFactory {
@@ -14,7 +14,7 @@ class FunctionFactory {
 
   static auto CreateFrameInfo(size_t frame_id) -> FrameInfo * { return new FrameInfo(frame_id); }
 
-  friend class context::MIRContext;
+  friend class context::MIRResourceContext;
 };
 }  // namespace backend::utils::factory
 

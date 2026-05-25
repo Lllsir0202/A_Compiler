@@ -16,9 +16,9 @@ auto FuncDefInst::Verify(context::CompilerContext *context) const -> bool {
 }
 
 auto FuncDefInst::Create([[maybe_unused]] context::MIRContext *context, const std::string &func_name,
-                         type::Type *return_type) -> FuncDefInst * {
+                         type::Type *return_type, const std::vector<utils::Operand *> &params) -> FuncDefInst * {
   auto *inst = new FuncDefInst(func_name, return_type);
-  inst->op_kind_ = OpKind::FuncDef;
+  inst->operands_ = params;  // Set the operands of the instruction to be the parameters of the function
   return inst;
 }
 

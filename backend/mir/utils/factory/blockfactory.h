@@ -3,13 +3,13 @@
 
 #include "backend/mir/utils/struct/block.h"
 namespace context {
-class MIRContext;
+class MIRResourceContext;
 }
 namespace backend::utils::factory {
 class BlockFactory {
   static auto CreateBlock(size_t id) -> Block * { return new Block(id); }
 
-  friend class context::MIRContext;
+  friend class context::MIRResourceContext;
 };
 }  // namespace backend::utils::factory
 #endif

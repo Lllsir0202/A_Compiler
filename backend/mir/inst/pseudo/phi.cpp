@@ -23,9 +23,7 @@ auto PhiInst::Create(context::MIRContext *context, type::Type *result_type,
                      const std::vector<utils::Operand *> &operands,
                      std::vector<utils::Block *> incoming_blocks) -> PhiInst * {
   auto *inst = new PhiInst();
-  for (const auto &operand : operands) {
-    inst->AddOperand(operand);
-  }
+  inst->operands_ = operands;
   inst->incoming_blocks_ = std::move(incoming_blocks);
   auto res = context->GetNewRegOperand(result_type);
   inst->SetResult(res);
