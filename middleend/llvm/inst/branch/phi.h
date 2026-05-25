@@ -13,6 +13,8 @@ class PhiInst : public Instruction {
     incoming_blocks_.emplace_back(block);
   }
 
+  auto GetIncomingSize() const -> size_t { return operands_.size(); }
+
   // Virtual overrides
   auto Emit(std::ofstream *out) const -> void override;
   auto Verify(context::CompilerContext *compiler_context) const -> bool override;

@@ -5,7 +5,6 @@
 #include "backend/mir/inst/cast/cast.h"
 #include "backend/mir/inst/cmp/cmp.h"
 #include "backend/mir/inst/func/call.h"
-#include "backend/mir/inst/func/funcdef.h"
 #include "backend/mir/utils/operand/operand.h"
 #include "backend/mir/utils/struct/block.h"
 #include "backend/mir/utils/struct/function.h"
@@ -86,6 +85,26 @@ auto LowerHelper::LowerFunction(middleend::llvm::utils::Function *function) -> v
         LowerDispatch(inst);
       }
     }
+
+    // Finish lowering a function, deal with the phi instructions here
+    while (!pending_phi_mirs_.empty()) {
+      auto phi_mir = pending_phi_mirs_.front();
+      pending_phi_mirs_.pop();
+      auto phi_llvm = pending_phi_llvmirs_.front();
+      pending_phi_llvmirs_.pop();
+
+      // Map from phi_llvm to phi_mir
+      auto incoming_values = phi_llvm->GetIncomingValues();
+      auto incoming_blocks = phi_llvm->GetIncomingBlocks();
+      for (size_t i = 0; i < phi_llvm->GetIncomingSize(); ++i) {
+        auto incoming_value = incoming_values[i];
+        auto incoming_block = incoming_blocks[i];
+        auto mir_incoming_value = GET_LOWER_CONTEXT()->GetMIROperandFromLLVMOperand(incoming_value);
+        auto mir_incoming_block = GET_RESOURCE_CONTEXT()->GetLabelOperand(incoming_block->GetID());
+        phi_mir->AddIncoming(mir_incoming_value, mir_incoming_block);
+      }
+    }
+
   } catch (std::exception &e) {
     compiler_context_->ReportError("Error during function lowering: " + std::string(e.what()));
     return;
@@ -131,7 +150,7 @@ LOWER_BINARY_INST(DivInst)
 LOWER_BINARY_INST(DivFInst)
 LOWER_BINARY_INST(ModInst)
 
-    auto LowerHelper::LowerICmpInst(middleend::llvm::inst::ICmpInst *icmp_inst) -> void {
+auto LowerHelper::LowerICmpInst(middleend::llvm::inst::ICmpInst *icmp_inst) -> void {
   auto predicate = inst::CmpPredicateFromLLVM(icmp_inst->GetPredicate());
   auto lhs = icmp_inst->GetLHS();
   auto rhs = icmp_inst->GetRHS();
@@ -319,5 +338,32 @@ auto LowerHelper::LowerBrCondInst(middleend::llvm::inst::BrCondInst *cond_br_ins
   GET_LOWER_CONTEXT()->GetInsertPoint()->AddInstBack(mir_inst);
   mir_inst->SetParentBlock(GET_LOWER_CONTEXT()->GetInsertPoint());
 }
+
+auto LowerHelper::LowerPhiInst(middleend::llvm::inst::PhiInst *phi_inst) -> void {
+  auto result = phi_inst->GetResult();
+  auto mir_inst = GET_RESOURCE_CONTEXT()->CreateInstruction<inst::PhiInst>(GET_MIR_CONTEXT(), result->GetType());
+  GET_LOWER_CONTEXT()->MapLLVMOperandToMIROperand(result, mir_inst->GetResult());
+  if (mir_inst->GetResult()->GetDefInst() != nullptr) {
+    mir_inst->GetResult()->GetDefInst()->AddUser(mir_inst);
+  }
+  // We cannot set the incoming values and blocks until we finish lowering the current function,
+  // because the incoming blocks might not be created yet. Thus we will store the phi instructions in a pending list,
+  // and handle them after we finish lowering the current function.
+  pending_phi_mirs_.push(mir_inst);
+  pending_phi_llvmirs_.push(phi_inst);
+  GET_LOWER_CONTEXT()->GetInsertPoint()->AddInstBack(mir_inst);
+  mir_inst->SetParentBlock(GET_LOWER_CONTEXT()->GetInsertPoint());
+}
+
+// Deal with the alloca, load and store instructions, which are related to memory operations
+auto LowerHelper::LowerAllocaInst(middleend::llvm::inst::AllocaInst *alloca_inst) -> void {
+  // Change alloca to frame operand
+}
+
+auto LowerHelper::LowerLoadInst(middleend::llvm::inst::LoadInst *load_inst) -> void {}
+
+auto LowerHelper::LowerStoreInst(middleend::llvm::inst::StoreInst *store_inst) -> void {}
+
+auto LowerHelper::LowerGetElementPtrInst(middleend::llvm::inst::GetElementPtrInst *gep_inst) -> void {}
 
 }  // namespace backend::lower

@@ -1,5 +1,6 @@
 #include "backend/mir/inst/pseudo/phi.h"
 #include "context/compiler_context.h"
+#include "mir/utils/operand/labeloperand.h"
 
 namespace backend::inst {
 auto PhiInst::Verify(context::CompilerContext *context) const -> bool {
@@ -19,12 +20,8 @@ auto PhiInst::Verify(context::CompilerContext *context) const -> bool {
   return true;
 }
 
-auto PhiInst::Create(context::MIRContext *context, type::Type *result_type,
-                     const std::vector<utils::Operand *> &operands,
-                     std::vector<utils::Block *> incoming_blocks) -> PhiInst * {
+auto PhiInst::Create(context::MIRContext *context, type::Type *result_type) -> PhiInst * {
   auto *inst = new PhiInst();
-  inst->operands_ = operands;
-  inst->incoming_blocks_ = std::move(incoming_blocks);
   auto res = context->GetNewRegOperand(result_type);
   inst->SetResult(res);
   res->SetDefInst(inst);

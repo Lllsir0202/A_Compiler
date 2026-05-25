@@ -24,12 +24,12 @@ namespace backend::lower {
 class LowerHelper {
  public:
   explicit LowerHelper(context::CompilerContext *compiler_context) : compiler_context_(compiler_context) {}
-  auto LowerDispatch(middleend::llvm::inst::Instruction *inst) -> void;
 
   auto LowerFunction(middleend::llvm::utils::Function *function) -> void;
 
  private:
   context::CompilerContext *compiler_context_;
+  auto LowerDispatch(middleend::llvm::inst::Instruction *inst) -> void;
 
   // Lower Blocks
   auto LowerBlock(middleend::llvm::utils::BasicBlock *bb) -> utils::Block *;

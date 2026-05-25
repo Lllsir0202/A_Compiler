@@ -1,5 +1,7 @@
 #include "backend/mir/lower/lower.h"
+#include "backend/mir/inst/func/funcdeclare.h"
 #include "backend/mir/inst/func/funcdef.h"
+#include "backend/mir/inst/memory/globaldef.h"
 #include "backend/mir/utils/factory/modulefactory.h"
 #include "middleend/llvm/inst/func/funcdeclare.h"
 #include "middleend/llvm/inst/func/funcdef.h"
@@ -41,13 +43,15 @@ auto MIRLower::Lower() -> int {
       if (!global_def->GetIntInitialValues().empty()) {
         auto initial_values = global_def->GetIntInitialValues();
         auto mir_global_def = GET_MIR_CONTEXT()->GetResourceContext()->CreateInstruction<inst::GlobalDefInst>(
-            GET_MIR_CONTEXT(), var_name, var_type, initial_values);
+            GET_MIR_CONTEXT(), global_def->GetResult()->GetType(), var_type, var_name, global_def->GetDimensions(),
+            initial_values);
         GET_MIR_CONTEXT()->AddGlobalDefInst(mir_global_def);
       }
       if (!global_def->GetFloatInitialValues().empty()) {
         auto initial_values = global_def->GetFloatInitialValues();
         auto mir_global_def = GET_MIR_CONTEXT()->GetResourceContext()->CreateInstruction<inst::GlobalDefInst>(
-            GET_MIR_CONTEXT(), var_name, var_type, initial_values);
+            GET_MIR_CONTEXT(), global_def->GetResult()->GetType(), var_type, var_name, global_def->GetDimensions(),
+            initial_values);
         GET_MIR_CONTEXT()->AddGlobalDefInst(mir_global_def);
       }
     }
