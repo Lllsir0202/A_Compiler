@@ -358,6 +358,8 @@ auto LowerHelper::LowerPhiInst(middleend::llvm::inst::PhiInst *phi_inst) -> void
 // Deal with the alloca, load and store instructions, which are related to memory operations
 auto LowerHelper::LowerAllocaInst(middleend::llvm::inst::AllocaInst *alloca_inst) -> void {
   // Change alloca to frame operand
+  auto frameoperand = GET_MIR_CONTEXT()->GetFrameOperand();
+  
 }
 
 auto LowerHelper::LowerLoadInst(middleend::llvm::inst::LoadInst *load_inst) -> void {}

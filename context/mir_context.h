@@ -3,21 +3,22 @@
 #include <unordered_map>
 #include <vector>
 #include "backend/mir/inst/inst.h"
+#include "backend/mir/utils/factory/functionfactory.h"
 #include "backend/mir/utils/factory/instfactory.h"
 #include "backend/mir/utils/factory/opfactory.h"
 #include "backend/mir/utils/memory/frameinfo.h"
 #include "backend/mir/utils/operand/frameoperand.h"
+#include "backend/mir/utils/operand/globaloperand.h"
+#include "backend/mir/utils/operand/labeloperand.h"
+#include "backend/mir/utils/operand/literaloperand.h"
 #include "backend/mir/utils/operand/memoryoperand.h"
 #include "backend/mir/utils/operand/operand.h"
+#include "backend/mir/utils/operand/regoperand.h"
+#include "backend/mir/utils/struct/function.h"
 #include "backend/mir/utils/struct/module.h"
 #include "context/type_context.h"
 #include "llvm/utils/struct/block.h"
 #include "middleend/llvm/utils/operand/operand.h"
-#include "mir/utils/operand/globaloperand.h"
-#include "mir/utils/operand/labeloperand.h"
-#include "mir/utils/operand/literaloperand.h"
-#include "mir/utils/operand/regoperand.h"
-#include "mir/utils/struct/function.h"
 
 namespace context {
 class MIRResourceContext {
@@ -62,6 +63,11 @@ class MIRResourceContext {
     instructions_.emplace_back(inst);
     return inst;
   }
+
+  // Create a new frame info
+  // auto CreateFrameInfo() -> backend::utils::FrameInfo * {
+  //   return backend::utils::factory::FunctionFactory::CreateFrameInfo(f);
+  // }
 
   // Create function
   auto CreateFunction(const std::string &name, type::Type *return_type) -> backend::utils::Function *;
