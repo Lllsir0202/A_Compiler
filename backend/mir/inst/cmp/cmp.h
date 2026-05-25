@@ -2,6 +2,7 @@
 #define BACKEND_MIR_INST_CMP_CMP_H
 
 #include "backend/mir/inst/inst.h"
+#include "llvm/inst/cmp/cmp.h"
 #include "mir_context.h"
 namespace backend::inst {
 enum class CmpPredicate : uint8_t {
@@ -13,9 +14,12 @@ enum class CmpPredicate : uint8_t {
   GE   // greater than or equal
 };
 
+auto CmpPredicateFromLLVM(middleend::llvm::inst::CmpPredicate llvm_pred) -> CmpPredicate;
+
 class ICmpInst : public Instruction {
  public:
   auto Verify(context::CompilerContext *context) const -> bool override;
+  auto GetPredicate() const -> CmpPredicate { return predicate_; }
 
  private:
   explicit ICmpInst(CmpPredicate predicate) : Instruction(OpKind::ICmp), predicate_(predicate) {}
@@ -28,6 +32,7 @@ class ICmpInst : public Instruction {
 class FCmpInst : public Instruction {
  public:
   auto Verify(context::CompilerContext *context) const -> bool override;
+  auto GetPredicate() const -> CmpPredicate { return predicate_; }
 
  private:
   explicit FCmpInst(CmpPredicate predicate) : Instruction(OpKind::FCmp), predicate_(predicate) {}

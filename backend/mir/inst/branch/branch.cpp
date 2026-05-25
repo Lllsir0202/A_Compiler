@@ -16,7 +16,7 @@ auto BrInst::Verify(context::CompilerContext *context) const -> bool {
   return true;
 }
 
-auto BrInst::Create([[maybe_unused]] context::CompilerContext *context, utils::LabelOperand *label) -> BrInst * {
+auto BrInst::Create([[maybe_unused]] context::MIRContext *context, utils::LabelOperand *label) -> BrInst * {
   auto *inst = new BrInst();
   inst->AddOperand(label);
   return inst;
@@ -44,7 +44,7 @@ auto BrCondInst::Verify(context::CompilerContext *context) const -> bool {
   return true;
 }
 
-auto BrCondInst::Create([[maybe_unused]] context::CompilerContext *context, utils::Operand *condition,
+auto BrCondInst::Create([[maybe_unused]] context::MIRContext *context, utils::Operand *condition,
                         utils::LabelOperand *true_label, utils::LabelOperand *false_label) -> BrCondInst * {
   auto *inst = new BrCondInst();
   inst->AddOperand(condition);

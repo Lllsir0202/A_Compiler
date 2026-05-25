@@ -1,6 +1,8 @@
 #include "context/mir_context.h"
 #include <cstddef>
 #include "backend/mir/inst/inst.h"
+#include "mir/utils/operand/frameoperand.h"
+#include "mir/utils/operand/memoryoperand.h"
 
 namespace context {
 MIRResourceContext::~MIRResourceContext() {
@@ -13,14 +15,14 @@ MIRResourceContext::~MIRResourceContext() {
 }
 
 // Interfaces to create the operands
-auto MIRResourceContext::GetNewRegOperand(type::Type *type) -> backend::utils::Operand * {
+auto MIRResourceContext::GetNewRegOperand(type::Type *type) -> backend::utils::RegOperand * {
   auto *reg_operand = backend::utils::factory::OperandFactory::CreateRegOperand(reg_num_counter_++);
   reg_operand->SetType(type);
   operands_.push_back(reg_operand);
   return reg_operand;
 }
 
-auto MIRResourceContext::GetIntLiteral(int value) -> backend::utils::Operand * {
+auto MIRResourceContext::GetIntLiteral(int value) -> backend::utils::IntLiteral * {
   if (int_literal_operands_.count(value) > 0) {
     return int_literal_operands_[value];
   }
@@ -30,7 +32,7 @@ auto MIRResourceContext::GetIntLiteral(int value) -> backend::utils::Operand * {
   return int_literal;
 }
 
-auto MIRResourceContext::GetFloatLiteral(float value) -> backend::utils::Operand * {
+auto MIRResourceContext::GetFloatLiteral(float value) -> backend::utils::FloatLiteral * {
   if (float_literal_operands_.count(value) > 0) {
     return float_literal_operands_[value];
   }
@@ -40,7 +42,7 @@ auto MIRResourceContext::GetFloatLiteral(float value) -> backend::utils::Operand
   return float_literal;
 }
 
-auto MIRResourceContext::GetLabelOperand(size_t id) -> backend::utils::Operand * {
+auto MIRResourceContext::GetLabelOperand(size_t id) -> backend::utils::LabelOperand * {
   if (label_operands_.count(id) > 0) {
     return label_operands_[id];
   }
@@ -50,7 +52,7 @@ auto MIRResourceContext::GetLabelOperand(size_t id) -> backend::utils::Operand *
   return label_operand;
 }
 
-auto MIRResourceContext::GetGlobalOperand(const std::string &name) -> backend::utils::Operand * {
+auto MIRResourceContext::GetGlobalOperand(const std::string &name) -> backend::utils::GlobalOperand * {
   if (global_operands_.count(name) > 0) {
     return global_operands_[name];
   }
@@ -60,7 +62,7 @@ auto MIRResourceContext::GetGlobalOperand(const std::string &name) -> backend::u
   return global_operand;
 }
 
-auto MIRResourceContext::GetBoolLiteral(bool value) -> backend::utils::Operand * {
+auto MIRResourceContext::GetBoolLiteral(bool value) -> backend::utils::BoolLiteral * {
   if (bool_literal_operands_.count(value) > 0) {
     return bool_literal_operands_[value];
   }
@@ -70,7 +72,7 @@ auto MIRResourceContext::GetBoolLiteral(bool value) -> backend::utils::Operand *
   return bool_literal;
 }
 
-auto MIRResourceContext::GetCharLiteral(char value) -> backend::utils::Operand * {
+auto MIRResourceContext::GetCharLiteral(char value) -> backend::utils::CharLiteral * {
   if (char_literal_operands_.count(value) > 0) {
     return char_literal_operands_[value];
   }
@@ -80,7 +82,7 @@ auto MIRResourceContext::GetCharLiteral(char value) -> backend::utils::Operand *
   return char_literal;
 }
 
-auto MIRResourceContext::GetLongLiteral(std::int64_t value) -> backend::utils::Operand * {
+auto MIRResourceContext::GetLongLiteral(std::int64_t value) -> backend::utils::LongLiteral * {
   if (long_literal_operands_.count(value) > 0) {
     return long_literal_operands_[value];
   }
@@ -90,14 +92,14 @@ auto MIRResourceContext::GetLongLiteral(std::int64_t value) -> backend::utils::O
   return long_literal;
 }
 
-auto MIRResourceContext::GetNewMemoryOperand() -> backend::utils::Operand * {
+auto MIRResourceContext::GetNewMemoryOperand() -> backend::utils::MemoryOperand * {
   auto *memory_operand = backend::utils::factory::OperandFactory::CreateMemoryOperand();
   operands_.emplace_back(memory_operand);
   memory_operands_.emplace_back(memory_operand);
   return memory_operand;
 }
 
-auto MIRResourceContext::GetFrameOperand() -> backend::utils::Operand * {
+auto MIRResourceContext::GetFrameOperand() -> backend::utils::FrameOperand * {
   /**
    * @note: We should always make sure that the size of frame_operands_
    * is equal to the frame_info's size, so that the slot_id will always be the index

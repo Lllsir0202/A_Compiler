@@ -9,6 +9,8 @@ namespace backend::inst {
 class CallInst : public Instruction {
  public:
   auto Verify(context::CompilerContext *context) const -> bool override;
+  auto GetCallee() const -> const std::string & { return callee_; }
+  auto GetReturnType() const -> type::Type * { return return_type_; }
 
  private:
   explicit CallInst(std::string callee, type::Type *return_type)

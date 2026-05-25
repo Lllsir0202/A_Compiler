@@ -2,6 +2,7 @@
 #define CONTEXT_MIR_CONTEXT_H
 #include <unordered_map>
 #include <vector>
+#include "backend/mir/inst/inst.h"
 #include "backend/mir/utils/factory/instfactory.h"
 #include "backend/mir/utils/factory/opfactory.h"
 #include "backend/mir/utils/memory/frameinfo.h"
@@ -11,6 +12,10 @@
 #include "backend/mir/utils/struct/module.h"
 #include "context/type_context.h"
 #include "middleend/llvm/utils/operand/operand.h"
+#include "mir/utils/operand/globaloperand.h"
+#include "mir/utils/operand/labeloperand.h"
+#include "mir/utils/operand/literaloperand.h"
+#include "mir/utils/operand/regoperand.h"
 
 namespace context {
 class MIRResourceContext {
@@ -19,17 +24,17 @@ class MIRResourceContext {
   // Interfaces to create the operands
   // Since we will get operands by their high-level operand pointer,
   // so we will never get an operand by the id
-  auto GetNewRegOperand(type::Type *type) -> backend::utils::Operand *;
-  auto GetNewMemoryOperand() -> backend::utils::Operand *;
-  auto GetFrameOperand() -> backend::utils::Operand *;
+  auto GetNewRegOperand(type::Type *type) -> backend::utils::RegOperand *;
+  auto GetNewMemoryOperand() -> backend::utils::MemoryOperand *;
+  auto GetFrameOperand() -> backend::utils::FrameOperand *;
 
-  auto GetIntLiteral(int value) -> backend::utils::Operand *;
-  auto GetFloatLiteral(float value) -> backend::utils::Operand *;
-  auto GetLabelOperand(size_t id) -> backend::utils::Operand *;
-  auto GetGlobalOperand(const std::string &name) -> backend::utils::Operand *;
-  auto GetBoolLiteral(bool value) -> backend::utils::Operand *;
-  auto GetLongLiteral(std::int64_t value) -> backend::utils::Operand *;
-  auto GetCharLiteral(char value) -> backend::utils::Operand *;
+  auto GetIntLiteral(int value) -> backend::utils::IntLiteral *;
+  auto GetFloatLiteral(float value) -> backend::utils::FloatLiteral *;
+  auto GetLabelOperand(size_t id) -> backend::utils::LabelOperand *;
+  auto GetGlobalOperand(const std::string &name) -> backend::utils::GlobalOperand *;
+  auto GetBoolLiteral(bool value) -> backend::utils::BoolLiteral *;
+  auto GetLongLiteral(std::int64_t value) -> backend::utils::LongLiteral *;
+  auto GetCharLiteral(char value) -> backend::utils::CharLiteral *;
 
   // When exit a function, we need to reset the resource context,
   // which will clear all the maps.
@@ -130,7 +135,12 @@ class MIRLowerContext {
     return nullptr;
   }
 
+  auto GetInsertPoint() -> backend::utils::Block * { return insert_point_; }
+  auto SetInsertPoint(backend::utils::Block *block) -> void { insert_point_ = block; }
+
  private:
+  // insert point
+  backend::utils::Block *insert_point_;
   // Used to map the llvmir operand to mir operand
   std::unordered_map<middleend::llvm::utils::Operand *, backend::utils::Operand *> llvm_to_mir_operand_map_;
 
@@ -172,23 +182,25 @@ class MIRContext {
   auto GetPtrType(type::Type *base_type) -> type::Type * { return type_context_->GetPtrType(base_type); }
 
   // Interfaces to get some resources
-  auto GetNewRegOperand(type::Type *type) -> backend::utils::Operand * {
+  auto GetNewRegOperand(type::Type *type) -> backend::utils::RegOperand * {
     return resource_context_->GetNewRegOperand(type);
   }
 
   // Literal values
-  auto GetBoolLiteral(bool value) -> backend::utils::Operand * { return resource_context_->GetBoolLiteral(value); }
-  auto GetLongLiteral(std::int64_t value) -> backend::utils::Operand * {
+  auto GetBoolLiteral(bool value) -> backend::utils::BoolLiteral * { return resource_context_->GetBoolLiteral(value); }
+  auto GetLongLiteral(std::int64_t value) -> backend::utils::LongLiteral * {
     return resource_context_->GetLongLiteral(value);
   }
-  auto GetCharLiteral(char value) -> backend::utils::Operand * { return resource_context_->GetCharLiteral(value); }
-  auto GetIntLiteral(int value) -> backend::utils::Operand * { return resource_context_->GetIntLiteral(value); }
-  auto GetFloatLiteral(float value) -> backend::utils::Operand * { return resource_context_->GetFloatLiteral(value); }
-  auto GetLabelOperand(size_t id) -> backend::utils::Operand * { return resource_context_->GetLabelOperand(id); }
+  auto GetCharLiteral(char value) -> backend::utils::CharLiteral * { return resource_context_->GetCharLiteral(value); }
+  auto GetIntLiteral(int value) -> backend::utils::IntLiteral * { return resource_context_->GetIntLiteral(value); }
+  auto GetFloatLiteral(float value) -> backend::utils::FloatLiteral * {
+    return resource_context_->GetFloatLiteral(value);
+  }
+  auto GetLabelOperand(size_t id) -> backend::utils::LabelOperand * { return resource_context_->GetLabelOperand(id); }
 
   // Special operands
-  auto GetFrameOperand() -> backend::utils::Operand * { return resource_context_->GetFrameOperand(); }
-  auto GetGlobalOperand(const std::string &name) -> backend::utils::Operand * {
+  auto GetFrameOperand() -> backend::utils::FrameOperand * { return resource_context_->GetFrameOperand(); }
+  auto GetGlobalOperand(const std::string &name) -> backend::utils::GlobalOperand * {
     return resource_context_->GetGlobalOperand(name);
   }
 

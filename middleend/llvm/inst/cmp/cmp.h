@@ -16,6 +16,9 @@ class ICmpInst : public Instruction {
  public:
   auto Emit(std::ofstream *out) const -> void override;
   auto Verify(context::CompilerContext *context) const -> bool override;
+  auto GetPredicate() const -> CmpPredicate { return predicate_; }
+  auto GetLHS() const -> utils::Operand * { return operands_[0]; }
+  auto GetRHS() const -> utils::Operand * { return operands_[1]; }
 
  private:
   explicit ICmpInst(OpKind op_kind) : Instruction(op_kind) {}
@@ -31,6 +34,9 @@ class FCmpInst : public Instruction {
  public:
   auto Emit(std::ofstream *out) const -> void override;
   auto Verify(context::CompilerContext *context) const -> bool override;
+  auto GetPredicate() const -> CmpPredicate { return predicate_; }
+  auto GetLHS() const -> utils::Operand * { return operands_[0]; }
+  auto GetRHS() const -> utils::Operand * { return operands_[1]; }
 
  private:
   explicit FCmpInst(OpKind op_kind) : Instruction(op_kind) {}

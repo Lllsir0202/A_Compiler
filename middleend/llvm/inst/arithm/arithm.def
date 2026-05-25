@@ -7,6 +7,8 @@
     auto Emit(std::ofstream *out) const -> void override;                                                           \
     auto Verify(context::CompilerContext *context) const -> bool override;                                          \
     ~NAME##Inst() override = default;                                                                               \
+    auto GetLHS() const -> utils::Operand * { return operands_[0]; }                                                \
+    auto GetRHS() const -> utils::Operand * { return operands_[1]; }                                                \
                                                                                                                     \
    private:                                                                                                         \
     /** Only allow the factory to create the instruction */                                                         \

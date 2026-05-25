@@ -1,6 +1,7 @@
 #include "backend/mir/inst/branch/ret.h"
 #include "backend/mir/utils/operand/operand.h"
 #include "context/compiler_context.h"
+#include "mir_context.h"
 namespace backend::inst {
 auto RetInst::Verify(context::CompilerContext *context) const -> bool {
   // The ret instruction should have at most one operand, which is the return value
@@ -15,7 +16,7 @@ auto RetInst::Verify(context::CompilerContext *context) const -> bool {
   return true;
 }
 
-auto RetInst::Create([[maybe_unused]] context::CompilerContext *context, utils::Operand *ret_value) -> RetInst * {
+auto RetInst::Create([[maybe_unused]] context::MIRContext *context, utils::Operand *ret_value) -> RetInst * {
   auto *inst = new RetInst();
   if (ret_value != nullptr) {
     inst->AddOperand(ret_value);

@@ -8,6 +8,9 @@ namespace backend::inst {
 class FuncDeclareInst : public Instruction {
  public:
   auto Verify(context::CompilerContext *context) const -> bool override;
+  auto GetFuncName() const -> const std::string & { return func_name_; }
+  auto GetReturnType() const -> type::Type * { return return_type_; }
+  auto GetArgTypes() const -> const std::vector<type::Type *> & { return arg_types_; }
 
  private:
   explicit FuncDeclareInst(std::string func_name, type::Type *return_type, std::vector<type::Type *> arg_types)

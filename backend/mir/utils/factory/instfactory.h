@@ -3,7 +3,7 @@
 
 #include <utility>
 namespace context {
-class MIRContext;
+class MIRResourceContext;
 }
 namespace backend::utils::factory {
 class InstFactory {
@@ -13,7 +13,7 @@ class InstFactory {
     return inst;
   }
 
-  friend class context::MIRContext;
+  friend class context::MIRResourceContext;
 };
 }  // namespace backend::utils::factory
 

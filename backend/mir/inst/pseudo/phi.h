@@ -7,6 +7,13 @@ namespace backend::inst {
 class PhiInst : public Instruction {
  public:
   auto Verify(context::CompilerContext *context) const -> bool override;
+  auto GetIncomingBlocks() const -> const std::vector<utils::Block *> & { return incoming_blocks_; }
+  auto AddIncoming(utils::Operand *value, utils::Block *block) -> void {
+    operands_.emplace_back(value);
+    incoming_blocks_.emplace_back(block);
+  }
+  auto GetIncomingValues() const -> std::vector<utils::Operand *> { return operands_; }
+  auto GetIncomingSize() const -> size_t { return operands_.size(); }
 
  private:
   explicit PhiInst() : Instruction(OpKind::Phi) {}

@@ -53,6 +53,17 @@ class Operand {
   // Verify the optype
   auto VerifyOpKind(OpType expected_op_type) const -> bool { return op_type_ == expected_op_type; }
 
+  // Record if it is used as a parameter
+  /**
+   * @brief Interface to access the parameter and return value information
+   */
+  auto IsParameter() const -> bool { return is_parameter_; }
+  auto SetIsParameter(bool is_parameter) -> void { is_parameter_ = is_parameter; }
+  auto GetIndex() const -> size_t { return index_; }
+  auto SetIndex(size_t index) -> void { index_ = index; }
+  auto IsReturnValue() const -> bool { return is_return_value_; }
+  auto SetIsReturnValue(bool is_return_value) -> void { is_return_value_ = is_return_value; }
+
   virtual ~Operand() = default;
 
  protected:
@@ -70,6 +81,12 @@ class Operand {
   friend class factory::OperandFactory;
   // Record the instruction that defines the operand
   inst::Instruction *def_inst_ = nullptr;
+
+  // Record whether it is used as a parameter
+  bool is_parameter_ = false;
+  size_t index_ = 0;
+  // Record whether it is used as a return value
+  bool is_return_value_ = false;
 };
 }  // namespace backend::utils
 

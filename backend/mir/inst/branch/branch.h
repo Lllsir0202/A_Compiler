@@ -11,7 +11,7 @@ class BrInst : public Instruction {
 
  private:
   explicit BrInst() : Instruction(OpKind::Br) {}
-  static auto Create(context::CompilerContext *context, utils::LabelOperand *label) -> BrInst *;
+  static auto Create(context::MIRContext *context, utils::LabelOperand *label) -> BrInst *;
   friend class utils::factory::InstFactory;
 };
 
@@ -21,7 +21,7 @@ class BrCondInst : public Instruction {
 
  private:
   explicit BrCondInst() : Instruction(OpKind::CondBr) {}
-  static auto Create(context::CompilerContext *context, utils::Operand *condition, utils::LabelOperand *true_label,
+  static auto Create(context::MIRContext *context, utils::Operand *condition, utils::LabelOperand *true_label,
                      utils::LabelOperand *false_label) -> BrCondInst *;
   friend class utils::factory::InstFactory;
 };

@@ -7,6 +7,7 @@ namespace backend::inst {
 class CopyInst : public Instruction {
  public:
   auto Verify(context::CompilerContext *context) const -> bool override;
+  auto GetSrc() const -> utils::Operand * { return operands_[0]; }
 
  private:
   explicit CopyInst() : Instruction(OpKind::Copy) {}

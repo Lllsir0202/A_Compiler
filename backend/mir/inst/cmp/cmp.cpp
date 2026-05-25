@@ -54,4 +54,23 @@ auto FCmpInst::Create(context::MIRContext *context, utils::Operand *lhs, utils::
   return inst;
 }
 
+auto CmpPredicateFromLLVM(middleend::llvm::inst::CmpPredicate llvm_pred) -> CmpPredicate {
+  switch (llvm_pred) {
+    case middleend::llvm::inst::CmpPredicate::EQ:
+      return CmpPredicate::EQ;
+    case middleend::llvm::inst::CmpPredicate::NE:
+      return CmpPredicate::NE;
+    case middleend::llvm::inst::CmpPredicate::LT:
+      return CmpPredicate::LT;
+    case middleend::llvm::inst::CmpPredicate::LE:
+      return CmpPredicate::LE;
+    case middleend::llvm::inst::CmpPredicate::GT:
+      return CmpPredicate::GT;
+    case middleend::llvm::inst::CmpPredicate::GE:
+      return CmpPredicate::GE;
+    default:
+      throw std::invalid_argument("Invalid LLVM comparison predicate");
+  }
+}
+
 }  // namespace backend::inst

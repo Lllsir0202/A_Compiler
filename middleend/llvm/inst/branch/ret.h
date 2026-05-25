@@ -7,6 +7,7 @@ class RetInst : public Instruction {
  public:
   auto Emit(std::ofstream *out) const -> void override;
   auto Verify(context::CompilerContext *context) const -> bool override;
+  auto GetRetValue() const -> utils::Operand * { return operands_.empty() ? nullptr : operands_[0]; }
 
  private:
   explicit RetInst() : Instruction(OpKind::Ret) {}

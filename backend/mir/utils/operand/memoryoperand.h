@@ -25,11 +25,6 @@ class MemoryOperand : public Operand {
   auto GetMemSize() const -> MemSize { return mem_size_; }
   auto SetMemSize(MemSize mem_size) -> void { mem_size_ = mem_size; }
 
-  auto IsParameter() const -> bool { return is_parameter_; }
-  auto SetIsParameter(bool is_parameter) -> void { is_parameter_ = is_parameter; }
-  auto GetIndex() const -> size_t { return index_; }
-  auto SetIndex(size_t index) -> void { index_ = index; }
-
   // Set the addressinfo after creating
   auto GetAddressInfo() const -> const AddressInfo & { return address_info_; }
   auto SetAddressInfo(const AddressInfo &address_info) -> void { address_info_ = address_info; }
@@ -43,10 +38,6 @@ class MemoryOperand : public Operand {
   // Memory operand is used to represent the memory address
   AddressInfo address_info_;
   MemoryInfo memory_info_;
-
-  // Record whether it is used as a parameter
-  bool is_parameter_ = false;
-  size_t index_ = 0;
 
   friend class factory::OperandFactory;
   MemSize mem_size_ = MemSize::UnSet;

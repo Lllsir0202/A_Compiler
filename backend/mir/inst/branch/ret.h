@@ -9,7 +9,7 @@ class RetInst : public Instruction {
 
  private:
   explicit RetInst() : Instruction(OpKind::Ret) {}
-  static auto Create(context::CompilerContext *context, utils::Operand *ret_value) -> RetInst *;
+  static auto Create(context::MIRContext *context, utils::Operand *ret_value) -> RetInst *;
   friend class utils::factory::InstFactory;
 };
 
