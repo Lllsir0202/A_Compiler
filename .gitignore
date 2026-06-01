@@ -43,3 +43,4 @@ a.out
 valgrind_output.*
 CLAUDE.md
 frontend/FlexLexer.h
+testcase/
