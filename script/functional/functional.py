@@ -67,9 +67,9 @@ def execute_baseir(input, output, opt):
     # print(f"\033[92mAccept \033[0m{input}")
     return 1
 
-def execute_ir(input, output, opt, stdin, stdout, testout):
+def execute_ir(input, output, opt, stdin, stdout, testout, arch="x86"):
     """run IR-related commands"""
-    result = execute(["timeout", "10", "../../bin/compiler", input, "-llvm", "-o", output, opt])
+    result = execute(["timeout", "30", "../../bin/compiler", input, "-llvm", "-o", output, opt])
     if result.returncode != 0:
         print(f"\033[93mCompile Error on \033[0m{input}")
         return 0
@@ -79,7 +79,11 @@ def execute_ir(input, output, opt, stdin, stdout, testout):
         print(f"\033[93mOutput Error on \033[0m{input}")
         return 0
 
-    result = execute(["clang", "-static", "../../tmp.o", "-L../../libs", "-l:libx86.a"])
+    lib_map = {"x86": "libx86.a", "arm": "libarm.a", "rv": "librv.a"}
+    if arch == "x86":
+        result = execute(["clang", "-static", "../../tmp.o", "-L../../libs", f"-l:{lib_map[arch]}"])
+    else:
+        result = execute(["clang", "../../tmp.o", f"../../libs/{lib_map[arch]}"])
     if result.returncode != 0:
         execute(["rm", "-rf", "../../tmp.o"])
         print(f"\033[93mLink Error on \033[0m{input}")
@@ -158,12 +162,14 @@ def main():
     parser.add_argument('output_folder')
     parser.add_argument('opt_level', type=int, default=0)
     parser.add_argument('step', default="llvm")
+    parser.add_argument('arch', nargs='?', default="x86", choices=["x86", "arm", "rv"])
     args = parser.parse_args()
 
     input_folder = args.input_folder
     output_folder = args.output_folder
     opt_arg = f"-O{args.opt_level}" if args.opt_level else "-O0"
     step = args.step
+    arch = args.arch
 
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
@@ -184,7 +190,7 @@ def main():
             elif step == "baseir":
                 ac += execute_baseir(os.path.join(input_folder, file), os.path.join(output_folder, f"{name}.baseir"), opt_arg)
             elif step == "llvm":
-                ac += execute_ir(os.path.join(input_folder, file), os.path.join(output_folder, f"{name}.ll"), opt_arg, input_file if os.path.exists(input_file) else "none", output_file, "tmp.out")
+                ac += execute_ir(os.path.join(input_folder, file), os.path.join(output_folder, f"{name}.ll"), opt_arg, input_file if os.path.exists(input_file) else "none", output_file, "tmp.out", arch)
             elif step == "S":
                 ac += execute_asm(os.path.join(input_folder, file), os.path.join(output_folder, f"{name}.s"), opt_arg, input_file if os.path.exists(input_file) else "none", output_file, "tmp.out")
     

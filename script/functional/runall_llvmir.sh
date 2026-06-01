@@ -1,6 +1,7 @@
-python functional.py ../../testcases/functional ../../testoutputs/functional 0 llvm
-python functional.py ../../testcases/h_functional ../../testoutputs/h_functional 0 llvm
-python functional.py ../../testcases/riscv_performance ../../testoutputs/riscv_performance 0 llvm
-python functional.py ../../testcases/riscv_finalperformance ../../testoutputs/riscv_finalperformance 0 llvm
-python functional.py ../../testcases/arm_performance ../../testoutputs/arm_performance 0 llvm
-python functional.py ../../testcases/arm_finalperformance ../../testoutputs/arm_finalperformance 0 llvm
+ARCH=${1:-x86}
+python functional.py ../../testcases/functional ../../testoutputs/functional 0 llvm $ARCH
+python functional.py ../../testcases/h_functional ../../testoutputs/h_functional 0 llvm $ARCH
+python functional.py ../../testcases/riscv_performance ../../testoutputs/riscv_performance 0 llvm $ARCH
+python functional.py ../../testcases/riscv_finalperformance ../../testoutputs/riscv_finalperformance 0 llvm $ARCH
+python functional.py ../../testcases/arm_performance ../../testoutputs/arm_performance 0 llvm $ARCH
+python functional.py ../../testcases/arm_finalperformance ../../testoutputs/arm_finalperformance 0 llvm $ARCH
