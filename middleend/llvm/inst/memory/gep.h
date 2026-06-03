@@ -6,6 +6,14 @@ namespace middleend::llvm::inst {
 class GetElementPtrInst : public Instruction {
  public:
   // Interfaces to get gep information
+  auto GetBasePtr() const -> utils::Operand * { return operands_[0]; }
+  auto GetIndices() const -> std::vector<utils::Operand *> {
+    std::vector<utils::Operand *> indices;
+    for (size_t i = 1; i < operands_.size(); ++i) {
+      indices.emplace_back(operands_[i]);
+    }
+    return indices;
+  }
 
   // Override the Emit and Verify functions
   auto Emit(std::ofstream *out) const -> void override;

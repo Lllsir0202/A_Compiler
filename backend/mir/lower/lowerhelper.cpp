@@ -5,12 +5,18 @@
 #include "backend/mir/inst/cast/cast.h"
 #include "backend/mir/inst/cmp/cmp.h"
 #include "backend/mir/inst/func/call.h"
+#include "backend/mir/inst/memory/load.h"
+#include "backend/mir/inst/memory/store.h"
 #include "backend/mir/utils/operand/operand.h"
 #include "backend/mir/utils/struct/block.h"
 #include "backend/mir/utils/struct/function.h"
+#include "llvm/inst/opkind.h"
 #include "middleend/llvm/inst/arithm/arithm.h"
 #include "middleend/llvm/inst/inst.h"
 #include "middleend/llvm/utils/struct/block.h"
+#include "mir/utils/memory/addressinfo.h"
+#include "mir/utils/memory/memoryinfo.h"
+#include "type/type.h"
 
 #define GET_MIR_CONTEXT() compiler_context_->GetMIRContext()
 #define GET_RESOURCE_CONTEXT() compiler_context_->GetMIRContext()->GetResourceContext()
@@ -359,13 +365,124 @@ auto LowerHelper::LowerPhiInst(middleend::llvm::inst::PhiInst *phi_inst) -> void
 auto LowerHelper::LowerAllocaInst(middleend::llvm::inst::AllocaInst *alloca_inst) -> void {
   // Change alloca to frame operand
   auto frameoperand = GET_MIR_CONTEXT()->GetFrameOperand();
-  
+  auto current_function = GET_LOWER_CONTEXT()->GetCurrentFunction();
+
+  // Should calculate the size and align of the allocated type
+  auto allocated_type = alloca_inst->GetAllocatedType();
+  auto result_type = alloca_inst->GetResult()->GetType();
+  if (result_type->GetKind() == type::TypeKind::PTR) {
+    result_type = static_cast<type::PtrType *>(result_type)->GetBaseType();
+  }
+  auto size = result_type->GetDataSize();
+  // Then create size and align
+  auto align = allocated_type->GetAlign();
+  auto frame_info = current_function->AddFrameInfo(size, align);
+  GET_LOWER_CONTEXT()->MapFrameOperandToFrameInfo(frameoperand, frame_info);
+  GET_LOWER_CONTEXT()->MapLLVMOperandToMIROperand(alloca_inst->GetResult(), frameoperand);
 }
 
-auto LowerHelper::LowerLoadInst(middleend::llvm::inst::LoadInst *load_inst) -> void {}
+auto LowerHelper::LowerLoadInst(middleend::llvm::inst::LoadInst *load_inst) -> void {
+  auto ptr_operand = load_inst->GetPtr();
+  auto result = load_inst->GetResult();
+  auto mir_ptr_operand = GET_LOWER_CONTEXT()->GetMIROperandFromLLVMOperand(ptr_operand);
 
-auto LowerHelper::LowerStoreInst(middleend::llvm::inst::StoreInst *store_inst) -> void {}
+  // Create a new MIR instruction for the load operation, and add it to the current basic block
+  auto mir_inst = GET_RESOURCE_CONTEXT()->CreateInstruction<inst::LoadInst>(GET_MIR_CONTEXT(), mir_ptr_operand);
+  auto mir_result = mir_inst->GetResult();
+  GET_LOWER_CONTEXT()->MapLLVMOperandToMIROperand(result, mir_result);
+  if (mir_ptr_operand->GetDefInst() != nullptr) {
+    mir_ptr_operand->GetDefInst()->AddUser(mir_inst);
+  }
+  mir_result->SetType(result->GetType());
+  GET_LOWER_CONTEXT()->GetInsertPoint()->AddInstBack(mir_inst);
+  mir_inst->SetParentBlock(GET_LOWER_CONTEXT()->GetInsertPoint());
+}
 
-auto LowerHelper::LowerGetElementPtrInst(middleend::llvm::inst::GetElementPtrInst *gep_inst) -> void {}
+auto LowerHelper::LowerStoreInst(middleend::llvm::inst::StoreInst *store_inst) -> void {
+  auto value_operand = store_inst->GetValue();
+  auto ptr_operand = store_inst->GetPtr();
+  auto mir_value_operand = GET_LOWER_CONTEXT()->GetMIROperandFromLLVMOperand(value_operand);
+  auto mir_ptr_operand = GET_LOWER_CONTEXT()->GetMIROperandFromLLVMOperand(ptr_operand);
+
+  // Create a new MIR instruction for the store operation, and add it to the current basic block
+  auto mir_inst =
+      GET_RESOURCE_CONTEXT()->CreateInstruction<inst::StoreInst>(GET_MIR_CONTEXT(), mir_value_operand, mir_ptr_operand);
+  if (mir_value_operand->GetDefInst() != nullptr) {
+    mir_value_operand->GetDefInst()->AddUser(mir_inst);
+  }
+  if (mir_ptr_operand->GetDefInst() != nullptr) {
+    mir_ptr_operand->GetDefInst()->AddUser(mir_inst);
+  }
+  GET_LOWER_CONTEXT()->MapLLVMOperandToMIROperand(store_inst->GetValue(), mir_value_operand);
+  GET_LOWER_CONTEXT()->MapLLVMOperandToMIROperand(store_inst->GetPtr(), mir_ptr_operand);
+  GET_LOWER_CONTEXT()->GetInsertPoint()->AddInstBack(mir_inst);
+  mir_inst->SetParentBlock(GET_LOWER_CONTEXT()->GetInsertPoint());
+}
+
+auto LowerHelper::LowerGetElementPtrInst(middleend::llvm::inst::GetElementPtrInst *gep_inst) -> void {
+  // Set the result as a memory operand
+  auto indices = gep_inst->GetIndices();
+  std::vector<utils::Operand *> mir_indices;
+
+  // Set mir indices
+  for (auto index : indices) {
+    auto mir_index = GET_LOWER_CONTEXT()->GetMIROperandFromLLVMOperand(index);
+    mir_indices.emplace_back(mir_index);
+  }
+
+  auto base_ptr = gep_inst->GetBasePtr();
+  // Then get the array dimensions
+  std::vector<int> dimensions;
+  if (base_ptr->GetInstruction() != nullptr) {
+    auto def_inst = base_ptr->GetInstruction();
+    if (def_inst->VerifyOpKind(middleend::llvm::inst::OpKind::Alloca)) {
+      // It is a local variable and it is an array
+      auto alloca_inst = static_cast<middleend::llvm::inst::AllocaInst *>(def_inst);
+      // Then get the dimensions
+      auto dimensions = alloca_inst->GetDimensions();
+      auto allocated_type = alloca_inst->GetAllocatedType();
+      // allocated type is the element type of the array
+    }
+  } else {
+    // It is from a function parameter
+    auto base_type = base_ptr->GetType();
+    if (base_type->GetKind() == type::TypeKind::PTR) {
+      base_type = static_cast<type::PtrType *>(base_type)->GetBaseType();
+    }
+    // The first dimension can not be determined, but it seems does not matter for calculation.
+    dimensions.emplace_back(-1);
+    while (base_type->GetKind() == type::TypeKind::ARRAY) {
+      auto array_type = static_cast<type::ArrayType *>(base_type);
+      dimensions.emplace_back(array_type->GetSize());
+      base_type = array_type->GetElementType();
+    }
+  }
+
+  // Create memory operand
+  auto memory_operand = GET_RESOURCE_CONTEXT()->GetNewMemoryOperand();
+  // Set information
+  // Start with the address info
+  auto address_info = utils::AddressInfo();
+  auto mir_base_ptr = GET_LOWER_CONTEXT()->GetMIROperandFromLLVMOperand(base_ptr);
+
+  address_info.base_ptr_ = mir_base_ptr;
+  address_info.dimensions_ = dimensions;
+  address_info.indices_ = mir_indices;
+  memory_operand->SetAddressInfo(address_info);
+
+  // Then set the memory info
+  auto memory_info = utils::MemoryInfo();
+  // It will be used to provide the information for the memory access,
+  // for instance, get a pointer, the memory info will be size of pointer, and the align of pointer.
+  auto size = gep_inst->GetResult()->GetType()->GetDataSize();
+  auto align = gep_inst->GetResult()->GetType()->GetAlign();
+  memory_info.size_ = size;
+  memory_info.align_ = align;
+  memory_operand->SetMemoryInfo(memory_info);
+
+  // Map the result operand to the memory operand
+  auto result = gep_inst->GetResult();
+  GET_LOWER_CONTEXT()->MapLLVMOperandToMIROperand(result, memory_operand);
+}
 
 }  // namespace backend::lower

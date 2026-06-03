@@ -64,11 +64,6 @@ class MIRResourceContext {
     return inst;
   }
 
-  // Create a new frame info
-  // auto CreateFrameInfo() -> backend::utils::FrameInfo * {
-  //   return backend::utils::factory::FunctionFactory::CreateFrameInfo(f);
-  // }
-
   // Create function
   auto CreateFunction(const std::string &name, type::Type *return_type) -> backend::utils::Function *;
 

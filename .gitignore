@@ -8,6 +8,7 @@ objs/
 frontend/lexer/*.h
 !frontend/lexer/lexer.h
 !frontend/lexer/*_impl.h
+!frontend/lexer/FlexLexer.h
 frontend/parser/*.h
 !frontend/parser/parser.h
 !frontend/parser/parser_utils.h
@@ -41,7 +42,3 @@ a.out
 
 # Ignore valgrind output files
 valgrind_output.*
-CLAUDE.md
-frontend/FlexLexer.h
-testcase/
-test_output/

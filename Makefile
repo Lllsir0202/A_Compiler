@@ -19,7 +19,7 @@ DEPS := $(OBJS:.o=.d)
 INCLUDE := $(shell find $(DIR) -name '*.h')
 CHECK_DIR := $(DIR)
 CHECK_SRC := $(shell find $(CHECK_DIR) -name '*.cpp' -not -name '$(LEXER_FILE).cpp' -not -name '$(PARSER_FILE).cpp')
-CHECK_HEADER := $(shell find $(CHECK_DIR) -name '*.h' -not -name '$(LEXER_FILE).h' -not -name '$(PARSER_FILE).h')
+CHECK_HEADER := $(shell find $(CHECK_DIR) -name '*.h' -not -name '$(LEXER_FILE).h' -not -name '$(PARSER_FILE).h' -not -name 'FlexLexer.h')
 
 
 # Compile libs

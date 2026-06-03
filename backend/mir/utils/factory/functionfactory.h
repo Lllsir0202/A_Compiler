@@ -12,9 +12,11 @@ class FunctionFactory {
     return new Function(name, return_type);
   }
 
+  // Allow creating a frame info in a function
   static auto CreateFrameInfo(size_t frame_id) -> FrameInfo * { return new FrameInfo(frame_id); }
 
   friend class context::MIRResourceContext;
+  friend class backend::utils::Function;
 };
 }  // namespace backend::utils::factory
 

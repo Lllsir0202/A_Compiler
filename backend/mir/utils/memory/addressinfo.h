@@ -18,6 +18,9 @@ class AddressInfo {
   // offset(might be nullptr if the offset is not decided yet)
   Operand *offset_;
 
+  // dimensions
+  std::vector<int> dimensions_;
+
   // a list of index
   std::vector<Operand *> indices_;
 };

@@ -3,7 +3,7 @@
 
 #include <cstdint>
 namespace backend::inst {
-enum class OpKind : uint16_t {
+enum class OpKind : uint8_t {
   // Arithemic operations
   // Integer
   Add,
