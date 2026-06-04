@@ -28,4 +28,23 @@ auto PhiInst::Create(context::MIRContext *context, type::Type *result_type) -> P
   return inst;
 }
 
+auto PhiInst::Emit(std::ofstream *out) const -> void {
+  *out << "  ";
+  result_->Emit(out);
+  *out << " = phi " << result_->GetType()->ToString() << " ";
+  for (size_t i = 0; i < operands_.size(); ++i) {
+    auto operand = operands_[i];
+    auto block = incoming_blocks_[i];
+    *out << "[ ";
+    operand->Emit(out);
+    *out << ", ";
+    block->Emit(out);
+    *out << " ]";
+    if (i != operands_.size() - 1) {
+      *out << ", ";
+    }
+  }
+  *out << "\n";
+}
+
 }  // namespace backend::inst

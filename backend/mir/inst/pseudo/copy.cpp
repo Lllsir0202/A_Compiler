@@ -24,4 +24,12 @@ auto CopyInst::Create(context::MIRContext *context, utils::Operand *src) -> Copy
   return inst;
 }
 
+auto CopyInst::Emit(std::ofstream *out) const -> void {
+  *out << "  ";
+  result_->Emit(out);
+  *out << " = copy ";
+  operands_[0]->Emit(out);
+  *out << "\n";
+}
+
 }  // namespace backend::inst

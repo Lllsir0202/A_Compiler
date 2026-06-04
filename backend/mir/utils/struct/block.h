@@ -13,7 +13,7 @@ namespace backend::utils {
 // This class represents the block in the mir
 class Block {
  public:
- auto Emit(std::ofstream *out) const -> void;
+  auto Emit(std::ofstream *out) const -> void;
   ~Block();
   // Interface to access the block information
   auto GetInstructions() const -> const std::deque<inst::Instruction *> & { return instructions_; }
