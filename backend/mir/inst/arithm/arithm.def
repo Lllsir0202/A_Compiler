@@ -1,10 +1,11 @@
 /**
  * @brief Defines an arithmetic instruction with the given name and operation kind.
  */
-#define DEFINE_ARITHM_MIR_INST(NAME, OPKIND)                                                                         \
+#define DEFINE_ARITHM_MIR_INST(NAME, OPKIND)                                                                     \
   class NAME##Inst : public Instruction {                                                                        \
    public:                                                                                                       \
     auto Verify(context::CompilerContext *context) const -> bool override;                                       \
+    auto Emit(std::ofstream *out) const -> void override;                                                        \
     ~NAME##Inst() override = default;                                                                            \
     auto GetLHS() const -> utils::Operand * { return operands_[0]; }                                             \
     auto GetRHS() const -> utils::Operand * { return operands_[1]; }                                             \

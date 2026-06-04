@@ -1,6 +1,7 @@
 #ifndef BACKEND_MIR_INST_ARITHM_ARITHM_H
 #define BACKEND_MIR_INST_ARITHM_ARITHM_H
 
+#include <fstream>
 #include "backend/mir/inst/inst.h"
 #include "mir/utils/operand/operand.h"
 namespace backend::inst {

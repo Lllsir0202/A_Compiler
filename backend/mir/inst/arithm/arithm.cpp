@@ -45,6 +45,16 @@ auto AddInst::Create(context::MIRContext *context, utils::Operand *operand1, uti
   return inst;
 }
 
+auto AddInst::Emit(std::ofstream *out) const -> void {
+  *out << "  ";
+  result_->Emit(out);
+  *out << " = add ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << "\n";
+}
+
 auto SubInst::Verify(context::CompilerContext *context) const -> bool {
   // Verify the result operand is a register operand
   if (result_ == nullptr || !result_->IsRegister()) {
@@ -83,6 +93,16 @@ auto SubInst::Create(context::MIRContext *context, utils::Operand *operand1, uti
   inst->SetResult(res);
   res->SetDefInst(inst);
   return inst;
+}
+
+auto SubInst::Emit(std::ofstream *out) const -> void {
+  *out << "  ";
+  result_->Emit(out);
+  *out << " = sub ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << "\n";
 }
 
 auto MulInst::Verify(context::CompilerContext *context) const -> bool {
@@ -125,6 +145,16 @@ auto MulInst::Create(context::MIRContext *context, utils::Operand *operand1, uti
   return inst;
 }
 
+auto MulInst::Emit(std::ofstream *out) const -> void {
+  *out << "  ";
+  result_->Emit(out);
+  *out << " = mul ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << "\n";
+}
+
 auto DivInst::Verify(context::CompilerContext *context) const -> bool {
   // Verify the result operand is a register operand
   if (result_ == nullptr || !result_->IsRegister()) {
@@ -163,6 +193,16 @@ auto DivInst::Create(context::MIRContext *context, utils::Operand *operand1, uti
   inst->SetResult(res);
   res->SetDefInst(inst);
   return inst;
+}
+
+auto DivInst::Emit(std::ofstream *out) const -> void {
+  *out << "  ";
+  result_->Emit(out);
+  *out << " = div ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << "\n";
 }
 
 auto ModInst::Verify(context::CompilerContext *context) const -> bool {
@@ -205,6 +245,16 @@ auto ModInst::Create(context::MIRContext *context, utils::Operand *operand1, uti
   return inst;
 }
 
+auto ModInst::Emit(std::ofstream *out) const -> void {
+  *out << "  ";
+  result_->Emit(out);
+  *out << " = mod ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << "\n";
+}
+
 auto AddFInst::Verify(context::CompilerContext *context) const -> bool {
   // Verify the result operand is a register operand
   if (result_ == nullptr || !result_->IsRegister()) {
@@ -243,6 +293,16 @@ auto AddFInst::Create(context::MIRContext *context, utils::Operand *operand1, ut
   inst->SetResult(res);
   res->SetDefInst(inst);
   return inst;
+}
+
+auto AddFInst::Emit(std::ofstream *out) const -> void {
+  *out << "  ";
+  result_->Emit(out);
+  *out << " = fadd ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << "\n";
 }
 
 auto SubFInst::Verify(context::CompilerContext *context) const -> bool {
@@ -285,6 +345,16 @@ auto SubFInst::Create(context::MIRContext *context, utils::Operand *operand1, ut
   return inst;
 }
 
+auto SubFInst::Emit(std::ofstream *out) const -> void {
+  *out << "  ";
+  result_->Emit(out);
+  *out << " = fsub ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << "\n";
+}
+
 auto MulFInst::Verify(context::CompilerContext *context) const -> bool {
   // Verify the result operand is a register operand
   if (result_ == nullptr || !result_->IsRegister()) {
@@ -325,6 +395,16 @@ auto MulFInst::Create(context::MIRContext *context, utils::Operand *operand1, ut
   return inst;
 }
 
+auto MulFInst::Emit(std::ofstream *out) const -> void {
+  *out << "  ";
+  result_->Emit(out);
+  *out << " = fmul ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << "\n";
+}
+
 auto DivFInst::Verify(context::CompilerContext *context) const -> bool {
   // Verify the result operand is a register operand
   if (result_ == nullptr || !result_->IsRegister()) {
@@ -363,6 +443,16 @@ auto DivFInst::Create(context::MIRContext *context, utils::Operand *operand1, ut
   inst->SetResult(res);
   res->SetDefInst(inst);
   return inst;
+}
+
+auto DivFInst::Emit(std::ofstream *out) const -> void {
+  *out << "  ";
+  result_->Emit(out);
+  *out << " = fdiv ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << "\n";
 }
 
 }  // namespace backend::inst
