@@ -7,17 +7,18 @@
 #include "backend/mir/inst/func/call.h"
 #include "backend/mir/inst/memory/load.h"
 #include "backend/mir/inst/memory/store.h"
+#include "backend/mir/inst/pseudo/copy.h"
+#include "backend/mir/utils/memory/addressinfo.h"
+#include "backend/mir/utils/memory/memoryinfo.h"
 #include "backend/mir/utils/operand/operand.h"
 #include "backend/mir/utils/struct/block.h"
 #include "backend/mir/utils/struct/function.h"
-#include "llvm/inst/cmp/cmp.h"
-#include "llvm/inst/memory/globaldef.h"
-#include "llvm/inst/opkind.h"
 #include "middleend/llvm/inst/arithm/arithm.h"
+#include "middleend/llvm/inst/cmp/cmp.h"
 #include "middleend/llvm/inst/inst.h"
+#include "middleend/llvm/inst/memory/globaldef.h"
+#include "middleend/llvm/inst/opkind.h"
 #include "middleend/llvm/utils/struct/block.h"
-#include "mir/utils/memory/addressinfo.h"
-#include "mir/utils/memory/memoryinfo.h"
 #include "type/type.h"
 
 #define GET_MIR_CONTEXT() compiler_context_->GetMIRContext()
@@ -106,12 +107,23 @@ auto LowerHelper::LowerFunction(middleend::llvm::utils::Function *function) -> v
       auto incoming_values = phi_llvm->GetIncomingValues();
       auto incoming_blocks = phi_llvm->GetIncomingBlocks();
       for (size_t i = 0; i < phi_llvm->GetIncomingSize(); ++i) {
+        // auto incoming_value = incoming_values[i];
+        // auto incoming_block = incoming_blocks[i];
+        // auto mir_incoming_value = GET_LOWER_CONTEXT()->GetMIROperandFromLLVMOperand(incoming_value);
+        // auto mir_incoming_block = GET_RESOURCE_CONTEXT()->GetLabelOperand(incoming_block->GetID());
+        // phi_mir->AddIncoming(mir_incoming_value, mir_incoming_block);
+        auto block = GET_LOWER_CONTEXT()->GetCurrentFunction()->GetBlocks()[incoming_blocks[i]->GetID()];
+        // copy the incoming value to original phi instruction's result register,
+        // and then add the instruction to the end of the incoming block
         auto incoming_value = incoming_values[i];
-        auto incoming_block = incoming_blocks[i];
         auto mir_incoming_value = GET_LOWER_CONTEXT()->GetMIROperandFromLLVMOperand(incoming_value);
-        auto mir_incoming_block = GET_RESOURCE_CONTEXT()->GetLabelOperand(incoming_block->GetID());
-        phi_mir->AddIncoming(mir_incoming_value, mir_incoming_block);
+        auto copy_inst =
+            GET_RESOURCE_CONTEXT()->CreateInstruction<inst::CopyInst>(phi_mir->GetResult(), mir_incoming_value);
+        block->AddInstBeforeTerminal(copy_inst);
       }
+
+      // Erase Phi instruction after we finish handling all incoming edges
+      phi_mir->GetParentBlock()->RemoveInst(phi_mir);
     }
 
   } catch (std::exception &e) {

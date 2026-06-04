@@ -20,6 +20,12 @@ class Block {
   auto SetInstructions(const std::deque<inst::Instruction *> &instructions) -> void { instructions_ = instructions; }
   auto AddInstFront(inst::Instruction *inst) -> void { instructions_.push_front(inst); }
   auto AddInstBack(inst::Instruction *inst) -> void { instructions_.push_back(inst); }
+  auto AddInstBeforeTerminal(inst::Instruction *inst) -> void;
+  auto RemoveInst(inst::Instruction *inst) -> void;
+
+  // For phi instruction elimination.
+  // It is a little bit easier, since phi will always be in the front of a block.
+  auto RemovePhiInst() -> void;
 
   auto GetId() const -> size_t { return id_; }
 

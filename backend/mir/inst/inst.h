@@ -44,6 +44,10 @@ class Instruction {
 
   auto GetParentBlock() const -> utils::Block * { return parent_block_; }
   auto SetParentBlock(utils::Block *block) -> void { parent_block_ = block; }
+  virtual auto IsTerminal() const -> bool { return false; }
+  virtual auto IsBranch() const -> bool { return false; }
+  virtual auto IsCall() const -> bool { return false; }
+  virtual auto IsPhi() const -> bool { return false; }
 
   virtual auto Verify(context::CompilerContext *context) const -> bool = 0;
 

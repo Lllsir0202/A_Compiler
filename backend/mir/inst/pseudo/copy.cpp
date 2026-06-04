@@ -1,5 +1,6 @@
 #include "backend/mir/inst/pseudo/copy.h"
 #include "context/compiler_context.h"
+#include "mir/utils/operand/operand.h"
 
 namespace backend::inst {
 auto CopyInst::Verify(context::CompilerContext *context) const -> bool {
@@ -15,10 +16,9 @@ auto CopyInst::Verify(context::CompilerContext *context) const -> bool {
   return true;
 }
 
-auto CopyInst::Create(context::MIRContext *context, utils::Operand *src) -> CopyInst * {
+auto CopyInst::Create(utils::Operand *res, utils::Operand *src) -> CopyInst * {
   auto *inst = new CopyInst();
   inst->AddOperand(src);
-  auto res = context->GetNewRegOperand(src->GetType());
   inst->SetResult(res);
   res->SetDefInst(inst);
   return inst;

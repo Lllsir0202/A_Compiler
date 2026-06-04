@@ -13,7 +13,7 @@ class CopyInst : public Instruction {
 
  private:
   explicit CopyInst() : Instruction(OpKind::Copy) {}
-  static auto Create(context::MIRContext *context, utils::Operand *src) -> CopyInst *;
+  static auto Create(utils::Operand *res, utils::Operand *src) -> CopyInst *;
   friend class utils::factory::InstFactory;
 };
 

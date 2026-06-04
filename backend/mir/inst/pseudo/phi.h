@@ -9,6 +9,7 @@ class PhiInst : public Instruction {
  public:
   auto Verify(context::CompilerContext *context) const -> bool override;
   auto Emit(std::ofstream *out) const -> void override;
+  auto IsPhi() const -> bool override { return true; }
 
   auto GetIncomingBlocks() const -> const std::vector<utils::LabelOperand *> & { return incoming_blocks_; }
   auto AddIncoming(utils::Operand *value, utils::LabelOperand *block) -> void {

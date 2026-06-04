@@ -9,6 +9,8 @@ class BrInst : public Instruction {
  public:
   auto Verify(context::CompilerContext *context) const -> bool override;
   auto Emit(std::ofstream *out) const -> void override;
+  auto IsBranch() const -> bool override { return true; }
+  auto IsTerminal() const -> bool override { return true; }
 
  private:
   explicit BrInst() : Instruction(OpKind::Br) {}
@@ -20,6 +22,8 @@ class BrCondInst : public Instruction {
  public:
   auto Verify(context::CompilerContext *context) const -> bool override;
   auto Emit(std::ofstream *out) const -> void override;
+  auto IsBranch() const -> bool override { return true; }
+  auto IsTerminal() const -> bool override { return true; }
 
  private:
   explicit BrCondInst() : Instruction(OpKind::CondBr) {}

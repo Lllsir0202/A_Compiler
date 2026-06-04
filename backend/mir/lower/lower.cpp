@@ -128,6 +128,8 @@ auto MIRLower::Lower() -> int {
     // Then lower the function bodies
     for (const auto &function : llvm_module->GetFunctions()) {
       lower_helper_->LowerFunction(function);
+
+      // After lowering, we need to eliminate phi instructions
     }
 
   } catch (std::exception &e) {

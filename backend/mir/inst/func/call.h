@@ -12,6 +12,7 @@ class CallInst : public Instruction {
   auto GetCallee() const -> const std::string & { return callee_; }
   auto GetReturnType() const -> type::Type * { return return_type_; }
   auto Emit(std::ofstream *out) const -> void override;
+  auto IsCall() const -> bool override { return true; }
 
  private:
   explicit CallInst(std::string callee, type::Type *return_type)
