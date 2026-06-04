@@ -24,4 +24,13 @@ auto RetInst::Create([[maybe_unused]] context::MIRContext *context, utils::Opera
   return inst;
 }
 
+auto RetInst::Emit(std::ofstream *out) const -> void {
+  *out << "  return";
+  if (!operands_.empty()) {
+    *out << " ";
+    operands_[0]->Emit(out);
+  }
+  *out << "\n";
+}
+
 }  // namespace backend::inst

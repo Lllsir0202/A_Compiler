@@ -8,6 +8,7 @@ namespace backend::inst {
 class BrInst : public Instruction {
  public:
   auto Verify(context::CompilerContext *context) const -> bool override;
+  auto Emit(std::ofstream *out) const -> void override;
 
  private:
   explicit BrInst() : Instruction(OpKind::Br) {}
@@ -18,6 +19,7 @@ class BrInst : public Instruction {
 class BrCondInst : public Instruction {
  public:
   auto Verify(context::CompilerContext *context) const -> bool override;
+  auto Emit(std::ofstream *out) const -> void override;
 
  private:
   explicit BrCondInst() : Instruction(OpKind::CondBr) {}

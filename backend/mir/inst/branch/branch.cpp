@@ -22,6 +22,12 @@ auto BrInst::Create([[maybe_unused]] context::MIRContext *context, utils::LabelO
   return inst;
 }
 
+auto BrInst::Emit(std::ofstream *out) const -> void {
+  *out << "  ";
+  operands_[0]->Emit(out);
+  *out << "\n";
+}
+
 auto BrCondInst::Verify(context::CompilerContext *context) const -> bool {
   // The condbr instruction should have exactly three operands, which are the condition, the true label and the false
   // label
@@ -51,6 +57,16 @@ auto BrCondInst::Create([[maybe_unused]] context::MIRContext *context, utils::Op
   inst->AddOperand(true_label);
   inst->AddOperand(false_label);
   return inst;
+}
+
+auto BrCondInst::Emit(std::ofstream *out) const -> void {
+  *out << "  if ";
+  operands_[0]->Emit(out);
+  *out << " goto ";
+  operands_[1]->Emit(out);
+  *out << " else goto ";
+  operands_[2]->Emit(out);
+  *out << "\n";
 }
 
 }  // namespace backend::inst
