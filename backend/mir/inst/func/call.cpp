@@ -29,4 +29,17 @@ auto CallInst::Create(context::MIRContext *context, const std::string &callee, t
   return inst;
 }
 
+auto CallInst::Emit(std::ofstream *out) const -> void {
+  *out << "  ";
+  result_->Emit(out);
+  *out << " = call " << callee_ << "(";
+  for (size_t i = 0; i < operands_.size(); ++i) {
+    auto operand = operands_[i];
+    operand->Emit(out);
+    if (i != operands_.size() - 1) {
+      *out << ", ";
+    }
+  }
+  *out << ")";
+}
 }  // namespace backend::inst

@@ -11,6 +11,7 @@ class FuncDeclareInst : public Instruction {
   auto GetFuncName() const -> const std::string & { return func_name_; }
   auto GetReturnType() const -> type::Type * { return return_type_; }
   auto GetArgTypes() const -> const std::vector<type::Type *> & { return arg_types_; }
+  auto Emit(std::ofstream *out) const -> void override;
 
  private:
   explicit FuncDeclareInst(std::string func_name, type::Type *return_type, std::vector<type::Type *> arg_types)

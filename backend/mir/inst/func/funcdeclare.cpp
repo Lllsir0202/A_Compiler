@@ -22,4 +22,15 @@ auto FuncDeclareInst::Create([[maybe_unused]] context::MIRContext *context, cons
   return new FuncDeclareInst(func_name, return_type, std::move(arg_types));
 }
 
+auto FuncDeclareInst::Emit(std::ofstream *out) const -> void {
+  *out << "declare " << return_type_->ToString() << " @" << func_name_ << "(";
+  for (size_t i = 0; i < arg_types_.size(); ++i) {
+    *out << arg_types_[i]->ToString();
+    if (i != arg_types_.size() - 1) {
+      *out << ", ";
+    }
+  }
+  *out << ")\n";
+}
+
 }  // namespace backend::inst

@@ -11,6 +11,7 @@ class CallInst : public Instruction {
   auto Verify(context::CompilerContext *context) const -> bool override;
   auto GetCallee() const -> const std::string & { return callee_; }
   auto GetReturnType() const -> type::Type * { return return_type_; }
+  auto Emit(std::ofstream *out) const -> void override;
 
  private:
   explicit CallInst(std::string callee, type::Type *return_type)

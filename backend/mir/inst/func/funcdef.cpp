@@ -22,4 +22,13 @@ auto FuncDefInst::Create([[maybe_unused]] context::MIRContext *context, const st
   return inst;
 }
 
+auto FuncDefInst::Emit(std::ofstream *out) const -> void {
+  *out << "funcdef " << func_name_ << " : " << return_type_->ToString() << "(";
+  for (size_t i = 0; i < operands_.size(); ++i) {
+    auto operand = operands_[i];
+    *out << "  param" << i << ": " << operand->GetType()->ToString() << "  ";
+  }
+  *out << ")\n";
+}
+
 }  // namespace backend::inst
