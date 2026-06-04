@@ -7,6 +7,10 @@ namespace backend::utils {
 // so we can just record the value and deal with them separately in the lowering phase.
 class IntLiteral : public Operand {
  public:
+  auto Emit(std::ofstream *out) const -> void override {
+    // The int literal will be emitted as the literal value
+    *out << value_;
+  }
   auto GetValue() const -> int { return value_; }
 
  private:
@@ -17,6 +21,10 @@ class IntLiteral : public Operand {
 
 class FloatLiteral : public Operand {
  public:
+  auto Emit(std::ofstream *out) const -> void override {
+    // The float literal will be emitted as the literal value
+    *out << value_;
+  }
   auto GetValue() const -> float { return value_; }
 
  private:
@@ -27,6 +35,10 @@ class FloatLiteral : public Operand {
 
 class BoolLiteral : public Operand {
  public:
+  auto Emit(std::ofstream *out) const -> void override {
+    // The bool literal will be emitted as the literal value
+    *out << (value_ ? "true" : "false");
+  }
   auto GetValue() const -> bool { return value_; }
 
  private:
@@ -37,6 +49,10 @@ class BoolLiteral : public Operand {
 
 class LongLiteral : public Operand {
  public:
+  auto Emit(std::ofstream *out) const -> void override {
+    // The long literal will be emitted as the literal value
+    *out << value_;
+  }
   auto GetValue() const -> std::int64_t { return value_; }
 
  private:
@@ -47,6 +63,10 @@ class LongLiteral : public Operand {
 
 class CharLiteral : public Operand {
  public:
+  auto Emit(std::ofstream *out) const -> void override {
+    // The char literal will be emitted as the literal value
+    *out << value_;
+  }
   auto GetValue() const -> char { return value_; }
 
  private:

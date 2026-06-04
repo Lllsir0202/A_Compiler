@@ -1,6 +1,5 @@
 #ifndef TOKEN_FACTORY_H
 #define TOKEN_FACTORY_H
-#include <sys/types.h>
 #include <string>
 #include "./location.h"
 #include "./token.h"

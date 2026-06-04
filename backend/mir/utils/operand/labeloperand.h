@@ -4,6 +4,10 @@
 namespace backend::utils {
 class LabelOperand : public Operand {
  public:
+  auto Emit(std::ofstream *out) const -> void override {
+    // The label operand will be emitted as the label id
+    *out << "label_" << id_;
+  }
   auto GetId() const -> size_t { return id_; }
 
  private:

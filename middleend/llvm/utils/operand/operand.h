@@ -6,7 +6,6 @@
  */
 #ifndef MIDDLEEND_LLVM_UTILS_OPERAND_OPERAND_H
 #define MIDDLEEND_LLVM_UTILS_OPERAND_OPERAND_H
-#include <sys/types.h>
 #include <cstdint>
 #include <cstring>
 #include <fstream>

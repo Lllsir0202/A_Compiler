@@ -5,6 +5,10 @@
 namespace backend::utils {
 class GlobalOperand : public Operand {
  public:
+  auto Emit(std::ofstream *out) const -> void override {
+    // The global operand will be emitted as the global variable name
+    *out << "global_" << name_;
+  }
   auto GetName() const -> const std::string & { return name_; }
 
  private:

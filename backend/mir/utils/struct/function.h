@@ -13,6 +13,7 @@ class FrameInfo;
 class Function {
  public:
   ~Function();
+  auto Emit(std::ofstream *out) const -> void;
   // Interface to access the function information
   auto GetName() const -> const std::string & { return func_name_; }
   auto GetReturnType() const -> type::Type * { return return_type_; }

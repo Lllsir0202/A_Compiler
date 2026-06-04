@@ -16,10 +16,11 @@ class Function;
 class Module {
  public:
   ~Module();
+  auto Emit(std::ofstream *out) const -> void;
 
-  auto GetFuncDefByName(const std::string &name) -> inst::FuncDefInst *;
-  auto GetFuncDeclareByName(const std::string &name) -> inst::FuncDeclareInst *;
-  auto GetGlobalDefByName(const std::string &name) -> inst::GlobalDefInst *;
+  auto GetFuncDefByName(const std::string &name) const -> inst::FuncDefInst *;
+  auto GetFuncDeclareByName(const std::string &name) const -> inst::FuncDeclareInst *;
+  auto GetGlobalDefByName(const std::string &name) const -> inst::GlobalDefInst *;
 
   auto AddFunction(Function *func) -> void { functions_.emplace_back(func); }
   auto AddFuncDefInst(inst::FuncDefInst *func_def_inst) -> void;

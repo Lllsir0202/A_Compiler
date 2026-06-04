@@ -10,6 +10,11 @@
 namespace backend::utils {
 class FrameOperand : public Operand {
  public:
+  auto Emit(std::ofstream *out) const -> void override {
+    // The frame operand will be emitted as the stack slot id
+    *out << "frame_slot_" << slot_id_;
+  }
+
   auto GetSlotId() const -> size_t { return slot_id_; }
 
  private:

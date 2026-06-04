@@ -1,5 +1,6 @@
 #ifndef BACKEND_MIR_INST_INST_H
 #define BACKEND_MIR_INST_INST_H
+#include <fstream>
 #include <vector>
 #include "backend/mir/inst/opkind.h"
 
@@ -19,6 +20,8 @@ namespace backend::inst {
 class Instruction {
  public:
   virtual ~Instruction() = default;
+
+  virtual auto Emit(std::ofstream *out) const -> void = 0;
 
   // Interface to access the instruction information
   auto GetResult() const -> utils::Operand * { return result_; }

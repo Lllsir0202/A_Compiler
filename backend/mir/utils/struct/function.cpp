@@ -14,6 +14,18 @@ Function::~Function() {
   frame_infos_.clear();
 }
 
+auto Function::Emit(std::ofstream *out) const -> void {
+  *out << "{\n";
+  for (size_t i = 0; i < blocks_.size(); ++i) {
+    auto block = blocks_[i];
+    block->Emit(out);
+    if (i != blocks_.size() - 1) {
+      *out << "\n";
+    }
+  }
+  *out << "}\n";
+}
+
 auto Function::GetFrameInfoById(size_t frame_id) const -> FrameInfo * {
   if (frame_id >= frame_infos_.size()) {
     return nullptr;

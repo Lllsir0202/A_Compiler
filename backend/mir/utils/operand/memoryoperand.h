@@ -18,6 +18,11 @@ enum class MemSize : uint8_t { UnSet, Bit32, Bit64 };
  */
 class MemoryOperand : public Operand {
  public:
+  auto Emit(std::ofstream *out) const -> void override {
+    // The memory operand will be emitted as the memory address, which will be calculated in lowering
+    *out << "mem_addr";
+  }
+
   /**
    * @brief Since the memory address will vary among different architectures,
    * we can set the memory size of the memory operand and deal with them separately in the lowering phase.

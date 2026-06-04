@@ -6,6 +6,10 @@ enum class RegSize : uint8_t { Bit32, Bit64 };
 
 class RegOperand : public Operand {
  public:
+  auto Emit(std::ofstream *out) const -> void override {
+    // The register operand will be emitted as the register name
+    *out << "reg_" << reg_num_;
+  }
   auto GetRegNum() const -> size_t { return reg_num_; }
 
  private:

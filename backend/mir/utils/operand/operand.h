@@ -2,6 +2,7 @@
 #define BACKEND_MIR_UTILS_OPERAND_OPERAND_H
 
 #include <cstdint>
+#include <fstream>
 #include "utils/type/type.h"
 namespace backend::utils::factory {
 class OperandFactory;
@@ -29,6 +30,8 @@ enum class OpType : uint8_t { Register, Literal, Memory, Label, Global, Frame };
 
 class Operand {
  public:
+  virtual auto Emit(std::ofstream *out) const -> void = 0;
+
   auto GetOpType() const -> OpType { return op_type_; }
   auto GetType() const -> type::Type * { return type_; }
   auto SetType(type::Type *type) -> void { type_ = type; }
