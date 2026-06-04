@@ -46,10 +46,13 @@ class MIRResourceContext {
   // Get and set the module
   auto GetModule() -> backend::utils::Module * { return module_; }
   auto SetModule(backend::utils::Module *module) -> void {
-    if (module_ != module) {
-      module_ = module;
+    if (module_ == module) {
+      return;
+    }
+    if (module_ != nullptr) {
       module_->Reset();
     }
+    module_ = module;
   }
 
   // Get the funcdef or declare instruction by the function name
@@ -98,7 +101,7 @@ class MIRResourceContext {
   size_t reg_num_counter_ = 0;
   size_t frame_slot_counter_ = 0;
 
-  backend::utils::Module *module_;
+  backend::utils::Module *module_ = nullptr;
 
   // Map from id or value to operand
   std::unordered_map<size_t, backend::utils::LabelOperand *> label_operands_;

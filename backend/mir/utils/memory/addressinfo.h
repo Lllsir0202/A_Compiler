@@ -23,6 +23,8 @@ class AddressInfo {
 
   // a list of index
   std::vector<Operand *> indices_;
+
+  // record the access type,
 };
 
 }  // namespace backend::utils

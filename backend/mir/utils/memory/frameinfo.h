@@ -8,6 +8,7 @@ class FunctionFactory;
 namespace backend::utils {
 class FrameInfo {
  public:
+  ~FrameInfo() = default;
   auto GetFrameId() const -> size_t { return frame_id_; }
   auto GetSize() const -> size_t { return size_; }
   auto SetSize(size_t size) -> void { size_ = size; }

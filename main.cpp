@@ -14,6 +14,7 @@
 #include "middleend/pass/analysis/domtree/domtree.h"
 #include "middleend/pass/transform/simplify/simplify.h"
 #include "middleend/pass/transform/unify/unify.h"
+#include "mir/lower/lower.h"
 #include "stages/ast/ast_stage.h"
 #include "stages/lexer/lexer_stage.h"
 #include "stages/llvm/llvm_stage.h"
@@ -279,6 +280,13 @@ auto main(int argc, char *argv[]) -> int {
     stage_ptr = std::make_unique<stages::LLVMStage>(&compiler_context);
     stage_ptr->Run();
     return ret;
+  }
+
+  auto mir_lower = std::make_unique<backend::lower::MIRLower>(&compiler_context);
+  ret = mir_lower->Lower();
+
+  if (ret != 0) {
+    return 1;
   }
 
   return ret;

@@ -10,6 +10,7 @@
 #include "backend/mir/utils/operand/operand.h"
 #include "backend/mir/utils/struct/block.h"
 #include "backend/mir/utils/struct/function.h"
+#include "llvm/inst/memory/globaldef.h"
 #include "llvm/inst/opkind.h"
 #include "middleend/llvm/inst/arithm/arithm.h"
 #include "middleend/llvm/inst/inst.h"
@@ -83,7 +84,6 @@ auto LowerHelper::LowerFunction(middleend::llvm::utils::Function *function) -> v
 
     // Add the function to the MIR context
     GET_LOWER_CONTEXT()->SetCurrentFunction(mir_function);
-    GET_MIR_CONTEXT()->AddFunction(mir_function);
     for (auto basicblock : function->GetBasicBlocks()) {
       auto block = LowerBlock(basicblock);
       GET_MIR_CONTEXT()->GetLowerContext()->SetInsertPoint(block);
@@ -367,12 +367,17 @@ auto LowerHelper::LowerAllocaInst(middleend::llvm::inst::AllocaInst *alloca_inst
   auto frameoperand = GET_MIR_CONTEXT()->GetFrameOperand();
   auto current_function = GET_LOWER_CONTEXT()->GetCurrentFunction();
 
-  // Should calculate the size and align of the allocated type
+  // Should calculate the size and align of the allocated type.
   auto allocated_type = alloca_inst->GetAllocatedType();
   auto result_type = alloca_inst->GetResult()->GetType();
+  // Result type must be a pointer.
   if (result_type->GetKind() == type::TypeKind::PTR) {
     result_type = static_cast<type::PtrType *>(result_type)->GetBaseType();
   }
+
+  // For frameoperand, the type will be the type of the result type, instead of
+  // the pointer to the variable type.
+  frameoperand->SetType(result_type);
   auto size = result_type->GetDataSize();
   // Then create size and align
   auto align = allocated_type->GetAlign();
@@ -420,69 +425,85 @@ auto LowerHelper::LowerStoreInst(middleend::llvm::inst::StoreInst *store_inst) -
 }
 
 auto LowerHelper::LowerGetElementPtrInst(middleend::llvm::inst::GetElementPtrInst *gep_inst) -> void {
-  // Set the result as a memory operand
-  auto indices = gep_inst->GetIndices();
-  std::vector<utils::Operand *> mir_indices;
+  /**
+   * @brief For getelementptr instruction, we need to decay it to lower level information
+   * We need to record
+   * 1. the base pointer,
+   * 2. the offset(will be handled later),
+   * 3. the indices
+   * 4. the dimensions of the original variable.
+   */
 
-  // Set mir indices
-  for (auto index : indices) {
-    auto mir_index = GET_LOWER_CONTEXT()->GetMIROperandFromLLVMOperand(index);
-    mir_indices.emplace_back(mir_index);
-  }
-
+  /**
+   * @note
+   * For getelementptr instruction, the base pointer can be:
+   * 1. global variable definition
+   * 2. local variable
+   * 3. function argument
+   */
   auto base_ptr = gep_inst->GetBasePtr();
-  // Then get the array dimensions
+  auto indices = gep_inst->GetIndices();
+
   std::vector<int> dimensions;
   if (base_ptr->GetInstruction() != nullptr) {
-    auto def_inst = base_ptr->GetInstruction();
-    if (def_inst->VerifyOpKind(middleend::llvm::inst::OpKind::Alloca)) {
-      // It is a local variable and it is an array
-      auto alloca_inst = static_cast<middleend::llvm::inst::AllocaInst *>(def_inst);
-      // Then get the dimensions
-      auto dimensions = alloca_inst->GetDimensions();
-      auto allocated_type = alloca_inst->GetAllocatedType();
-      // allocated type is the element type of the array
+    auto inst = base_ptr->GetInstruction();
+    if (inst->VerifyOpKind(middleend::llvm::inst::OpKind::Alloca)) {
+      auto alloca_inst = static_cast<middleend::llvm::inst::AllocaInst *>(inst);
+      // Means the base pointer is from a local variable
+      dimensions = alloca_inst->GetDimensions();
+    } else if (inst->VerifyOpKind(middleend::llvm::inst::OpKind::GlobalDef)) {
+      auto global_def_inst = static_cast<middleend::llvm::inst::GlobalDefInst *>(inst);
+      dimensions = global_def_inst->GetDimensions();
     }
   } else {
-    // It is from a function parameter
-    auto base_type = base_ptr->GetType();
-    if (base_type->GetKind() == type::TypeKind::PTR) {
-      base_type = static_cast<type::PtrType *>(base_type)->GetBaseType();
+    // Means the base pointer is from a function parameter
+    auto base_ptr_type = base_ptr->GetType();
+    type::Type *base_type;
+    if (base_ptr_type->GetKind() == type::TypeKind::PTR) {
+      base_type = static_cast<type::PtrType *>(base_ptr_type)->GetBaseType();
+    } else {
+      // Should not happen, just in case.
+      base_type = base_ptr_type;
     }
-    // The first dimension can not be determined, but it seems does not matter for calculation.
+
+    // Get the dimensions
+    // For function parameter, the first dimension is always -1,
+    // since it is represented as a pointer to other dimensions' array.
     dimensions.emplace_back(-1);
     while (base_type->GetKind() == type::TypeKind::ARRAY) {
       auto array_type = static_cast<type::ArrayType *>(base_type);
       dimensions.emplace_back(array_type->GetSize());
       base_type = array_type->GetElementType();
     }
+
+    // Finish getting the dimensions
   }
 
-  // Create memory operand
+  // Record all the information and create the memoryoperand
   auto memory_operand = GET_RESOURCE_CONTEXT()->GetNewMemoryOperand();
-  // Set information
-  // Start with the address info
+
+  // Address information will be used to get access to the element in the future.
   auto address_info = utils::AddressInfo();
+
   auto mir_base_ptr = GET_LOWER_CONTEXT()->GetMIROperandFromLLVMOperand(base_ptr);
+
+  auto mir_indices = std::vector<utils::Operand *>();
+  for (auto index : indices) {
+    auto mir_index = GET_LOWER_CONTEXT()->GetMIROperandFromLLVMOperand(index);
+    mir_indices.emplace_back(mir_index);
+  }
 
   address_info.base_ptr_ = mir_base_ptr;
   address_info.dimensions_ = dimensions;
   address_info.indices_ = mir_indices;
-  memory_operand->SetAddressInfo(address_info);
 
-  // Then set the memory info
+  // Memory information will be used as a record of the result's memory layout
   auto memory_info = utils::MemoryInfo();
-  // It will be used to provide the information for the memory access,
-  // for instance, get a pointer, the memory info will be size of pointer, and the align of pointer.
-  auto size = gep_inst->GetResult()->GetType()->GetDataSize();
-  auto align = gep_inst->GetResult()->GetType()->GetAlign();
-  memory_info.size_ = size;
-  memory_info.align_ = align;
-  memory_operand->SetMemoryInfo(memory_info);
+  memory_info.align_ = gep_inst->GetResult()->GetType()->GetAlign();
+  memory_info.size_ = gep_inst->GetResult()->GetType()->GetDataSize();
 
-  // Map the result operand to the memory operand
-  auto result = gep_inst->GetResult();
-  GET_LOWER_CONTEXT()->MapLLVMOperandToMIROperand(result, memory_operand);
+  // Then map the memory operand to the original llvm result operand.
+  GET_LOWER_CONTEXT()->MapLLVMOperandToMIROperand(gep_inst->GetResult(), memory_operand);
 }
 
 }  // namespace backend::lower

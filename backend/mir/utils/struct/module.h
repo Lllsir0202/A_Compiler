@@ -27,12 +27,7 @@ class Module {
   auto AddGlobalDefInst(inst::GlobalDefInst *global_def_inst) -> void;
 
   // Used in replace the module
-  auto Reset() -> void {
-    functions_.clear();
-    func_def_insts_.clear();
-    func_declare_insts_.clear();
-    global_var_insts_.clear();
-  }
+  auto Reset() -> void;
 
  private:
   Module() = default;

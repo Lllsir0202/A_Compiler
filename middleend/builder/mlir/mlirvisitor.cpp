@@ -192,7 +192,6 @@ inline auto MLIRVisitor::MapLValExprToValue(frontend::ast::LValExprNode *lval_ex
 }
 
 inline auto MLIRVisitor::HandleShortCircuitOperator(frontend::ast::BinaryExprNode *binary_expr) -> void {
-  // TODO(loki): implement the short-circuit logical operator handling
   if (binary_expr->operator_ == frontend::ast::OpCode::AND) {
     // Handle the short-circuit logical AND operator
     // Since the lhs will always be calculated

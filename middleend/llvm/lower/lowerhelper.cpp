@@ -756,7 +756,6 @@ auto LowerHelper::LowerVarDefOp(mlir::var::VarDefOp *var_def) -> void {
   }
   if (all_constants) {
     // Use memcpy to initialize the memory
-    // TODO(loki) : implement the memcpy and note that need to consider creating the initializer const variable
     // Get a constant global variable to hold the initialization values
 
     // It must be a local array, so the allocated type must be an array type

@@ -3,6 +3,7 @@
 #include "backend/mir/inst/func/funcdef.h"
 #include "backend/mir/inst/memory/globaldef.h"
 #include "backend/mir/utils/factory/modulefactory.h"
+#include "llvm/utils/operand/literaloperand.h"
 #include "middleend/llvm/inst/func/funcdeclare.h"
 #include "middleend/llvm/inst/func/funcdef.h"
 #include "middleend/llvm/inst/memory/globaldef.h"
@@ -46,6 +47,8 @@ auto MIRLower::Lower() -> int {
             GET_MIR_CONTEXT(), global_def->GetResult()->GetType(), var_type, var_name, global_def->GetDimensions(),
             initial_values);
         GET_MIR_CONTEXT()->AddGlobalDefInst(mir_global_def);
+        GET_MIR_CONTEXT()->GetLowerContext()->MapLLVMOperandToMIROperand(global_def->GetResult(),
+                                                                         mir_global_def->GetResult());
       }
       if (!global_def->GetFloatInitialValues().empty()) {
         auto initial_values = global_def->GetFloatInitialValues();
@@ -53,6 +56,8 @@ auto MIRLower::Lower() -> int {
             GET_MIR_CONTEXT(), global_def->GetResult()->GetType(), var_type, var_name, global_def->GetDimensions(),
             initial_values);
         GET_MIR_CONTEXT()->AddGlobalDefInst(mir_global_def);
+        GET_MIR_CONTEXT()->GetLowerContext()->MapLLVMOperandToMIROperand(global_def->GetResult(),
+                                                                         mir_global_def->GetResult());
       }
     }
 
@@ -68,13 +73,41 @@ auto MIRLower::Lower() -> int {
       GET_MIR_CONTEXT()->AddFuncDeclareInst(mir_declare);
     }
 
+    // Handle all constant literal operands
+    for (const auto &literal : GET_LLVM_CONTEXT()->GetResourceContext()->GetAllOperands()) {
+      if (literal->IsLiteral()) {
+        // Create the corresponding literal operand in MIR context
+        if (literal->IsInt32()) {
+          auto int_literal =
+              GET_MIR_CONTEXT()->GetIntLiteral(static_cast<middleend::llvm::utils::IntLiteral *>(literal)->GetValue());
+          GET_MIR_CONTEXT()->GetLowerContext()->MapLLVMOperandToMIROperand(literal, int_literal);
+        } else if (literal->IsFloat()) {
+          auto float_literal = GET_MIR_CONTEXT()->GetFloatLiteral(
+              static_cast<middleend::llvm::utils::FloatLiteral *>(literal)->GetValue());
+          GET_MIR_CONTEXT()->GetLowerContext()->MapLLVMOperandToMIROperand(literal, float_literal);
+        } else if (literal->IsBool()) {
+          auto bool_literal = GET_MIR_CONTEXT()->GetBoolLiteral(
+              static_cast<middleend::llvm::utils::BoolLiteral *>(literal)->GetValue());
+          GET_MIR_CONTEXT()->GetLowerContext()->MapLLVMOperandToMIROperand(literal, bool_literal);
+        } else if (literal->IsLong()) {
+          auto long_literal = GET_MIR_CONTEXT()->GetLongLiteral(
+              static_cast<middleend::llvm::utils::LongLiteral *>(literal)->GetValue());
+          GET_MIR_CONTEXT()->GetLowerContext()->MapLLVMOperandToMIROperand(literal, long_literal);
+        } else if (literal->IsChar()) {
+          auto char_literal = GET_MIR_CONTEXT()->GetCharLiteral(
+              static_cast<middleend::llvm::utils::CharLiteral *>(literal)->GetValue());
+          GET_MIR_CONTEXT()->GetLowerContext()->MapLLVMOperandToMIROperand(literal, char_literal);
+        }
+      }
+    }
+
     // Then lower the function bodies
     for (const auto &function : llvm_module->GetFunctions()) {
       lower_helper_->LowerFunction(function);
     }
 
   } catch (std::exception &e) {
-    compiler_context_->ReportError("Error during module lowering: " + std::string(e.what()));
+    compiler_context_->Print("Error during module lowering: " + std::string(e.what()));
     return -1;
   }
   return 0;

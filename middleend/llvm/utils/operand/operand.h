@@ -78,6 +78,8 @@ class Operand {
   auto IsBool() const -> bool { return type_ != nullptr && type_->GetKind() == type::TypeKind::BOOL; }
   auto IsVoid() const -> bool { return type_ != nullptr && type_->GetKind() == type::TypeKind::VOID; }
   auto IsPtr() const -> bool { return type_ != nullptr && type_->GetKind() == type::TypeKind::PTR; }
+  auto IsChar() const -> bool { return type_ != nullptr && type_->GetKind() == type::TypeKind::CHAR; }
+  auto IsLong() const -> bool { return type_ != nullptr && type_->GetKind() == type::TypeKind::LONG; }
 
   // Provide interface to get and set the instruction which generates this op
   auto GetInstruction() const -> inst::Instruction * { return instruction_; }

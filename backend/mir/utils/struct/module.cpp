@@ -11,6 +11,16 @@ Module::~Module() {
   }
 }
 
+auto Module::Reset() -> void {
+  for (auto func : functions_) {
+    delete func;
+  }
+  functions_.clear();
+  func_def_insts_.clear();
+  func_declare_insts_.clear();
+  global_var_insts_.clear();
+}
+
 auto Module::GetFuncDefByName(const std::string &name) -> inst::FuncDefInst * {
   if (func_def_insts_.count(name) > 0) {
     return func_def_insts_[name];

@@ -6,7 +6,10 @@
 namespace backend::lower {
 class MIRLower {
  public:
-  explicit MIRLower(context::CompilerContext *compiler_context) : compiler_context_(compiler_context) {}
+  explicit MIRLower(context::CompilerContext *compiler_context) : compiler_context_(compiler_context) {
+    lower_helper_ = new LowerHelper(compiler_context);
+  }
+  ~MIRLower() { delete lower_helper_; }
   auto Lower() -> int;
 
  private:

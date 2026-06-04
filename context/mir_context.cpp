@@ -15,6 +15,9 @@ MIRResourceContext::~MIRResourceContext() {
   for (auto *operand : operands_) {
     delete operand;
   }
+  delete module_;
+  operands_.clear();
+  instructions_.clear();
 }
 
 // Interfaces to create the operands

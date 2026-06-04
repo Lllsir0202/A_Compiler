@@ -55,6 +55,9 @@ class LLVMIRResourceContext {
   // Get a new unique block id for the new basic block
   auto GetNewBasicBlock(middleend::llvm::utils::Function *function) -> middleend::llvm::utils::BasicBlock *;
 
+  // Get all operands
+  auto GetAllOperands() -> const std::vector<middleend::llvm::utils::Operand *> & { return operands_; }
+
   /**
    * @brief Interfaces to manage function-related resources
    */
