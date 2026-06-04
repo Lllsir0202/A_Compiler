@@ -7,6 +7,7 @@ namespace backend::inst {
 class ZextInst : public Instruction {
  public:
   auto Verify(context::CompilerContext *context) const -> bool override;
+  auto Emit(std::ofstream *out) const -> void override;
 
  private:
   explicit ZextInst() : Instruction(OpKind::Zext) {}
@@ -17,6 +18,7 @@ class ZextInst : public Instruction {
 class Int2FloatInst : public Instruction {
  public:
   auto Verify(context::CompilerContext *context) const -> bool override;
+  auto Emit(std::ofstream *out) const -> void override;
 
  private:
   explicit Int2FloatInst() : Instruction(OpKind::Int2Float) {}
@@ -27,6 +29,7 @@ class Int2FloatInst : public Instruction {
 class Float2IntInst : public Instruction {
  public:
   auto Verify(context::CompilerContext *context) const -> bool override;
+  auto Emit(std::ofstream *out) const -> void override;
 
  private:
   explicit Float2IntInst() : Instruction(OpKind::Float2Int) {}
@@ -37,6 +40,7 @@ class Float2IntInst : public Instruction {
 class Bool2FloatInst : public Instruction {
  public:
   auto Verify(context::CompilerContext *context) const -> bool override;
+  auto Emit(std::ofstream *out) const -> void override;
 
  private:
   explicit Bool2FloatInst() : Instruction(OpKind::Bool2Float) {}

@@ -25,6 +25,14 @@ auto ZextInst::Create(context::MIRContext *context, utils::Operand *src) -> Zext
   return inst;
 }
 
+auto ZextInst::Emit(std::ofstream *out) const -> void {
+  *out << "  ";
+  result_->Emit(out);
+  *out << " = zext ";
+  operands_[0]->Emit(out);
+  *out << "\n";
+}
+
 auto Int2FloatInst::Verify(context::CompilerContext *context) const -> bool {
   // The int2float instruction should have exactly one operand, which is the source operand
   if (operands_.size() != 1) {
@@ -45,6 +53,14 @@ auto Int2FloatInst::Create(context::MIRContext *context, utils::Operand *src) ->
   inst->SetResult(res);
   res->SetDefInst(inst);
   return inst;
+}
+
+auto Int2FloatInst::Emit(std::ofstream *out) const -> void {
+  *out << "  ";
+  result_->Emit(out);
+  *out << " = int2float ";
+  operands_[0]->Emit(out);
+  *out << "\n";
 }
 
 auto Float2IntInst::Verify(context::CompilerContext *context) const -> bool {
@@ -70,6 +86,14 @@ auto Float2IntInst::Create(context::MIRContext *context, utils::Operand *src) ->
   return inst;
 }
 
+auto Float2IntInst::Emit(std::ofstream *out) const -> void {
+  *out << "  ";
+  result_->Emit(out);
+  *out << " = float2int ";
+  operands_[0]->Emit(out);
+  *out << "\n";
+}
+
 auto Bool2FloatInst::Verify(context::CompilerContext *context) const -> bool {
   // The bool2float instruction should have exactly one operand, which is the source operand
   if (operands_.size() != 1) {
@@ -90,6 +114,14 @@ auto Bool2FloatInst::Create(context::MIRContext *context, utils::Operand *src) -
   inst->SetResult(res);
   res->SetDefInst(inst);
   return inst;
+}
+
+auto Bool2FloatInst::Emit(std::ofstream *out) const -> void {
+  *out << "  ";
+  result_->Emit(out);
+  *out << " = bool2float ";
+  operands_[0]->Emit(out);
+  *out << "\n";
 }
 
 }  // namespace backend::inst
