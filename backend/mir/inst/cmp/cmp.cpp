@@ -28,6 +28,16 @@ auto ICmpInst::Create(context::MIRContext *context, utils::Operand *lhs, utils::
   return inst;
 }
 
+auto ICmpInst::Emit(std::ofstream *out) const -> void {
+  *out << "  ";
+  result_->Emit(out);
+  *out << " = icmp " << static_cast<int>(predicate_) << " ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << "\n";
+}
+
 auto FCmpInst::Verify(context::CompilerContext *context) const -> bool {
   // The fcmp instruction should have exactly two operands, which are the lhs and rhs
   if (operands_.size() != 2) {
@@ -52,6 +62,16 @@ auto FCmpInst::Create(context::MIRContext *context, utils::Operand *lhs, utils::
   inst->SetResult(res);
   res->SetDefInst(inst);
   return inst;
+}
+
+auto FCmpInst::Emit(std::ofstream *out) const -> void {
+  *out << "  ";
+  result_->Emit(out);
+  *out << " = fcmp " << static_cast<int>(predicate_) << " ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << "\n";
 }
 
 auto CmpPredicateFromLLVM(middleend::llvm::inst::CmpPredicate llvm_pred) -> CmpPredicate {

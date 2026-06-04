@@ -20,6 +20,7 @@ class ICmpInst : public Instruction {
  public:
   auto Verify(context::CompilerContext *context) const -> bool override;
   auto GetPredicate() const -> CmpPredicate { return predicate_; }
+  auto Emit(std::ofstream *out) const -> void override;
 
  private:
   explicit ICmpInst(CmpPredicate predicate) : Instruction(OpKind::ICmp), predicate_(predicate) {}
@@ -33,6 +34,7 @@ class FCmpInst : public Instruction {
  public:
   auto Verify(context::CompilerContext *context) const -> bool override;
   auto GetPredicate() const -> CmpPredicate { return predicate_; }
+  auto Emit(std::ofstream *out) const -> void override;
 
  private:
   explicit FCmpInst(CmpPredicate predicate) : Instruction(OpKind::FCmp), predicate_(predicate) {}
