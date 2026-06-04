@@ -44,6 +44,17 @@ class FCmpInst : public Instruction {
   friend class utils::factory::InstFactory;
 };
 
+class XorInst : public Instruction {
+ public:
+  auto Verify(context::CompilerContext *context) const -> bool override;
+  auto Emit(std::ofstream *out) const -> void override;
+
+ private:
+  explicit XorInst() : Instruction(OpKind::Xor) {}
+  static auto Create(context::MIRContext *context, utils::Operand *lhs, utils::Operand *rhs) -> XorInst *;
+  friend class utils::factory::InstFactory;
+};
+
 }  // namespace backend::inst
 
 #endif

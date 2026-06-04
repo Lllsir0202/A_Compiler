@@ -23,7 +23,7 @@ auto BrInst::Create([[maybe_unused]] context::MIRContext *context, utils::LabelO
 }
 
 auto BrInst::Emit(std::ofstream *out) const -> void {
-  *out << "  ";
+  *out << "  goto ";
   operands_[0]->Emit(out);
   *out << "\n";
 }

@@ -53,6 +53,7 @@ class LowerHelper {
   auto LowerICmpInst(middleend::llvm::inst::ICmpInst *icmp_inst) -> void;
   // Float
   auto LowerFCmpInst(middleend::llvm::inst::FCmpInst *fcmp_inst) -> void;
+  auto LowerXorInst(middleend::llvm::inst::XorInst *xor_inst) -> void;
 
   // Cast instructions
   auto LowerZextInst(middleend::llvm::inst::ZextInst *zext_inst) -> void;

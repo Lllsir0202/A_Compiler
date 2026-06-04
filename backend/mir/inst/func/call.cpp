@@ -24,15 +24,19 @@ auto CallInst::Create(context::MIRContext *context, const std::string &callee, t
   }
   if (return_type->GetKind() != type::TypeKind::VOID) {
     auto ret_reg = context->GetNewRegOperand(return_type);
-    inst->AddOperand(ret_reg);
+    inst->SetResult(ret_reg);
+    ret_reg->SetDefInst(inst);
   }
   return inst;
 }
 
 auto CallInst::Emit(std::ofstream *out) const -> void {
   *out << "  ";
-  result_->Emit(out);
-  *out << " = call " << callee_ << "(";
+  if (result_ != nullptr) {
+    result_->Emit(out);
+    *out << " = ";
+  }
+  *out << "call " << callee_ << "(";
   for (size_t i = 0; i < operands_.size(); ++i) {
     auto operand = operands_[i];
     operand->Emit(out);
@@ -40,6 +44,6 @@ auto CallInst::Emit(std::ofstream *out) const -> void {
       *out << ", ";
     }
   }
-  *out << ")";
+  *out << ")\n";
 }
 }  // namespace backend::inst

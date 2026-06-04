@@ -1,6 +1,7 @@
 #include <fstream>
 #include <memory>
 #include <unordered_set>
+#include "backend/mir/lower/lower.h"
 #include "context/compiler_context.h"
 #include "context/pass_context.h"
 #include "frontend/ast/visitor/semantic/sem_analysis.h"
@@ -14,10 +15,10 @@
 #include "middleend/pass/analysis/domtree/domtree.h"
 #include "middleend/pass/transform/simplify/simplify.h"
 #include "middleend/pass/transform/unify/unify.h"
-#include "mir/lower/lower.h"
 #include "stages/ast/ast_stage.h"
 #include "stages/lexer/lexer_stage.h"
 #include "stages/llvm/llvm_stage.h"
+#include "stages/mir/mir_stage.h"
 #include "stages/mlir/mlir_stage.h"
 #include "stages/parser/parser_stage.h"
 #include "stages/stage.h"
@@ -33,7 +34,8 @@ static int optimization_level = 0;
 // Mark whether regard warnings as errors, default to false
 static bool warnings_as_errors = false;
 
-static const std::unordered_set<std::string> STAGES = {"lexer", "parser", "ast", "mlir", "baseir", "llvm", "S", "s"};
+static const std::unordered_set<std::string> STAGES = {"lexer", "parser", "ast", "mlir", "baseir",
+                                                       "llvm",  "mir",    "S",   "s"};
 
 auto static inline ParseArgs(int argc, char *argv[]) -> bool {
   for (int i = 1; i < argc; i++) {
@@ -287,6 +289,12 @@ auto main(int argc, char *argv[]) -> int {
 
   if (ret != 0) {
     return 1;
+  }
+
+  if (stage == "mir" && ret == 0) {
+    stage_ptr = std::make_unique<stages::MIRStage>(&compiler_context);
+    stage_ptr->Run();
+    return ret;
   }
 
   return ret;

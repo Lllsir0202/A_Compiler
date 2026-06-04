@@ -10,6 +10,7 @@
 #include "backend/mir/utils/operand/operand.h"
 #include "backend/mir/utils/struct/block.h"
 #include "backend/mir/utils/struct/function.h"
+#include "llvm/inst/cmp/cmp.h"
 #include "llvm/inst/memory/globaldef.h"
 #include "llvm/inst/opkind.h"
 #include "middleend/llvm/inst/arithm/arithm.h"
@@ -44,6 +45,7 @@ auto LowerHelper::LowerDispatch(middleend::llvm::inst::Instruction *inst) -> voi
     DISPATCH_LOWERING(DivFInst)
     DISPATCH_LOWERING(ICmpInst)
     DISPATCH_LOWERING(FCmpInst)
+    DISPATCH_LOWERING(XorInst)
     DISPATCH_LOWERING(ZextInst)
     DISPATCH_LOWERING(SitoFpInst)
     DISPATCH_LOWERING(FptoSiInst)
@@ -203,6 +205,28 @@ auto LowerHelper::LowerFCmpInst(middleend::llvm::inst::FCmpInst *fcmp_inst) -> v
   if (mir_rhs->GetDefInst() != nullptr) {
     mir_rhs->GetDefInst()->AddUser(mir_inst);
   }
+  GET_LOWER_CONTEXT()->GetInsertPoint()->AddInstBack(mir_inst);
+  mir_inst->SetParentBlock(GET_LOWER_CONTEXT()->GetInsertPoint());
+}
+
+auto LowerHelper::LowerXorInst(middleend::llvm::inst::XorInst *xor_inst) -> void {
+  auto lhs = xor_inst->GetLHS();
+  auto rhs = xor_inst->GetRHS();
+  auto result = xor_inst->GetResult();
+  auto mir_lhs = GET_LOWER_CONTEXT()->GetMIROperandFromLLVMOperand(lhs);
+  auto mir_rhs = GET_LOWER_CONTEXT()->GetMIROperandFromLLVMOperand(rhs);
+
+  // Create a new MIR instruction for the XOR operation, and add it to the current basic block
+  auto mir_inst = GET_RESOURCE_CONTEXT()->CreateInstruction<inst::XorInst>(GET_MIR_CONTEXT(), mir_lhs, mir_rhs);
+  auto mir_result = mir_inst->GetResult();
+  GET_LOWER_CONTEXT()->MapLLVMOperandToMIROperand(result, mir_result);
+  if (mir_lhs->GetDefInst() != nullptr) {
+    mir_lhs->GetDefInst()->AddUser(mir_inst);
+  }
+  if (mir_rhs->GetDefInst() != nullptr) {
+    mir_rhs->GetDefInst()->AddUser(mir_inst);
+  }
+  mir_result->SetType(result->GetType());
   GET_LOWER_CONTEXT()->GetInsertPoint()->AddInstBack(mir_inst);
   mir_inst->SetParentBlock(GET_LOWER_CONTEXT()->GetInsertPoint());
 }
@@ -419,8 +443,6 @@ auto LowerHelper::LowerStoreInst(middleend::llvm::inst::StoreInst *store_inst) -
   if (mir_ptr_operand->GetDefInst() != nullptr) {
     mir_ptr_operand->GetDefInst()->AddUser(mir_inst);
   }
-  GET_LOWER_CONTEXT()->MapLLVMOperandToMIROperand(store_inst->GetValue(), mir_value_operand);
-  GET_LOWER_CONTEXT()->MapLLVMOperandToMIROperand(store_inst->GetPtr(), mir_ptr_operand);
   GET_LOWER_CONTEXT()->GetInsertPoint()->AddInstBack(mir_inst);
   mir_inst->SetParentBlock(GET_LOWER_CONTEXT()->GetInsertPoint());
 }

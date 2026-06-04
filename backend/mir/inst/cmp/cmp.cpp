@@ -74,6 +74,40 @@ auto FCmpInst::Emit(std::ofstream *out) const -> void {
   *out << "\n";
 }
 
+auto XorInst::Verify(context::CompilerContext *context) const -> bool {
+  // The xor instruction should have exactly two operands, which are the lhs and rhs
+  if (operands_.size() != 2) {
+    context->Print("Operand size of xor instruction should be 2, but got " + std::to_string(operands_.size()));
+    return false;
+  }
+  // The op kind should be Xor
+  if (op_kind_ != OpKind::Xor) {
+    context->Print("Op kind of xor instruction should be Xor, but got " + std::to_string(static_cast<int>(op_kind_)));
+    return false;
+  }
+  return true;
+}
+
+auto XorInst::Create(context::MIRContext *context, utils::Operand *lhs, utils::Operand *rhs) -> XorInst * {
+  auto *inst = new XorInst();
+  inst->AddOperand(lhs);
+  inst->AddOperand(rhs);
+  auto res = context->GetNewRegOperand(context->GetBoolType());
+  inst->SetResult(res);
+  res->SetDefInst(inst);
+  return inst;
+}
+
+auto XorInst::Emit(std::ofstream *out) const -> void {
+  *out << "  ";
+  result_->Emit(out);
+  *out << " = xor ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << "\n";
+}
+
 auto CmpPredicateFromLLVM(middleend::llvm::inst::CmpPredicate llvm_pred) -> CmpPredicate {
   switch (llvm_pred) {
     case middleend::llvm::inst::CmpPredicate::EQ:

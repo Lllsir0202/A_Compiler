@@ -68,6 +68,7 @@ auto GlobalDefInst::Emit(std::ofstream *out) const -> void {
     }
     *out << "]";
   }
+  *out << "\n";
 }
 
 }  // namespace backend::inst

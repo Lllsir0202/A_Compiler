@@ -52,6 +52,8 @@ class XorInst : public Instruction {
  public:
   auto Emit(std::ofstream *out) const -> void override;
   auto Verify(context::CompilerContext *context) const -> bool override;
+  auto GetLHS() const -> utils::Operand * { return operands_[0]; }
+  auto GetRHS() const -> utils::Operand * { return operands_[1]; }
 
  private:
   explicit XorInst(OpKind op_kind) : Instruction(op_kind) {}

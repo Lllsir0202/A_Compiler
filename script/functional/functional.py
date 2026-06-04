@@ -67,6 +67,15 @@ def execute_baseir(input, output, opt):
     # print(f"\033[92mAccept \033[0m{input}")
     return 1
 
+def execute_mir(input, output, opt):
+    """run MIR-related commands"""
+    result = execute(["timeout", "10", "../../bin/compiler", input, "-mir", "-o", output, opt])
+    if result.returncode != 0:
+        print(f"\033[93mCompile Error on \033[0m{input}")
+        return 0
+    # print(f"\033[92mAccept \033[0m{input}")
+    return 1
+
 def execute_ir(input, output, opt, stdin, stdout, testout, arch="x86"):
     """run IR-related commands"""
     result = execute(["timeout", "30", "../../bin/compiler", input, "-llvm", "-o", output, opt])
@@ -189,6 +198,8 @@ def main():
                 ac += execute_mlir(os.path.join(input_folder, file), os.path.join(output_folder, f"{name}.mlir"), opt_arg)
             elif step == "baseir":
                 ac += execute_baseir(os.path.join(input_folder, file), os.path.join(output_folder, f"{name}.baseir"), opt_arg)
+            elif step == "mir":
+                ac += execute_mir(os.path.join(input_folder, file), os.path.join(output_folder, f"{name}.mir"), opt_arg)
             elif step == "llvm":
                 ac += execute_ir(os.path.join(input_folder, file), os.path.join(output_folder, f"{name}.ll"), opt_arg, input_file if os.path.exists(input_file) else "none", output_file, "tmp.out", arch)
             elif step == "S":
