@@ -9,6 +9,7 @@ namespace backend::inst {
 class GlobalDefInst : public Instruction {
  public:
   auto Verify(context::CompilerContext *context) const -> bool override;
+  auto Emit(std::ofstream *out) const -> void override;
 
   // Interface to get the global variable information, such as the name, type, and initial value
   auto GetName() const -> const std::string & { return name_; }

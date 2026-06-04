@@ -24,4 +24,11 @@ auto LoadInst::Create(context::MIRContext *context, utils::Operand *ptr_operand)
   return inst;
 }
 
+auto LoadInst::Emit(std::ofstream *out) const -> void {
+  *out << "  ";
+  result_->Emit(out);
+  *out << " = load ";
+  operands_[0]->Emit(out);
+  *out << "\n";
+}
 }  // namespace backend::inst

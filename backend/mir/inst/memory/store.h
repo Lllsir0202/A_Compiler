@@ -6,6 +6,7 @@ namespace backend::inst {
 class StoreInst : public Instruction {
  public:
   auto Verify(context::CompilerContext *context) const -> bool override;
+  auto Emit(std::ofstream *out) const -> void override;
 
  private:
   explicit StoreInst() : Instruction(OpKind::Store) {}

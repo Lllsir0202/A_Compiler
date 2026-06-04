@@ -27,4 +27,12 @@ auto StoreInst::Create([[maybe_unused]] context::MIRContext *context, utils::Ope
   return inst;
 }
 
+auto StoreInst::Emit(std::ofstream *out) const -> void {
+  *out << "  store ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << "\n";
+}
+
 }  // namespace backend::inst

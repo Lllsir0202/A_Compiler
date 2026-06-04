@@ -37,4 +37,37 @@ auto GlobalDefInst::Create(context::MIRContext *context, type::Type *result_type
   return inst;
 }
 
+auto GlobalDefInst::Emit(std::ofstream *out) const -> void {
+  *out << "GlobalDef " << name_ << " : " << allocated_type_->ToString();
+  if (!dimensions_.empty()) {
+    *out << " [";
+    for (size_t i = 0; i < dimensions_.size(); ++i) {
+      *out << dimensions_[i];
+      if (i != dimensions_.size() - 1) {
+        *out << ", ";
+      }
+    }
+    *out << "]";
+  }
+  if (!int_initial_values_.empty()) {
+    *out << " = [";
+    for (size_t i = 0; i < int_initial_values_.size(); ++i) {
+      *out << int_initial_values_[i];
+      if (i != int_initial_values_.size() - 1) {
+        *out << ", ";
+      }
+    }
+    *out << "]";
+  } else if (!float_initial_values_.empty()) {
+    *out << " = [";
+    for (size_t i = 0; i < float_initial_values_.size(); ++i) {
+      *out << float_initial_values_[i];
+      if (i != float_initial_values_.size() - 1) {
+        *out << ", ";
+      }
+    }
+    *out << "]";
+  }
+}
+
 }  // namespace backend::inst
