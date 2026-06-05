@@ -13,6 +13,14 @@ enum class TargetRegSize : uint8_t {
   QWord = 8,  // 64-bit register
 };
 
+// Register class
+enum class TargetRegClass : uint8_t {
+  General,  // General-purpose register
+  Float,    // Floating-point register
+  Vector,   // Vector register
+  Special,  // Special-purpose register
+};
+
 // Operand type
 enum class TargetOperandType : uint8_t {
   VirtualReg,   // Virtual register, before register allocation
@@ -29,12 +37,16 @@ class TargetOperand {
   auto IsVirtualReg() -> bool { return type_ == TargetOperandType::VirtualReg; }
   auto IsPhysicalReg() -> bool { return type_ == TargetOperandType::PhysicalReg; }
   auto GetRegSize() -> TargetRegSize { return reg_size_; }
+  auto GetRegClass() -> TargetRegClass { return reg_class_; }
 
  protected:
-  explicit TargetOperand(TargetOperandType type, TargetRegSize reg_size) : type_(type), reg_size_(reg_size) {}
+  explicit TargetOperand(TargetOperandType type, TargetRegSize reg_size, TargetRegClass reg_class)
+      : type_(type), reg_size_(reg_size), reg_class_(reg_class) {}
   const TargetOperandType type_;
   // We might also need to record the register size
   const TargetRegSize reg_size_;
+  // We might also need to record the register class
+  const TargetRegClass reg_class_;
 };
 
 }  // namespace backend::targetir

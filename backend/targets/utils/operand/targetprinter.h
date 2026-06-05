@@ -5,10 +5,10 @@
 namespace backend::targetir {
 // Used as a map from num and size to decide what to print.
 // Inherit from this class to implement the map for different architectures, e.g. x86-64, arm64, etc.
-class TargetMap {
+class TargetPrinter {
  public:
-  virtual auto GetRegName(TargetRegSize reg_size, uint8_t id) -> std::string = 0;
-  virtual ~TargetMap() = default;
+  virtual auto GetRegName(TargetRegSize reg_size, uint8_t id) const -> std::string = 0;
+  virtual ~TargetPrinter() = default;
 };
 
 }  // namespace backend::targetir

@@ -3,7 +3,7 @@
 
 #include <cstdint>
 #include "backend/targets/utils/operand/targetoperand.h"
-#include "targets/utils/operand/targetmap.h"
+#include "targets/utils/operand/targetprinter.h"
 
 namespace backend::targetir {
 // Virtual register operand, before register allocation
@@ -15,8 +15,8 @@ class TargetVirtualReg : public TargetOperand {
   }
 
  private:
-  explicit TargetVirtualReg(TargetRegSize reg_size, size_t id)
-      : TargetOperand(TargetOperandType::VirtualReg, reg_size), id_(id) {}
+  explicit TargetVirtualReg(TargetRegSize reg_size, TargetRegClass reg_class, size_t id)
+      : TargetOperand(TargetOperandType::VirtualReg, reg_size, reg_class), id_(id) {}
 
   size_t id_;  // Unique ID for this virtual register
 };
@@ -25,17 +25,17 @@ class TargetVirtualReg : public TargetOperand {
 class TargetPhysicalReg : public TargetOperand {
  public:
   auto Emit(std::ofstream *out) -> void override {
-    if (target_map_ == nullptr) {
+    if (target_printer_ == nullptr) {
       // Should report error
-      throw std::runtime_error("Target map is not set for physical register");
+      throw std::runtime_error("Target printer is not set for physical register");
     }
-    // Output the physical register name using target map
-    *out << target_map_->GetRegName(reg_size_, id_);
+    // Output the physical register name using target printer
+    *out << target_printer_->GetRegName(reg_size_, id_);
   }
 
  private:
-  explicit TargetPhysicalReg(TargetRegSize reg_size, uint8_t id)
-      : TargetOperand(TargetOperandType::PhysicalReg, reg_size), id_(id) {}
+  explicit TargetPhysicalReg(TargetRegSize reg_size, TargetRegClass reg_class, uint8_t id)
+      : TargetOperand(TargetOperandType::PhysicalReg, reg_size, reg_class), id_(id) {}
 
   // Using ABI to specify the name of physical register,
   // i.e. 0 for eax/ax
@@ -43,7 +43,7 @@ class TargetPhysicalReg : public TargetOperand {
 
   // Need to specify the architecture for physical register,
   // so that we can print the correct register name in Emit function.
-  TargetMap *target_map_ = nullptr;
+  TargetPrinter *target_printer_ = nullptr;
 };
 }  // namespace backend::targetir
 #endif
