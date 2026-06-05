@@ -23,7 +23,7 @@ auto Function::Emit(std::ofstream *out) const -> void {
       *out << "\n";
     }
   }
-  *out << "}\n";
+  *out << "}\n\n";
 }
 
 auto Function::GetFrameInfoById(size_t frame_id) const -> FrameInfo * {
