@@ -13,8 +13,6 @@ class TargetOperand;
  */
 class TargetBlock {
  public:
-  // Constructor with id
-  explicit TargetBlock(size_t id) : id_(id) {}
   // Destructor: just use default
   ~TargetBlock() = default;
   // Output
@@ -34,6 +32,8 @@ class TargetBlock {
   auto GetID() const -> size_t { return id_; }
 
  private:
+  // Constructor with id
+  explicit TargetBlock(size_t id) : id_(id) {}
   std::vector<TargetInst *> insts_;
   std::vector<TargetBlock *> successors_;
   std::vector<TargetBlock *> predecessors_;

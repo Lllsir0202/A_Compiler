@@ -9,13 +9,13 @@ class TargetInst;
 
 class TargetFunction {
  public:
-  // Constructor with function name
-  explicit TargetFunction(std::string name) : name_(std::move(name)) {}
   // Destructor: delete all blocks
   ~TargetFunction();
   auto Emit(std::ofstream *out) -> void;
 
  private:
+  // Constructor with function name
+  explicit TargetFunction(std::string name) : name_(std::move(name)) {}
   // Record a list of blocks
   std::vector<TargetBlock *> blocks_;
   // Function name

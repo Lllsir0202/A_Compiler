@@ -25,13 +25,13 @@ enum class TargetOperandType : uint8_t {
 class TargetOperand {
  public:
   virtual auto Emit(std::ofstream *out) -> void = 0;
-  explicit TargetOperand(TargetOperandType type, TargetRegSize reg_size) : type_(type), reg_size_(reg_size) {}
   auto GetOpType() -> TargetOperandType { return type_; }
   auto IsVirtualReg() -> bool { return type_ == TargetOperandType::VirtualReg; }
   auto IsPhysicalReg() -> bool { return type_ == TargetOperandType::PhysicalReg; }
   auto GetRegSize() -> TargetRegSize { return reg_size_; }
 
  protected:
+  explicit TargetOperand(TargetOperandType type, TargetRegSize reg_size) : type_(type), reg_size_(reg_size) {}
   const TargetOperandType type_;
   // We might also need to record the register size
   const TargetRegSize reg_size_;
