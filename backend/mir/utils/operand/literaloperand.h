@@ -65,7 +65,7 @@ class CharLiteral : public Operand {
  public:
   auto Emit(std::ofstream *out) const -> void override {
     // The char literal will be emitted as the literal value
-    *out << value_;
+    *out << std::to_string(value_);
   }
   auto GetValue() const -> char { return value_; }
 
