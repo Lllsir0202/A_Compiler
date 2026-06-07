@@ -40,4 +40,42 @@ auto RVFLWInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm
   return inst;
 }
 
+auto RVLDInst::Emit(std::ofstream *out) -> void {
+  *out << "    ld ";
+  result_->Emit(out);
+  *out << ", ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << '\n';
+}
+
+auto RVLDInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVLDInst * {
+  auto *inst = new RVLDInst();
+  inst->operands_.reserve(2);
+  inst->AddOperand(rs1);
+  inst->AddOperand(imm);
+  inst->SetResult(rd);
+  return inst;
+}
+
+auto RVFLDInst::Emit(std::ofstream *out) -> void {
+  *out << "    fld ";
+  result_->Emit(out);
+  *out << ", ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << '\n';
+}
+
+auto RVFLDInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVFLDInst * {
+  auto *inst = new RVFLDInst();
+  inst->operands_.reserve(2);
+  inst->AddOperand(rs1);
+  inst->AddOperand(imm);
+  inst->SetResult(rd);
+  return inst;
+}
+
 }  // namespace backend::targetir::rv64

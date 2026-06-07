@@ -21,6 +21,24 @@ class RVFLWInst : public TargetInst {
   friend class InstFactory;
 };
 
+class RVLDInst : public TargetInst {
+ public:
+  auto Emit(std::ofstream *out) -> void override;
+
+ private:
+  static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVLDInst *;
+  friend class InstFactory;
+};
+
+class RVFLDInst : public TargetInst {
+ public:
+  auto Emit(std::ofstream *out) -> void override;
+
+ private:
+  static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVFLDInst *;
+  friend class InstFactory;
+};
+
 }  // namespace backend::targetir::rv64
 
 #endif
