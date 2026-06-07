@@ -18,7 +18,7 @@ enum class ValueType : uint8_t { INT, FLOAT, BOOL, UNKNOWN };
  */
 class Value {
  public:
-  Value() : int_value_(0), type_(ValueType::UNKNOWN){};
+  Value() : int_value_(0), type_(ValueType::UNKNOWN) {};
   explicit Value(int int_value) : int_value_(int_value), type_(ValueType::INT) {}
   explicit Value(float float_value) : float_value_(float_value), type_(ValueType::FLOAT) {}
   explicit Value(bool bool_value) : int_value_(static_cast<int>(bool_value)), type_(ValueType::BOOL) {}

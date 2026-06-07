@@ -40,7 +40,7 @@ class FuncCallOp : public BaseOps {
   auto GetOperands() -> std::vector<mlir::Value *> { return operands_; }
 
  private:
-  FuncCallOp() : BaseOps("call"){};
+  FuncCallOp() : BaseOps("call") {};
 
   // Used in lowering
   auto SetUp(mlir::Value *res, const std::string &name, std::vector<mlir::Value *> args) -> void {

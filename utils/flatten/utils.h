@@ -12,7 +12,7 @@ namespace utils::flatten {
 class Object {
  public:
   explicit Object(std::vector<int> current_initialized_object)
-      : current_initialized_object_(std::move(current_initialized_object)){};
+      : current_initialized_object_(std::move(current_initialized_object)) {};
 
   auto IsScalar() const -> bool { return current_initialized_object_.empty(); }
 

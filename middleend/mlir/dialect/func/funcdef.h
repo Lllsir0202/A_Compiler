@@ -87,7 +87,7 @@ class FuncDefOp : public FuncOps {
   auto Walk(Adapter *adapter) -> void override;
 
  private:
-  FuncDefOp() : FuncOps("def"){};
+  FuncDefOp() : FuncOps("def") {};
   auto SetUp(context::MLIRContext *context, const std::string &name, std::vector<mlir::Value *> &args,
              type::Type *return_type) -> void {
     // Generate the block and region
