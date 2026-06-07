@@ -35,6 +35,9 @@ auto Pass::PreRun() -> void {
     Pass *dep_pass = compiler_context_->GetPassContext()->GetPassByName(dep);
     if (dep_pass != nullptr && !dep_pass->IsValid()) {
       dep_pass->PreRun();
+      if (!dep_pass->IsValid()) {
+        dep_pass->Run();
+      }
     }
   }
 }

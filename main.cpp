@@ -13,6 +13,7 @@
 #include "middleend/mlir/verifer/verifer.h"
 #include "middleend/pass/analysis/cfg/mlircfg.h"
 #include "middleend/pass/analysis/domtree/domtree.h"
+#include "middleend/pass/transform/adce/adce.h"
 #include "middleend/pass/transform/simplify/simplify.h"
 #include "middleend/pass/transform/unify/unify.h"
 #include "stages/ast/ast_stage.h"
@@ -247,15 +248,18 @@ auto main(int argc, char *argv[]) -> int {
   auto cfg_pass = context::PassContext::CreatePass<middleend::pass::analysis::CFGPass>(
       &compiler_context, baseir_cfg_builder, middleend::pass::PassStage::BASEIR);
   baseirpass_context->AddPass(cfg_pass);
-  auto domtree_pass = context::PassContext::CreatePass<middleend::pass::analysis::DomTreePass>(
-      &compiler_context, middleend::pass::PassStage::BASEIR);
-  baseirpass_context->AddPass(domtree_pass);
   auto simplify_pass = context::PassContext::CreatePass<middleend::pass::transform::SimplifyPass>(
       &compiler_context, middleend::pass::PassStage::BASEIR);
   baseirpass_context->AddPass(simplify_pass);
   auto unify_pass = context::PassContext::CreatePass<middleend::pass::transform::UnifyReturnPass>(
       &compiler_context, middleend::pass::PassStage::BASEIR);
   baseirpass_context->AddPass(unify_pass);
+  auto domtree_pass = context::PassContext::CreatePass<middleend::pass::analysis::DomTreePass>(
+      &compiler_context, middleend::pass::PassStage::BASEIR);
+  baseirpass_context->AddPass(domtree_pass);
+  auto adce_pass = context::PassContext::CreatePass<middleend::pass::transform::ADCEPass>(
+      &compiler_context, middleend::pass::PassStage::BASEIR);
+  baseirpass_context->AddPass(adce_pass);
   ret = baseirpass_context->RunPasses();
 
   if (ret != 0) {

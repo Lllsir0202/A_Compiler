@@ -41,6 +41,8 @@ class DomTreeNode {
 
   auto GetDFSOrder() const -> size_t { return dfs_order_; }
   auto GetCFGNode() const -> CFGNode * { return cfg_node_; }
+  auto GetIDom() const -> DomTreeNode * { return idom_; }
+  auto GetChildren() const -> const std::vector<DomTreeNode *> & { return children_; }
 
  private:
   DomTreeNode(size_t dfs_order, CFGNode *cfg_node) : dfs_order_(dfs_order), cfg_node_(cfg_node) {
@@ -97,11 +99,21 @@ class DomTree {
  public:
   explicit DomTree(context::CompilerContext *compiler_context, DomTreeHelper *helper)
       : helper_(helper), compiler_context_(compiler_context) {}
-  ~DomTree() = default;
+  ~DomTree() {
+    delete entry_node_;
+    delete helper_;
+  }
 
   // Interface to get the root node of the dominator tree
   auto GetEntryNode() -> DomTreeNode * { return entry_node_; }
   auto GetNodes() -> std::vector<DomTreeNode *> { return nodes_; }
+  auto GetDomTreeNode(CFGNode *cfg_node) -> DomTreeNode * {
+    if (cfg_node_to_dom_tree_node_.count(cfg_node) == 0) {
+      return nullptr;
+    }
+    return cfg_node_to_dom_tree_node_[cfg_node];
+  }
+  auto Dominates(CFGNode *lhs, CFGNode *rhs) -> bool;
 
   // DFS to initialize the domtree
   auto Initialize(CFGNode *cfg_node, DomTreeNode *parent = nullptr) -> void;
@@ -124,7 +136,7 @@ class DomTree {
   std::unordered_map<DomTreeNode *, CFGNode *> dom_tree_node_to_cfg_node_;
 
   // The root node of the dominator tree.
-  DomTreeNode *entry_node_;
+  DomTreeNode *entry_node_{nullptr};
 
   // Helper members
   DomTreeHelper *helper_;

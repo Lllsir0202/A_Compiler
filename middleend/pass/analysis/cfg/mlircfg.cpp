@@ -28,6 +28,7 @@ auto MLIRCFGBuilder::BuildFunctionCFG(mlir::base::FuncDefOp *func_op) -> void {
   auto entry_block = func_op->GetEntryBlock();
   auto entry_node = new MLIRCFGNode(entry_block);
   func_cfg->AddNode(entry_node);
+  func_cfg->MapBlockToNode(entry_block, entry_node);
   func_cfg->SetEntryNode(entry_node);
   // Use a worklist to build the CFG, starting from the entry block
   std::queue<MLIRCFGNode *> worklist;

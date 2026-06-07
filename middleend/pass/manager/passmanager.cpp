@@ -1,4 +1,6 @@
 #include "middleend/pass/manager/passmanager.h"
+#include <functional>
+#include <unordered_map>
 #include "context/compiler_context.h"
 #include "middleend/pass/pass.h"
 namespace middleend::pass {
@@ -47,7 +49,40 @@ auto PassManager::RunPasses() -> int {
     return 1;
   }
 
-  for (auto pass : passes_) {
+  std::vector<Pass *> ordered_passes;
+  std::unordered_map<Pass *, int> visit_state;
+  std::function<bool(Pass *)> dfs = [&](Pass *pass) -> bool {
+    if (visit_state[pass] == 2) {
+      return true;
+    }
+    if (visit_state[pass] == 1) {
+      compiler_context_->Print("Cyclic pass dependency detected at " + pass->Name() + "\n");
+      return false;
+    }
+    visit_state[pass] = 1;
+    for (const auto &dependency_name : pass->GetDependencies()) {
+      auto *dependency_pass = GetPassByName(dependency_name);
+      if (dependency_pass == nullptr) {
+        compiler_context_->Print(pass->Name() + ": Dependency pass " + dependency_name + " not found\n");
+        return false;
+      }
+      if (!dfs(dependency_pass)) {
+        return false;
+      }
+    }
+    visit_state[pass] = 2;
+    ordered_passes.emplace_back(pass);
+    return true;
+  };
+
+  for (auto *pass : passes_) {
+    if (!dfs(pass)) {
+      compiler_context_->Print("Pass dependency resolution failed\n");
+      return 1;
+    }
+  }
+
+  for (auto *pass : ordered_passes) {
     try {
       pass->Run();
     } catch (const std::exception &e) {

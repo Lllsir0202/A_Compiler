@@ -24,6 +24,12 @@ auto PhiCanonicalizationPass::Run() -> void {
 
 auto PhiCanonicalizationPass::CanonicalizePhiInFunction() -> void {
   auto cfgpass = compiler_context_->GetPassContext()->GetSpecPass<analysis::CFGPass>("CFGPass");
+  if (cfgpass == nullptr) {
+    throw std::logic_error("CFGPass should be registered before PhiCanonicalizationPass");
+  }
+  if (!cfgpass->IsValid()) {
+    cfgpass->Run();
+  }
   if (cfgpass->GetPassStage() != PassStage::BASEIR) {
     throw std::logic_error("CFGPass should be run before PhiCanonicalizationPass");
   }
@@ -122,6 +128,9 @@ auto PhiCanonicalizationPass::CanonicalizePhiInFunction() -> void {
           }
           for (auto phi_op : phi_ops) {
             if (to_remove_ops.count(phi_op) > 0) {
+              if (phi_op->GetIncomingSize() == 0) {
+                continue;
+              }
               auto value = phi_op->GetIncomingValue()[0];
               // if the value's op is also a phi node, and it is in the to_remove_ops,
               // we should get the final value after replacement

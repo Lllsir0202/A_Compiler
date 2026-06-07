@@ -193,6 +193,20 @@ auto DomTree::BuildDomTree(FunctionCFG *function_cfg) -> void {
 #endif
 }
 
+auto DomTree::Dominates(CFGNode *lhs, CFGNode *rhs) -> bool {
+  auto *lhs_node = GetDomTreeNode(lhs);
+  auto *rhs_node = GetDomTreeNode(rhs);
+  if (lhs_node == nullptr || rhs_node == nullptr) {
+    return false;
+  }
+  for (auto *current = rhs_node; current != nullptr; current = current->GetIDom()) {
+    if (current == lhs_node) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // Build the post order for the domtree,
 // which will be used in some optimizations like code motion
 auto DomTree::BuildPostOrder(DomTreeNode *node) -> void {
@@ -218,17 +232,25 @@ auto DomTreePass::Run() -> void {
   }
   auto function_cfgs = cfg_pass->Get();
   // Build the dominator tree for each function CFG
-  auto normalhelper = new NormalDomTreeHelper();
-
-  // Not implemented yet, since we do not have the unify pass to unify the exit nodes,
-  //   auto posthelper = new PostDomTreeHelper();
+  for (auto &[function_cfg, dom_tree] : dom_tree_) {
+    (void)function_cfg;
+    delete dom_tree;
+  }
+  dom_tree_.clear();
+  for (auto &[function_cfg, post_dom_tree] : post_dom_tree_) {
+    (void)function_cfg;
+    delete post_dom_tree;
+  }
+  post_dom_tree_.clear();
   for (auto &function_cfg : function_cfgs) {
-    auto dom_tree = new DomTree(compiler_context_, normalhelper);
-    // auto post_dom_tree = new DomTree(compiler_context_, posthelper);
+    auto dom_tree = new DomTree(compiler_context_, new NormalDomTreeHelper());
     dom_tree->BuildDomTree(function_cfg);
-    // post_dom_tree->BuildDomTree(function_cfg);
     dom_tree_[function_cfg] = dom_tree;
-    // post_dom_tree_[function_cfg] = post_dom_tree;
+    if (function_cfg->GetExitNodes().size() == 1) {
+      auto post_dom_tree = new DomTree(compiler_context_, new PostDomTreeHelper());
+      post_dom_tree->BuildDomTree(function_cfg);
+      post_dom_tree_[function_cfg] = post_dom_tree;
+    }
   }
 
   // Validate the pass after building the dominator tree,

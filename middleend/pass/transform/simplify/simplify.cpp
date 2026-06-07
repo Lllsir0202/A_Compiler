@@ -42,6 +42,10 @@ auto SimplifyPass::SimplifyCFGBaseIR() -> void {
     }
   }
 
+  // CFG has been changed at this point. Invalidate analyses before
+  // running phi canonicalization so it can rebuild CFG with fresh edges.
+  compiler_context_->GetPassContext()->InvalidateAnalysis();
+
   // After simplification, erase the unreachable blocks.
   // And do canonicalization for phi nodes
   auto phi_canonicalization_pass =

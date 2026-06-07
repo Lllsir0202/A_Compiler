@@ -34,6 +34,7 @@ auto UnifyReturnPass::Run() -> void {
     throw std::logic_error("UnifyReturnInFunction failed in UnifyReturnPass");
     return;
   }
+  compiler_context_->GetPassContext()->InvalidateAnalysis();
 }
 
 auto UnifyReturnPass::UnifyReturnInFunction() -> void {
