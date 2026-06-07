@@ -40,5 +40,9 @@ normalized_initializer.txt
 tmp.*
 a.out
 
+# Ignore python cache files
+__pycache__/
+*.pyc
+
 # Ignore valgrind output files
 valgrind_output.*
