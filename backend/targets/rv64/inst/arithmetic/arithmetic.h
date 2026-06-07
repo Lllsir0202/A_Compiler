@@ -38,6 +38,15 @@ class RVADDIInst : public TargetInst {
   friend class InstFactory;
 };
 
+class RVSLLIInst : public TargetInst {
+ public:
+  auto Emit(std::ofstream *out) -> void override;
+
+ private:
+  static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVSLLIInst *;
+  friend class InstFactory;
+};
+
 // Float arithmetic instructions
 RV64_ARITHMETIC_DEFINE(RVFADDS)
 RV64_ARITHMETIC_DEFINE(RVFSUBS)

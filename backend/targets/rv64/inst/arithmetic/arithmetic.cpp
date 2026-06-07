@@ -117,6 +117,25 @@ auto RVADDIInst::Emit(std::ofstream *out) -> void {
   *out << '\n';
 }
 
+auto RVSLLIInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVSLLIInst * {
+  auto *inst = new RVSLLIInst();
+  inst->operands_.reserve(2);
+  inst->AddOperand(rs1);
+  inst->AddOperand(imm);
+  inst->SetResult(rd);
+  return inst;
+}
+
+auto RVSLLIInst::Emit(std::ofstream *out) -> void {
+  *out << "    slli ";
+  result_->Emit(out);
+  *out << ", ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << '\n';
+}
+
 auto RVADDWInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVADDWInst * {
   auto *inst = new RVADDWInst();
   inst->operands_.reserve(2);
