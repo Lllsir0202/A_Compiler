@@ -107,9 +107,13 @@ auto UnifyReturnPass::UnifyReturnInFunction() -> void {
       auto result = GET_MLIR_CONTEXT()->CreateValue();
       result->SetType(return_type);
       auto phi_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::PhiOp>(result, return_operands, branch_targets);
+      for (size_t i = 0; i < return_operands.size(); ++i) {
+        return_operands[i]->AddUse(phi_op, i);
+      }
       unified_exit_block->operations_.emplace_back(phi_op);
       // Finally, add a return operation in the unified exit block to return the value from the phi node
       auto ret_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::func::ReturnOp>(GET_MLIR_CONTEXT(), return_type, result);
+      result->AddUse(ret_op, 0);
       unified_exit_block->operations_.emplace_back(ret_op);
     } else {
       // If there is no return value, we can directly add a return operation in the unified exit block

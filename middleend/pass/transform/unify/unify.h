@@ -19,7 +19,6 @@ class UnifyReturnPass : public TransformPass {
     // Depend on CFGPass,
     // we get cfg information in this pass to unify the return operation
     AddDependency("CFGPass");
-    AddDependency("SimplifyPass");
   }
   ~UnifyReturnPass() override = default;
 
