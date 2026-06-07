@@ -8,6 +8,13 @@ class TargetModule {
   ~TargetModule();
   auto Emit(std::ofstream *out) -> void;
   auto AddFunction(TargetFunction *function) -> void { functions_.emplace_back(function); }
+  auto GetFunctions() -> const std::vector<TargetFunction *> & { return functions_; }
+  auto Reset() -> void {
+    for (auto *func : functions_) {
+      delete func;
+    }
+    functions_.clear();
+  }
 
  private:
   // Constructor: create an empty module

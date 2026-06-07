@@ -32,6 +32,7 @@ enum class TargetOperandType : uint8_t {
 
 class TargetOperand {
  public:
+  virtual ~TargetOperand() = default;
   virtual auto Emit(std::ofstream *out) -> void = 0;
   auto GetOpType() -> TargetOperandType { return type_; }
   auto IsVirtualReg() -> bool { return type_ == TargetOperandType::VirtualReg; }

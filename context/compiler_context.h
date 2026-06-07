@@ -4,11 +4,12 @@
 #include <fstream>
 #include "ast/ast_base.h"
 #include "context/ast_context.h"
+#include "context/backend_context.h"
 #include "context/ir_context.h"
+#include "context/mir_context.h"
 #include "context/pass_context.h"
 #include "context/symboltable_context.h"
 #include "context/type_context.h"
-#include "mir_context.h"
 namespace context {
 
 /**
@@ -27,6 +28,7 @@ class CompilerContext {
     InitializeLibFunc();
     ir_context_ = new IRContext(type_context_);
     mir_context_ = new MIRContext(type_context_);
+    backend_context_ = new BackendContext();
   }
   ~CompilerContext() {
     delete type_context_;
@@ -35,6 +37,7 @@ class CompilerContext {
     delete ir_context_;
     delete pass_context_;
     delete mir_context_;
+    delete backend_context_;
   }
   auto GetTypeContext() -> TypeContext * { return type_context_; }
   auto GetAstContext() -> AstContext * { return ast_context_; }
@@ -70,6 +73,9 @@ class CompilerContext {
 
   // Machine IR context
   MIRContext *mir_context_;
+
+  // Backend context
+  BackendContext *backend_context_;
 
   // Using this compiler context to control ALL resources in the compiler
 
