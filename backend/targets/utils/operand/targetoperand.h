@@ -36,17 +36,10 @@ class TargetOperand {
   auto GetOpType() -> TargetOperandType { return type_; }
   auto IsVirtualReg() -> bool { return type_ == TargetOperandType::VirtualReg; }
   auto IsPhysicalReg() -> bool { return type_ == TargetOperandType::PhysicalReg; }
-  auto GetRegSize() -> TargetRegSize { return reg_size_; }
-  auto GetRegClass() -> TargetRegClass { return reg_class_; }
 
  protected:
-  explicit TargetOperand(TargetOperandType type, TargetRegSize reg_size, TargetRegClass reg_class)
-      : type_(type), reg_size_(reg_size), reg_class_(reg_class) {}
+  explicit TargetOperand(TargetOperandType type) : type_(type) {}
   const TargetOperandType type_;
-  // We might also need to record the register size
-  const TargetRegSize reg_size_;
-  // We might also need to record the register class
-  const TargetRegClass reg_class_;
 };
 
 }  // namespace backend::targetir

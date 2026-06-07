@@ -7,7 +7,7 @@ namespace backend::targetir {
 // Inherit from this class to implement the map for different architectures, e.g. x86-64, arm64, etc.
 class TargetPrinter {
  public:
-  virtual auto GetRegName(TargetRegSize reg_size, uint8_t id) const -> std::string = 0;
+  virtual auto GetRegName(TargetRegSize reg_size, uint8_t id, TargetRegClass reg_class) const -> std::string = 0;
   virtual ~TargetPrinter() = default;
 };
 
