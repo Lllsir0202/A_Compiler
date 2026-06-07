@@ -531,11 +531,13 @@ auto LowerHelper::LowerGetElementPtrInst(middleend::llvm::inst::GetElementPtrIns
   address_info.base_ptr_ = mir_base_ptr;
   address_info.dimensions_ = dimensions;
   address_info.indices_ = mir_indices;
+  memory_operand->SetAddressInfo(address_info);
 
   // Memory information will be used as a record of the result's memory layout
   auto memory_info = utils::MemoryInfo();
   memory_info.align_ = gep_inst->GetResult()->GetType()->GetAlign();
   memory_info.size_ = gep_inst->GetResult()->GetType()->GetDataSize();
+  memory_operand->SetMemoryInfo(memory_info);
 
   // Then map the memory operand to the original llvm result operand.
   GET_LOWER_CONTEXT()->MapLLVMOperandToMIROperand(gep_inst->GetResult(), memory_operand);
