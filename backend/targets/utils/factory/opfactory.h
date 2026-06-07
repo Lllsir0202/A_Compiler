@@ -4,6 +4,10 @@
 #include "backend/targets/utils/operand/targetframe.h"
 #include "backend/targets/utils/operand/targetliteral.h"
 #include "backend/targets/utils/operand/targetreg.h"
+namespace context {
+class BackendContext;
+}
+
 namespace backend::targetir {
 class OperandFactory {
   static auto CreateFrameOperand(size_t slot_id) -> TargetFrameOperand * { return new TargetFrameOperand(slot_id); }
@@ -17,6 +21,7 @@ class OperandFactory {
 
   static auto CreateIntLiteral(int value) -> TargetIntLiteral * { return new TargetIntLiteral(value); }
   static auto CreateFloatLiteral(float value) -> TargetFloatLiteral * { return new TargetFloatLiteral(value); }
+  friend class context::BackendContext;
 };
 
 }  // namespace backend::targetir
