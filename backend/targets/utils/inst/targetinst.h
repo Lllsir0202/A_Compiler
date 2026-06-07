@@ -2,6 +2,11 @@
 #define BACKEND_TARGETS_UTILS_INST_TARGETINST_H
 #include <fstream>
 #include <vector>
+
+namespace context {
+class BackendContext;
+}
+
 namespace backend::targetir {
 class TargetOperand;
 class TargetBlock;
@@ -9,6 +14,7 @@ class TargetBlock;
 class TargetInst {
  public:
   virtual auto Emit(std::ofstream *out) -> void = 0;
+  virtual ~TargetInst() = default;
 
   // Common interface for adding operands and setting result
   auto AddOperand(TargetOperand *operand) -> void { operands_.emplace_back(operand); }
@@ -22,6 +28,7 @@ class TargetInst {
   auto ReplaceResult(TargetOperand *new_result) -> void { result_ = new_result; }
 
  protected:
+  TargetInst() = default;
   // Operands of this instruction
   std::vector<TargetOperand *> operands_;
   TargetOperand *result_;

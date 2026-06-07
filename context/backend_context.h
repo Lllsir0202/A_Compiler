@@ -9,7 +9,8 @@
 #include "backend/targets/utils/operand/targetliteral.h"
 #include "backend/targets/utils/operand/targetoperand.h"
 #include "backend/targets/utils/operand/targetreg.h"
-#include "targets/utils/struct/targetmodule.h"
+#include "backend/targets/utils/struct/targetmodule.h"
+#include "mir/utils/factory/instfactory.h"
 namespace context {
 // Provide the context for the backend,
 // Include the target architecture.
@@ -52,6 +53,12 @@ class BackendContext {
       return it->second;
     }
     return nullptr;
+  }
+
+  // Create instructions
+  template <typename T, typename... Args>
+  auto CreateInstruction(Args &&...args) -> T * {
+    return backend::utils::factory::InstFactory::CreateInst<T>(std::forward<Args>(args)...);
   }
 
  private:
