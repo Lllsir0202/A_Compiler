@@ -3,15 +3,6 @@
 
 #include "backend/targets/utils/inst/targetinst.h"
 namespace backend::targetir::rv64 {
-class RVLIInst : public TargetInst {
- public:
-  auto Emit(std::ofstream *out) -> void override;
-
- private:
-  static auto Create(TargetOperand *rd, TargetOperand *imm) -> RVLIInst *;
-  friend class InstFactory;
-};
-
 class RVLUIInst : public TargetInst {
  public:
   auto Emit(std::ofstream *out) -> void override;
