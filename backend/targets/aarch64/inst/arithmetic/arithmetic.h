@@ -1,8 +1,6 @@
 #ifndef BACKEND_TARGETS_AARCH64_INST_ARITHMETIC_ARITHMETIC_H
 #define BACKEND_TARGETS_AARCH64_INST_ARITHMETIC_ARITHMETIC_H
 
-#include <cstddef>
-#include <cstdint>
 #include "backend/targets/utils/inst/targetinst.h"
 namespace backend::targetir::aarch64 {
 // In aarch64, the arithmetic instructions include
@@ -69,5 +67,11 @@ AARCH64_ARITHMETIC_IMM_DEFINE(ARMADD)
 AARCH64_ARITHMETIC_IMM_DEFINE(ARMSUB)
 AARCH64_ARITHMETIC_SHIFT_DEFINE(ARMADD)
 AARCH64_ARITHMETIC_SHIFT_DEFINE(ARMSUB)
+
+// Floating point arithmetic instructions
+AARCH64_ARITHMETIC_REG_DEFINE(ARMFADD)
+AARCH64_ARITHMETIC_REG_DEFINE(ARMFSUB)
+AARCH64_ARITHMETIC_REG_DEFINE(ARMFMUL)
+AARCH64_ARITHMETIC_REG_DEFINE(ARMFDIV)
 }  // namespace backend::targetir::aarch64
 #endif

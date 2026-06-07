@@ -168,4 +168,81 @@ auto ARMSUBShiftInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperan
   return inst;
 }
 
+// Floating point arithmetic instructions
+auto ARMFADDInst::Emit(std::ofstream *out) -> void {
+  *out << "    fadd ";
+  result_->Emit(out);
+  *out << ", ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << '\n';
+}
+
+auto ARMFADDInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> ARMFADDInst * {
+  auto inst = new ARMFADDInst();
+  inst->operands_.reserve(2);
+  inst->AddOperand(rs1);
+  inst->AddOperand(rs2);
+  inst->SetResult(rd);
+  return inst;
+}
+
+auto ARMFSUBInst::Emit(std::ofstream *out) -> void {
+  *out << "    fsub ";
+  result_->Emit(out);
+  *out << ", ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << '\n';
+}
+
+auto ARMFSUBInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> ARMFSUBInst * {
+  auto inst = new ARMFSUBInst();
+  inst->operands_.reserve(2);
+  inst->AddOperand(rs1);
+  inst->AddOperand(rs2);
+  inst->SetResult(rd);
+  return inst;
+}
+
+auto ARMFMULInst::Emit(std::ofstream *out) -> void {
+  *out << "    fmul ";
+  result_->Emit(out);
+  *out << ", ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << '\n';
+}
+
+auto ARMFMULInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> ARMFMULInst * {
+  auto inst = new ARMFMULInst();
+  inst->operands_.reserve(2);
+  inst->AddOperand(rs1);
+  inst->AddOperand(rs2);
+  inst->SetResult(rd);
+  return inst;
+}
+
+auto ARMFDIVInst::Emit(std::ofstream *out) -> void {
+  *out << "    fdiv ";
+  result_->Emit(out);
+  *out << ", ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << '\n';
+}
+
+auto ARMFDIVInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> ARMFDIVInst * {
+  auto inst = new ARMFDIVInst();
+  inst->operands_.reserve(2);
+  inst->AddOperand(rs1);
+  inst->AddOperand(rs2);
+  inst->SetResult(rd);
+  return inst;
+}
+
 }  // namespace backend::targetir::aarch64
