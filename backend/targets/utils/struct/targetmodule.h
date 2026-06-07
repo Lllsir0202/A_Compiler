@@ -1,5 +1,5 @@
-#ifndef BACKEND_TARGETS_UTILS_OPERAND_TARGETMODULE_H
-#define BACKEND_TARGETS_UTILS_OPERAND_TARGETMODULE_H
+#ifndef BACKEND_TARGETS_UTILS_STRUCT_TARGETMODULE_H
+#define BACKEND_TARGETS_UTILS_STRUCT_TARGETMODULE_H
 #include "backend/targets/utils/struct/targetfunction.h"
 namespace backend::targetir {
 class TargetModule {
