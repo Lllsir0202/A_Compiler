@@ -9,6 +9,7 @@ class TargetIntLiteral : public TargetOperand {
 
  private:
   explicit TargetIntLiteral(int value) : TargetOperand(TargetOperandType::Immediate), value_(value) {}
+  friend class OperandFactory;
   int value_;
 };
 
@@ -19,6 +20,7 @@ class TargetFloatLiteral : public TargetOperand {
 
  private:
   explicit TargetFloatLiteral(float value) : TargetOperand(TargetOperandType::Immediate), value_(value) {}
+  friend class OperandFactory;
   float value_;
 };
 

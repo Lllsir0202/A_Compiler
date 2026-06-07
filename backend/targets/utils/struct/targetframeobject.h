@@ -14,7 +14,7 @@ class TargetFrameObject {
 
  private:
   explicit TargetFrameObject(size_t id, size_t size, size_t alignment) : id_(id), size_(size), alignment_(alignment) {}
-
+  friend class FunctionFactory;
   // Frame object id, used to identify the frame object in the stack frame
   size_t id_;
   // Size of the frame object in bytes

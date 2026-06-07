@@ -1,6 +1,7 @@
 #ifndef BACKEND_TARGETS_UTILS_STRUCT_TARGETBLOCK_H
 #define BACKEND_TARGETS_UTILS_STRUCT_TARGETBLOCK_H
 #include <fstream>
+#include <utility>
 #include <vector>
 namespace backend::targetir {
 class TargetInst;
@@ -28,12 +29,16 @@ class TargetBlock {
   auto AddSuccessor(TargetBlock *succ) -> void { successors_.emplace_back(succ); }
   auto AddPredecessor(TargetBlock *pred) -> void { predecessors_.emplace_back(pred); }
 
-  // Get and Set id
+  // Get id
   auto GetID() const -> size_t { return id_; }
+
+  // Set function name
+  auto SetFuncName(std::string func_name) -> void { func_name_ = std::move(func_name); }
 
  private:
   // Constructor with id
   explicit TargetBlock(size_t id) : id_(id) {}
+  friend class BlockFactory;
   std::vector<TargetInst *> insts_;
   std::vector<TargetBlock *> successors_;
   std::vector<TargetBlock *> predecessors_;

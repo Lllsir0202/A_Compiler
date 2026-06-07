@@ -15,7 +15,7 @@ class TargetFrameOperand : public TargetOperand {
 
  private:
   explicit TargetFrameOperand(size_t slot_id) : TargetOperand(TargetOperandType::Frame), slot_id_(slot_id) {}
-
+  friend class OperandFactory;
   // Frame slot id, used to identify the slot in the stack frame
   size_t slot_id_;
 };

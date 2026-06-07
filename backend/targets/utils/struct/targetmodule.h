@@ -12,6 +12,7 @@ class TargetModule {
  private:
   // Constructor: create an empty module
   TargetModule() = default;
+  friend class ModuleFactory;
   // Record a list of functions
   std::vector<TargetFunction *> functions_;
 };

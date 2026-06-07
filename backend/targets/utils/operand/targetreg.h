@@ -21,7 +21,7 @@ class TargetVirtualReg : public TargetOperand {
  private:
   explicit TargetVirtualReg(TargetRegSize reg_size, size_t id)
       : TargetOperand(TargetOperandType::VirtualReg), id_(id), reg_size_(reg_size) {}
-
+  friend class OperandFactory;
   size_t id_;  // Unique ID for this virtual register
 
   // Target register size
@@ -53,7 +53,7 @@ class TargetPhysicalReg : public TargetOperand {
         reg_size_(reg_size),
         reg_class_(reg_class),
         offset_(offset) {}
-
+  friend class OperandFactory;
   // Using ABI to specify the name of physical register,
   // i.e. 0 for eax/ax
   uint8_t id_;
