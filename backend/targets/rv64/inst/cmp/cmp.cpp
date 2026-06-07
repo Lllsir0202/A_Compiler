@@ -61,8 +61,8 @@ auto RVSEQInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2
 }
 
 // FCmp
-auto RVFLTInst::Emit(std::ofstream *out) -> void {
-  *out << "    flt ";
+auto RVFLTSInst::Emit(std::ofstream *out) -> void {
+  *out << "    flt.s ";
   operands_[0]->Emit(out);
   *out << ", ";
   operands_[1]->Emit(out);
@@ -71,8 +71,8 @@ auto RVFLTInst::Emit(std::ofstream *out) -> void {
   *out << '\n';
 }
 
-auto RVFLTInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVFLTInst * {
-  auto *inst = new RVFLTInst();
+auto RVFLTSInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVFLTSInst * {
+  auto *inst = new RVFLTSInst();
   inst->operands_.reserve(2);
   inst->AddOperand(rs1);
   inst->AddOperand(rs2);
@@ -80,8 +80,8 @@ auto RVFLTInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2
   return inst;
 }
 
-auto RVFLEInst::Emit(std::ofstream *out) -> void {
-  *out << "    fle ";
+auto RVFLESInst::Emit(std::ofstream *out) -> void {
+  *out << "    fle.s ";
   operands_[0]->Emit(out);
   *out << ", ";
   operands_[1]->Emit(out);
@@ -90,8 +90,8 @@ auto RVFLEInst::Emit(std::ofstream *out) -> void {
   *out << '\n';
 }
 
-auto RVFLEInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVFLEInst * {
-  auto *inst = new RVFLEInst();
+auto RVFLESInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVFLESInst * {
+  auto *inst = new RVFLESInst();
   inst->operands_.reserve(2);
   inst->AddOperand(rs1);
   inst->AddOperand(rs2);
@@ -99,8 +99,8 @@ auto RVFLEInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2
   return inst;
 }
 
-auto RVFEQInst::Emit(std::ofstream *out) -> void {
-  *out << "    feq ";
+auto RVFEQSInst::Emit(std::ofstream *out) -> void {
+  *out << "    feq.s ";
   operands_[0]->Emit(out);
   *out << ", ";
   operands_[1]->Emit(out);
@@ -109,8 +109,8 @@ auto RVFEQInst::Emit(std::ofstream *out) -> void {
   *out << '\n';
 }
 
-auto RVFEQInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVFEQInst * {
-  auto *inst = new RVFEQInst();
+auto RVFEQSInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVFEQSInst * {
+  auto *inst = new RVFEQSInst();
   inst->operands_.reserve(2);
   inst->AddOperand(rs1);
   inst->AddOperand(rs2);

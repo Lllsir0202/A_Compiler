@@ -32,30 +32,30 @@ class RVSEQInst : public TargetInst {
 };
 
 // FCmp
-class RVFLTInst : public TargetInst {
+class RVFLTSInst : public TargetInst {
  public:
   auto Emit(std::ofstream *out) -> void override;
 
  private:
-  static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVFLTInst *;
+  static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVFLTSInst *;
   friend class InstFactory;
 };
 
-class RVFLEInst : public TargetInst {
+class RVFLESInst : public TargetInst {
  public:
   auto Emit(std::ofstream *out) -> void override;
 
  private:
-  static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVFLEInst *;
+  static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVFLESInst *;
   friend class InstFactory;
 };
 
-class RVFEQInst : public TargetInst {
+class RVFEQSInst : public TargetInst {
  public:
   auto Emit(std::ofstream *out) -> void override;
 
  private:
-  static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVFEQInst *;
+  static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVFEQSInst *;
   friend class InstFactory;
 };
 
