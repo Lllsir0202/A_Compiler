@@ -48,7 +48,7 @@ class BreakOp : public SCFOps {
   }
 
  private:
-  BreakOp() : SCFOps("break"){};
+  BreakOp() : SCFOps("break") {};
   auto SetUp(context::MLIRContext *context) -> void { var_map_ = context->GetResourceContext()->GetVarMap(); }
   // We need to store a slapshot of the variable map when we create the break operation
   // Then when we finish generate the loop, we can get the loop-carried variables and set them to the break operation

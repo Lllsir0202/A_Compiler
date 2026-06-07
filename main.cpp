@@ -247,9 +247,9 @@ auto main(int argc, char *argv[]) -> int {
   auto cfg_pass = context::PassContext::CreatePass<middleend::pass::analysis::CFGPass>(
       &compiler_context, baseir_cfg_builder, middleend::pass::PassStage::BASEIR);
   baseirpass_context->AddPass(cfg_pass);
-  // auto domtree_pass = context::PassContext::CreatePass<middleend::pass::analysis::DomTreePass>(
-  //     &compiler_context, middleend::pass::PassStage::BASEIR);
-  // baseirpass_context->AddPass(domtree_pass);
+  auto domtree_pass = context::PassContext::CreatePass<middleend::pass::analysis::DomTreePass>(
+      &compiler_context, middleend::pass::PassStage::BASEIR);
+  baseirpass_context->AddPass(domtree_pass);
   auto simplify_pass = context::PassContext::CreatePass<middleend::pass::transform::SimplifyPass>(
       &compiler_context, middleend::pass::PassStage::BASEIR);
   baseirpass_context->AddPass(simplify_pass);

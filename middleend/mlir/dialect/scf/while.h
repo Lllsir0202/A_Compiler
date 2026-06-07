@@ -69,7 +69,7 @@ class WhileOp : public SCFOps {
   auto Walk(Adapter *adapter) -> void override;
 
  private:
-  WhileOp() : SCFOps("while"){};
+  WhileOp() : SCFOps("while") {};
   auto SetUp(context::MLIRContext *context, size_t num_results, mlir::Region *cond_region,
              mlir::Region *body_region) -> void {
     regions_.emplace_back(cond_region);

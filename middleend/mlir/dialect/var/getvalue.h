@@ -44,7 +44,7 @@ class VarGetValOp : public VarOps {
   auto Verify(context::CompilerContext *context) -> bool override;
 
  private:
-  VarGetValOp() : VarOps("getval"){};
+  VarGetValOp() : VarOps("getval") {};
   auto SetUp(context::MLIRContext *context, mlir::Value *ptr) -> void {
     operands_.reserve(1);
     results_.reserve(1);

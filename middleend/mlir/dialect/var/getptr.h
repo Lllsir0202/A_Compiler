@@ -66,7 +66,7 @@ class VarGetPtrOp : public VarOps {
   auto Verify(context::CompilerContext *context) -> bool override;
 
  private:
-  VarGetPtrOp() : VarOps("getptr"){};
+  VarGetPtrOp() : VarOps("getptr") {};
   auto SetUp(context::MLIRContext *context, mlir::Value *ptr, std::vector<mlir::Value *> indices = {}) -> void {
     operands_.reserve(indices.size() + 1);
     results_.reserve(1);

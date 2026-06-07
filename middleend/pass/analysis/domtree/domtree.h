@@ -39,6 +39,9 @@ class DomTreeNode {
     }
   }
 
+  auto GetDFSOrder() const -> size_t { return dfs_order_; }
+  auto GetCFGNode() const -> CFGNode * { return cfg_node_; }
+
  private:
   DomTreeNode(size_t dfs_order, CFGNode *cfg_node) : dfs_order_(dfs_order), cfg_node_(cfg_node) {
     // label are initialized to self for the union-find structure
@@ -71,7 +74,7 @@ class DomTreeNode {
   size_t dfs_order_;
   // The node corresponding to the CFGNode
   CFGNode *cfg_node_;
-  // The parent node in the dominator tree
+  // The parent node in the DFS spanning tree
   DomTreeNode *parent_;
   // The child nodes in the dominator tree
   std::vector<DomTreeNode *> children_;
@@ -101,7 +104,7 @@ class DomTree {
   auto GetNodes() -> std::vector<DomTreeNode *> { return nodes_; }
 
   // DFS to initialize the domtree
-  auto Initialize(CFGNode *cfg_node) -> void;
+  auto Initialize(CFGNode *cfg_node, DomTreeNode *parent = nullptr) -> void;
   // Build the dominator tree using the Lengauer-Tarjan algorithm
   auto BuildDomTree(FunctionCFG *function_cfg) -> void;
 

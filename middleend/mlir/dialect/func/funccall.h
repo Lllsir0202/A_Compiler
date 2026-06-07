@@ -38,7 +38,7 @@ class FuncCallOp : public FuncOps {
   auto GetOperands() -> std::vector<mlir::Value *> { return operands_; }
 
  private:
-  FuncCallOp() : FuncOps("call"){};
+  FuncCallOp() : FuncOps("call") {};
   auto SetUp(context::MLIRContext *context, const std::string &name, std::vector<mlir::Value *> &args,
              type::Type *return_type) -> void {
     results_.reserve(1);

@@ -9,7 +9,7 @@ namespace pipeline {
 class Pipeline {
  public:
   explicit Pipeline(option::Option option, context::CompilerContext *compiler_context)
-      : option_(std::move(option)), compiler_context_(compiler_context){};
+      : option_(std::move(option)), compiler_context_(compiler_context) {};
 
   auto Run() -> int;
 

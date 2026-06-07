@@ -39,6 +39,7 @@ normalized_initializer.txt
 # Ignore the generated llvm ir file
 tmp.*
 a.out
+cfgs/
 
 # Ignore python cache files
 __pycache__/

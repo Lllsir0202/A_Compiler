@@ -47,7 +47,7 @@ class ContinueOp : public SCFOps {
   auto Verify(context::CompilerContext *context) -> bool override;
 
  private:
-  ContinueOp() : SCFOps("continue"){};
+  ContinueOp() : SCFOps("continue") {};
   auto SetUp(context::MLIRContext *context) -> void { var_map_ = context->GetResourceContext()->GetVarMap(); }
   // We need to store a slapshot of the variable map when we create the continue operation
   // Then when we finish generate the loop, we can get the loop-carried variables and set them to the continue operation

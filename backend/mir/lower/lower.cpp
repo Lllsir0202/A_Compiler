@@ -3,10 +3,10 @@
 #include "backend/mir/inst/func/funcdef.h"
 #include "backend/mir/inst/memory/globaldef.h"
 #include "backend/mir/utils/factory/modulefactory.h"
-#include "middleend/llvm/utils/operand/literaloperand.h"
 #include "middleend/llvm/inst/func/funcdeclare.h"
 #include "middleend/llvm/inst/func/funcdef.h"
 #include "middleend/llvm/inst/memory/globaldef.h"
+#include "middleend/llvm/utils/operand/literaloperand.h"
 #include "utils/type/type.h"
 
 #define GET_LLVM_CONTEXT() compiler_context_->GetIRContext()->GetLLVMIRContext()

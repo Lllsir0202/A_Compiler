@@ -78,7 +78,7 @@ class ConditionOp : public SCFOps {
   }
 
  private:
-  ConditionOp() : SCFOps("condition"){};
+  ConditionOp() : SCFOps("condition") {};
   auto SetUp(context::MLIRContext *context, mlir::Value *cond_value,
              std::unordered_map<symboltable::VarEntry *, mlir::Value *> &original_value_map) -> void {
     // Record current variable map

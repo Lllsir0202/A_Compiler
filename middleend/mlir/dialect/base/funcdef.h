@@ -104,7 +104,7 @@ class FuncDefOp : public BaseOps {
   }
 
  private:
-  FuncDefOp() : BaseOps("funcdef"){};
+  FuncDefOp() : BaseOps("funcdef") {};
 
   auto SetUp(mlir::Value *res, const std::string &name, std::vector<mlir::Value *> args) -> void {
     // Used in lowering, the region and block have already been generated in the original FuncDefOp, so we just need to
