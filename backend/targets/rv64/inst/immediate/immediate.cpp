@@ -17,4 +17,21 @@ auto RVLUIInst::Emit(std::ofstream *out) -> void {
   operands_[0]->Emit(out);
   *out << '\n';
 }
+
+auto RVAUIPCInst::Create(TargetOperand *rd, TargetOperand *imm) -> RVAUIPCInst * {
+  auto *inst = new RVAUIPCInst();
+  inst->operands_.reserve(1);
+  inst->AddOperand(imm);
+  inst->SetResult(rd);
+  return inst;
+}
+
+auto RVAUIPCInst::Emit(std::ofstream *out) -> void {
+  *out << "    auipc ";
+  result_->Emit(out);
+  *out << ", ";
+  operands_[0]->Emit(out);
+  *out << '\n';
+}
+
 }  // namespace backend::targetir::rv64

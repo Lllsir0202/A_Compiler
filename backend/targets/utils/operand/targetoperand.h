@@ -21,6 +21,15 @@ enum class TargetRegClass : uint8_t {
   Special,  // Special-purpose register
 };
 
+enum class TargetSymbolAccessMode : uint8_t {
+  PCRelative,  // Access the symbol using PC-relative addressing
+  Absolute,    // Access the symbol using absolute addressing
+  GOT,         // Access the symbol through the Global Offset Table (GOT), used in position-independent code
+  PLT,         // Access the symbol through the Procedure Linkage Table (PLT),
+               // used for function calls in position-independent code
+  None,        // No special access mode, used for local symbols that can be accessed directly
+};
+
 // Operand type
 enum class TargetOperandType : uint8_t {
   VirtualReg,   // Virtual register, before register allocation
@@ -28,6 +37,7 @@ enum class TargetOperandType : uint8_t {
   Immediate,    // Immediate value
   Memory,       // Memory address
   Frame,        // Stack frame reference
+  Symbol,       // Symbol reference
 };
 
 class TargetOperand {
@@ -37,6 +47,7 @@ class TargetOperand {
   auto GetOpType() -> TargetOperandType { return type_; }
   auto IsVirtualReg() -> bool { return type_ == TargetOperandType::VirtualReg; }
   auto IsPhysicalReg() -> bool { return type_ == TargetOperandType::PhysicalReg; }
+  auto IsSymbol() -> bool { return type_ == TargetOperandType::Symbol; }
 
  protected:
   explicit TargetOperand(TargetOperandType type) : type_(type) {}

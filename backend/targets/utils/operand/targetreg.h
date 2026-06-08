@@ -44,7 +44,7 @@ class TargetPhysicalReg : public TargetOperand {
   auto GetRegSize() -> TargetRegSize { return reg_size_; }
   auto GetRegClass() -> TargetRegClass { return reg_class_; }
   // Called in compiler backend to set the target printer for physical register printing
-  static auto SetTargetPrinter(const TargetPrinter *printer) -> void { target_printer = printer; }
+  static auto SetTargetPrinter(const TargetRegPrinter *printer) -> void { target_printer = printer; }
 
  private:
   explicit TargetPhysicalReg(TargetRegSize reg_size, TargetRegClass reg_class, uint8_t id, uint8_t offset = 0)
@@ -65,7 +65,7 @@ class TargetPhysicalReg : public TargetOperand {
   // Used as offset, reserved for future extension for x86
   [[maybe_unused]] uint8_t offset_ = 0;
 
-  static const TargetPrinter *target_printer;
+  static const TargetRegPrinter *target_printer;
 };
 }  // namespace backend::targetir
 #endif
