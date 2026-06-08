@@ -42,8 +42,9 @@ class ARMMovzInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
-  static auto Create(TargetOperand *dst, TargetOperand *imm, int shift) -> ARMMovzInst *;
+  static auto Create(TargetOperand *dst, TargetOperand *imm, int shift = 0) -> ARMMovzInst *;
   friend class InstFatory;
+  int shift_ = 0;
 };
 
 // movk: set a 16-bit immediate value to a register, and keep the rest of the register unchanged
@@ -52,8 +53,9 @@ class ARMMovkInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
-  static auto Create(TargetOperand *dst, TargetOperand *imm, int shift) -> ARMMovkInst *;
+  static auto Create(TargetOperand *dst, TargetOperand *imm, int shift = 0) -> ARMMovkInst *;
   friend class InstFatory;
+  int shift_ = 0;
 };
 
 // movn: set a 16-bit immediate value to a register, and invert the rest of the register
@@ -62,8 +64,9 @@ class ARMMovnInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
-  static auto Create(TargetOperand *dst, TargetOperand *imm, int shift) -> ARMMovnInst *;
+  static auto Create(TargetOperand *dst, TargetOperand *imm, int shift = 0) -> ARMMovnInst *;
   friend class InstFatory;
+  int shift_ = 0;
 };
 
 }  // namespace backend::targetir::aarch64
