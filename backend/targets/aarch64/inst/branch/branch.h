@@ -2,7 +2,6 @@
 #define BACKEND_TARGETS_AARCH64_INST_BRANCH_BRANCH_H
 
 #include <cstdint>
-#include <ratio>
 #include "backend/targets/utils/inst/targetinst.h"
 namespace backend::targetir::aarch64 {
 class ARMBInst : public TargetInst {
