@@ -11,6 +11,7 @@
 #include "backend/targets/utils/operand/targetreg.h"
 #include "backend/targets/utils/struct/targetmodule.h"
 #include "mir/utils/factory/instfactory.h"
+#include "targets/utils/ra/liverange/liverange.h"
 namespace context {
 // Provide the context for the backend,
 // Include the target architecture.
@@ -70,6 +71,19 @@ class BackendContext {
   // Reset the instruction number, called when entering a new function
   auto ResetInstNum() -> void { inst_num_ = 0; }
 
+  auto GetLiveRange(backend::targetir::TargetVirtualReg *vreg) -> backend::targetir::LiveRange & {
+    return live_ranges_[vreg];
+  }
+
+  auto SetLiveRange(backend::targetir::TargetVirtualReg *vreg, const backend::targetir::LiveRange &live_range) -> void {
+    live_ranges_[vreg] = live_range;
+  }
+
+  // Normally only used for updating the live range when adding a segment.
+  auto UpdateLiveRange(backend::targetir::TargetVirtualReg *vreg, size_t start, size_t end) -> void {
+    live_ranges_[vreg].AddSegment(start, end);
+  }
+
  private:
   /**
    * @brief Just provide the target-free backend context here,
@@ -84,6 +98,9 @@ class BackendContext {
 
   // Used as a counter for creating instructions, reset when entering a new function
   size_t inst_num_ = 0;
+
+  // Live range information, mapped from VirtualReg
+  std::unordered_map<backend::targetir::TargetVirtualReg *, backend::targetir::LiveRange> live_ranges_;
 };
 
 }  // namespace context

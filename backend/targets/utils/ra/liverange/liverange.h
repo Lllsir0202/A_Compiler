@@ -1,0 +1,57 @@
+#ifndef BACKEND_TARGETS_UTILS_RA_LIVERANGE_LIVERANGE_H
+#define BACKEND_TARGETS_UTILS_RA_LIVERANGE_LIVERANGE_H
+
+/**
+ * @brief This file defines the live_range-related classes,
+ * which will be used for register allocation.
+ */
+#include <cstddef>
+#include <vector>
+namespace backend::targetir {
+
+/**
+ * @brief Segment represents a segment of a live range
+ */
+class Segment {
+ public:
+  Segment(size_t start, size_t end) : start_(start), end_(end) {}
+  auto GetStart() const -> size_t { return start_; }
+  auto GetEnd() const -> size_t { return end_; }
+
+ private:
+  // Record the start and end instruction number of this segment,
+  // which means: [start_, end_), includes the start instruction,
+  // but not the end instruction.
+  size_t start_;
+  size_t end_;
+};
+
+// Represents a live range of a virtual register,
+// which consists of several segments
+/**
+ * @note The segments must be non-overlapping
+ * and sorted by start before actual usage.
+ */
+class LiveRange {
+ public:
+  // Add a segment to this live range.
+  auto AddSegment(size_t start, size_t end) -> void;
+
+  // Canalize this live range, which means to make sure
+  // all these segments are non-overlapping and sorted by start.
+  auto Canalize() -> void;
+
+ private:
+  // The segments of this live range, which are non-overlapping and sorted by start instruction number
+  std::vector<Segment> segments_;
+
+  // MAYBEUNUSED: The used instructions' number,
+  // as well as the definition instruction's number
+  std::vector<size_t> used_insts_;
+
+  // TODO(loki): More information added in the future
+};
+
+}  // namespace backend::targetir
+
+#endif
