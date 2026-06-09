@@ -40,7 +40,11 @@ class BackendContext {
   auto GetModule() -> backend::targetir::TargetModule * { return module_; }
 
   // Add a function to the module and Get functions
-  auto AddFunction(backend::targetir::TargetFunction *function) -> void { module_->AddFunction(function); }
+  // And reset the instruction number when entering a new function
+  auto AddFunction(backend::targetir::TargetFunction *function) -> void {
+    module_->AddFunction(function);
+    ResetInstNum();
+  }
   auto GetFunctions() -> const std::vector<backend::targetir::TargetFunction *> & { return module_->GetFunctions(); }
 
   // Map from mir operand to target operand
@@ -58,8 +62,13 @@ class BackendContext {
   // Create instructions
   template <typename T, typename... Args>
   auto CreateInstruction(Args &&...args) -> T * {
-    return backend::utils::factory::InstFactory::CreateInst<T>(std::forward<Args>(args)...);
+    auto *inst = backend::utils::factory::InstFactory::CreateInst<T>(std::forward<Args>(args)...);
+    inst->SetInstNum(++inst_num_);
+    return inst;
   }
+
+  // Reset the instruction number, called when entering a new function
+  auto ResetInstNum() -> void { inst_num_ = 0; }
 
  private:
   /**
@@ -72,6 +81,9 @@ class BackendContext {
   std::unordered_map<backend::utils::Operand *, backend::targetir::TargetOperand *> operand_map_;
 
   backend::targetir::TargetModule *module_;
+
+  // Used as a counter for creating instructions, reset when entering a new function
+  size_t inst_num_ = 0;
 };
 
 }  // namespace context

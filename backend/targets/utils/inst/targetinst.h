@@ -27,11 +27,18 @@ class TargetInst {
   auto ReplaceOperand(TargetOperand *old_operand, TargetOperand *new_operand) -> void;
   auto ReplaceResult(TargetOperand *new_result) -> void { result_ = new_result; }
 
+  auto GetInstNum() -> size_t { return inst_num_; }
+  // Should called when creating an instruction
+  auto SetInstNum(size_t num) -> void { inst_num_ = num; }
+
  protected:
   TargetInst() = default;
   // Operands of this instruction
   std::vector<TargetOperand *> operands_;
   TargetOperand *result_;
+
+  // Instruction number, used for register allocation.
+  size_t inst_num_;
 };
 
 }  // namespace backend::targetir
