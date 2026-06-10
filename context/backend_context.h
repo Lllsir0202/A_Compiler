@@ -4,14 +4,14 @@
 #include <cstdint>
 #include <unordered_map>
 #include <vector>
+#include "backend/mir/utils/factory/instfactory.h"
 #include "backend/mir/utils/operand/operand.h"
 #include "backend/targets/utils/operand/targetframe.h"
 #include "backend/targets/utils/operand/targetliteral.h"
 #include "backend/targets/utils/operand/targetoperand.h"
 #include "backend/targets/utils/operand/targetreg.h"
+#include "backend/targets/utils/ra/liverange/liverange.h"
 #include "backend/targets/utils/struct/targetmodule.h"
-#include "mir/utils/factory/instfactory.h"
-#include "targets/utils/ra/liverange/liverange.h"
 namespace context {
 // Provide the context for the backend,
 // Include the target architecture.
@@ -19,7 +19,7 @@ class BackendContext {
  public:
   ~BackendContext();
   // Create the operands
-  auto CreateVirtualRegister() -> backend::targetir::TargetVirtualReg *;
+  auto CreateVirtualRegister(backend::targetir::TargetRegSize reg_size) -> backend::targetir::TargetVirtualReg *;
   // Create the physical register based on the given information
   auto CreatePhysicalRegister(backend::targetir::TargetRegSize size, backend::targetir::TargetRegClass reg_class,
                               uint8_t id) -> backend::targetir::TargetPhysicalReg *;
@@ -45,6 +45,7 @@ class BackendContext {
   auto AddFunction(backend::targetir::TargetFunction *function) -> void {
     module_->AddFunction(function);
     ResetInstNum();
+    current_function_ = function;
   }
   auto GetFunctions() -> const std::vector<backend::targetir::TargetFunction *> & { return module_->GetFunctions(); }
 
@@ -101,6 +102,9 @@ class BackendContext {
 
   // Live range information, mapped from VirtualReg
   std::unordered_map<backend::targetir::TargetVirtualReg *, backend::targetir::LiveRange> live_ranges_;
+
+  // Record the current function
+  backend::targetir::TargetFunction *current_function_;
 };
 
 }  // namespace context

@@ -29,6 +29,11 @@ class TargetFunction {
   auto GetFrameObjects() const -> const std::vector<TargetFrameObject *> & { return frame_objects_; }
   auto AddFrameObject(TargetFrameObject *frame_object) -> void { frame_objects_.emplace_back(frame_object); }
 
+  auto GetVirtualRegisters() -> std::vector<TargetOperand *> & { return virtual_registers_; }
+  auto AddVirtualRegister(TargetOperand *virtual_register) -> void {
+    virtual_registers_.emplace_back(virtual_register);
+  }
+
  private:
   // Constructor with function name
   explicit TargetFunction(std::string name) : name_(std::move(name)) {}
@@ -40,6 +45,10 @@ class TargetFunction {
   std::vector<TargetFrameObject *> frame_objects_;
   // Function name
   std::string name_;
+
+  // Record all virtual registers in this function, which will be used for register allocation.
+  // Note that the index of the virtual register in this vector is its id.
+  std::vector<TargetOperand *> virtual_registers_;
 };
 
 }  // namespace backend::targetir
