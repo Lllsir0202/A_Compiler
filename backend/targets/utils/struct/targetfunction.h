@@ -2,6 +2,7 @@
 #define BACKEND_TARGETS_UTILS_STRUCT_TARGETFUNCTION_H
 #include <string>
 #include <vector>
+#include "targets/utils/operand/targetreg.h"
 namespace backend::targetir {
 class TargetBlock;
 class TargetOperand;
@@ -29,11 +30,11 @@ class TargetFunction {
   auto GetFrameObjects() const -> const std::vector<TargetFrameObject *> & { return frame_objects_; }
   auto AddFrameObject(TargetFrameObject *frame_object) -> void { frame_objects_.emplace_back(frame_object); }
 
-  auto GetVirtualRegisters() -> std::vector<TargetOperand *> & { return virtual_registers_; }
-  auto AddVirtualRegister(TargetOperand *virtual_register) -> void {
+  auto GetVirtualRegisters() -> std::vector<TargetVirtualReg *> & { return virtual_registers_; }
+  auto AddVirtualRegister(TargetVirtualReg *virtual_register) -> void {
     virtual_registers_.emplace_back(virtual_register);
   }
-  auto GetVirtualRegisterByID(size_t id) -> TargetOperand * {
+  auto GetVirtualRegisterByID(size_t id) -> TargetVirtualReg * {
     if (id < virtual_registers_.size()) {
       return virtual_registers_[id];
     }
@@ -54,7 +55,7 @@ class TargetFunction {
 
   // Record all virtual registers in this function, which will be used for register allocation.
   // Note that the index of the virtual register in this vector is its id.
-  std::vector<TargetOperand *> virtual_registers_;
+  std::vector<TargetVirtualReg *> virtual_registers_;
 };
 
 }  // namespace backend::targetir

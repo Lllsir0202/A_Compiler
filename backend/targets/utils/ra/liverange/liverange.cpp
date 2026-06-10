@@ -2,10 +2,7 @@
 #include <algorithm>
 
 namespace backend::targetir {
-auto LiveRange::AddSegment(size_t start, size_t end, TargetBlock *block) -> void {
-  segments_.emplace_back(start, end);
-  segments_.back().SetBlock(block);
-}
+auto LiveRange::AddSegment(size_t start, size_t end) -> void { segments_.emplace_back(start, end); }
 
 auto LiveRange::Canalize() -> void {
   if (segments_.empty()) {
@@ -27,7 +24,6 @@ auto LiveRange::Canalize() -> void {
       // Merge
       new_segments.back() =
           Segment(new_segments.back().GetStart(), std::max(new_segments.back().GetEnd(), segments_[i].GetEnd()));
-      new_segments.back().SetBlock(segments_[i].GetBlock());
     } else {
       new_segments.emplace_back(segments_[i]);
     }

@@ -81,9 +81,11 @@ class BackendContext {
   }
 
   // Normally only used for updating the live range when adding a segment.
-  auto UpdateLiveRange(backend::targetir::TargetVirtualReg *vreg, size_t start, size_t end,
-                       backend::targetir::TargetBlock *block) -> void {
-    live_ranges_[vreg].AddSegment(start, end, block);
+  auto UpdateLiveRange(backend::targetir::TargetVirtualReg *vreg, size_t start, size_t end) -> void {
+    live_ranges_[vreg].AddSegment(start, end);
+  }
+  auto UpdateLiveRange(backend::targetir::TargetVirtualReg *vreg, const backend::targetir::Segment &segment) -> void {
+    live_ranges_[vreg].AddSegment(segment);
   }
 
  private:

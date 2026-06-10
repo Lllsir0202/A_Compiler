@@ -129,7 +129,7 @@ auto MIRLower::Lower() -> int {
     for (const auto &function : llvm_module->GetFunctions()) {
       lower_helper_->LowerFunction(function);
 
-      // After lowering, we need to eliminate phi instructions
+      // TODO(loki): After lowering, we need to eliminate phi instructions
     }
 
   } catch (std::exception &e) {
