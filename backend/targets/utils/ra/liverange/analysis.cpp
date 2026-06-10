@@ -73,7 +73,7 @@ auto LiveRangeAnalysis::AnalyzeLiveRange(TargetFunction *function) -> void {
           open_segments[vreg] = Segment(inst->GetInstNum(), inst->GetInstNum() + 1);
         } else {
           // If live out this vreg, it means we have found the real live range of this vreg
-          open_segments[vreg].SetStart(inst->GetInstNum());
+          open_segments[vreg].SetEnd(std::max(open_segments[vreg].GetEnd(), inst->GetInstNum() + 1));
         }
         // Erase this vreg from open_segments
         auto segment = open_segments[vreg];
