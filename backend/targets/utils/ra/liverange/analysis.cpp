@@ -11,6 +11,7 @@
 namespace backend::targetir {
 // Get the in and out every block
 auto LiveRangeAnalysis::GetLiveInOut(TargetFunction *function) -> void {
+  Prepare(function);
   // Get the RPO of the blocks
   GetRPO(function);
 
