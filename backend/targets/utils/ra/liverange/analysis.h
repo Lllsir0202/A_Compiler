@@ -1,8 +1,7 @@
 #ifndef BACKEND_TARGETS_UTILS_RA_LIVERANGE_ANALYSIS_H
 #define BACKEND_TARGETS_UTILS_RA_LIVERANGE_ANALYSIS_H
 
-#include <bitset>
-#include <queue>
+#include <deque>
 #include <unordered_map>
 #include "backend/targets/utils/struct/targetfunction.h"
 #include "targets/utils/bitset/bitset.h"
