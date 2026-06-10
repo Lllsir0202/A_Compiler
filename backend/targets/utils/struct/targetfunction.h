@@ -33,6 +33,12 @@ class TargetFunction {
   auto AddVirtualRegister(TargetOperand *virtual_register) -> void {
     virtual_registers_.emplace_back(virtual_register);
   }
+  auto GetVirtualRegisterByID(size_t id) -> TargetOperand * {
+    if (id < virtual_registers_.size()) {
+      return virtual_registers_[id];
+    }
+    return nullptr;
+  }
 
  private:
   // Constructor with function name

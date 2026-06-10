@@ -3,7 +3,6 @@
 #include <fstream>
 #include <utility>
 #include <vector>
-#include "targets/utils/bitset/bitset.h"
 namespace backend::targetir {
 class TargetInst;
 class TargetOperand;

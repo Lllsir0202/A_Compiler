@@ -53,6 +53,10 @@ class BitSet {
     }
   }
 
+  auto operator==(const BitSet &other) const -> bool { return bits_ == other.bits_; }
+
+  auto operator!=(const BitSet &other) const -> bool { return bits_ != other.bits_; }
+
   // Get all set bits' indcies so that we can get the corresponding virtual registers
   auto GetSetBits() const -> std::vector<size_t> {
     std::vector<size_t> set_bits;
