@@ -16,6 +16,7 @@ namespace backend::targetir {
 class BitSet {
  public:
   explicit BitSet(size_t size) : bits_((size + 63) / 64, 0) {}
+  BitSet() = default;
 
   // Set the bit at the given index
   auto Set(size_t index) -> void {
