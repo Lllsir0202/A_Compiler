@@ -1,7 +1,8 @@
 #include "context/backend_context.h"
+#include "backend/targets/aarch64/phyreg/aarch64reg.h"
+#include "backend/targets/rv64/phyreg/rv64reg.h"
 #include "backend/targets/utils/factory/opfactory.h"
 #include "backend/targets/utils/operand/targetoperand.h"
-#include "targets/utils/operand/targetprinter.h"
 #include "targets/utils/operand/targetreg.h"
 
 namespace context {

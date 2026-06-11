@@ -6,8 +6,6 @@
 #include <vector>
 #include "backend/mir/utils/factory/instfactory.h"
 #include "backend/mir/utils/operand/operand.h"
-#include "backend/targets/aarch64/phyreg/aarch64reg.h"
-#include "backend/targets/rv64/phyreg/rv64reg.h"
 #include "backend/targets/utils/operand/targetframe.h"
 #include "backend/targets/utils/operand/targetliteral.h"
 #include "backend/targets/utils/operand/targetoperand.h"
