@@ -6,17 +6,22 @@
 #include <vector>
 #include "backend/mir/utils/factory/instfactory.h"
 #include "backend/mir/utils/operand/operand.h"
+#include "backend/targets/aarch64/phyreg/aarch64reg.h"
+#include "backend/targets/rv64/phyreg/rv64reg.h"
 #include "backend/targets/utils/operand/targetframe.h"
 #include "backend/targets/utils/operand/targetliteral.h"
 #include "backend/targets/utils/operand/targetoperand.h"
 #include "backend/targets/utils/operand/targetreg.h"
 #include "backend/targets/utils/ra/liverange/liverange.h"
 #include "backend/targets/utils/struct/targetmodule.h"
+
 namespace context {
 // Provide the context for the backend,
 // Include the target architecture.
 class BackendContext {
  public:
+  explicit BackendContext(const std::string &target_arch = "riscv64");
+
   ~BackendContext();
   // Create the operands
   auto CreateVirtualRegister(backend::targetir::TargetRegSize reg_size) -> backend::targetir::TargetVirtualReg *;

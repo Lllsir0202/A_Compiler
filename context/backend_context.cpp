@@ -1,6 +1,7 @@
 #include "context/backend_context.h"
 #include "backend/targets/utils/factory/opfactory.h"
 #include "backend/targets/utils/operand/targetoperand.h"
+#include "targets/utils/operand/targetprinter.h"
 #include "targets/utils/operand/targetreg.h"
 
 namespace context {
@@ -11,6 +12,17 @@ BackendContext::~BackendContext() {
   operands_.clear();
   delete module_;
   module_ = nullptr;
+}
+
+BackendContext::BackendContext(const std::string &target_arch) {
+  if (target_arch == "riscv64") {
+    // Set the target printer for physical register printing
+    backend::targetir::TargetPhysicalReg::SetTargetPrinter(&backend::targetir::RV64RegPrinter::GetInstance());
+  } else if (target_arch == "aarch64") {
+    backend::targetir::TargetPhysicalReg::SetTargetPrinter(&backend::targetir::AArch64RegPrinter::GetInstance());
+  } else {
+    throw std::runtime_error("Unsupported target architecture: " + target_arch);
+  }
 }
 
 // Create the operands
