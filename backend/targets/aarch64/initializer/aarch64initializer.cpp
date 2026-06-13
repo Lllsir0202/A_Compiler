@@ -5,12 +5,10 @@
 namespace backend::targetir::aarch64 {
 auto AArch64TargetInitializer::InitPhysicalRegPool() -> void {
   // In our current design
-  // GPR: x0-x30(31)
-  context_->GetPhysicalRegPool().InitPhysicalRegPool(TargetRegClass::General, 31);
+  // GPR: x0-x31(x29 is fp, x30 is lr, x31 is zero/sp)
+  context_->GetPhysicalRegPool().InitPhysicalRegPool(TargetRegClass::General, 32);
   // FPR: s0-s31(32)
   context_->GetPhysicalRegPool().InitPhysicalRegPool(TargetRegClass::Float, 32);
-  // Special: zero register, stack pointer, frame pointer, link register
-  context_->GetPhysicalRegPool().InitPhysicalRegPool(TargetRegClass::Special, 4);
   // Vector: not supported for now, we will support it when we support SVE
 }
 
