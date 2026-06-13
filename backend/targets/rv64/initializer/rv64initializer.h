@@ -9,8 +9,9 @@ class BackendContext;
 namespace backend::targetir::rv64 {
 class RV64TargetInitializer : public TargetInitializer {
  private:
-  auto InitPhysicalRegPool() -> void override;
-  context::BackendContext *context_;
+  auto InitPhysicalRegPool(context::BackendContext *context) -> void override;
+  auto InitTargetPrinter() -> void override;
+  friend class context::BackendContext;
 };
 
 }  // namespace backend::targetir::rv64

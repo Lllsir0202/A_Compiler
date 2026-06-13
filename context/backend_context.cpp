@@ -3,6 +3,7 @@
 #include "backend/targets/rv64/phyreg/rv64reg.h"
 #include "backend/targets/utils/factory/opfactory.h"
 #include "backend/targets/utils/operand/targetoperand.h"
+#include "targets/utils/manager/targetinitializer.h"
 #include "targets/utils/operand/targetreg.h"
 
 namespace context {
@@ -15,13 +16,9 @@ BackendContext::~BackendContext() {
   module_ = nullptr;
 }
 
-BackendContext::BackendContext(const std::string &target_arch) {
-  if (target_arch == "riscv64") {
-    // Set the target printer for physical register printing
-    backend::targetir::TargetPhysicalReg::SetTargetPrinter(&backend::targetir::RV64RegPrinter::GetInstance());
-  } else if (target_arch == "aarch64") {
-    backend::targetir::TargetPhysicalReg::SetTargetPrinter(&backend::targetir::AArch64RegPrinter::GetInstance());
-  }
+BackendContext::BackendContext(backend::targetir::TargetInitializer *target_initializer)
+    : module_(nullptr), current_function_(nullptr) {
+  target_initializer->Initialize(this);
 }
 
 // Create the operands

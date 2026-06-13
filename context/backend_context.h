@@ -12,13 +12,14 @@
 #include "backend/targets/utils/operand/targetreg.h"
 #include "backend/targets/utils/ra/liverange/liverange.h"
 #include "backend/targets/utils/struct/targetmodule.h"
+#include "targets/utils/manager/targetinitializer.h"
 
 namespace context {
 // Provide the context for the backend,
 // Include the target architecture.
 class BackendContext {
  public:
-  explicit BackendContext(const std::string &target_arch = "riscv64");
+  explicit BackendContext(backend::targetir::TargetInitializer *target_initializer);
 
   ~BackendContext();
   // Create the operands

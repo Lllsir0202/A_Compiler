@@ -13,12 +13,15 @@ namespace backend::targetir {
 class TargetInitializer {
  public:
   ~TargetInitializer() = default;
+  auto Initialize(context::BackendContext *context) -> void {
+    InitPhysicalRegPool(context);
+    InitTargetPrinter();
+  }
 
  private:
   // Need to initialize the physical register pool, called in the constructor of backend context.
-  virtual auto InitPhysicalRegPool() -> void = 0;
-
-  friend class context::BackendContext;
+  virtual auto InitPhysicalRegPool(context::BackendContext *context) -> void = 0;
+  virtual auto InitTargetPrinter() -> void = 0;
 };
 
 }  // namespace backend::targetir
