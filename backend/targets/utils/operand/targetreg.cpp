@@ -9,7 +9,7 @@ auto TargetPhysicalReg::Emit(std::ofstream *out) -> void {
     throw std::runtime_error("Target printer is not set for physical register");
   }
   // Output the physical register name using target printer
-  *out << target_printer->GetRegName(reg_size_, physical_reg_->GetID(), reg_class_);
+  *out << target_printer->GetRegName(reg_size_, physical_reg_->GetID(), reg_class_, role_);
 }
 
 auto TargetPhysicalReg::GetID() -> uint8_t { return physical_reg_->GetID(); }

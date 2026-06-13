@@ -29,6 +29,11 @@ enum class TargetSymbolAccessMode : uint8_t {
   None,        // No special access mode, used for local symbols that can be accessed directly
 };
 
+/**
+ * @brief Implement the print hint for physical register view
+ */
+enum class TargetRegRole : uint8_t { NONE, ZERO, STACKPOINTER, FRAMEPOINTER, RETURNADDRESS };
+
 // Operand type
 enum class TargetOperandType : uint8_t {
   VirtualReg,   // Virtual register, before register allocation

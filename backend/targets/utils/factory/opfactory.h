@@ -11,8 +11,8 @@ class BackendContext;
 namespace backend::targetir {
 class OperandFactory {
   static auto CreateFrameOperand(size_t slot_id) -> TargetFrameOperand * { return new TargetFrameOperand(slot_id); }
-  static auto CreateVirtualReg(TargetRegSize reg_size, size_t reg_id) -> TargetVirtualReg * {
-    return new TargetVirtualReg(reg_size, reg_id);
+  static auto CreateVirtualReg(TargetRegSize reg_size, TargetRegClass reg_class, size_t reg_id) -> TargetVirtualReg * {
+    return new TargetVirtualReg(reg_size, reg_class, reg_id);
   }
   static auto CreatePhysicalReg(TargetRegSize reg_size, TargetRegClass reg_class, PhysicalReg *physical_reg,
                                 uint8_t offset = 0) -> TargetPhysicalReg * {

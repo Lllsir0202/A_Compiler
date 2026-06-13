@@ -22,7 +22,8 @@ class BackendContext {
 
   ~BackendContext();
   // Create the operands
-  auto CreateVirtualRegister(backend::targetir::TargetRegSize reg_size) -> backend::targetir::TargetVirtualReg *;
+  auto CreateVirtualRegister(backend::targetir::TargetRegSize reg_size,
+                             backend::targetir::TargetRegClass reg_class) -> backend::targetir::TargetVirtualReg *;
   auto CreateIntLiteral(int value) -> backend::targetir::TargetIntLiteral *;
   auto CreateFloatLiteral(float value) -> backend::targetir::TargetFloatLiteral *;
 

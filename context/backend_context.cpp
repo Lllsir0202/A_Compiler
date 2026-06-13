@@ -25,10 +25,11 @@ BackendContext::BackendContext(const std::string &target_arch) {
 }
 
 // Create the operands
-auto BackendContext::CreateVirtualRegister(backend::targetir::TargetRegSize reg_size)
+auto BackendContext::CreateVirtualRegister(backend::targetir::TargetRegSize reg_size,
+                                           backend::targetir::TargetRegClass reg_class)
     -> backend::targetir::TargetVirtualReg * {
-  auto virtual_reg =
-      backend::targetir::OperandFactory::CreateVirtualReg(reg_size, current_function_->GetVirtualRegisters().size());
+  auto virtual_reg = backend::targetir::OperandFactory::CreateVirtualReg(
+      reg_size, reg_class, current_function_->GetVirtualRegisters().size());
   operands_.emplace_back(virtual_reg);
   current_function_->AddVirtualRegister(virtual_reg);
   return virtual_reg;

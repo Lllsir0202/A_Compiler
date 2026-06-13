@@ -10,9 +10,8 @@ namespace backend::targetir {
  * @param reg_class The class of the register (e.g., general-purpose, floating-point)
  * @return The name of the register as a string
  */
-auto AArch64RegPrinter::GetRegName(TargetRegSize reg_size, uint8_t id, TargetRegClass reg_class) const -> std::string {
-  
-}
+auto AArch64RegPrinter::GetRegName(TargetRegSize reg_size, uint8_t id, TargetRegClass reg_class,
+                                   TargetRegRole role) const -> std::string {}
 
 /**
 * @introduce:
