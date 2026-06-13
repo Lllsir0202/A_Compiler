@@ -24,6 +24,11 @@ class BackendContext {
   // Create the operands
   auto CreateVirtualRegister(backend::targetir::TargetRegSize reg_size,
                              backend::targetir::TargetRegClass reg_class) -> backend::targetir::TargetVirtualReg *;
+
+  auto CreatePhysicalRegView(backend::targetir::TargetRegSize reg_size, backend::targetir::TargetRegClass reg_class,
+                             backend::targetir::PhysicalReg *physical_reg,
+                             backend::targetir::TargetRegRole role = backend::targetir::TargetRegRole::NONE,
+                             uint8_t offset = 0) -> backend::targetir::TargetPhysicalReg *;
   auto CreateIntLiteral(int value) -> backend::targetir::TargetIntLiteral *;
   auto CreateFloatLiteral(float value) -> backend::targetir::TargetFloatLiteral *;
 

@@ -35,6 +35,17 @@ auto BackendContext::CreateVirtualRegister(backend::targetir::TargetRegSize reg_
   return virtual_reg;
 }
 
+auto BackendContext::CreatePhysicalRegView(backend::targetir::TargetRegSize reg_size,
+                                           backend::targetir::TargetRegClass reg_class,
+                                           backend::targetir::PhysicalReg *physical_reg,
+                                           backend::targetir::TargetRegRole role,
+                                           uint8_t offset) -> backend::targetir::TargetPhysicalReg * {
+  auto physical_reg_view =
+      backend::targetir::OperandFactory::CreatePhysicalReg(reg_size, reg_class, physical_reg, role, offset);
+  operands_.emplace_back(physical_reg_view);
+  return physical_reg_view;
+}
+
 auto BackendContext::CreateIntLiteral(int value) -> backend::targetir::TargetIntLiteral * {
   auto int_literal = backend::targetir::OperandFactory::CreateIntLiteral(value);
   operands_.emplace_back(int_literal);
