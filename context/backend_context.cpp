@@ -21,8 +21,6 @@ BackendContext::BackendContext(const std::string &target_arch) {
     backend::targetir::TargetPhysicalReg::SetTargetPrinter(&backend::targetir::RV64RegPrinter::GetInstance());
   } else if (target_arch == "aarch64") {
     backend::targetir::TargetPhysicalReg::SetTargetPrinter(&backend::targetir::AArch64RegPrinter::GetInstance());
-  } else {
-    throw std::runtime_error("Unsupported target architecture: " + target_arch);
   }
 }
 
@@ -34,14 +32,6 @@ auto BackendContext::CreateVirtualRegister(backend::targetir::TargetRegSize reg_
   operands_.emplace_back(virtual_reg);
   current_function_->AddVirtualRegister(virtual_reg);
   return virtual_reg;
-}
-
-auto BackendContext::CreatePhysicalRegister(backend::targetir::TargetRegSize size,
-                                            backend::targetir::TargetRegClass reg_class,
-                                            uint8_t id) -> backend::targetir::TargetPhysicalReg * {
-  auto physical_reg = backend::targetir::OperandFactory::CreatePhysicalReg(size, reg_class, id);
-  operands_.emplace_back(physical_reg);
-  return physical_reg;
 }
 
 auto BackendContext::CreateIntLiteral(int value) -> backend::targetir::TargetIntLiteral * {

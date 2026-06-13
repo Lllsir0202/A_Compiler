@@ -23,9 +23,6 @@ class BackendContext {
   ~BackendContext();
   // Create the operands
   auto CreateVirtualRegister(backend::targetir::TargetRegSize reg_size) -> backend::targetir::TargetVirtualReg *;
-  // Create the physical register based on the given information
-  auto CreatePhysicalRegister(backend::targetir::TargetRegSize size, backend::targetir::TargetRegClass reg_class,
-                              uint8_t id) -> backend::targetir::TargetPhysicalReg *;
   auto CreateIntLiteral(int value) -> backend::targetir::TargetIntLiteral *;
   auto CreateFloatLiteral(float value) -> backend::targetir::TargetFloatLiteral *;
 
