@@ -1,6 +1,4 @@
 #include "context/backend_context.h"
-#include "backend/targets/aarch64/phyreg/aarch64reg.h"
-#include "backend/targets/rv64/phyreg/rv64reg.h"
 #include "backend/targets/utils/factory/opfactory.h"
 #include "backend/targets/utils/operand/targetoperand.h"
 #include "targets/utils/manager/targetinitializer.h"
@@ -16,9 +14,18 @@ BackendContext::~BackendContext() {
   module_ = nullptr;
 }
 
-BackendContext::BackendContext(backend::targetir::TargetInitializer *target_initializer)
-    : module_(nullptr), current_function_(nullptr) {
-  target_initializer->Initialize(this);
+BackendContext::BackendContext(const std::string &target_arch) : module_(nullptr), current_function_(nullptr) {
+  auto *target_initializer =
+      backend::targetir::TargetInitializerRegistry::GetInstance().GetTargetInitializer(target_arch);
+  if (target_initializer != nullptr) {
+    try {
+      target_initializer->Initialize(this);
+    } catch (const std::exception &e) {
+      throw std::runtime_error("Error initializing target for architecture " + target_arch + ": " + e.what());
+    }
+  } else {
+    throw std::runtime_error("No target initializer found for target architecture: " + target_arch);
+  }
 }
 
 // Create the operands

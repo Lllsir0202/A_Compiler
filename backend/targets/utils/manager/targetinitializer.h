@@ -1,6 +1,8 @@
 #ifndef BACKEND_TARGETS_UTILS_MANAGER_TARGETINITIALIZER_H
 #define BACKEND_TARGETS_UTILS_MANAGER_TARGETINITIALIZER_H
 
+#include <string>
+#include <unordered_map>
 namespace context {
 class BackendContext;
 }
@@ -12,7 +14,7 @@ namespace backend::targetir {
  */
 class TargetInitializer {
  public:
-  ~TargetInitializer() = default;
+  virtual ~TargetInitializer() = default;
   auto Initialize(context::BackendContext *context) -> void {
     InitPhysicalRegPool(context);
     InitTargetPrinter();
@@ -22,6 +24,36 @@ class TargetInitializer {
   // Need to initialize the physical register pool, called in the constructor of backend context.
   virtual auto InitPhysicalRegPool(context::BackendContext *context) -> void = 0;
   virtual auto InitTargetPrinter() -> void = 0;
+};
+
+class TargetInitializerRegistry {
+ public:
+  ~TargetInitializerRegistry() {
+    for (auto &entry : registry_) {
+      delete entry.second;
+    }
+    registry_.clear();
+  }
+
+  static auto GetInstance() -> TargetInitializerRegistry & {
+    static TargetInitializerRegistry instance;
+    return instance;
+  }
+
+  void RegisterTargetInitializer(const std::string &target_arch, TargetInitializer *initializer) {
+    registry_[target_arch] = initializer;
+  }
+
+  auto GetTargetInitializer(const std::string &target_arch) -> TargetInitializer * {
+    auto it = registry_.find(target_arch);
+    if (it != registry_.end()) {
+      return it->second;
+    }
+    return nullptr;
+  }
+
+ private:
+  std::unordered_map<std::string, TargetInitializer *> registry_;
 };
 
 }  // namespace backend::targetir

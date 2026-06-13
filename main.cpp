@@ -30,6 +30,7 @@
 static std::string file_name;
 static std::string output_name;
 static std::string stage = "llvm";
+static std::string target_arch = "rv64";
 static int optimization_level = 0;
 // Mark whether regard warnings as errors, default to false
 static bool warnings_as_errors = false;
@@ -67,6 +68,13 @@ auto static inline ParseArgs(int argc, char *argv[]) -> bool {
         stage = arg.substr(1);  // remove leading '-'
       } else if (arg == "-Werror" || arg == "--Werror") {
         warnings_as_errors = true;
+      } else if (arg == "--target") {
+        if (i + 1 < argc) {
+          target_arch = argv[++i];
+        } else {
+          // missing target architecture
+          return false;
+        }
       } else {
         // invalid option
         std::cerr << "Invalid option: " << arg << '\n';
@@ -87,7 +95,7 @@ auto main(int argc, char *argv[]) -> int {
     std::cerr
         << "Usage: " << argv[0]
         << " <input_file> -o <output_file> [-<stage>{lexer, parser, ast, mlir, baseir, llvm, S/s}] [-O<level>{0,1,2}] "
-           "[--Werror|-Werror]"
+           "[--Werror|-Werror] [--target <target_arch>]"
         << '\n';
     return 1;
   }
@@ -123,7 +131,7 @@ auto main(int argc, char *argv[]) -> int {
 #endif
 
   // Initialize all members
-  static context::CompilerContext compiler_context(&input, &output, warnings_as_errors);
+  static context::CompilerContext compiler_context(&input, &output, target_arch, warnings_as_errors);
   std::unique_ptr<stages::Stage> stage_ptr;
   std::unique_ptr<frontend::Lexer> lexer = std::make_unique<frontend::FlexLexerImpl>(&input);
 

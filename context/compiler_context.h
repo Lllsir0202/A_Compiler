@@ -10,6 +10,9 @@
 #include "context/pass_context.h"
 #include "context/symboltable_context.h"
 #include "context/type_context.h"
+#include "targets/aarch64/initializer/aarch64initializer.h"
+#include "targets/rv64/initializer/rv64initializer.h"
+#include "targets/utils/manager/targetinitializer.h"
 namespace context {
 
 /**
@@ -20,7 +23,8 @@ class CompilerContext {
   // We can create TypeContext at the beginning since it doesn't depend on anything else
   // and will be used throughout the compilation process.
  public:
-  CompilerContext(std::ifstream *in, std::ofstream *out, bool warnings_as_errors = false, bool output_region = false)
+  CompilerContext(std::ifstream *in, std::ofstream *out, const std::string &target_arch = "rv64",
+                  bool warnings_as_errors = false, bool output_region = false)
       : in_(in), out_(out), warning_as_error_(warnings_as_errors), output_region_(output_region) {
     type_context_ = new TypeContext();
     ast_context_ = new AstContext();
@@ -28,7 +32,10 @@ class CompilerContext {
     InitializeLibFunc();
     ir_context_ = new IRContext(type_context_);
     mir_context_ = new MIRContext(type_context_);
-    backend_context_ = new BackendContext();
+
+    // Register the target initializer and create the backend context
+    RegisterTargetInitializers();
+    backend_context_ = new BackendContext(target_arch);
   }
   ~CompilerContext() {
     delete type_context_;
@@ -99,6 +106,9 @@ class CompilerContext {
    * @brief Output region flag
    */
   bool output_region_{};
+
+  // Register the target initializers
+  auto RegisterTargetInitializers() -> void;
 };
 
 }  // namespace context

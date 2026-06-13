@@ -6,7 +6,7 @@ namespace backend::targetir {
 class RV64RegPrinter : public TargetRegPrinter {
  public:
   auto GetRegName(TargetRegSize reg_size, uint8_t id, TargetRegClass reg_class,
-                          TargetRegRole role) const -> std::string override;
+                  TargetRegRole role) const -> std::string override;
   static auto GetInstance() -> const RV64RegPrinter & {
     static RV64RegPrinter instance;
     return instance;

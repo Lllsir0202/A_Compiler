@@ -104,4 +104,14 @@ auto context::CompilerContext::InitializeLibFunc() -> void {
   symboltable_context_->AddFunc("_sysy_stoptime", void_type, {int_type});
 }
 
+/**
+ * @brief Register target initializers for supported architectures.
+ */
+auto CompilerContext::RegisterTargetInitializers() -> void {
+  backend::targetir::TargetInitializerRegistry::GetInstance().RegisterTargetInitializer(
+      "aarch64", new backend::targetir::aarch64::AArch64TargetInitializer());
+  backend::targetir::TargetInitializerRegistry::GetInstance().RegisterTargetInitializer(
+      "rv64", new backend::targetir::rv64::RV64TargetInitializer());
+}
+
 }  // namespace context
