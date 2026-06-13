@@ -14,9 +14,9 @@ class OperandFactory {
   static auto CreateVirtualReg(TargetRegSize reg_size, size_t reg_id) -> TargetVirtualReg * {
     return new TargetVirtualReg(reg_size, reg_id);
   }
-  static auto CreatePhysicalReg(TargetRegSize reg_size, TargetRegClass reg_class, uint8_t reg_id,
+  static auto CreatePhysicalReg(TargetRegSize reg_size, TargetRegClass reg_class, PhysicalReg *physical_reg,
                                 uint8_t offset = 0) -> TargetPhysicalReg * {
-    return new TargetPhysicalReg(reg_size, reg_class, reg_id, offset);
+    return new TargetPhysicalReg(reg_size, reg_class, physical_reg, offset);
   }
 
   static auto CreateIntLiteral(int value) -> TargetIntLiteral * { return new TargetIntLiteral(value); }

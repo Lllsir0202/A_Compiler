@@ -17,8 +17,7 @@ enum class TargetRegSize : uint8_t {
 enum class TargetRegClass : uint8_t {
   General,  // General-purpose register
   Float,    // Floating-point register
-  Vector,   // Vector register
-  Special,  // Special-purpose register
+  Vector    // Vector register
 };
 
 enum class TargetSymbolAccessMode : uint8_t {

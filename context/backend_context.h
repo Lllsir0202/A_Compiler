@@ -1,11 +1,11 @@
 #ifndef CONTEXT_BACKEND_CONTEXT_H
 #define CONTEXT_BACKEND_CONTEXT_H
 
-#include <cstdint>
 #include <unordered_map>
 #include <vector>
 #include "backend/mir/utils/factory/instfactory.h"
 #include "backend/mir/utils/operand/operand.h"
+#include "backend/targets/utils/manager/registerpool.h"
 #include "backend/targets/utils/operand/targetframe.h"
 #include "backend/targets/utils/operand/targetliteral.h"
 #include "backend/targets/utils/operand/targetoperand.h"
@@ -88,6 +88,8 @@ class BackendContext {
     live_ranges_[vreg].AddSegment(segment);
   }
 
+  auto GetPhysicalRegPool() -> backend::targetir::PhysicalRegPool & { return physical_reg_pool_; }
+
  private:
   /**
    * @brief Just provide the target-free backend context here,
@@ -108,6 +110,9 @@ class BackendContext {
 
   // Record the current function
   backend::targetir::TargetFunction *current_function_;
+
+  // Physical register pool
+  backend::targetir::PhysicalRegPool physical_reg_pool_;
 };
 
 }  // namespace context

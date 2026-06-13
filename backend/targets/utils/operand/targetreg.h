@@ -7,6 +7,8 @@
 #include "targets/utils/operand/targetprinter.h"
 
 namespace backend::targetir {
+class PhysicalReg;
+
 // Virtual register operand, before register allocation
 class TargetVirtualReg : public TargetOperand {
  public:
@@ -29,34 +31,31 @@ class TargetVirtualReg : public TargetOperand {
 };
 
 // Physical register operand, after register allocation
+/**
+ * @note Note that this class is just a view of the concrete physical register
+ */
 class TargetPhysicalReg : public TargetOperand {
  public:
-  auto Emit(std::ofstream *out) -> void override {
-    if (target_printer == nullptr) {
-      // Should report error
-      throw std::runtime_error("Target printer is not set for physical register");
-    }
-    // Output the physical register name using target printer
-    *out << target_printer->GetRegName(reg_size_, id_, reg_class_);
-  }
+  auto Emit(std::ofstream *out) -> void override;
 
-  auto GetID() -> uint8_t { return id_; }
+  auto GetID() -> uint8_t;
   auto GetRegSize() -> TargetRegSize { return reg_size_; }
   auto GetRegClass() -> TargetRegClass { return reg_class_; }
   // Called in compiler backend to set the target printer for physical register printing
   static auto SetTargetPrinter(const TargetRegPrinter *printer) -> void { target_printer = printer; }
 
  private:
-  explicit TargetPhysicalReg(TargetRegSize reg_size, TargetRegClass reg_class, uint8_t id, uint8_t offset = 0)
+  explicit TargetPhysicalReg(TargetRegSize reg_size, TargetRegClass reg_class, PhysicalReg *physical_reg,
+                             uint8_t offset = 0)
       : TargetOperand(TargetOperandType::PhysicalReg),
-        id_(id),
+        physical_reg_(physical_reg),
         reg_size_(reg_size),
         reg_class_(reg_class),
         offset_(offset) {}
   friend class OperandFactory;
   // Using ABI to specify the name of physical register,
   // i.e. 0 for eax/ax
-  uint8_t id_;
+  PhysicalReg *physical_reg_;
 
   // Register size and class
   TargetRegSize reg_size_;
