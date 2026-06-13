@@ -4,6 +4,7 @@
 #include "backend/targets/utils/operand/targetframe.h"
 #include "backend/targets/utils/operand/targetliteral.h"
 #include "backend/targets/utils/operand/targetreg.h"
+#include "targets/utils/operand/targetoperand.h"
 namespace context {
 class BackendContext;
 }
@@ -15,8 +16,8 @@ class OperandFactory {
     return new TargetVirtualReg(reg_size, reg_class, reg_id);
   }
   static auto CreatePhysicalReg(TargetRegSize reg_size, TargetRegClass reg_class, PhysicalReg *physical_reg,
-                                uint8_t offset = 0) -> TargetPhysicalReg * {
-    return new TargetPhysicalReg(reg_size, reg_class, physical_reg, offset);
+                                TargetRegRole role = TargetRegRole::NONE, uint8_t offset = 0) -> TargetPhysicalReg * {
+    return new TargetPhysicalReg(reg_size, reg_class, physical_reg, role, offset);
   }
 
   static auto CreateIntLiteral(int value) -> TargetIntLiteral * { return new TargetIntLiteral(value); }

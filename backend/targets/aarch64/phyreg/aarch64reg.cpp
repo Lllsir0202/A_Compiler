@@ -11,7 +11,52 @@ namespace backend::targetir {
  * @return The name of the register as a string
  */
 auto AArch64RegPrinter::GetRegName(TargetRegSize reg_size, uint8_t id, TargetRegClass reg_class,
-                                   TargetRegRole role) const -> std::string {}
+                                   TargetRegRole role) const -> std::string {
+  // For GPRs (General Purpose Registers):
+  switch (reg_class) {
+    case TargetRegClass::General: {
+      // GPRs: x0-x28 general use, x29 is fp, x30 is lr, x31 is sp or zr
+      if (id <= 30) {
+        if (reg_size == TargetRegSize::Word) {
+          return "w" + std::to_string(id);
+        }
+        if (reg_size == TargetRegSize::QWord) {
+          return "x" + std::to_string(id);
+        }
+      }
+      if (id == 31) {
+        if (role == TargetRegRole::STACKPOINTER) {
+          return "sp";
+        }
+        if (role == TargetRegRole::ZERO) {
+          if (reg_size == TargetRegSize::Word) {
+            return "wzr";
+          }
+          if (reg_size == TargetRegSize::QWord) {
+            return "xzr";
+          }
+        }
+      }
+    } break;
+    // For FPRs (Floating Point Registers):
+    // 32-bit: s0-s31 (e.g., s0, s1, ..., s31)
+    // 64-bit: d0-d31 (e.g., d0, d1, ..., d31)
+    case TargetRegClass::Float: {
+      if (reg_size == TargetRegSize::DWord) {
+        return "s" + std::to_string(id);
+      }
+      if (reg_size == TargetRegSize::QWord) {
+        return "d" + std::to_string(id);
+      }
+    } break;
+    case TargetRegClass::Vector: {
+      // Handle in the future when SVE is supported
+    } break;
+    default:
+      throw std::runtime_error("Invalid register class");
+  }
+  return "unknown_reg";
+}
 
 /**
 * @introduce:
