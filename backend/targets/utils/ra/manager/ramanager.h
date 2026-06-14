@@ -31,6 +31,11 @@ class RAManager {
   // Set up free registers based on the reserved registers and the physical register pool
   auto InitializeFreeRegs(context::BackendContext *context) -> void;
 
+  // Interface for register allocation, e.g., get a free register, mark a register as used or free, etc.
+  auto GetFreeReg(backend::targetir::TargetRegClass reg_class) -> PhysicalReg *;
+  auto MarkRegUsed(PhysicalReg *reg) -> void;
+  auto MarkRegFree(PhysicalReg *reg) -> void;
+
   // TODO(loki): Add cost model to estimate the cost of using a register
 
  private:
@@ -40,6 +45,8 @@ class RAManager {
   std::unordered_set<PhysicalReg *> free_gpr_physical_regs_;
   std::unordered_set<PhysicalReg *> used_fpr_physical_regs_;
   std::unordered_set<PhysicalReg *> free_fpr_physical_regs_;
+  std::unordered_set<PhysicalReg *> used_vector_physical_regs_;
+  std::unordered_set<PhysicalReg *> free_vector_physical_regs_;
 
   // Reserved registers for special purposes, e.g., stack pointer, return address, etc.
   std::unordered_set<PhysicalReg *> reserved_physical_regs_;
