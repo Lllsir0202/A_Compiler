@@ -11,6 +11,7 @@ class AArch64TargetInitializer : public TargetInitializer {
  private:
   auto InitPhysicalRegPool(context::BackendContext *context) -> void override;
   auto InitTargetPrinter() -> void override;
+  auto InitRAManager(context::BackendContext *context, int optimization_level) -> void override;
   friend class context::BackendContext;
 };
 

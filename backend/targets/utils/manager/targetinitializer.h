@@ -15,15 +15,20 @@ namespace backend::targetir {
 class TargetInitializer {
  public:
   virtual ~TargetInitializer() = default;
-  auto Initialize(context::BackendContext *context) -> void {
+  auto Initialize(context::BackendContext *context, int optimization_level) -> void {
     InitPhysicalRegPool(context);
     InitTargetPrinter();
+
+    // This function must be called after the physical register pool is initialized.
+    InitRAManager(context, optimization_level);
   }
 
  private:
   // Need to initialize the physical register pool, called in the constructor of backend context.
   virtual auto InitPhysicalRegPool(context::BackendContext *context) -> void = 0;
   virtual auto InitTargetPrinter() -> void = 0;
+  // Initialize the physical register for register allocation.
+  virtual auto InitRAManager(context::BackendContext *context, int optimization_level) -> void = 0;
 };
 
 class TargetInitializerRegistry {

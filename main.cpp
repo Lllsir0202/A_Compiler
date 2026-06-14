@@ -131,7 +131,8 @@ auto main(int argc, char *argv[]) -> int {
 #endif
 
   // Initialize all members
-  static context::CompilerContext compiler_context(&input, &output, target_arch, warnings_as_errors);
+  static context::CompilerContext compiler_context(&input, &output, target_arch, optimization_level,
+                                                   warnings_as_errors);
   std::unique_ptr<stages::Stage> stage_ptr;
   std::unique_ptr<frontend::Lexer> lexer = std::make_unique<frontend::FlexLexerImpl>(&input);
 

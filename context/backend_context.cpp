@@ -14,12 +14,13 @@ BackendContext::~BackendContext() {
   module_ = nullptr;
 }
 
-BackendContext::BackendContext(const std::string &target_arch) : module_(nullptr), current_function_(nullptr) {
+BackendContext::BackendContext(const std::string &target_arch, int optimization_level)
+    : module_(nullptr), current_function_(nullptr) {
   auto *target_initializer =
       backend::targetir::TargetInitializerRegistry::GetInstance().GetTargetInitializer(target_arch);
   if (target_initializer != nullptr) {
     try {
-      target_initializer->Initialize(this);
+      target_initializer->Initialize(this, optimization_level);
     } catch (const std::exception &e) {
       throw std::runtime_error("Error initializing target for architecture " + target_arch + ": " + e.what());
     }

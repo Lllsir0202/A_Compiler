@@ -3,6 +3,7 @@
 
 #include <unordered_map>
 #include <vector>
+#include "ast_context.h"
 #include "backend/mir/utils/factory/instfactory.h"
 #include "backend/mir/utils/operand/operand.h"
 #include "backend/targets/utils/manager/registerpool.h"
@@ -13,13 +14,14 @@
 #include "backend/targets/utils/operand/targetreg.h"
 #include "backend/targets/utils/ra/liverange/liverange.h"
 #include "backend/targets/utils/struct/targetmodule.h"
+#include "targets/utils/ra/manager/ramanager.h"
 
 namespace context {
 // Provide the context for the backend,
 // Include the target architecture.
 class BackendContext {
  public:
-  explicit BackendContext(const std::string &target_arch);
+  explicit BackendContext(const std::string &target_arch, int optimization_level);
 
   ~BackendContext();
   // Create the operands
@@ -96,6 +98,7 @@ class BackendContext {
   }
 
   auto GetPhysicalRegPool() -> backend::targetir::PhysicalRegPool & { return physical_reg_pool_; }
+  auto GetRAManager() -> backend::targetir::RAManager & { return ra_manager_; }
 
  private:
   /**
@@ -120,6 +123,8 @@ class BackendContext {
 
   // Physical register pool
   backend::targetir::PhysicalRegPool physical_reg_pool_;
+
+  backend::targetir::RAManager ra_manager_;
 };
 
 }  // namespace context

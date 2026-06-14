@@ -84,5 +84,6 @@ class TargetPhysicalReg : public TargetOperand {
 
   TargetRegRole role_;  // Just for print hint, and only for scalar registers.
 };
+
 }  // namespace backend::targetir
 #endif

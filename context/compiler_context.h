@@ -24,8 +24,12 @@ class CompilerContext {
   // and will be used throughout the compilation process.
  public:
   CompilerContext(std::ifstream *in, std::ofstream *out, const std::string &target_arch = "rv64",
-                  bool warnings_as_errors = false, bool output_region = false)
-      : in_(in), out_(out), warning_as_error_(warnings_as_errors), output_region_(output_region) {
+                  int optimization_level = 0, bool warnings_as_errors = false, bool output_region = false)
+      : in_(in),
+        out_(out),
+        warning_as_error_(warnings_as_errors),
+        output_region_(output_region),
+        optimization_level_(optimization_level) {
     type_context_ = new TypeContext();
     ast_context_ = new AstContext();
     symboltable_context_ = new SymbolTableContext();
@@ -35,7 +39,7 @@ class CompilerContext {
 
     // Register the target initializer and create the backend context
     RegisterTargetInitializers();
-    backend_context_ = new BackendContext(target_arch);
+    backend_context_ = new BackendContext(target_arch, optimization_level);
   }
   ~CompilerContext() {
     delete type_context_;
@@ -106,6 +110,10 @@ class CompilerContext {
    * @brief Output region flag
    */
   bool output_region_{};
+  /**
+   * @brief Optimization level
+   */
+  int optimization_level_;
 
   // Register the target initializers
   auto RegisterTargetInitializers() -> void;
