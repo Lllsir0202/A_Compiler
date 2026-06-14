@@ -69,4 +69,18 @@ auto PhysicalRegPool::InitPhysicalRegPool(TargetRegClass reg_class, size_t reg_n
   }
 }
 
+// Get specific physical registers
+auto PhysicalRegPool::GetPhysicalRegs(TargetRegClass reg_class) -> const std::vector<PhysicalReg *> & {
+  switch (reg_class) {
+    case TargetRegClass::General:
+      return gpr_regs_;
+    case TargetRegClass::Float:
+      return fpr_regs_;
+    case TargetRegClass::Vector:
+      return vector_regs_;
+    default:
+      throw std::runtime_error("Invalid register class");
+  }
+}
+
 }  // namespace backend::targetir

@@ -33,18 +33,30 @@ auto AArch64TargetInitializer::InitRAManager(context::BackendContext *context, i
   }
   context->GetRAManager().SetReservedRegs(reserved_regs);
 
-  // Caller-saved registers: x0-x18 (x19-x28 are callee-saved)
+  // Caller-saved registers: x0-x18 (x19-x28 are callee-saved), d0-d7, d16-d31 are caller-saved
   std::unordered_set<PhysicalReg *> caller_saved_regs;
   for (int i = 0; i <= 18; ++i) {
     caller_saved_regs.insert(context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::General, i));
   }
+  for (int i = 0; i <= 7; ++i) {
+    caller_saved_regs.insert(context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::Float, i));
+  }
+  for (int i = 16; i <= 31; ++i) {
+    caller_saved_regs.insert(context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::Float, i));
+  }
   context->GetRAManager().SetCallerSavedRegs(caller_saved_regs);
-  // Callee-saved registers: x19-x28 (x0-x18 are caller-saved)
+  // Callee-saved registers: x19-x28 (x0-x18 are caller-saved), d8-d15 are callee-saved
   std::unordered_set<PhysicalReg *> callee_saved_regs;
   for (int i = 19; i <= 28; ++i) {
     callee_saved_regs.insert(context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::General, i));
   }
+  for (int i = 8; i <= 15; ++i) {
+    callee_saved_regs.insert(context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::Float, i));
+  }
   context->GetRAManager().SetCalleeSavedRegs(callee_saved_regs);
+
+  // Initialize the free register pool based on the reserved registers and the physical register pool
+  context->GetRAManager().InitializeFreeRegs(context);
 }
 
 }  // namespace backend::targetir::aarch64

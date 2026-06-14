@@ -77,6 +77,9 @@ auto RV64TargetInitializer::InitRAManager(context::BackendContext *context, int 
     callee_saved_regs.insert(context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::Float, i));
   }
   context->GetRAManager().SetCalleeSavedRegs(callee_saved_regs);
+
+  // Set up free registers based on the reserved registers and the physical register pool
+  context->GetRAManager().InitializeFreeRegs(context);
 }
 
 }  // namespace backend::targetir::rv64

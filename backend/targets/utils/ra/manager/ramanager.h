@@ -23,22 +23,23 @@ class RAManager {
   auto GetReservedRegs() -> const std::unordered_set<PhysicalReg *> & { return reserved_physical_regs_; }
   auto GetCallerSavedRegs() -> const std::unordered_set<PhysicalReg *> & { return caller_saved_physical_regs_; }
   auto GetCalleeSavedRegs() -> const std::unordered_set<PhysicalReg *> & { return callee_saved_physical_regs_; }
-  auto GetUsedRegs() -> const std::unordered_set<PhysicalReg *> & { return used_physical_regs_; }
-  auto GetFreeRegs() -> const std::unordered_set<PhysicalReg *> & { return free_physical_regs_; }
-  auto UseReg(PhysicalReg *reg) -> void {
-    if (free_physical_regs_.count(reg) > 0) {
-      free_physical_regs_.erase(reg);
-      used_physical_regs_.insert(reg);
-    } else {
-      throw std::runtime_error("Trying to use a register that is not in the free register pool");
-    }
-  }
+
+  auto IsReservedReg(PhysicalReg *reg) -> bool { return reserved_physical_regs_.count(reg) > 0; }
+  auto IsCallerSavedReg(PhysicalReg *reg) -> bool { return caller_saved_physical_regs_.count(reg) > 0; }
+  auto IsCalleeSavedReg(PhysicalReg *reg) -> bool { return callee_saved_physical_regs_.count(reg) > 0; }
+
+  // Set up free registers based on the reserved registers and the physical register pool
+  auto InitializeFreeRegs(context::BackendContext *context) -> void;
 
   // TODO(loki): Add cost model to estimate the cost of using a register
 
  private:
-  std::unordered_set<PhysicalReg *> used_physical_regs_;
-  std::unordered_set<PhysicalReg *> free_physical_regs_;
+  // Get the set of physical registers, and maintain the used and free sets for each register class
+
+  std::unordered_set<PhysicalReg *> used_gpr_physical_regs_;
+  std::unordered_set<PhysicalReg *> free_gpr_physical_regs_;
+  std::unordered_set<PhysicalReg *> used_fpr_physical_regs_;
+  std::unordered_set<PhysicalReg *> free_fpr_physical_regs_;
 
   // Reserved registers for special purposes, e.g., stack pointer, return address, etc.
   std::unordered_set<PhysicalReg *> reserved_physical_regs_;

@@ -40,6 +40,9 @@ class PhysicalRegPool {
   // Initialize the physical register pool, called in the constructor of backend context.
   auto InitPhysicalRegPool(TargetRegClass reg_class, size_t reg_num) -> void;
 
+  // Get all physical registers of a certain class, used for register allocation.
+  auto GetPhysicalRegs(TargetRegClass reg_class) -> const std::vector<PhysicalReg *> &;
+
  private:
   // Only allow backend context to create
   PhysicalRegPool() = default;
