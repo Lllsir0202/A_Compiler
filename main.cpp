@@ -14,7 +14,10 @@
 #include "middleend/pass/analysis/cfg/mlircfg.h"
 #include "middleend/pass/analysis/domtree/domtree.h"
 #include "middleend/pass/transform/adce/adce.h"
+#include "middleend/pass/transform/llvmtrivialblockmerge/llvmtrivialblockmerge.h"
+#include "middleend/pass/transform/sccp/sccp.h"
 #include "middleend/pass/transform/simplify/simplify.h"
+#include "middleend/pass/transform/trivialblockmerge/trivialblockmerge.h"
 #include "middleend/pass/transform/unify/unify.h"
 #include "stages/ast/ast_stage.h"
 #include "stages/lexer/lexer_stage.h"
@@ -260,6 +263,15 @@ auto main(int argc, char *argv[]) -> int {
   auto adce_pass = context::PassContext::CreatePass<middleend::pass::transform::ADCEPass>(
       &compiler_context, middleend::pass::PassStage::BASEIR);
   baseirpass_context->AddPass(adce_pass);
+  auto sccp_pass = context::PassContext::CreatePass<middleend::pass::transform::SCCPPass>(
+      &compiler_context, middleend::pass::PassStage::BASEIR);
+  baseirpass_context->AddPass(sccp_pass);
+  auto post_sccp_adce_pass = context::PassContext::CreatePass<middleend::pass::transform::PostSCCPADCEPass>(
+      &compiler_context, middleend::pass::PassStage::BASEIR);
+  baseirpass_context->AddPass(post_sccp_adce_pass);
+  auto trivial_block_merge_pass = context::PassContext::CreatePass<middleend::pass::transform::TrivialBlockMergePass>(
+      &compiler_context, middleend::pass::PassStage::BASEIR);
+  baseirpass_context->AddPass(trivial_block_merge_pass);
   ret = baseirpass_context->RunPasses();
 
   if (ret != 0) {
@@ -277,6 +289,21 @@ auto main(int argc, char *argv[]) -> int {
 
   auto llvm_verifier = std::make_unique<middleend::llvm::verifer::LLVMVerifer>(
       compiler_context.GetIRContext()->GetLLVMIRContext()->GetModule(), &compiler_context);
+
+  if (!llvm_verifier->Verify()) {
+    return -1;
+  }
+
+  auto llvmirpass_context = new context::PassContext(&compiler_context, middleend::pass::PassStage::LLVMIR);
+  compiler_context.SetPassContext(llvmirpass_context);
+  auto llvm_trivial_block_merge_pass =
+      context::PassContext::CreatePass<middleend::pass::transform::LLVMIRTrivialBlockMergePass>(
+          &compiler_context, middleend::pass::PassStage::LLVMIR);
+  llvmirpass_context->AddPass(llvm_trivial_block_merge_pass);
+  ret = llvmirpass_context->RunPasses();
+  if (ret != 0) {
+    return 1;
+  }
 
   if (!llvm_verifier->Verify()) {
     return -1;

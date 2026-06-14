@@ -61,6 +61,16 @@ class ADCEPass : public TransformPass {
   std::deque<analysis::CFGNode *> new_live_blocks_;
 };
 
+class PostSCCPADCEPass : public ADCEPass {
+ public:
+  PostSCCPADCEPass(context::CompilerContext *compiler_context, PassStage stage) : ADCEPass(compiler_context, stage) {
+    AddDependency("SCCPPass");
+  }
+  ~PostSCCPADCEPass() override = default;
+
+  auto Name() const -> std::string override { return "PostSCCPADCEPass"; }
+};
+
 }  // namespace middleend::pass::transform
 
 #endif
