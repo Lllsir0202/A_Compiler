@@ -4,6 +4,11 @@
 # ./script/functional/runall_llvm_benchmark.sh x86 1 -O0
 # ./script/functional/runall_llvm_benchmark.sh x86 1 -O1
 
+
+# benchmark for specific dataset
+# cd script/functional
+# python3 benchmark_llvm.py ../../testcases/functional --rounds 1 --opt=-O0
+
 set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)

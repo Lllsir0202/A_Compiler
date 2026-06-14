@@ -184,6 +184,8 @@ def benchmark_suite(args, suite_path, output_root):
 
 def parse_args():
     parser = argparse.ArgumentParser()
+    script_dir = Path(__file__).resolve().parent
+    repo_root = script_dir.parent.parent
     parser.add_argument("suites", nargs="+", help="suite directories that contain .sy files")
     parser.add_argument("--rounds", type=int, default=5)
     parser.add_argument("--arch", default="x86", choices=["x86", "arm", "rv"])
@@ -191,9 +193,7 @@ def parse_args():
     parser.add_argument("--compile-timeout", type=int, default=30)
     parser.add_argument("--run-timeout", type=int, default=90)
     parser.add_argument("--keep-tmp", action="store_true")
-    parser.add_argument("--output-root", default="testoutputs/benchmark_llvm")
-    script_dir = Path(__file__).resolve().parent
-    repo_root = script_dir.parent.parent
+    parser.add_argument("--output-root", type=Path, default=repo_root / "testoutputs" / "benchmark_llvm")
     parser.add_argument("--compiler", type=Path, default=repo_root / "bin" / "compiler")
     parser.add_argument("--libs-dir", type=Path, default=repo_root / "libs")
     return parser.parse_args()

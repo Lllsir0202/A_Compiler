@@ -5,6 +5,7 @@
 #include "middleend/mlir/dialect/base/branch.h"
 #include "middleend/mlir/dialect/base/copy.h"
 #include "middleend/mlir/dialect/base/funccall.h"
+#include "middleend/mlir/dialect/base/funcdef.h"
 #include "middleend/mlir/dialect/base/phi.h"
 #include "middleend/mlir/dialect/func/basic.h"
 #include "middleend/mlir/dialect/func/funccall.h"
@@ -16,7 +17,6 @@
 #include "middleend/pass/analysis/cfg/cfg.h"
 #include "middleend/pass/analysis/cfg/mlircfg.h"
 #include "middleend/pass/analysis/domtree/domtree.h"
-#include "middleend/pass/transform/simplify/simplify.h"
 
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()
 #define GET_PASS_CONTEXT() compiler_context_->GetPassContext()
@@ -45,9 +45,7 @@ auto ADCEPass::Run() -> void {
   }
 
   if (changed) {
-    auto *simplify_pass = context::PassContext::CreatePass<SimplifyPass>(compiler_context_, PassStage::BASEIR);
-    simplify_pass->Run();
-    delete simplify_pass;
+    GET_PASS_CONTEXT()->InvalidateAnalysis();
   }
 }
 
