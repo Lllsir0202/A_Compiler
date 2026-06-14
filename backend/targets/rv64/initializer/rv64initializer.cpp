@@ -20,26 +20,19 @@ auto RV64TargetInitializer::InitTargetPrinter() -> void {
 
 auto RV64TargetInitializer::InitRAManager(context::BackendContext *context, int optimization_level) -> void {
   // If no-opt, fp is reserved, otherwise, we will use fp as a gpr
-  if (optimization_level == 0) {
-    // For rv64, reserved registers are zero(x0), ra(x1), sp(x2), gp(x3), tp(x4), and fp(x8)
-    std::unordered_set<PhysicalReg *> reserved_regs = {
-        context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::General, 0),
-        context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::General, 1),
-        context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::General, 2),
-        context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::General, 3),
-        context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::General, 4),
-        context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::General, 8)};
-    context->GetRAManager().SetReservedRegs(reserved_regs);
-  }
+
+  // For rv64, reserved registers are zero(x0), ra(x1), sp(x2), gp(x3), tp(x4), and fp(x8)
   // If optimization is enabled, we can use fp as a general-purpose register,
   // so only zero(x0), ra(x1), sp(x2), gp(x3), and tp(x4) are reserved
-  else {
-    std::unordered_set<PhysicalReg *> reserved_regs;
-    for (int i = 0; i <= 4; ++i) {
-      reserved_regs.insert(context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::General, i));
-    }
-    context->GetRAManager().SetReservedRegs(reserved_regs);
+
+  std::unordered_set<PhysicalReg *> reserved_regs;
+  for (int i = 0; i <= 4; ++i) {
+    reserved_regs.insert(context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::General, i));
   }
+  if (optimization_level == 0) {
+    reserved_regs.insert(context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::General, 8));  // fp
+  }
+  context->GetRAManager().SetReservedRegs(reserved_regs);
 
   // Caller-saved registers: x1, x5-x7, x10-x17, x28-x31, f0-f7, f10-f17, f28-f31
   std::unordered_set<PhysicalReg *> caller_saved_regs = {

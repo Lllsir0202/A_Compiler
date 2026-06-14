@@ -21,24 +21,18 @@ auto AArch64TargetInitializer::InitTargetPrinter() -> void {
 }
 
 auto AArch64TargetInitializer::InitRAManager(context::BackendContext *context, int optimization_level) -> void {
-  if (optimization_level == 0) {
-    // For armv8, reserved registers are lr(x30), sp/zr(x31), and fp(x29)
-    std::unordered_set<PhysicalReg *> reserved_regs = {
-        context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::General, 29),  // fp
-        context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::General, 30),  // lr
-        context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::General, 31)   // sp/zr
-    };
-    context->GetRAManager().SetReservedRegs(reserved_regs);
-  }
+  // For armv8, reserved registers are lr(x30), sp/zr(x31), and fp(x29)
   // Means we are in optimization level 1 or above, we can use fp
-  else {
-    // For armv8, reserved registers are lr(x30) and sp/zr(x31)
-    std::unordered_set<PhysicalReg *> reserved_regs = {
-        context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::General, 30),  // lr
-        context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::General, 31)   // sp/zr
-    };
-    context->GetRAManager().SetReservedRegs(reserved_regs);
+  // For armv8, reserved registers are lr(x30) and sp/zr(x31)
+  std::unordered_set<PhysicalReg *> reserved_regs = {
+      context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::General, 30),  // lr
+      context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::General, 31)   // sp/zr
+  };
+  if (optimization_level == 0) {
+    reserved_regs.insert(context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::General, 29));  // fp
   }
+  context->GetRAManager().SetReservedRegs(reserved_regs);
+
   // Caller-saved registers: x0-x18 (x19-x28 are callee-saved)
   std::unordered_set<PhysicalReg *> caller_saved_regs;
   for (int i = 0; i <= 18; ++i) {
