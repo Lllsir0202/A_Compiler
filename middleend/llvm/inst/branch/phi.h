@@ -1,6 +1,7 @@
 #ifndef MIDDLEEND_LLVM_INST_BRANCH_PHI_H
 #define MIDDLEEND_LLVM_INST_BRANCH_PHI_H
 
+#include <stdexcept>
 #include "llvm/utils/operand/labeloperand.h"
 #include "middleend/llvm/inst/inst.h"
 namespace middleend::llvm::inst {
@@ -11,6 +12,13 @@ class PhiInst : public Instruction {
   auto AddIncoming(utils::Operand *value, utils::LabelOperand *block) -> void {
     operands_.emplace_back(value);
     incoming_blocks_.emplace_back(block);
+  }
+  auto UpdateIncoming(size_t index, utils::Operand *value, utils::LabelOperand *block) -> void {
+    if (index >= operands_.size()) {
+      throw std::out_of_range("Index out of range in UpdateIncoming");
+    }
+    operands_[index] = value;
+    incoming_blocks_[index] = block;
   }
 
   auto GetIncomingSize() const -> size_t { return operands_.size(); }

@@ -9,6 +9,8 @@ class BrInst : public Instruction {
   auto Verify(context::CompilerContext *context) const -> bool override;
 
   auto GetTargetBlockID() const -> size_t { return target_->GetID(); }
+  auto GetTarget() const -> utils::LabelOperand * { return target_; }
+  auto SetTarget(utils::LabelOperand *target) -> void { target_ = target; }
 
  private:
   explicit BrInst() : Instruction(OpKind::Br) {}
@@ -26,6 +28,10 @@ class BrCondInst : public Instruction {
   auto GetCondition() const -> utils::Operand * { return operands_[0]; }
   auto GetTrueTargetBlockID() const -> size_t { return true_target_->GetID(); }
   auto GetFalseTargetBlockID() const -> size_t { return false_target_->GetID(); }
+  auto GetTrueTarget() const -> utils::LabelOperand * { return true_target_; }
+  auto SetTrueTarget(utils::LabelOperand *true_target) -> void { true_target_ = true_target; }
+  auto GetFalseTarget() const -> utils::LabelOperand * { return false_target_; }
+  auto SetFalseTarget(utils::LabelOperand *false_target) -> void { false_target_ = false_target; }
 
  private:
   explicit BrCondInst() : Instruction(OpKind::CondBr) {}
