@@ -45,16 +45,30 @@ class LiveRange {
 
   auto AddSegment(const Segment &segment) -> void { segments_.emplace_back(segment); }
 
+  // Add a usage instruction number to this live range, which is used for the cost model in register allocation.
+  auto AddUsedInst(size_t inst_num) -> void { used_insts_.emplace_back(inst_num); }
+
   // Canalize this live range, which means to make sure
   // all these segments are non-overlapping and sorted by start.
   auto Canalize() -> void;
+
+  // Check whether two live ranges overlap
+  auto OverlapsWith(const LiveRange &other) const -> bool;
+
+  // Check whether this live range active in a specific instruction number
+  auto IsActiveAt(size_t inst_num) const -> bool;
+
+  // Check whether this live range is expired in a specific instruction number
+  auto IsExpiredAt(size_t inst_num) const -> bool;
+
+  // Get the usage frequency of this live range, which is the number of usage instructions.
+  auto GetUsageFrequency() const -> size_t { return used_insts_.size(); }
 
  private:
   // The segments of this live range, which are non-overlapping and sorted by start instruction number
   std::vector<Segment> segments_;
 
-  // MAYBEUNUSED: The used instructions' number,
-  // as well as the definition instruction's number
+  // MAYBEUNUSED: The used instructions' number
   std::vector<size_t> used_insts_;
 
   // TODO(loki): More information added in the future

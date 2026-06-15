@@ -91,6 +91,7 @@ auto LiveRangeAnalysis::AnalyzeLiveRange(TargetFunction *function) -> void {
             // If live out this vreg, it means we have found the real live range of this vreg
             open_segments[vreg].SetEnd(inst->GetInstNum());
           }
+          context_->UpdateLiveRangeUsage(vreg, inst->GetInstNum());
         }
       }
     }

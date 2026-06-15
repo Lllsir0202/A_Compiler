@@ -28,6 +28,13 @@ class TargetFunction {
 
   // Interface to get, add frame objects
   auto GetFrameObjects() const -> const std::vector<TargetFrameObject *> & { return frame_objects_; }
+  auto GetFrameObjectByID(size_t id) -> TargetFrameObject * {
+    if (id < frame_objects_.size()) {
+      return frame_objects_[id];
+    }
+    return nullptr;
+  }
+  auto GetFrameObjectsSize() const -> size_t { return frame_objects_.size(); }
   auto AddFrameObject(TargetFrameObject *frame_object) -> void { frame_objects_.emplace_back(frame_object); }
 
   auto GetVirtualRegisters() -> std::vector<TargetVirtualReg *> & { return virtual_registers_; }

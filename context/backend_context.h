@@ -3,9 +3,9 @@
 
 #include <unordered_map>
 #include <vector>
-#include "ast_context.h"
 #include "backend/mir/utils/factory/instfactory.h"
 #include "backend/mir/utils/operand/operand.h"
+#include "backend/targets/utils/factory/functionfactory.h"
 #include "backend/targets/utils/manager/registerpool.h"
 #include "backend/targets/utils/manager/targetinitializer.h"
 #include "backend/targets/utils/operand/targetframe.h"
@@ -58,6 +58,17 @@ class BackendContext {
   }
   auto GetFunctions() -> const std::vector<backend::targetir::TargetFunction *> & { return module_->GetFunctions(); }
 
+  auto AddFrameObject(size_t size, size_t alignment) -> backend::targetir::TargetFrameObject * {
+    auto frame_object = backend::targetir::FunctionFactory::CreateTargetFrameObject(
+        current_function_->GetFrameObjectsSize(), size, alignment);
+    current_function_->AddFrameObject(frame_object);
+    return frame_object;
+  }
+
+  auto GetFrameObjectByID(size_t id) -> backend::targetir::TargetFrameObject * {
+    return current_function_->GetFrameObjectByID(id);
+  }
+
   // Map from mir operand to target operand
   auto MapOperand(backend::utils::Operand *mir_operand, backend::targetir::TargetOperand *target_operand) -> void {
     operand_map_[mir_operand] = target_operand;
@@ -95,6 +106,10 @@ class BackendContext {
   }
   auto UpdateLiveRange(backend::targetir::TargetVirtualReg *vreg, const backend::targetir::Segment &segment) -> void {
     live_ranges_[vreg].AddSegment(segment);
+  }
+
+  auto UpdateLiveRangeUsage(backend::targetir::TargetVirtualReg *vreg, size_t inst_num) -> void {
+    live_ranges_[vreg].AddUsedInst(inst_num);
   }
 
   auto GetPhysicalRegPool() -> backend::targetir::PhysicalRegPool & { return physical_reg_pool_; }
