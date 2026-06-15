@@ -9,9 +9,8 @@ class AllocatorHint {
   AllocatorHint() = default;
   ~AllocatorHint() = default;
 
-  auto SetPreferredColor(PhysicalReg *reg) -> void { preferred_color_ = reg; }
-  auto GetPreferredColor() -> PhysicalReg * { return preferred_color_; }
-  auto HasPreferredColor() -> bool { return preferred_color_ != nullptr; }
+  auto SetPreferredReg(PhysicalReg *reg) -> void { preferred_color_ = reg; }
+  auto GetPreferredReg() const -> PhysicalReg * { return preferred_color_; }
 
  private:
   // Preferred color for this virtual register, which is used for coalescing and other optimizations.

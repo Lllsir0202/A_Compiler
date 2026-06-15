@@ -184,7 +184,7 @@ auto GraphColoringAllocator::Select(InterferenceGraph &interference_graph) -> vo
 
     if (!available_colors.empty()) {
       if (context_->HasAllocatorHint(vreg)) {
-        auto preferred_color = context_->GetAllocatorHint(vreg).GetPreferredColor();
+        auto preferred_color = context_->GetAllocatorHint(vreg).GetPreferredReg();
         if (preferred_color != nullptr && available_colors.count(preferred_color) > 0) {
           available_colors = {preferred_color};
         }
