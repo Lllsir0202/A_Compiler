@@ -7,7 +7,6 @@
  */
 #include <cstddef>
 #include <vector>
-#include "targets/utils/struct/targetblock.h"
 namespace backend::targetir {
 
 /**
