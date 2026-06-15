@@ -79,7 +79,7 @@ class GraphColoringAllocator : public RegisterAllocator {
 
   // Simplify the interference graph by removing nodes
   // with degree less than the number of available colors (registers).
-  auto Simplify(InterferenceGraph &interference_graph) -> void;
+  auto Simplify(InterferenceGraph interference_graph) -> void;
 
   // Select a color for the removed node, and assign it to the corresponding virtual register.
   auto Select(InterferenceGraph &interference_graph) -> void;

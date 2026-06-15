@@ -135,7 +135,7 @@ auto GraphColoringAllocator::ColorRegClass(TargetRegClass reg_class) -> void {
   Select(interference_graph);
 }
 
-auto GraphColoringAllocator::Simplify(InterferenceGraph &interference_graph) -> void {
+auto GraphColoringAllocator::Simplify(InterferenceGraph interference_graph) -> void {
   // Put high priority nodes into a stack first,
   // which means those nodes are more likely to be colored successfully,
   // and less likely to be spilled.

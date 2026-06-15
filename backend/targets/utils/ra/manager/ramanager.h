@@ -33,7 +33,7 @@ class RAManager {
   auto InitializeFreeRegs(context::BackendContext *context) -> void;
 
   // Interface for register allocation, e.g., get a free register, mark a register as used or free, etc.
-  auto GetFreeRegs(TargetRegClass reg_class) -> std::unordered_set<PhysicalReg *> &;
+  auto GetFreeRegs(TargetRegClass reg_class) -> std::unordered_set<PhysicalReg *>;
   auto MarkRegUsed(TargetRegClass reg_class, PhysicalReg *reg) -> void;
   auto MarkRegFree(TargetRegClass reg_class, PhysicalReg *reg) -> void;
 
