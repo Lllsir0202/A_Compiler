@@ -8,6 +8,7 @@ class ARMSTRWInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  ARMSTRWInst() = default;
   static auto Create(TargetOperand *rs2, TargetOperand *rs1, TargetOperand *rs2_offset) -> ARMSTRWInst *;
   friend class InstFactory;
 };
@@ -17,6 +18,7 @@ class ARMSTRWimmInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  ARMSTRWimmInst() = default;
   static auto Create(TargetOperand *rs2, TargetOperand *rs1, TargetOperand *imm) -> ARMSTRWimmInst *;
   friend class InstFactory;
 };

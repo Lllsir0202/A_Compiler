@@ -42,6 +42,7 @@ class ARMMovzInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  ARMMovzInst() = default;
   static auto Create(TargetOperand *dst, TargetOperand *imm, int shift = 0) -> ARMMovzInst *;
   friend class InstFatory;
   int shift_ = 0;
@@ -53,6 +54,7 @@ class ARMMovkInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  ARMMovkInst() = default;
   static auto Create(TargetOperand *dst, TargetOperand *imm, int shift = 0) -> ARMMovkInst *;
   friend class InstFatory;
   int shift_ = 0;
@@ -64,6 +66,7 @@ class ARMMovnInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  ARMMovnInst() = default;
   static auto Create(TargetOperand *dst, TargetOperand *imm, int shift = 0) -> ARMMovnInst *;
   friend class InstFatory;
   int shift_ = 0;

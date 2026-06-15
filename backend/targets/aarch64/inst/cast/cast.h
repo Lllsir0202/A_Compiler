@@ -20,6 +20,7 @@ class ARMUCVTFInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  ARMUCVTFInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1) -> ARMUCVTFInst *;
   friend class InstFactory;
 };
@@ -30,6 +31,7 @@ class ARMFCVTZSInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  ARMFCVTZSInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1) -> ARMFCVTZSInst *;
   friend class InstFactory;
 };

@@ -26,11 +26,11 @@ auto ARMFCMPInst::Emit(std::ofstream *out) -> void {
   *out << "\n";
 }
 
-auto ARMFCMPInst::Create(TargetOperand *rs1, TargetOperand *imm) -> ARMFCMPInst * {
+auto ARMFCMPInst::Create(TargetOperand *rs1, TargetOperand *rs2) -> ARMFCMPInst * {
   auto *inst = new ARMFCMPInst();
   inst->operands_.reserve(2);
   inst->operands_.emplace_back(rs1);
-  inst->operands_.emplace_back(imm);
+  inst->operands_.emplace_back(rs2);
   return inst;
 }
 

@@ -9,6 +9,7 @@ class ARMBInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  ARMBInst() = default;
   static auto Create(TargetOperand *label) -> ARMBInst *;
   friend class InstFactory;
 };
@@ -87,6 +88,7 @@ class ARMBCondInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  ARMBCondInst() = default;
   static auto Create(ARMBCondOp op, TargetOperand *label) -> ARMBCondInst *;
   friend class InstFactory;
   ARMBCondOp op_;

@@ -3,8 +3,9 @@
 namespace backend::targetir::aarch64 {
 auto ARMRetInst::Emit(std::ofstream *out) -> void { *out << "    ret\n"; }
 
-auto ARMRetInst::Create() -> ARMRetInst * {
+auto ARMRetInst::Create(TargetOperand *rd) -> ARMRetInst * {
   auto inst = new ARMRetInst();
+  inst->SetResult(rd);
   return inst;
 }
 

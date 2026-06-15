@@ -2,6 +2,7 @@
 #define BACKEND_TARGETS_AARCH64_INST_FUNC_RET_H
 
 #include "backend/targets/utils/inst/targetinst.h"
+#include "targets/utils/operand/targetoperand.h"
 namespace backend::targetir::aarch64 {
 
 // Ret instruction
@@ -16,7 +17,8 @@ class ARMRetInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
-  static auto Create() -> ARMRetInst *;
+  ARMRetInst() = default;
+  static auto Create(TargetOperand *rd) -> ARMRetInst *;
   friend class InstFactory;
 };
 

@@ -6,13 +6,21 @@ namespace backend::targetir::aarch64 {
 class ARMCMPInst : public TargetInst {
  public:
   auto Emit(std::ofstream *out) -> void override;
+
+ private:
+  ARMCMPInst() = default;
   static auto Create(TargetOperand *rs1, TargetOperand *rs2) -> ARMCMPInst *;
+  friend class InstFactory;
 };
 
 class ARMFCMPInst : public TargetInst {
  public:
   auto Emit(std::ofstream *out) -> void override;
-  static auto Create(TargetOperand *rs1, TargetOperand *imm) -> ARMFCMPInst *;
+
+ private:
+  ARMFCMPInst() = default;
+  static auto Create(TargetOperand *rs1, TargetOperand *rs2) -> ARMFCMPInst *;
+  friend class InstFactory;
 };
 
 // cset rd, cond
@@ -20,7 +28,11 @@ class ARMFCMPInst : public TargetInst {
 class ARMCSETInst : public TargetInst {
  public:
   auto Emit(std::ofstream *out) -> void override;
+
+ private:
+  ARMCSETInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *cond) -> ARMCSETInst *;
+  friend class InstFactory;
 };
 
 }  // namespace backend::targetir::aarch64

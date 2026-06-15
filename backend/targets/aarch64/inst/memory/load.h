@@ -11,6 +11,7 @@ class ARMLDRWInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  ARMLDRWInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> ARMLDRWInst *;
   friend class InstFactory;
 };
@@ -20,6 +21,7 @@ class ARMLDRWimmInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  ARMLDRWimmInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> ARMLDRWimmInst *;
   friend class InstFactory;
 };

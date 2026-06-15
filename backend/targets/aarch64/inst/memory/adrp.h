@@ -8,6 +8,7 @@ class ARMAdrpInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  ARMAdrpInst() = default;
   static auto Create(TargetOperand *dst, TargetOperand *label) -> ARMAdrpInst *;
   friend class InstFatory;
 };

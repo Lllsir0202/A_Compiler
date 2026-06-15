@@ -12,6 +12,7 @@ namespace backend::targetir::aarch64 {
     auto Emit(std::ofstream *out) -> void override;                                                    \
                                                                                                        \
    private:                                                                                            \
+    InstType##Inst() = default;                                                                        \
     static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> InstType##Inst *; \
     friend class InstFactory;                                                                          \
   };
@@ -22,6 +23,7 @@ namespace backend::targetir::aarch64 {
     auto Emit(std::ofstream *out) -> void override;                                                       \
                                                                                                           \
    private:                                                                                               \
+    InstType##ImmInst() = default;                                                                        \
     static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> InstType##ImmInst *; \
     friend class InstFactory;                                                                             \
   };
@@ -53,6 +55,7 @@ auto ShiftTypeToString(ShiftType type) -> const char * {
     auto Emit(std::ofstream *out) -> void override;                                                     \
                                                                                                         \
    private:                                                                                             \
+    InstType##ShiftInst() = default;                                                                    \
     static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2, TargetOperand *shift, \
                        ShiftType type) -> InstType##ShiftInst *;                                        \
     friend class InstFactory;                                                                           \
