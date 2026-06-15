@@ -47,16 +47,17 @@ auto InterferenceGraph::RemoveNode(TargetVirtualReg *vreg) -> void {
  * Using the interfence graph.
  */
 auto GraphColoringAllocator::Allocate() -> void {
-  // TODO(loki): Implement the graph coloring register allocation algorithm here
   for (auto function : context_->GetFunctions()) {
     Build(function);
-    // TODO(loki): Implement the actual graph coloring algorithm here, e.g., simplify, select, spill, coalesce, etc.
+
+    Color();
   }
 }
 
 auto GraphColoringAllocator::BuildInterferenceGraph(TargetRegClass reg_class, TargetFunction *function) -> void {
   // Sort the live segments by their start point
   // Get the specific function's live ranges
+  sorted_live_segments_.clear();
   auto vregs = function->GetVirtualRegisters();
   for (auto vreg : vregs) {
     if (vreg->GetRegClass() != reg_class) {
@@ -135,7 +136,6 @@ auto GraphColoringAllocator::ColorRegClass(TargetRegClass reg_class) -> void {
 }
 
 auto GraphColoringAllocator::Simplify(InterferenceGraph &interference_graph) -> void {
-  // TODO(loki): Implement the simplify phase of the graph coloring algorithm here
   // Put high priority nodes into a stack first,
   // which means those nodes are more likely to be colored successfully,
   // and less likely to be spilled.
