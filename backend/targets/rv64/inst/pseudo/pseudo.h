@@ -8,6 +8,7 @@ class RVLIInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  RVLIInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *imm) -> RVLIInst *;
   friend class InstFactory;
 };
@@ -17,6 +18,7 @@ class RVMVInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  RVMVInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVMVInst *;
   friend class InstFactory;
 };

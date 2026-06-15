@@ -11,6 +11,7 @@ class RVFCVTSWInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  RVFCVTSWInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1) -> RVFCVTSWInst *;
   friend class InstFactory;
 };
@@ -22,6 +23,7 @@ class RVFCVTWSInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  RVFCVTWSInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1) -> RVFCVTWSInst *;
   friend class InstFactory;
 };
@@ -33,6 +35,7 @@ class RVFCVTSWUInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  RVFCVTSWUInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1) -> RVFCVTSWUInst *;
   friend class InstFactory;
 };
@@ -44,6 +47,7 @@ class RVZextWInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  RVZextWInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1) -> RVZextWInst *;
   friend class InstFactory;
 };

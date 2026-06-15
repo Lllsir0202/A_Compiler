@@ -8,6 +8,7 @@ class RVJMPInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  RVJMPInst() = default;
   static auto Create(TargetOperand *target) -> RVJMPInst *;
   friend class InstFactory;
 };
@@ -17,6 +18,7 @@ class RVJALInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  RVJALInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *target) -> RVJALInst *;
   friend class InstFactory;
 };
@@ -26,6 +28,7 @@ class RVJALRInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  RVJALRInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVJALRInst *;
   friend class InstFactory;
 };
@@ -36,6 +39,7 @@ class RVJALRInst : public TargetInst {
     auto Emit(std::ofstream *out) -> void override;                                   \
                                                                                       \
    private:                                                                           \
+    InstName##Inst() = default;                                                       \
     static auto Create(TargetOperand *rd, TargetOperand *target) -> InstName##Inst *; \
     friend class InstFactory;                                                         \
   };

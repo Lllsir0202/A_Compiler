@@ -8,8 +8,9 @@ class RVCALLInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  RVCALLInst() = default;
   // In RV64, we will store all the args before the call instruction
-  static auto Create(TargetOperand *rd, std::string callee) -> RVCALLInst *;
+  static auto Create(TargetOperand *rd, std::string callee, const std::vector<TargetOperand *> &args) -> RVCALLInst *;
   friend class InstFactory;
   // Record the callee function name
   std::string callee_;

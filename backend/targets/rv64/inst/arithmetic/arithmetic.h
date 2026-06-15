@@ -18,6 +18,7 @@ namespace backend::targetir::rv64 {
     auto Emit(std::ofstream *out) -> void override;                                                    \
                                                                                                        \
    private:                                                                                            \
+    InstName##Inst() = default;                                                                        \
     static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> InstName##Inst *; \
     friend class InstFactory;                                                                          \
   };
@@ -34,6 +35,7 @@ class RVADDIInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  RVADDIInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVADDIInst *;
   friend class InstFactory;
 };
@@ -43,6 +45,7 @@ class RVSLLIInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  RVSLLIInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVSLLIInst *;
   friend class InstFactory;
 };

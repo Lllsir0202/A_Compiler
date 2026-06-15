@@ -9,6 +9,7 @@ class RVSLTInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  RVSLTInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVSLTInst *;
   friend class InstFactory;
 };
@@ -18,6 +19,7 @@ class RVSLEInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  RVSLEInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVSLEInst *;
   friend class InstFactory;
 };
@@ -27,6 +29,7 @@ class RVSEQInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  RVSEQInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVSEQInst *;
   friend class InstFactory;
 };
@@ -37,6 +40,7 @@ class RVFLTSInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  RVFLTSInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVFLTSInst *;
   friend class InstFactory;
 };
@@ -46,6 +50,7 @@ class RVFLESInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  RVFLESInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVFLESInst *;
   friend class InstFactory;
 };
@@ -55,6 +60,7 @@ class RVFEQSInst : public TargetInst {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  RVFEQSInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVFEQSInst *;
   friend class InstFactory;
 };

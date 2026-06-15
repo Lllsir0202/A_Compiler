@@ -4,8 +4,9 @@
 namespace backend::targetir::rv64 {
 auto RVRETInst::Emit(std::ofstream *out) -> void { *out << "    ret\n"; }
 
-auto RVRETInst::Create() -> RVRETInst * {
+auto RVRETInst::Create(TargetOperand *operand) -> RVRETInst * {
   auto *inst = new RVRETInst();
+  inst->AddOperand(operand);
   return inst;
 }
 
