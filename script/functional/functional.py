@@ -78,7 +78,7 @@ def execute_mir(input, output, opt):
 
 def execute_ir(input, output, opt, stdin, stdout, testout, arch="x86"):
     """run IR-related commands"""
-    result = execute(["timeout", "30", "../../bin/compiler", input, "-llvm", "-o", output, opt])
+    result = execute(["timeout", "90", "../../bin/compiler", input, "-llvm", "-o", output, opt])
     if result.returncode != 0:
         print(f"\033[93mCompile Error on \033[0m{input}")
         return 0

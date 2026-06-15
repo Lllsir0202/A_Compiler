@@ -35,6 +35,17 @@ class SimplifyPass : public TransformPass {
   std::vector<mlir::Block *> to_delete_blocks_;
 };
 
+class PostSCCPSimplifyPass : public SimplifyPass {
+ public:
+  PostSCCPSimplifyPass(context::CompilerContext *compiler_context, PassStage stage)
+      : SimplifyPass(compiler_context, stage) {
+    AddDependency("SCCPPass");
+  }
+  ~PostSCCPSimplifyPass() override = default;
+
+  auto Name() const -> std::string override { return "PostSCCPSimplifyPass"; }
+};
+
 }  // namespace middleend::pass::transform
 
 #endif

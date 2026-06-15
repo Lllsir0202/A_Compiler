@@ -245,7 +245,12 @@ auto ADCEPass::RewriteDeadTerminators() -> bool {
 
 auto ADCEPass::RemoveDeadOperations() -> bool {
   bool changed = false;
-  for (auto *block : current_function_cfg_->GetFuncOp()->GetBlocks()) {
+  for (auto *cfg_node : current_function_cfg_->GetNodes()) {
+    auto *mlir_cfg_node = dynamic_cast<analysis::MLIRCFGNode *>(cfg_node);
+    if (mlir_cfg_node == nullptr) {
+      throw std::logic_error("ADCEPass only supports MLIRCFGNode");
+    }
+    auto *block = mlir_cfg_node->GetBlock();
     std::vector<mlir::Operation *> new_operations;
     new_operations.reserve(block->operations_.size());
     for (auto *operation : block->operations_) {

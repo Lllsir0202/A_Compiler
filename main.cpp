@@ -257,21 +257,30 @@ auto main(int argc, char *argv[]) -> int {
   auto unify_pass = context::PassContext::CreatePass<middleend::pass::transform::UnifyReturnPass>(
       &compiler_context, middleend::pass::PassStage::BASEIR);
   baseirpass_context->AddPass(unify_pass);
-  auto domtree_pass = context::PassContext::CreatePass<middleend::pass::analysis::DomTreePass>(
-      &compiler_context, middleend::pass::PassStage::BASEIR);
-  baseirpass_context->AddPass(domtree_pass);
-  auto adce_pass = context::PassContext::CreatePass<middleend::pass::transform::ADCEPass>(
-      &compiler_context, middleend::pass::PassStage::BASEIR);
-  baseirpass_context->AddPass(adce_pass);
-  auto sccp_pass = context::PassContext::CreatePass<middleend::pass::transform::SCCPPass>(
-      &compiler_context, middleend::pass::PassStage::BASEIR);
-  baseirpass_context->AddPass(sccp_pass);
-  auto post_sccp_adce_pass = context::PassContext::CreatePass<middleend::pass::transform::PostSCCPADCEPass>(
-      &compiler_context, middleend::pass::PassStage::BASEIR);
-  baseirpass_context->AddPass(post_sccp_adce_pass);
-  auto trivial_block_merge_pass = context::PassContext::CreatePass<middleend::pass::transform::TrivialBlockMergePass>(
-      &compiler_context, middleend::pass::PassStage::BASEIR);
-  baseirpass_context->AddPass(trivial_block_merge_pass);
+
+  if (optimization_level == 1) {
+    auto domtree_pass = context::PassContext::CreatePass<middleend::pass::analysis::DomTreePass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(domtree_pass);
+    auto adce_pass = context::PassContext::CreatePass<middleend::pass::transform::ADCEPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(adce_pass);
+
+    auto sccp_pass = context::PassContext::CreatePass<middleend::pass::transform::SCCPPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(sccp_pass);
+    auto post_sccp_simplify_pass = context::PassContext::CreatePass<middleend::pass::transform::PostSCCPSimplifyPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(post_sccp_simplify_pass);
+    auto post_sccp_adce_pass = context::PassContext::CreatePass<middleend::pass::transform::PostSCCPADCEPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(post_sccp_adce_pass);
+
+    auto trivial_block_merge_pass = context::PassContext::CreatePass<middleend::pass::transform::TrivialBlockMergePass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(trivial_block_merge_pass);
+  }
+
   ret = baseirpass_context->RunPasses();
 
   if (ret != 0) {

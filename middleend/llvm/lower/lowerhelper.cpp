@@ -1013,6 +1013,9 @@ auto LowerHelper::LowerCopyOp(mlir::base::CopyOp *copy_op) -> void {
   // Create a pseudo copy instruction,
   // which will be eliminated in the future optimization
   auto llvm_src = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(src);
+  if (llvm_src == nullptr) {
+    throw std::logic_error("Source operand not found in LowerCopyOp");
+  }
   auto inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::CopyInst>(GET_LLVMIR_CONTEXT(),
                                                                                      dst->GetType(), llvm_src);
 

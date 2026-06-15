@@ -21,9 +21,9 @@ python3 "$SCRIPT_DIR/benchmark_llvm.py" \
   "$REPO_ROOT/testcases/functional" \
   "$REPO_ROOT/testcases/h_functional" \
   "$REPO_ROOT/testcases/riscv_performance" \
-#   "$REPO_ROOT/testcases/riscv_finalperformance" \
-#   "$REPO_ROOT/testcases/arm_performance" \
-#   "$REPO_ROOT/testcases/arm_finalperformance" \
+  "$REPO_ROOT/testcases/riscv_finalperformance" \
+  "$REPO_ROOT/testcases/arm_performance" \
+  "$REPO_ROOT/testcases/arm_finalperformance" \
   --arch "$ARCH" \
   --rounds "$ROUNDS" \
   --opt="$OPT" \
