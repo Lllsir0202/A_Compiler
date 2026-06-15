@@ -13,8 +13,9 @@
 #include "backend/targets/utils/operand/targetoperand.h"
 #include "backend/targets/utils/operand/targetreg.h"
 #include "backend/targets/utils/ra/liverange/liverange.h"
+#include "backend/targets/utils/ra/manager/ramanager.h"
+#include "backend/targets/utils/ra/method/hint/allocatorhint.h"
 #include "backend/targets/utils/struct/targetmodule.h"
-#include "targets/utils/ra/manager/ramanager.h"
 
 namespace context {
 // Provide the context for the backend,
@@ -121,6 +122,33 @@ class BackendContext {
   auto GetPhysicalRegPool() -> backend::targetir::PhysicalRegPool & { return physical_reg_pool_; }
   auto GetRAManager() -> backend::targetir::RAManager & { return ra_manager_; }
 
+  // Map from virtual register to physical register, used for register allocation and code generation
+  auto MapVregToPreg(backend::targetir::TargetVirtualReg *vreg, backend::targetir::PhysicalReg *preg) -> void {
+    vreg_to_preg_map_[vreg] = preg;
+  }
+
+  auto GetPregOfVreg(backend::targetir::TargetVirtualReg *vreg) -> backend::targetir::PhysicalReg * {
+    auto it = vreg_to_preg_map_.find(vreg);
+    if (it != vreg_to_preg_map_.end()) {
+      return it->second;
+    }
+    return nullptr;
+  }
+
+  auto IsMapped(backend::targetir::TargetVirtualReg *vreg) -> bool { return vreg_to_preg_map_.count(vreg) > 0; }
+
+  // Set and get hint for register allocation, which is used for optimization, e.g., coalescing.
+  auto SetAllocatorHint(backend::targetir::TargetVirtualReg *vreg,
+                        const backend::targetir::AllocatorHint &hint) -> void {
+    allocator_hint_map_[vreg] = hint;
+  }
+  auto GetAllocatorHint(backend::targetir::TargetVirtualReg *vreg) -> backend::targetir::AllocatorHint & {
+    return allocator_hint_map_[vreg];
+  }
+  auto HasAllocatorHint(backend::targetir::TargetVirtualReg *vreg) -> bool {
+    return allocator_hint_map_.count(vreg) > 0;
+  }
+
  private:
   /**
    * @brief Just provide the target-free backend context here,
@@ -144,6 +172,9 @@ class BackendContext {
 
   // Information for register allocation, map from virtual register to physical register
   std::unordered_map<backend::targetir::TargetVirtualReg *, backend::targetir::PhysicalReg *> vreg_to_preg_map_;
+
+  // Allocator hint for optimization
+  std::unordered_map<backend::targetir::TargetVirtualReg *, backend::targetir::AllocatorHint> allocator_hint_map_;
 
   // Physical register pool
   backend::targetir::PhysicalRegPool physical_reg_pool_;
