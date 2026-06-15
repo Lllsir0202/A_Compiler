@@ -3,6 +3,7 @@
 
 #include <unordered_set>
 #include "backend/targets/utils/manager/registerpool.h"
+#include "targets/utils/operand/targetoperand.h"
 namespace backend::targetir {
 class RAManager {
  public:
@@ -32,11 +33,9 @@ class RAManager {
   auto InitializeFreeRegs(context::BackendContext *context) -> void;
 
   // Interface for register allocation, e.g., get a free register, mark a register as used or free, etc.
-  auto GetFreeReg(backend::targetir::TargetRegClass reg_class) -> PhysicalReg *;
-  auto MarkRegUsed(PhysicalReg *reg) -> void;
-  auto MarkRegFree(PhysicalReg *reg) -> void;
-
-  // TODO(loki): Add cost model to estimate the cost of using a register
+  auto GetFreeRegs(TargetRegClass reg_class) -> std::unordered_set<PhysicalReg *> &;
+  auto MarkRegUsed(TargetRegClass reg_class, PhysicalReg *reg) -> void;
+  auto MarkRegFree(TargetRegClass reg_class, PhysicalReg *reg) -> void;
 
  private:
   // Get the set of physical registers, and maintain the used and free sets for each register class
@@ -52,6 +51,8 @@ class RAManager {
   std::unordered_set<PhysicalReg *> reserved_physical_regs_;
   std::unordered_set<PhysicalReg *> caller_saved_physical_regs_;
   std::unordered_set<PhysicalReg *> callee_saved_physical_regs_;
+
+  // Cost model for register allocation
 };
 }  // namespace backend::targetir
 #endif

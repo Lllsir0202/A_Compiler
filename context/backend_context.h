@@ -73,6 +73,7 @@ class BackendContext {
   auto MapOperand(backend::utils::Operand *mir_operand, backend::targetir::TargetOperand *target_operand) -> void {
     operand_map_[mir_operand] = target_operand;
   }
+
   auto GetMappedOperand(backend::utils::Operand *mir_operand) -> backend::targetir::TargetOperand * {
     auto it = operand_map_.find(mir_operand);
     if (it != operand_map_.end()) {
@@ -91,6 +92,11 @@ class BackendContext {
 
   // Reset the instruction number, called when entering a new function
   auto ResetInstNum() -> void { inst_num_ = 0; }
+
+  auto GetLiveRanges()
+      -> const std::unordered_map<backend::targetir::TargetVirtualReg *, backend::targetir::LiveRange> & {
+    return live_ranges_;
+  }
 
   auto GetLiveRange(backend::targetir::TargetVirtualReg *vreg) -> backend::targetir::LiveRange & {
     return live_ranges_[vreg];
@@ -135,6 +141,9 @@ class BackendContext {
 
   // Record the current function
   backend::targetir::TargetFunction *current_function_;
+
+  // Information for register allocation, map from virtual register to physical register
+  std::unordered_map<backend::targetir::TargetVirtualReg *, backend::targetir::PhysicalReg *> vreg_to_preg_map_;
 
   // Physical register pool
   backend::targetir::PhysicalRegPool physical_reg_pool_;

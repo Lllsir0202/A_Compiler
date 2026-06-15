@@ -48,6 +48,9 @@ class LiveRange {
   // Add a usage instruction number to this live range, which is used for the cost model in register allocation.
   auto AddUsedInst(size_t inst_num) -> void { used_insts_.emplace_back(inst_num); }
 
+  // Get segments of this live range
+  auto GetSegments() const -> const std::vector<Segment> & { return segments_; }
+
   // Canalize this live range, which means to make sure
   // all these segments are non-overlapping and sorted by start.
   auto Canalize() -> void;
