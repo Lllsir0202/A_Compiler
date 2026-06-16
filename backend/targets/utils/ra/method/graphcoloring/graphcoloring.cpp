@@ -55,14 +55,26 @@ auto GraphColoringAllocator::Allocate() -> void {
 }
 
 auto GraphColoringAllocator::BuildInterferenceGraph(TargetRegClass reg_class, TargetFunction *function) -> void {
+  // Set all virtual registers in the graph.
+  std::unordered_set<TargetVirtualReg *> all_vregs;
+  for (auto vreg : function->GetVirtualRegisters()) {
+    if (vreg->GetRegClass() == reg_class) {
+      all_vregs.insert(vreg);
+    }
+  }
+  if (reg_class == TargetRegClass::General) {
+    gpr_interference_graph_.SetAllVirtualRegs(all_vregs);
+  } else if (reg_class == TargetRegClass::Float) {
+    fpr_interference_graph_.SetAllVirtualRegs(all_vregs);
+  } else if (reg_class == TargetRegClass::Vector) {
+    vector_interference_graph_.SetAllVirtualRegs(all_vregs);
+  }
+
   // Sort the live segments by their start point
   // Get the specific function's live ranges
   sorted_live_segments_.clear();
-  auto vregs = function->GetVirtualRegisters();
-  for (auto vreg : vregs) {
-    if (vreg->GetRegClass() != reg_class) {
-      continue;
-    }
+  for (auto vreg : all_vregs) {
+    // Has been sure to be all specific class virtual registers.
     auto live_range = context_->GetLiveRange(vreg);
     for (auto segment : live_range.GetSegments()) {
       sorted_live_segments_.emplace_back(vreg, segment);
@@ -165,6 +177,10 @@ auto GraphColoringAllocator::Select(InterferenceGraph &interference_graph) -> vo
     auto vreg = simplify_stack_.back();
     simplify_stack_.pop_back();
 
+    if (context_->IsMapped(vreg)) {
+      continue;
+    }
+
     // Get the colors used by the neighbors of this node
     std::set<PhysicalReg *> used_colors;
     for (auto neighbor : interference_graph.GetNeighbors(vreg)) {
@@ -174,9 +190,9 @@ auto GraphColoringAllocator::Select(InterferenceGraph &interference_graph) -> vo
     }
 
     // Get the available colors for this node, which are those that are not used by its neighbors.
-    auto free_regs = context_->GetRAManager().GetFreeRegs(vreg->GetRegClass());
+    auto allocable_regs = context_->GetRAManager().GetAllocableRegs(vreg->GetRegClass());
     std::set<PhysicalReg *> available_colors;
-    for (auto reg : free_regs) {
+    for (auto reg : allocable_regs) {
       if (used_colors.count(reg) == 0) {
         available_colors.insert(reg);
       }
@@ -191,7 +207,6 @@ auto GraphColoringAllocator::Select(InterferenceGraph &interference_graph) -> vo
       }
       auto assigned_color = *available_colors.begin();
       context_->MapVregToPreg(vreg, assigned_color);
-      context_->GetRAManager().MarkRegUsed(vreg->GetRegClass(), assigned_color);
     } else {
       // This node cannot be colored successfully with the available colors (registers),
       // and is spilled to memory.

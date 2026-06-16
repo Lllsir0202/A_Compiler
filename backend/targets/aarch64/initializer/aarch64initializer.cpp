@@ -56,7 +56,7 @@ auto AArch64TargetInitializer::InitRAManager(context::BackendContext *context, i
   context->GetRAManager().SetCalleeSavedRegs(callee_saved_regs);
 
   // Initialize the free register pool based on the reserved registers and the physical register pool
-  context->GetRAManager().InitializeFreeRegs(context);
+  context->GetRAManager().InitializeRegs(context);
 }
 
 }  // namespace backend::targetir::aarch64

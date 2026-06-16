@@ -30,12 +30,13 @@ class RAManager {
   auto IsCalleeSavedReg(PhysicalReg *reg) -> bool { return callee_saved_physical_regs_.count(reg) > 0; }
 
   // Set up free registers based on the reserved registers and the physical register pool
-  auto InitializeFreeRegs(context::BackendContext *context) -> void;
+  auto InitializeRegs(context::BackendContext *context) -> void;
 
   // Interface for register allocation, e.g., get a free register, mark a register as used or free, etc.
   auto GetFreeRegs(TargetRegClass reg_class) -> std::unordered_set<PhysicalReg *>;
   auto MarkRegUsed(TargetRegClass reg_class, PhysicalReg *reg) -> void;
   auto MarkRegFree(TargetRegClass reg_class, PhysicalReg *reg) -> void;
+  auto GetAllocableRegs(TargetRegClass reg_class) -> std::unordered_set<PhysicalReg *>;
 
  private:
   // Get the set of physical registers, and maintain the used and free sets for each register class
@@ -51,6 +52,10 @@ class RAManager {
   std::unordered_set<PhysicalReg *> reserved_physical_regs_;
   std::unordered_set<PhysicalReg *> caller_saved_physical_regs_;
   std::unordered_set<PhysicalReg *> callee_saved_physical_regs_;
+
+  std::unordered_set<PhysicalReg *> allocable_gpr_physical_regs_;
+  std::unordered_set<PhysicalReg *> allocable_fpr_physical_regs_;
+  std::unordered_set<PhysicalReg *> allocable_vector_physical_regs_;
 
   // Cost model for register allocation
 };

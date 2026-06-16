@@ -44,13 +44,10 @@ class InterferenceGraph {
     return adjacency_list_;
   }
 
-  auto GetAllVirtualRegs() -> std::unordered_set<TargetVirtualReg *> {
-    std::unordered_set<TargetVirtualReg *> vregs;
-    for (const auto &[vreg, neighbors] : adjacency_list_) {
-      vregs.insert(vreg);
-    }
-    return vregs;
-  }
+  auto GetAllVirtualRegs() -> std::unordered_set<TargetVirtualReg *> { return vregs_; }
+
+  // Set all virtual registers in the graph.
+  auto SetAllVirtualRegs(const std::unordered_set<TargetVirtualReg *> &vregs) { vregs_ = vregs; }
 
  private:
   // Adjacency list representation of the interference graph
@@ -59,6 +56,9 @@ class InterferenceGraph {
   // Copy graph
   // the destination would prefer to be assigned to the same as source if possible.
   std::unordered_map<TargetVirtualReg *, std::unordered_set<TargetVirtualReg *>> copy_adjacency_list_;
+
+  // Record all virtual registers in the graph
+  std::unordered_set<TargetVirtualReg *> vregs_;
 };
 
 class GraphColoringAllocator : public RegisterAllocator {

@@ -9,7 +9,6 @@ class LowerHelper {
 
  private:
   // Lower arithmetic instructions
-  
 };
 
 }  // namespace backend::targetir::rv64

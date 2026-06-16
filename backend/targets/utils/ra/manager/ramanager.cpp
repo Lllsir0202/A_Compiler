@@ -3,27 +3,30 @@
 #include "targets/utils/operand/targetoperand.h"
 
 namespace backend::targetir {
-auto RAManager::InitializeFreeRegs(context::BackendContext *context) -> void {
+auto RAManager::InitializeRegs(context::BackendContext *context) -> void {
   // Initialize free registers based on the reserved registers and the physical register pool
   auto &physical_reg_pool = context->GetPhysicalRegPool();
   for (const auto &reg : physical_reg_pool.GetPhysicalRegs(TargetRegClass::General)) {
     if (!IsReservedReg(reg)) {
       free_gpr_physical_regs_.insert(reg);
+      allocable_gpr_physical_regs_.insert(reg);
     }
   }
   for (const auto &reg : physical_reg_pool.GetPhysicalRegs(TargetRegClass::Float)) {
     if (!IsReservedReg(reg)) {
       free_fpr_physical_regs_.insert(reg);
+      allocable_fpr_physical_regs_.insert(reg);
     }
   }
   for (const auto &reg : physical_reg_pool.GetPhysicalRegs(TargetRegClass::Vector)) {
     if (!IsReservedReg(reg)) {
       free_vector_physical_regs_.insert(reg);
+      allocable_vector_physical_regs_.insert(reg);
     }
   }
 }
 
-auto RAManager::GetFreeRegs(backend::targetir::TargetRegClass reg_class) -> std::unordered_set<PhysicalReg *> & {
+auto RAManager::GetFreeRegs(backend::targetir::TargetRegClass reg_class) -> std::unordered_set<PhysicalReg *> {
   // Get the set of free registers from the corresponding free register set based on the register class
   if (reg_class == TargetRegClass::General) {
     return free_gpr_physical_regs_;

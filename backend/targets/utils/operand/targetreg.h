@@ -24,7 +24,6 @@ class TargetVirtualReg : public TargetOperand {
       // Should report error
       throw std::runtime_error("Unknown register class for virtual register");
     }
-    *out << "v" << id_;
   }
 
   auto GetID() -> size_t { return id_; }
