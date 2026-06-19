@@ -128,8 +128,11 @@ auto MIRLower::Lower() -> int {
     // Then lower the function bodies
     for (const auto &function : llvm_module->GetFunctions()) {
       lower_helper_->LowerFunction(function);
+    }
 
-      // TODO(loki): After lowering, we need to eliminate phi instructions
+    // Then eliminate phi instructions
+    for (auto &fuction : GET_MIR_CONTEXT()->GetModule()->GetFunctions()) {
+      phi_elimination_->EliminatePhi(fuction);
     }
 
   } catch (std::exception &e) {

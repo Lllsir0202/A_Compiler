@@ -72,6 +72,7 @@ auto LowerHelper::LowerBlock(middleend::llvm::utils::BasicBlock *bb) -> utils::B
   auto block = GET_RESOURCE_CONTEXT()->CreateBlock(bb->GetID());
   // Add the block to the current function
   GET_LOWER_CONTEXT()->GetCurrentFunction()->AddBlock(block);
+  GET_LOWER_CONTEXT()->GetCurrentFunction()->AddBlockById(block->GetId(), block);
   GET_LOWER_CONTEXT()->MapBlockToBasicBlock(block, bb);
   // Map
   return block;

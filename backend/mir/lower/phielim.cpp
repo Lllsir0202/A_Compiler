@@ -1,5 +1,6 @@
 #include "backend/mir/lower/phielim.h"
 #include <algorithm>
+#include <cstddef>
 #include <unordered_map>
 #include <vector>
 #include "backend/mir/inst/branch/branch.h"
@@ -74,14 +75,11 @@ auto PhiElimination::EliminatePhi(utils::Function *function) -> void {
 
 auto PhiElimination::SplitCriticalEdge(utils::Function *function) -> void {
   const auto &blocks = function->GetBlocks();
-  std::unordered_map<size_t, utils::Block *> block_by_id;
   std::unordered_map<size_t, size_t> predecessor_count;
-  block_by_id.reserve(blocks.size());
   predecessor_count.reserve(blocks.size() * 2);
 
   size_t next_block_id = 0;
   for (auto *block : blocks) {
-    block_by_id[block->GetId()] = block;
     next_block_id = std::max(next_block_id, block->GetId() + 1);
     const auto &instructions = block->GetInstructions();
     if (!instructions.empty() && instructions.back()->IsBranch()) {
@@ -111,8 +109,9 @@ auto PhiElimination::SplitCriticalEdge(utils::Function *function) -> void {
         continue;
       }
 
-      auto *successor = block_by_id[successor_id];
+      auto *successor = function->GetBlockById(successor_id);
       auto *split_block = mir_context_->GetResourceContext()->CreateBlock(next_block_id++);
+      function->AddBlockById(split_block->GetId(), split_block);
       auto *split_label = mir_context_->GetLabelOperand(split_block->GetId());
       auto *successor_label = mir_context_->GetLabelOperand(successor_id);
       auto *jump = mir_context_->GetResourceContext()->CreateInstruction<inst::BrInst>(mir_context_, successor_label);
@@ -143,12 +142,16 @@ auto PhiElimination::LowerPhi(utils::Function *function) -> void {
       const auto &incoming_blocks = phi->GetIncomingBlocks();
       for (size_t i = 0; i < incoming_values.size(); ++i) {
         auto *incoming_value = incoming_values[i];
-        auto *incoming_block = incoming_blocks[i];
-        auto *copy_inst = mir_context_->GetResourceContext()->CreateInstruction<inst::CopyInst>(
-            mir_context_, incoming_value, phi->GetResult());
+        auto *incoming_label = incoming_blocks[i];
+        auto *incoming_block = function->GetBlockById(incoming_label->GetId());
+        auto *copy_inst =
+            mir_context_->GetResourceContext()->CreateInstruction<inst::CopyInst>(phi->GetResult(), incoming_value);
         copy_inst->SetParentBlock(incoming_block);
-        incoming_block->AddInstBack(copy_inst);
+        incoming_block->AddInstBeforeTerminal(copy_inst);
       }
+      // Undefine the result of the phi instruction
+      // to indicate that this vreg is no longer a SSA variable
+      phi->GetResult()->SetDefInst(nullptr);
     }
     block->SetInstructions(new_instructions);
   }
