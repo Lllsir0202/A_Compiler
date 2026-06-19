@@ -1,8 +1,6 @@
 #include "backend/targets/rv64/lower/lowerhelper.h"
-
 #include <stdexcept>
-#include <string>
-#include "mir/inst/inst.h"
+#include "backend/mir/inst/inst.h"
 
 namespace backend::targetir::rv64 {
 

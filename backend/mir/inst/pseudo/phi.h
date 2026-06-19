@@ -12,6 +12,7 @@ class PhiInst : public Instruction {
   auto IsPhi() const -> bool override { return true; }
 
   auto GetIncomingBlocks() const -> const std::vector<utils::LabelOperand *> & { return incoming_blocks_; }
+  auto SetIncomingBlock(size_t index, utils::LabelOperand *block) -> void { incoming_blocks_[index] = block; }
   auto AddIncoming(utils::Operand *value, utils::LabelOperand *block) -> void {
     operands_.emplace_back(value);
     incoming_blocks_.emplace_back(block);

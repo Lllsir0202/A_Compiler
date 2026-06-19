@@ -15,7 +15,7 @@ BackendContext::~BackendContext() {
 }
 
 BackendContext::BackendContext(const std::string &target_arch, int optimization_level)
-    : module_(nullptr), current_function_(nullptr) {
+    : module_(nullptr), current_function_(nullptr), current_block_(nullptr) {
   auto *target_initializer =
       backend::targetir::TargetInitializerRegistry::GetInstance().GetTargetInitializer(target_arch);
   if (target_initializer != nullptr) {

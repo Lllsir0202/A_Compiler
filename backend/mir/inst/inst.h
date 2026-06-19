@@ -28,6 +28,8 @@ class Instruction {
   auto SetResult(utils::Operand *result) -> void { result_ = result; }
 
   auto AddOperand(utils::Operand *operand) -> void { operands_.emplace_back(operand); }
+  auto GetOperands() const -> const std::vector<utils::Operand *> & { return operands_; }
+  auto SetOperand(size_t index, utils::Operand *operand) -> void { operands_[index] = operand; }
 
   auto AddUser(Instruction *user) -> void { users_.emplace_back(user); }
   auto GetUsers() const -> const std::vector<Instruction *> & { return users_; }

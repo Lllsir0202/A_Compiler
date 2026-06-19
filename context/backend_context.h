@@ -5,7 +5,9 @@
 #include <vector>
 #include "backend/mir/utils/factory/instfactory.h"
 #include "backend/mir/utils/operand/operand.h"
+#include "backend/targets/utils/factory/blockfactory.h"
 #include "backend/targets/utils/factory/functionfactory.h"
+#include "backend/targets/utils/factory/modulefactory.h"
 #include "backend/targets/utils/manager/registerpool.h"
 #include "backend/targets/utils/manager/targetinitializer.h"
 #include "backend/targets/utils/operand/targetframe.h"
@@ -37,6 +39,20 @@ class BackendContext {
   auto CreateFloatLiteral(float value) -> backend::targetir::TargetFloatLiteral *;
 
   auto CreateFrameOperand(size_t slot_id) -> backend::targetir::TargetFrameOperand *;
+
+  auto CreateModule() -> backend::targetir::TargetModule * {
+    return backend::targetir::ModuleFactory::CreateTargetModule();
+  }
+
+  auto CreateFunction(const std::string &name) -> backend::targetir::TargetFunction * {
+    auto function = backend::targetir::FunctionFactory::CreateTargetFunction(name);
+    module_->AddFunction(function);
+    return function;
+  }
+
+  auto CreateBlock(size_t id) -> backend::targetir::TargetBlock * {
+    return backend::targetir::BlockFactory::CreateTargetBlock(id);
+  }
 
   // Set module
   auto SetModule(backend::targetir::TargetModule *module) -> void {
@@ -78,6 +94,20 @@ class BackendContext {
   auto GetMappedOperand(backend::utils::Operand *mir_operand) -> backend::targetir::TargetOperand * {
     auto it = operand_map_.find(mir_operand);
     if (it != operand_map_.end()) {
+      return it->second;
+    }
+    return nullptr;
+  }
+
+  auto MapBlock(size_t mir_block_id, backend::targetir::TargetBlock *target_block) -> void {
+    block_map_[mir_block_id] = target_block;
+  }
+
+  auto ClearBlockMap() -> void { block_map_.clear(); }
+
+  auto GetMappedBlock(size_t mir_block_id) -> backend::targetir::TargetBlock * {
+    auto it = block_map_.find(mir_block_id);
+    if (it != block_map_.end()) {
       return it->second;
     }
     return nullptr;
@@ -149,6 +179,13 @@ class BackendContext {
     return allocator_hint_map_.count(vreg) > 0;
   }
 
+  // Set and get the lowering context
+  auto GetCurrentFunction() -> backend::targetir::TargetFunction * { return current_function_; }
+  auto SetCurrentFunction(backend::targetir::TargetFunction *function) -> void { current_function_ = function; }
+
+  auto SetCurrentBlock(backend::targetir::TargetBlock *block) -> void { current_block_ = block; }
+  auto GetCurrentBlock() -> backend::targetir::TargetBlock * { return current_block_; }
+
  private:
   /**
    * @brief Just provide the target-free backend context here,
@@ -158,6 +195,9 @@ class BackendContext {
 
   // Map from mir register operand to target operand
   std::unordered_map<backend::utils::Operand *, backend::targetir::TargetOperand *> operand_map_;
+
+  // Map from MIR block id to target block, used by branch and phi lowering.
+  std::unordered_map<size_t, backend::targetir::TargetBlock *> block_map_;
 
   backend::targetir::TargetModule *module_;
 
@@ -169,6 +209,9 @@ class BackendContext {
 
   // Record the current function
   backend::targetir::TargetFunction *current_function_;
+
+  // Record the current block, which is used for lowering
+  backend::targetir::TargetBlock *current_block_;
 
   // Information for register allocation, map from virtual register to physical register
   std::unordered_map<backend::targetir::TargetVirtualReg *, backend::targetir::PhysicalReg *> vreg_to_preg_map_;

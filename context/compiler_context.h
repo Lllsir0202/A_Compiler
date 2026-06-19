@@ -57,6 +57,7 @@ class CompilerContext {
   auto GetMIRContext() -> MIRContext * { return mir_context_; }
   auto SetPassContext(PassContext *pass_context) -> void { pass_context_ = pass_context; }
   auto GetPassContext() -> PassContext * { return pass_context_; }
+  auto GetBackendContext() -> BackendContext * { return backend_context_; }
   auto ReportError(frontend::SourceRange source_range, const std::string &msg) -> void;
   auto ReportError(frontend::ast::ASTNode *node, const std::string &msg) -> void;
   auto ReportError(const std::string &msg) -> void;
