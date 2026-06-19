@@ -13,13 +13,14 @@ class RVLUIInst : public TargetInst {
   friend class InstFactory;
 };
 
+// Load a symbol's address into a register, which is used for PC-related address calculation.
 class RVAUIPCInst : public TargetInst {
  public:
   auto Emit(std::ofstream *out) -> void override;
 
  private:
   RVAUIPCInst() = default;
-  static auto Create(TargetOperand *rd, TargetOperand *imm) -> RVAUIPCInst *;
+  static auto Create(TargetOperand *rd, TargetOperand *symbol) -> RVAUIPCInst *;
   friend class InstFactory;
 };
 

@@ -16,6 +16,7 @@ class Segment {
  public:
   Segment(size_t start, size_t end) : start_(start), end_(end) {}
   Segment() = default;
+  auto operator<(const Segment &other) const -> bool { return end_ < other.end_; }
   auto GetStart() const -> size_t { return start_; }
   auto GetEnd() const -> size_t { return end_; }
 

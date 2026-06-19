@@ -12,13 +12,6 @@ class TargetRegPrinter {
   virtual ~TargetRegPrinter() = default;
 };
 
-// Print the symbol based on the architecture.
-class TargetSymbolPrinter {
- public:
-  virtual auto GetSymbolName(const std::string &name, TargetSymbolAccessMode access_mode) const -> std::string = 0;
-  virtual ~TargetSymbolPrinter() = default;
-};
-
 }  // namespace backend::targetir
 
 #endif

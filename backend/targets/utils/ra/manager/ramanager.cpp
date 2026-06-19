@@ -84,4 +84,18 @@ auto RAManager::MarkRegFree(TargetRegClass reg_class, PhysicalReg *reg) -> void 
   }
 }
 
+auto RAManager::GetAllocableRegs(TargetRegClass reg_class) -> std::unordered_set<PhysicalReg *> {
+  // Get the set of allocable registers from the corresponding allocable register set based on the register class
+  if (reg_class == TargetRegClass::General) {
+    return allocable_gpr_physical_regs_;
+  }
+  if (reg_class == TargetRegClass::Float) {
+    return allocable_fpr_physical_regs_;
+  }
+  if (reg_class == TargetRegClass::Vector) {
+    return allocable_vector_physical_regs_;
+  }
+  throw std::runtime_error("Unknown register class");
+}
+
 }  // namespace backend::targetir

@@ -9,7 +9,7 @@ class RVLWInst : public TargetInst {
 
  private:
   RVLWInst() = default;
-  static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVLWInst *;
+  static auto Create(TargetOperand *rd, TargetOperand *imm, TargetOperand *rs) -> RVLWInst *;
   friend class InstFactory;
 };
 
@@ -19,7 +19,7 @@ class RVFLWInst : public TargetInst {
 
  private:
   RVFLWInst() = default;
-  static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVFLWInst *;
+  static auto Create(TargetOperand *rd, TargetOperand *imm, TargetOperand *rs) -> RVFLWInst *;
   friend class InstFactory;
 };
 
@@ -29,7 +29,7 @@ class RVLDInst : public TargetInst {
 
  private:
   RVLDInst() = default;
-  static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVLDInst *;
+  static auto Create(TargetOperand *rd, TargetOperand *imm, TargetOperand *rs) -> RVLDInst *;
   friend class InstFactory;
 };
 
@@ -39,7 +39,7 @@ class RVFLDInst : public TargetInst {
 
  private:
   RVFLDInst() = default;
-  static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVFLDInst *;
+  static auto Create(TargetOperand *rd, TargetOperand *imm, TargetOperand *rs) -> RVFLDInst *;
   friend class InstFactory;
 };
 

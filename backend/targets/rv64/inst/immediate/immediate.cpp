@@ -18,10 +18,10 @@ auto RVLUIInst::Emit(std::ofstream *out) -> void {
   *out << '\n';
 }
 
-auto RVAUIPCInst::Create(TargetOperand *rd, TargetOperand *imm) -> RVAUIPCInst * {
+auto RVAUIPCInst::Create(TargetOperand *rd, TargetOperand *symbol) -> RVAUIPCInst * {
   auto *inst = new RVAUIPCInst();
   inst->operands_.reserve(1);
-  inst->AddOperand(imm);
+  inst->AddOperand(symbol);
   inst->SetResult(rd);
   return inst;
 }

@@ -35,6 +35,9 @@ class TargetBlock {
   // Set function name
   auto SetFuncName(std::string func_name) -> void { func_name_ = std::move(func_name); }
 
+  // Get block name, which is in the format of "{func_name}_block{id}"
+  auto GetName() const -> std::string { return ".L" + func_name_ + "_" + std::to_string(id_); }
+
  private:
   // Constructor with id
   explicit TargetBlock(size_t id) : id_(id) {}

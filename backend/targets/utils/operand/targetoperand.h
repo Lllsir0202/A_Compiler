@@ -20,15 +20,6 @@ enum class TargetRegClass : uint8_t {
   Vector    // Vector register
 };
 
-enum class TargetSymbolAccessMode : uint8_t {
-  PCRelative,  // Access the symbol using PC-relative addressing
-  Absolute,    // Access the symbol using absolute addressing
-  GOT,         // Access the symbol through the Global Offset Table (GOT), used in position-independent code
-  PLT,         // Access the symbol through the Procedure Linkage Table (PLT),
-               // used for function calls in position-independent code
-  None,        // No special access mode, used for local symbols that can be accessed directly
-};
-
 /**
  * @brief Implement the print hint for physical register view
  */
@@ -42,6 +33,7 @@ enum class TargetOperandType : uint8_t {
   Memory,       // Memory address
   Frame,        // Stack frame reference
   Symbol,       // Symbol reference
+  Label,        // Label reference, for example, the label of a basic block
 };
 
 class TargetOperand {
@@ -52,6 +44,7 @@ class TargetOperand {
   auto IsVirtualReg() -> bool { return type_ == TargetOperandType::VirtualReg; }
   auto IsPhysicalReg() -> bool { return type_ == TargetOperandType::PhysicalReg; }
   auto IsSymbol() -> bool { return type_ == TargetOperandType::Symbol; }
+  auto IsLabel() -> bool { return type_ == TargetOperandType::Label; }
 
  protected:
   explicit TargetOperand(TargetOperandType type) : type_(type) {}
