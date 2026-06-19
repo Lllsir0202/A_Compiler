@@ -17,13 +17,13 @@ enum class RV64SymbolModifier : uint8_t {
 
 class RV64Symbol : public TargetSymbol {
  public:
-  explicit RV64Symbol(std::string name, RV64SymbolModifier modifier)
-      : TargetSymbol(std::move(name)), modifier_(modifier) {}
-
   auto Emit(std::ofstream *out) -> void override;
 
  private:
+  explicit RV64Symbol(std::string name, RV64SymbolModifier modifier)
+      : TargetSymbol(std::move(name)), modifier_(modifier) {}
   RV64SymbolModifier modifier_;
+  friend class OperandFactory;
 };
 
 }  // namespace backend::targetir

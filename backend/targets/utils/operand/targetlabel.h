@@ -5,8 +5,6 @@
 namespace backend::targetir {
 class TargetLabel : public TargetOperand {
  public:
-  explicit TargetLabel(std::string name) : TargetOperand(TargetOperandType::Label), name_(std::move(name)) {}
-
   auto Emit(std::ofstream *out) -> void override { *out << name_; }
 
   // Get the name of this label
@@ -15,7 +13,9 @@ class TargetLabel : public TargetOperand {
   auto GetName() const -> const std::string & { return name_; }
 
  private:
+  explicit TargetLabel(std::string name) : TargetOperand(TargetOperandType::Label), name_(std::move(name)) {}
   std::string name_;
+  friend class OperandFactory;
 };
 
 }  // namespace backend::targetir

@@ -70,6 +70,13 @@ class Instruction {
   // Record all users
   std::vector<Instruction *> users_;
 };
+
+// Dynamic cast helper function for instructions
+template <typename InstType>
+auto DynamicOrNull(Instruction *inst) {
+  return dynamic_cast<InstType *>(inst);
+}
+
 }  // namespace backend::inst
 
 #endif
