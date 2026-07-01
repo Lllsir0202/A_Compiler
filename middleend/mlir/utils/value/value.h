@@ -36,11 +36,11 @@ class Use {
  */
 class Value {
  public:
-  Operation *op_;            // the operation that produces this value
-  std::size_t num_;          // the number for output, i.e. %1 = base.add %0, %0
-  std::string name_;         // the name of this value
-  std::vector<Use *> uses_;  // all operations that use this value as operand
-  type::Type *type_;         // the type of this value
+  Operation *op_{nullptr};     // the operation that produces this value (null for params/globals)
+  std::size_t num_{0};         // the number for output, i.e. %1 = base.add %0, %0
+  std::string name_;           // the name of this value
+  std::vector<Use *> uses_;    // all operations that use this value as operand
+  type::Type *type_{nullptr};  // the type of this value
   ~Value() {
     for (auto use : uses_) {
       delete use;

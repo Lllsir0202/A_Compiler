@@ -915,8 +915,27 @@ auto LowerHelper::LowerVarDefOp(mlir::var::VarDefOp *var_def) -> void {
  * 3. SetValOp: transfer to store instruction
  */
 auto LowerHelper::LowerVarGetPtrOp(mlir::var::VarGetPtrOp *get_ptr_op) -> void {
-  auto ptr = get_ptr_op->GetPtr();
   auto result = get_ptr_op->GetRes();
+
+  // Flatten a chain of getptr-of-getptr into a single access rooted at the
+  // underlying alloca / global / parameter. Such chains only arise when inlining
+  // a callee that indexes an array parameter: the parameter is substituted by the
+  // decayed array argument, which is itself a getptr. Re-expressing the access
+  // directly from the root reproduces exactly the getptr a direct (un-inlined)
+  // access would emit, so the base type and leading-zero handling below stay
+  // correct regardless of how many decay levels the argument went through.
+  auto ptr = get_ptr_op->GetPtr();
+  std::vector<mlir::Value *> collected_indices = get_ptr_op->GetIndices();
+  while (ptr != nullptr) {
+    auto *base_get_ptr = mlir::DynamicOrNull<mlir::var::VarGetPtrOp>(ptr->op_);
+    if (base_get_ptr == nullptr) {
+      break;
+    }
+    auto base_indices = base_get_ptr->GetIndices();
+    collected_indices.insert(collected_indices.begin(), base_indices.begin(), base_indices.end());
+    ptr = base_get_ptr->GetPtr();
+  }
+
   auto llvm_ptr = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(ptr);
 
   // The allocated type is a pointer type,
@@ -940,12 +959,15 @@ auto LowerHelper::LowerVarGetPtrOp(mlir::var::VarGetPtrOp *get_ptr_op) -> void {
     // if it is an array
     // If it is from parameter, which means it is just a pointer,
     // we should not add a zero index,
-    // since the pointer already points to the first element
+    // since the pointer already points to the first element.
+    // After the flattening above the root is always an alloca, a global or a
+    // parameter (never another getptr), so a defining instruction reliably marks
+    // a pointer to a whole array object.
     if (allocated_type->GetKind() == type::TypeKind::ARRAY && llvm_ptr->GetInstruction() != nullptr) {
       indices.emplace_back(GET_LLVMIR_CONTEXT()->GetIntLiteral(0));
     }
 
-    for (auto &index : get_ptr_op->GetIndices()) {
+    for (auto &index : collected_indices) {
       auto llvm_index = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(index);
       indices.emplace_back(llvm_index);
     }
