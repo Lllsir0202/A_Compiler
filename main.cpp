@@ -14,7 +14,12 @@
 #include "middleend/pass/analysis/cfg/mlircfg.h"
 #include "middleend/pass/analysis/domtree/domtree.h"
 #include "middleend/pass/transform/adce/adce.h"
+#include "middleend/pass/transform/functioninline/functioninline.h"
 #include "middleend/pass/transform/llvmtrivialblockmerge/llvmtrivialblockmerge.h"
+#include "middleend/pass/transform/mlirdce/mlirdce.h"
+#include "middleend/pass/transform/mlirfunctioninline/mlirfunctioninline.h"
+#include "middleend/pass/transform/mlirreturncanonicalize/mlirreturncanonicalize.h"
+#include "middleend/pass/transform/mlirtailrecursion/mlirtailrecursion.h"
 #include "middleend/pass/transform/sccp/sccp.h"
 #include "middleend/pass/transform/simplify/simplify.h"
 #include "middleend/pass/transform/trivialblockmerge/trivialblockmerge.h"
@@ -232,6 +237,34 @@ auto main(int argc, char *argv[]) -> int {
     return ret;
   }
 
+  if (optimization_level == 1) {
+    auto mlirpass_context = new context::PassContext(&compiler_context, middleend::pass::PassStage::MLIR);
+    compiler_context.SetPassContext(mlirpass_context);
+    auto mlir_return_canonicalize_pass =
+        context::PassContext::CreatePass<middleend::pass::transform::MLIRReturnCanonicalizePass>(
+            &compiler_context, middleend::pass::PassStage::MLIR);
+    mlirpass_context->AddPass(mlir_return_canonicalize_pass);
+    auto mlir_tail_recursion_eliminate_pass =
+        context::PassContext::CreatePass<middleend::pass::transform::MLIRTailRecursionEliminatePass>(
+            &compiler_context, middleend::pass::PassStage::MLIR);
+    mlirpass_context->AddPass(mlir_tail_recursion_eliminate_pass);
+    auto mlir_function_inline_pass =
+        context::PassContext::CreatePass<middleend::pass::transform::MLIRFunctionInlinePass>(
+            &compiler_context, middleend::pass::PassStage::MLIR);
+    mlirpass_context->AddPass(mlir_function_inline_pass);
+    auto mlir_dead_function_eliminate_pass =
+        context::PassContext::CreatePass<middleend::pass::transform::MLIRDeadFunctionEliminatePass>(
+            &compiler_context, middleend::pass::PassStage::MLIR);
+    mlirpass_context->AddPass(mlir_dead_function_eliminate_pass);
+    ret = mlirpass_context->RunPasses();
+    if (ret != 0) {
+      return 1;
+    }
+    if (!mlir_verifier->Verify()) {
+      return 1;
+    }
+  }
+
   auto mlir_lower = std::make_unique<middleend::mlir::lower::MLIRLower>(&compiler_context);
   ret = mlir_lower->Lower();
   if (ret != 0) {
@@ -259,6 +292,9 @@ auto main(int argc, char *argv[]) -> int {
   baseirpass_context->AddPass(unify_pass);
 
   if (optimization_level == 1) {
+    // auto function_inline_pass = context::PassContext::CreatePass<middleend::pass::transform::FunctionInlinePass>(
+    // &compiler_context, middleend::pass::PassStage::BASEIR);
+    // baseirpass_context->AddPass(function_inline_pass);
     auto domtree_pass = context::PassContext::CreatePass<middleend::pass::analysis::DomTreePass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(domtree_pass);
