@@ -1,6 +1,7 @@
 #ifndef BACKEND_TARGETS_AARCH64_INST_CAST_CAST_H
 #define BACKEND_TARGETS_AARCH64_INST_CAST_CAST_H
 
+#include "backend/targets/utils/factory/instfactory.h"
 #include "backend/targets/utils/inst/targetinst.h"
 namespace backend::targetir::aarch64 {
 
@@ -11,7 +12,7 @@ class ARMSCVTFInst : public TargetInst {
 
  private:
   static auto Create(TargetOperand *rd, TargetOperand *rs1) -> ARMSCVTFInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
 };
 
 // ucvtf: convert unsigned integer to float
@@ -22,7 +23,7 @@ class ARMUCVTFInst : public TargetInst {
  private:
   ARMUCVTFInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1) -> ARMUCVTFInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
 };
 
 // fcvtzs: convert float to integer, round towards zero
@@ -33,7 +34,7 @@ class ARMFCVTZSInst : public TargetInst {
  private:
   ARMFCVTZSInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1) -> ARMFCVTZSInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
 };
 
 }  // namespace backend::targetir::aarch64

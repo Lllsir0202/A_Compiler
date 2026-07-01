@@ -9,6 +9,7 @@
  * - ADDW
  */
 
+#include "backend/targets/utils/factory/instfactory.h"
 #include "backend/targets/utils/inst/targetinst.h"
 namespace backend::targetir::rv64 {
 
@@ -20,7 +21,7 @@ namespace backend::targetir::rv64 {
    private:                                                                                            \
     InstName##Inst() = default;                                                                        \
     static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> InstName##Inst *; \
-    friend class InstFactory;                                                                          \
+    friend class targetir::InstFactory;                                                                \
   };
 
 RV64_ARITHMETIC_DEFINE(RVADD)
@@ -37,7 +38,8 @@ class RVADDIInst : public TargetInst {
  private:
   RVADDIInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVADDIInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
+  ;
 };
 
 class RVSLLIInst : public TargetInst {
@@ -47,7 +49,8 @@ class RVSLLIInst : public TargetInst {
  private:
   RVSLLIInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVSLLIInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
+  ;
 };
 
 // Float arithmetic instructions

@@ -1,6 +1,7 @@
 #ifndef BACKEND_TARGETS_RV64_INST_FUNC_CALL_H
 #define BACKEND_TARGETS_RV64_INST_FUNC_CALL_H
 
+#include "backend/targets/utils/factory/instfactory.h"
 #include "backend/targets/utils/inst/targetinst.h"
 namespace backend::targetir::rv64 {
 class RVCALLInst : public TargetInst {
@@ -11,7 +12,7 @@ class RVCALLInst : public TargetInst {
   RVCALLInst() = default;
   // In RV64, we will store all the args before the call instruction
   static auto Create(TargetOperand *rd, std::string callee, const std::vector<TargetOperand *> &args) -> RVCALLInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
   // Record the callee function name
   std::string callee_;
 };

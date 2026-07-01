@@ -1,6 +1,7 @@
 #ifndef BACKEND_TARGETS_RV64_INST_CAST_CAST_H
 #define BACKEND_TARGETS_RV64_INST_CAST_CAST_H
 
+#include "backend/targets/utils/factory/instfactory.h"
 #include "backend/targets/utils/inst/targetinst.h"
 namespace backend::targetir::rv64 {
 
@@ -13,7 +14,7 @@ class RVFCVTSWInst : public TargetInst {
  private:
   RVFCVTSWInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1) -> RVFCVTSWInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
 };
 
 // fcvt.w.s rd rs1, cast rs1 to int and store in rd
@@ -25,7 +26,7 @@ class RVFCVTWSInst : public TargetInst {
  private:
   RVFCVTWSInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1) -> RVFCVTWSInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
 };
 
 // fcvt.s.wu rd rs1, cast rs1 to float and store in rd
@@ -37,7 +38,7 @@ class RVFCVTSWUInst : public TargetInst {
  private:
   RVFCVTSWUInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1) -> RVFCVTSWUInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
 };
 
 // zext.w rd rs1, zero-extend the lower 32 bits of rs1 and store in rd
@@ -49,7 +50,7 @@ class RVZextWInst : public TargetInst {
  private:
   RVZextWInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1) -> RVZextWInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
 };
 
 }  // namespace backend::targetir::rv64

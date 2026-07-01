@@ -1,6 +1,7 @@
 #ifndef BACKEND_TARGETS_AARCH64_MEMORY_STORE_H
 #define BACKEND_TARGETS_AARCH64_MEMORY_STORE_H
 
+#include "backend/targets/utils/factory/instfactory.h"
 #include "backend/targets/utils/inst/targetinst.h"
 namespace backend::targetir::aarch64 {
 class ARMSTRWInst : public TargetInst {
@@ -10,7 +11,7 @@ class ARMSTRWInst : public TargetInst {
  private:
   ARMSTRWInst() = default;
   static auto Create(TargetOperand *rs2, TargetOperand *rs1, TargetOperand *rs2_offset) -> ARMSTRWInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
 };
 
 class ARMSTRWimmInst : public TargetInst {
@@ -20,7 +21,7 @@ class ARMSTRWimmInst : public TargetInst {
  private:
   ARMSTRWimmInst() = default;
   static auto Create(TargetOperand *rs2, TargetOperand *rs1, TargetOperand *imm) -> ARMSTRWimmInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
 };
 
 }  // namespace backend::targetir::aarch64

@@ -1,6 +1,7 @@
 #ifndef BACKEND_TARGETS_RV64_INST_MEMORY_STORE_H
 #define BACKEND_TARGETS_RV64_INST_MEMORY_STORE_H
 
+#include "backend/targets/utils/factory/instfactory.h"
 #include "backend/targets/utils/inst/targetinst.h"
 namespace backend::targetir::rv64 {
 class RVSWInst : public TargetInst {
@@ -10,7 +11,7 @@ class RVSWInst : public TargetInst {
  private:
   RVSWInst() = default;
   static auto Create(TargetOperand *value, TargetOperand *imm, TargetOperand *rs) -> RVSWInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
 };
 
 class RVFSWInst : public TargetInst {
@@ -20,7 +21,7 @@ class RVFSWInst : public TargetInst {
  private:
   RVFSWInst() = default;
   static auto Create(TargetOperand *value, TargetOperand *imm, TargetOperand *rs) -> RVFSWInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
 };
 
 class RVSDInst : public TargetInst {
@@ -30,7 +31,7 @@ class RVSDInst : public TargetInst {
  private:
   RVSDInst() = default;
   static auto Create(TargetOperand *value, TargetOperand *imm, TargetOperand *rs) -> RVSDInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
 };
 
 class RVFSDInst : public TargetInst {
@@ -40,7 +41,7 @@ class RVFSDInst : public TargetInst {
  private:
   RVFSDInst() = default;
   static auto Create(TargetOperand *value, TargetOperand *imm, TargetOperand *rs) -> RVFSDInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
 };
 
 }  // namespace backend::targetir::rv64

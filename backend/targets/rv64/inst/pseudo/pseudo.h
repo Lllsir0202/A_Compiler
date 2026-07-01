@@ -1,6 +1,7 @@
 #ifndef BACKEND_TARGETS_RV64_INST_PSEUDO_PSEUDO_H
 #define BACKEND_TARGETS_RV64_INST_PSEUDO_PSEUDO_H
 
+#include "backend/targets/utils/factory/instfactory.h"
 #include "backend/targets/utils/inst/targetinst.h"
 namespace backend::targetir::rv64 {
 class RVLIInst : public TargetInst {
@@ -10,7 +11,7 @@ class RVLIInst : public TargetInst {
  private:
   RVLIInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *imm) -> RVLIInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
 };
 
 class RVMVInst : public TargetInst {
@@ -20,7 +21,7 @@ class RVMVInst : public TargetInst {
  private:
   RVMVInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVMVInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
 };
 
 }  // namespace backend::targetir::rv64

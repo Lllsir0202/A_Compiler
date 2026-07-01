@@ -1,8 +1,9 @@
 #ifndef BACKEND_TARGETS_AARCH64_INST_MOV_MOV_H
 #define BACKEND_TARGETS_AARCH64_INST_MOV_MOV_H
 
-#include "targets/utils/inst/targetinst.h"
-#include "targets/utils/operand/targetoperand.h"
+#include "backend/targets/utils/factory/instfactory.h"
+#include "backend/targets/utils/inst/targetinst.h"
+#include "backend/targets/utils/operand/targetoperand.h"
 
 namespace backend::targetir::aarch64 {
 class ARMMovInst : public TargetInst {
@@ -11,7 +12,7 @@ class ARMMovInst : public TargetInst {
 
  private:
   static auto Create(TargetOperand *dst, TargetOperand *src) -> ARMMovInst *;
-  friend class InstFatory;
+  friend class targetir::InstFactory;
 };
 
 class ARMMoviInst : public TargetInst {
@@ -20,7 +21,7 @@ class ARMMoviInst : public TargetInst {
 
  private:
   static auto Create(TargetOperand *dst, TargetOperand *imm) -> ARMMoviInst *;
-  friend class InstFatory;
+  friend class targetir::InstFactory;
 };
 
 // Floating point move instruction,
@@ -31,7 +32,7 @@ class ARMFMovInst : public TargetInst {
 
  private:
   static auto Create(TargetOperand *dst, TargetOperand *src) -> ARMFMovInst *;
-  friend class InstFatory;
+  friend class targetir::InstFactory;
 };
 
 // MOVZ, MOVK, MOVN might be used to move immediate value
@@ -44,7 +45,7 @@ class ARMMovzInst : public TargetInst {
  private:
   ARMMovzInst() = default;
   static auto Create(TargetOperand *dst, TargetOperand *imm, int shift = 0) -> ARMMovzInst *;
-  friend class InstFatory;
+  friend class targetir::InstFactory;
   int shift_ = 0;
 };
 
@@ -56,7 +57,7 @@ class ARMMovkInst : public TargetInst {
  private:
   ARMMovkInst() = default;
   static auto Create(TargetOperand *dst, TargetOperand *imm, int shift = 0) -> ARMMovkInst *;
-  friend class InstFatory;
+  friend class targetir::InstFactory;
   int shift_ = 0;
 };
 
@@ -68,7 +69,7 @@ class ARMMovnInst : public TargetInst {
  private:
   ARMMovnInst() = default;
   static auto Create(TargetOperand *dst, TargetOperand *imm, int shift = 0) -> ARMMovnInst *;
-  friend class InstFatory;
+  friend class targetir::InstFactory;
   int shift_ = 0;
 };
 

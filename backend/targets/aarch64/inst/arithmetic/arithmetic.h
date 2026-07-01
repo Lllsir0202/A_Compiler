@@ -1,6 +1,7 @@
 #ifndef BACKEND_TARGETS_AARCH64_INST_ARITHMETIC_ARITHMETIC_H
 #define BACKEND_TARGETS_AARCH64_INST_ARITHMETIC_ARITHMETIC_H
 
+#include "backend/targets/utils/factory/instfactory.h"
 #include "backend/targets/utils/inst/targetinst.h"
 namespace backend::targetir::aarch64 {
 // In aarch64, the arithmetic instructions include
@@ -14,7 +15,7 @@ namespace backend::targetir::aarch64 {
    private:                                                                                            \
     InstType##Inst() = default;                                                                        \
     static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> InstType##Inst *; \
-    friend class InstFactory;                                                                          \
+    friend class targetir::InstFactory;                                                                \
   };
 
 #define AARCH64_ARITHMETIC_IMM_DEFINE(InstType)                                                           \
@@ -25,7 +26,7 @@ namespace backend::targetir::aarch64 {
    private:                                                                                               \
     InstType##ImmInst() = default;                                                                        \
     static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> InstType##ImmInst *; \
-    friend class InstFactory;                                                                             \
+    friend class targetir::InstFactory;                                                                   \
   };
 
 // Define shift type
@@ -58,7 +59,7 @@ auto ShiftTypeToString(ShiftType type) -> const char * {
     InstType##ShiftInst() = default;                                                                    \
     static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2, TargetOperand *shift, \
                        ShiftType type) -> InstType##ShiftInst *;                                        \
-    friend class InstFactory;                                                                           \
+    friend class targetir::InstFactory;                                                                 \
     ShiftType type;                                                                                     \
   };
 

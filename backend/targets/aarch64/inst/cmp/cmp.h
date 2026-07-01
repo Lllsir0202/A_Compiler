@@ -1,6 +1,7 @@
 #ifndef BACKEND_TARGETS_AARCH64_INST_CMP_CMP_H
 #define BACKEND_TARGETS_AARCH64_INST_CMP_CMP_H
 
+#include "backend/targets/utils/factory/instfactory.h"
 #include "backend/targets/utils/inst/targetinst.h"
 namespace backend::targetir::aarch64 {
 class ARMCMPInst : public TargetInst {
@@ -10,7 +11,7 @@ class ARMCMPInst : public TargetInst {
  private:
   ARMCMPInst() = default;
   static auto Create(TargetOperand *rs1, TargetOperand *rs2) -> ARMCMPInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
 };
 
 class ARMFCMPInst : public TargetInst {
@@ -20,7 +21,7 @@ class ARMFCMPInst : public TargetInst {
  private:
   ARMFCMPInst() = default;
   static auto Create(TargetOperand *rs1, TargetOperand *rs2) -> ARMFCMPInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
 };
 
 // cset rd, cond
@@ -32,7 +33,7 @@ class ARMCSETInst : public TargetInst {
  private:
   ARMCSETInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *cond) -> ARMCSETInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
 };
 
 }  // namespace backend::targetir::aarch64

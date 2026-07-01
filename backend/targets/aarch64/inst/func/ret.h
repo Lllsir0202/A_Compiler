@@ -1,8 +1,9 @@
 #ifndef BACKEND_TARGETS_AARCH64_INST_FUNC_RET_H
 #define BACKEND_TARGETS_AARCH64_INST_FUNC_RET_H
 
+#include "backend/targets/utils/factory/instfactory.h"
 #include "backend/targets/utils/inst/targetinst.h"
-#include "targets/utils/operand/targetoperand.h"
+#include "backend/targets/utils/operand/targetoperand.h"
 namespace backend::targetir::aarch64 {
 
 // Ret instruction
@@ -19,7 +20,7 @@ class ARMRetInst : public TargetInst {
  private:
   ARMRetInst() = default;
   static auto Create(TargetOperand *rd) -> ARMRetInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
 };
 
 }  // namespace backend::targetir::aarch64

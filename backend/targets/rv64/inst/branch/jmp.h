@@ -1,6 +1,7 @@
 #ifndef BACKEND_TARGETS_RV64_INST_BRANCH_JMP_H
 #define BACKEND_TARGETS_RV64_INST_BRANCH_JMP_H
 
+#include "backend/targets/utils/factory/instfactory.h"
 #include "backend/targets/utils/inst/targetinst.h"
 namespace backend::targetir::rv64 {
 class RVJMPInst : public TargetInst {
@@ -10,7 +11,8 @@ class RVJMPInst : public TargetInst {
  private:
   RVJMPInst() = default;
   static auto Create(TargetOperand *target) -> RVJMPInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
+  ;
 };
 
 class RVJALInst : public TargetInst {
@@ -20,7 +22,8 @@ class RVJALInst : public TargetInst {
  private:
   RVJALInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *target) -> RVJALInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
+  ;
 };
 
 class RVJALRInst : public TargetInst {
@@ -30,7 +33,8 @@ class RVJALRInst : public TargetInst {
  private:
   RVJALRInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVJALRInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
+  ;
 };
 
 #define RV64_BRANCH_DEFINE(InstName)                                                  \
@@ -41,7 +45,8 @@ class RVJALRInst : public TargetInst {
    private:                                                                           \
     InstName##Inst() = default;                                                       \
     static auto Create(TargetOperand *rd, TargetOperand *target) -> InstName##Inst *; \
-    friend class InstFactory;                                                         \
+    friend class targetir::InstFactory;                                               \
+    ;                                                                                 \
   };
 
 RV64_BRANCH_DEFINE(RVBEQ)

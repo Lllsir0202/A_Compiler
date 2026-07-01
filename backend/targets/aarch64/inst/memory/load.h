@@ -1,6 +1,7 @@
 #ifndef BACKEND_TARGETS_AARCH64_MEMORY_LOAD_H
 #define BACKEND_TARGETS_AARCH64_MEMORY_LOAD_H
 
+#include "backend/targets/utils/factory/instfactory.h"
 #include "backend/targets/utils/inst/targetinst.h"
 namespace backend::targetir::aarch64 {
 
@@ -13,7 +14,7 @@ class ARMLDRWInst : public TargetInst {
  private:
   ARMLDRWInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> ARMLDRWInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
 };
 
 class ARMLDRWimmInst : public TargetInst {
@@ -23,7 +24,7 @@ class ARMLDRWimmInst : public TargetInst {
  private:
   ARMLDRWimmInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> ARMLDRWimmInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
 };
 
 }  // namespace backend::targetir::aarch64

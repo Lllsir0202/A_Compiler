@@ -2,6 +2,7 @@
 #define BACKEND_TARGETS_AARCH64_INST_BRANCH_BRANCH_H
 
 #include <cstdint>
+#include "backend/targets/utils/factory/instfactory.h"
 #include "backend/targets/utils/inst/targetinst.h"
 namespace backend::targetir::aarch64 {
 class ARMBInst : public TargetInst {
@@ -11,7 +12,7 @@ class ARMBInst : public TargetInst {
  private:
   ARMBInst() = default;
   static auto Create(TargetOperand *label) -> ARMBInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
 };
 
 enum class ARMBCondOp : uint8_t {
@@ -90,7 +91,7 @@ class ARMBCondInst : public TargetInst {
  private:
   ARMBCondInst() = default;
   static auto Create(ARMBCondOp op, TargetOperand *label) -> ARMBCondInst *;
-  friend class InstFactory;
+  friend class targetir::InstFactory;
   ARMBCondOp op_;
 };
 

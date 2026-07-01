@@ -3,10 +3,10 @@
 
 #include <unordered_map>
 #include <vector>
-#include "backend/mir/utils/factory/instfactory.h"
 #include "backend/mir/utils/operand/operand.h"
 #include "backend/targets/utils/factory/blockfactory.h"
 #include "backend/targets/utils/factory/functionfactory.h"
+#include "backend/targets/utils/factory/instfactory.h"
 #include "backend/targets/utils/factory/modulefactory.h"
 #include "backend/targets/utils/factory/opfactory.h"
 #include "backend/targets/utils/manager/registerpool.h"
@@ -127,7 +127,7 @@ class BackendContext {
   // Create instructions
   template <typename T, typename... Args>
   auto CreateInstruction(Args &&...args) -> T * {
-    auto *inst = backend::utils::factory::InstFactory::CreateInst<T>(std::forward<Args>(args)...);
+    auto *inst = backend::targetir::InstFactory::CreateInst<T>(std::forward<Args>(args)...);
     inst->SetInstNum(++inst_num_);
     return inst;
   }
