@@ -8,9 +8,11 @@
 #include "backend/targets/utils/factory/blockfactory.h"
 #include "backend/targets/utils/factory/functionfactory.h"
 #include "backend/targets/utils/factory/modulefactory.h"
+#include "backend/targets/utils/factory/opfactory.h"
 #include "backend/targets/utils/manager/registerpool.h"
 #include "backend/targets/utils/manager/targetinitializer.h"
 #include "backend/targets/utils/operand/targetframe.h"
+#include "backend/targets/utils/operand/targetlabel.h"
 #include "backend/targets/utils/operand/targetliteral.h"
 #include "backend/targets/utils/operand/targetoperand.h"
 #include "backend/targets/utils/operand/targetreg.h"
@@ -37,8 +39,17 @@ class BackendContext {
                              uint8_t offset = 0) -> backend::targetir::TargetPhysicalReg *;
   auto CreateIntLiteral(int value) -> backend::targetir::TargetIntLiteral *;
   auto CreateFloatLiteral(float value) -> backend::targetir::TargetFloatLiteral *;
+  auto CreateLabelOperand(const std::string &name) -> backend::targetir::TargetLabel *;
 
   auto CreateFrameOperand(size_t slot_id) -> backend::targetir::TargetFrameOperand *;
+
+  // Create a symbol operand, using template to support different architectures.
+  template <typename SymbolType, typename... Args>
+  auto CreateSymbolOperand(Args &&...args) -> SymbolType * {
+    auto *symbol = backend::targetir::OperandFactory::CreateSymbolOperand<SymbolType>(std::forward<Args>(args)...);
+    operands_.emplace_back(symbol);
+    return symbol;
+  }
 
   auto CreateModule() -> backend::targetir::TargetModule * {
     return backend::targetir::ModuleFactory::CreateTargetModule();

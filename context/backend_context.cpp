@@ -63,6 +63,12 @@ auto BackendContext::CreateFloatLiteral(float value) -> backend::targetir::Targe
   return float_literal;
 }
 
+auto BackendContext::CreateLabelOperand(const std::string &name) -> backend::targetir::TargetLabel * {
+  auto label = backend::targetir::OperandFactory::CreateLabelOperand(name);
+  operands_.emplace_back(label);
+  return label;
+}
+
 auto BackendContext::CreateFrameOperand(size_t slot_id) -> backend::targetir::TargetFrameOperand * {
   auto frame_operand = backend::targetir::OperandFactory::CreateFrameOperand(slot_id);
   operands_.emplace_back(frame_operand);
