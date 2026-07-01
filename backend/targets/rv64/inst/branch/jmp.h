@@ -49,6 +49,7 @@ RV64_BRANCH_DEFINE(RVBNE)
 RV64_BRANCH_DEFINE(RVBLT)
 RV64_BRANCH_DEFINE(RVBGE)
 
+#undef RV64_BRANCH_DEFINE
 }  // namespace backend::targetir::rv64
 
 #endif

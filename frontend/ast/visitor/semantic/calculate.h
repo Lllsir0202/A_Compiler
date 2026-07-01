@@ -76,6 +76,8 @@ static inline auto FoldNodes(UnaryExprNode *result, ExprNode *operand) -> void {
   }
 }
 
+#undef BIN_OP_CASE
+#undef UN_OP_CASE
 }  // namespace frontend::ast
 
 #endif

@@ -1027,4 +1027,9 @@ auto LowerHelper::LowerCopyOp(mlir::base::CopyOp *copy_op) -> void {
 
   pending_copy_insts_.push(inst);
 }
+
+#undef LOWER_DISPATCH
+#undef LOWER_BINARY_OP
+#undef ICMP_DISPTACH
+#undef FCMP_DISPTACH
 }  // namespace middleend::llvm::lower

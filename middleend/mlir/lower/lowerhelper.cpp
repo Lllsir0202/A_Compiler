@@ -794,4 +794,8 @@ auto LowerHelper::LowerConditionOp([[maybe_unused]] middleend::mlir::scf::Condit
 
 auto LowerHelper::LowerYieldOp([[maybe_unused]] middleend::mlir::scf::YieldOp *yield_op) -> void {}
 
+#undef LOWER_DISPATCH
+#undef LOWER_LOGICAL_OP
+#undef LOWER_CLONE_OP
+#undef LOWER_BINARY_OP
 }  // namespace middleend::mlir::lower

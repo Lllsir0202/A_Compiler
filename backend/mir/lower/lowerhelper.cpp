@@ -533,4 +533,7 @@ auto LowerHelper::LowerGetElementPtrInst(middleend::llvm::inst::GetElementPtrIns
   GET_LOWER_CONTEXT()->MapLLVMOperandToMIROperand(gep_inst->GetResult(), memory_operand);
 }
 
+#undef DISPATCH_LOWERING
+#undef LOWER_BINARY_INST
+
 }  // namespace backend::lower
