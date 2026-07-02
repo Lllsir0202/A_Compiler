@@ -4,7 +4,6 @@
 #include "backend/targets/rv64/inst/arithmetic/arithmetic.h"
 #include "backend/targets/rv64/inst/pseudo/pseudo.h"
 #include "backend/targets/rv64/utils/checker.h"
-#include "backend/targets/utils/operand/targetliteral.h"
 #include "backend/targets/utils/operand/targetoperand.h"
 #include "context/compiler_context.h"
 
@@ -271,7 +270,6 @@ auto LowerHelper::LowerSub(backend::inst::SubInst *inst) -> void {
       GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(li_inst);
 
       // Now subtract the lhs from the loaded literal
-
       auto sub_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSUBInst>(target_result, target_lhs, target_result);
       GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(sub_inst);
     }
@@ -307,36 +305,40 @@ auto LowerHelper::LowerSub(backend::inst::SubInst *inst) -> void {
     }
     // 2. lhs itself in 12-bit signed range, rd = -x + C
     if (Is12BitSignedInteger(literal_value)) {
-      // First use a sub instruction to negate rhs
-      auto target_neg_rhs = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
-      auto zero_register = rv64_getter_.GetZeroRegister(GET_BACKEND_TARGET(), TargetRegSize::DWord);
-      auto sub_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSUBInst>(target_neg_rhs, zero_register, target_rhs);
-      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(sub_inst);
-      // Then use an addi instruction to add the negated rhs and the literal
       auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
       GET_BACKEND_TARGET()->MapOperand(dst, target_result);
+      // First use a sub instruction to negate rhs
+      auto zero_register = rv64_getter_.GetZeroRegister(GET_BACKEND_TARGET(), TargetRegSize::DWord);
+      auto sub_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSUBInst>(target_result, zero_register, target_rhs);
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(sub_inst);
+
+      // Then use an addi instruction to add the negated rhs and the literal
       auto target_literal = GET_BACKEND_TARGET()->CreateIntLiteral(literal_value);
       auto addi_inst =
-          GET_BACKEND_TARGET()->CreateInstruction<RVADDIInst>(target_result, target_neg_rhs, target_literal);
+          GET_BACKEND_TARGET()->CreateInstruction<RVADDIInst>(target_result, target_result, target_literal);
       GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(addi_inst);
       return;
     }
     // 3. -lhs in 12-bit signed range, rd = -(x - C) = - ( x + (-C) )
     if (Is12BitSignedInteger(-literal_value)) {
-      // First use an addi instruction to add rhs and the negated literal
-      auto target_add_rhs = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
-      auto target_literal = GET_BACKEND_TARGET()->CreateIntLiteral(-literal_value);
-      auto addi_inst = GET_BACKEND_TARGET()->CreateInstruction<RVADDIInst>(target_add_rhs, target_rhs, target_literal);
-      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(addi_inst);
-      // Then use a sub instruction to negate the result of the addi instruction
       auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
       GET_BACKEND_TARGET()->MapOperand(dst, target_result);
+
+      // First use an addi instruction to add rhs and the negated literal
+      auto target_literal = GET_BACKEND_TARGET()->CreateIntLiteral(-literal_value);
+      auto addi_inst = GET_BACKEND_TARGET()->CreateInstruction<RVADDIInst>(target_result, target_rhs, target_literal);
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(addi_inst);
+      // Then use a sub instruction to negate the result of the addi instruction
+
       auto zero_register = rv64_getter_.GetZeroRegister(GET_BACKEND_TARGET(), TargetRegSize::DWord);
-      auto sub_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSUBInst>(target_result, zero_register, target_add_rhs);
+      auto sub_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSUBInst>(target_result, zero_register, target_result);
       GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(sub_inst);
       return;
     }
     // 4. Otherwise, need to li
+    // lhs is a literal
+    // li target_result, literal_value
+    // sub target_result, target_result, rhs
     auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
     GET_BACKEND_TARGET()->MapOperand(dst, target_result);
     auto target_literal = GET_BACKEND_TARGET()->CreateIntLiteral(literal_value);
@@ -406,8 +408,8 @@ auto LowerHelper::LowerMul(backend::inst::MulInst *inst) -> void {
     // If it is zero, we can just map the result to a zero literal
     if (literal_value == 0) {
       // Create a zero literal and map the result to it
-      auto zero_literal = GET_BACKEND_TARGET()->CreateIntLiteral(0);
-      GET_BACKEND_TARGET()->MapOperand(dst, zero_literal);
+      auto zero_register = rv64_getter_.GetZeroRegister(GET_BACKEND_TARGET(), TargetRegSize::DWord);
+      GET_BACKEND_TARGET()->MapOperand(dst, zero_register);
       return;
     }
     // If it is 1 or -1, we can just map the result to the non-literal operand or its negation
@@ -439,6 +441,48 @@ auto LowerHelper::LowerMul(backend::inst::MulInst *inst) -> void {
     }
 
     // Then check if it is a power of two
+    if (IsPowerOfTwo(literal_value)) {
+      // Use a shift instruction to multiply
+      auto target_non_literal = GET_BACKEND_TARGET()->GetMappedOperand(non_literal_operand);
+      if (target_non_literal == nullptr) {
+        throw std::runtime_error("Non-literal operand is not mapped to a target operand");
+      }
+      auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+      GET_BACKEND_TARGET()->MapOperand(dst, target_result);
+      // Create a shift left instruction to multiply
+      auto shift_amount = GetPowerOfTwoExponent(literal_value);
+      auto target_shift_amount = GET_BACKEND_TARGET()->CreateIntLiteral(shift_amount);
+      auto sll_inst =
+          GET_BACKEND_TARGET()->CreateInstruction<RVSLLIInst>(target_result, target_non_literal, target_shift_amount);
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(sll_inst);
+      return;
+    }
+    // If it can be expressed as a sum or difference of two powers of two, we can use two shift instructions and an add
+    // or sub instruction
+    if (IsSumOrDifferenceOfTwoPowersOfTwo(literal_value)) {
+      // TODO(loki): Implement a variable to determine whether it is a plus or substract.
+      auto [i, j] = GetSumOrDifferenceOfTwoPowersOfTwo(literal_value);
+      auto target_non_literal = GET_BACKEND_TARGET()->GetMappedOperand(non_literal_operand);
+      if (target_non_literal == nullptr) {
+        throw std::runtime_error("Non-literal operand is not mapped to a target operand");
+      }
+      auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+      // Create two shift left instructions to multiply by 2^i and 2^j
+      auto target_shift_amount_i = GET_BACKEND_TARGET()->CreateIntLiteral(i);
+      auto target_shift_amount_j = GET_BACKEND_TARGET()->CreateIntLiteral(j);
+      auto sll_inst_i =
+          GET_BACKEND_TARGET()->CreateInstruction<RVSLLIInst>(target_result, target_non_literal, target_shift_amount_i);
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(sll_inst_i);
+      auto target_temp = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+      auto sll_inst_j =
+          GET_BACKEND_TARGET()->CreateInstruction<RVSLLIInst>(target_temp, target_non_literal, target_shift_amount_j);
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(sll_inst_j);
+      // Then use an add instruction to add the two shifted results
+      auto add_inst = GET_BACKEND_TARGET()->CreateInstruction<RVADDInst>(target_result, target_result, target_temp);
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(add_inst);
+      GET_BACKEND_TARGET()->MapOperand(dst, target_result);
+      return;
+    }
   }
 }
 
