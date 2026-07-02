@@ -11,10 +11,14 @@
 #include "middleend/llvm/verifer/verifer.h"
 #include "middleend/mlir/lower/lower.h"
 #include "middleend/mlir/verifer/verifer.h"
+#include "middleend/pass/analysis/alias/alias.h"
 #include "middleend/pass/analysis/cfg/mlircfg.h"
+#include "middleend/pass/analysis/memoryssa/memoryssa.h"
 #include "middleend/pass/analysis/domtree/domtree.h"
 #include "middleend/pass/transform/adce/adce.h"
+#include "middleend/pass/transform/dse/dse.h"
 #include "middleend/pass/transform/functioninline/functioninline.h"
+#include "middleend/pass/transform/gvn/gvn.h"
 #include "middleend/pass/transform/llvmtrivialblockmerge/llvmtrivialblockmerge.h"
 #include "middleend/pass/transform/mlirdce/mlirdce.h"
 #include "middleend/pass/transform/mlirfunctioninline/mlirfunctioninline.h"
@@ -311,6 +315,24 @@ auto main(int argc, char *argv[]) -> int {
     auto post_sccp_adce_pass = context::PassContext::CreatePass<middleend::pass::transform::PostSCCPADCEPass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(post_sccp_adce_pass);
+
+#ifndef DISABLE_NEW_OPTS
+    auto alias_analysis_pass = context::PassContext::CreatePass<middleend::pass::analysis::AliasAnalysisPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(alias_analysis_pass);
+    auto memory_ssa_pass = context::PassContext::CreatePass<middleend::pass::analysis::MemorySSAPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(memory_ssa_pass);
+    auto gvn_pass = context::PassContext::CreatePass<middleend::pass::transform::GVNPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(gvn_pass);
+    auto dse_pass = context::PassContext::CreatePass<middleend::pass::transform::DSEPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(dse_pass);
+    auto post_dse_adce_pass = context::PassContext::CreatePass<middleend::pass::transform::PostDSEADCEPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(post_dse_adce_pass);
+#endif
 
     auto trivial_block_merge_pass = context::PassContext::CreatePass<middleend::pass::transform::TrivialBlockMergePass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);

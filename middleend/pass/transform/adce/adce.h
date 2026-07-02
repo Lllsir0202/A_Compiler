@@ -71,6 +71,18 @@ class PostSCCPADCEPass : public ADCEPass {
   auto Name() const -> std::string override { return "PostSCCPADCEPass"; }
 };
 
+// Runs after GVN/DSE to sweep pure operations (dead getptr/loads) that were left without
+// users once loads were forwarded and stores removed.
+class PostDSEADCEPass : public ADCEPass {
+ public:
+  PostDSEADCEPass(context::CompilerContext *compiler_context, PassStage stage) : ADCEPass(compiler_context, stage) {
+    AddDependency("DSEPass");
+  }
+  ~PostDSEADCEPass() override = default;
+
+  auto Name() const -> std::string override { return "PostDSEADCEPass"; }
+};
+
 }  // namespace middleend::pass::transform
 
 #endif
