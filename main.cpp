@@ -13,13 +13,16 @@
 #include "middleend/mlir/verifer/verifer.h"
 #include "middleend/pass/analysis/alias/alias.h"
 #include "middleend/pass/analysis/cfg/mlircfg.h"
-#include "middleend/pass/analysis/memoryssa/memoryssa.h"
 #include "middleend/pass/analysis/domtree/domtree.h"
+#include "middleend/pass/analysis/loopinfo/loopinfo.h"
+#include "middleend/pass/analysis/memoryssa/memoryssa.h"
 #include "middleend/pass/transform/adce/adce.h"
 #include "middleend/pass/transform/dse/dse.h"
 #include "middleend/pass/transform/functioninline/functioninline.h"
 #include "middleend/pass/transform/gvn/gvn.h"
+#include "middleend/pass/transform/licm/licm.h"
 #include "middleend/pass/transform/llvmtrivialblockmerge/llvmtrivialblockmerge.h"
+#include "middleend/pass/transform/loopsimplify/loopsimplify.h"
 #include "middleend/pass/transform/mlirdce/mlirdce.h"
 #include "middleend/pass/transform/mlirfunctioninline/mlirfunctioninline.h"
 #include "middleend/pass/transform/mlirreturncanonicalize/mlirreturncanonicalize.h"
@@ -332,6 +335,15 @@ auto main(int argc, char *argv[]) -> int {
     auto post_dse_adce_pass = context::PassContext::CreatePass<middleend::pass::transform::PostDSEADCEPass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(post_dse_adce_pass);
+    auto loop_info_pass = context::PassContext::CreatePass<middleend::pass::analysis::LoopInfoPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(loop_info_pass);
+    auto loop_simplify_pass = context::PassContext::CreatePass<middleend::pass::transform::LoopSimplifyPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(loop_simplify_pass);
+    auto licm_pass = context::PassContext::CreatePass<middleend::pass::transform::LICMPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(licm_pass);
 #endif
 
     auto trivial_block_merge_pass = context::PassContext::CreatePass<middleend::pass::transform::TrivialBlockMergePass>(
