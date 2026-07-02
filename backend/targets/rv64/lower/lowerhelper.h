@@ -15,6 +15,7 @@
 #include "backend/mir/inst/memory/store.h"
 #include "backend/mir/inst/pseudo/copy.h"
 #include "backend/mir/inst/pseudo/phi.h"
+#include "backend/targets/rv64/getter/getter.h"
 namespace backend::targetir::rv64 {
 class LowerHelper {
  public:
@@ -24,6 +25,7 @@ class LowerHelper {
   // Contructor
   explicit LowerHelper(context::CompilerContext *compiler_context) : compiler_context_(compiler_context) {}
   context::CompilerContext *compiler_context_;
+  RV64Getter rv64_getter_;
   friend class RV64Lower;
 
   auto LowerAdd(backend::inst::AddInst *inst) -> void;
