@@ -1,10 +1,11 @@
 #include "middleend/pass/transform/promotion/promotion.h"
 #include <algorithm>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 #include "context/compiler_context.h"
-#include "middleend/mlir/dialect/base/branch.h"
 #include "middleend/mlir/dialect/base/funccall.h"
+#include "middleend/mlir/dialect/base/funcdef.h"
 #include "middleend/mlir/dialect/base/phi.h"
 #include "middleend/mlir/dialect/func/funccall.h"
 #include "middleend/mlir/dialect/var/getvalue.h"
@@ -32,15 +33,18 @@ auto IsLoad(mlir::Operation *operation) -> bool { return Is<mlir::var::VarGetVal
 auto IsCall(mlir::Operation *operation) -> bool {
   return Is<mlir::base::FuncCallOp>(operation) || Is<mlir::func::FuncCallOp>(operation);
 }
-
-// Index of an operation inside its block, for ordering two ops in the same block.
-auto IndexInBlock(mlir::Block *block, mlir::Operation *operation) -> int {
-  for (size_t i = 0; i < block->operations_.size(); ++i) {
-    if (block->operations_[i] == operation) {
-      return static_cast<int>(i);
-    }
-  }
-  return -1;
+auto BlockOf(analysis::CFGNode *node) -> mlir::Block * {
+  auto *mlir_node = dynamic_cast<analysis::MLIRCFGNode *>(node);
+  return mlir_node == nullptr ? nullptr : mlir_node->GetBlock();
+}
+auto StoredValue(mlir::Operation *store) -> mlir::Value * {
+  return mlir::DynamicOrNull<mlir::var::VarSetOp>(store)->GetNewValue();
+}
+auto StorePtr(mlir::Operation *store) -> mlir::Value * {
+  return mlir::DynamicOrNull<mlir::var::VarSetOp>(store)->GetPtr();
+}
+auto LoadPtr(mlir::Operation *load) -> mlir::Value * {
+  return mlir::DynamicOrNull<mlir::var::VarGetValOp>(load)->GetPtr();
 }
 }  // namespace
 
@@ -67,16 +71,21 @@ auto PromotionPass::Run() -> void {
     current_cfg_ = mlir_function_cfg;
     op_to_block_.clear();
     for (auto *cfg_node : mlir_function_cfg->GetNodes()) {
-      auto *mlir_node = dynamic_cast<analysis::MLIRCFGNode *>(cfg_node);
-      if (mlir_node == nullptr) {
+      auto *block = BlockOf(cfg_node);
+      if (block == nullptr) {
         continue;
       }
-      for (auto *operation : mlir_node->GetBlock()->operations_) {
-        op_to_block_[operation] = mlir_node->GetBlock();
+      for (auto *operation : block->operations_) {
+        op_to_block_[operation] = block;
       }
     }
+    bool function_changed = false;
     for (auto *loop : loop_info->GetLoops(function_cfg)) {
-      changed = RunOnLoop(mlir_function_cfg, dom_tree, loop) || changed;
+      function_changed = RunOnLoop(mlir_function_cfg, dom_tree, loop) || function_changed;
+    }
+    if (function_changed) {
+      ReorderBlocksToRPO(mlir_function_cfg);
+      changed = true;
     }
     current_cfg_ = nullptr;
   }
@@ -97,23 +106,24 @@ auto PromotionPass::RunOnLoop(analysis::MLIRFunctionCFG *function_cfg, analysis:
     return false;
   }
 
-  // Validate every single-store location against the original loop, then apply. Promotable
-  // locations are mutually no-alias, so applying one never invalidates another.
+  // Validate every location against the original loop, grouping the stores that write it, then
+  // apply. Promotable locations are mutually no-alias, so applying one never invalidates another.
   std::vector<Candidate> candidates;
+  std::unordered_set<mlir::Operation *> grouped;
   for (auto *block : loop->GetBlocks()) {
     for (auto *operation : block->operations_) {
-      if (!IsStore(operation)) {
+      if (!IsStore(operation) || grouped.count(operation) > 0) {
         continue;
       }
       Candidate candidate;
-      if (TryBuildCandidate(dom_tree, loop, operation, preheader, exit_blocks, &candidate)) {
+      if (TryBuildCandidate(loop, operation, preheader, &grouped, &candidate)) {
         candidates.emplace_back(std::move(candidate));
       }
     }
   }
 
   for (const auto &candidate : candidates) {
-    Promote(loop, candidate, preheader);
+    Promote(dom_tree, loop, candidate, preheader, exit_blocks);
   }
   return !candidates.empty();
 }
@@ -125,14 +135,14 @@ auto PromotionPass::FindPreheader(analysis::MLIRFunctionCFG *function_cfg, analy
   }
   mlir::Block *preheader = nullptr;
   for (auto *predecessor : header_node->GetPredecessors()) {
-    auto *mlir_pred = dynamic_cast<analysis::MLIRCFGNode *>(predecessor);
-    if (mlir_pred == nullptr || loop->Contains(mlir_pred->GetBlock())) {
+    auto *pred_block = BlockOf(predecessor);
+    if (pred_block == nullptr || loop->Contains(pred_block)) {
       continue;
     }
     if (preheader != nullptr) {
       return nullptr;
     }
-    preheader = mlir_pred->GetBlock();
+    preheader = pred_block;
   }
   return preheader;
 }
@@ -145,25 +155,25 @@ auto PromotionPass::CollectExits(analysis::Loop *loop, std::vector<mlir::Block *
       return false;
     }
     for (auto *successor : node->GetSuccessors()) {
-      auto *mlir_succ = dynamic_cast<analysis::MLIRCFGNode *>(successor);
-      if (mlir_succ == nullptr || loop->Contains(mlir_succ->GetBlock())) {
+      auto *succ_block = BlockOf(successor);
+      if (succ_block == nullptr || loop->Contains(succ_block)) {
         continue;
       }
-      if (std::find(exits.begin(), exits.end(), mlir_succ->GetBlock()) == exits.end()) {
-        exits.emplace_back(mlir_succ->GetBlock());
+      if (std::find(exits.begin(), exits.end(), succ_block) == exits.end()) {
+        exits.emplace_back(succ_block);
       }
     }
   }
-  // Dedicated exits: every predecessor of an exit block must lie inside the loop, so a store
-  // inserted at the exit runs only when leaving the loop.
+  // Dedicated exits: every predecessor of an exit block lies inside the loop, so a store inserted
+  // there runs only when leaving the loop.
   for (auto *exit : exits) {
     auto *node = current_cfg_->GetNodeByBlock(exit);
     if (node == nullptr) {
       return false;
     }
     for (auto *predecessor : node->GetPredecessors()) {
-      auto *mlir_pred = dynamic_cast<analysis::MLIRCFGNode *>(predecessor);
-      if (mlir_pred == nullptr || !loop->Contains(mlir_pred->GetBlock())) {
+      auto *pred_block = BlockOf(predecessor);
+      if (pred_block == nullptr || !loop->Contains(pred_block)) {
         return false;
       }
     }
@@ -172,191 +182,282 @@ auto PromotionPass::CollectExits(analysis::Loop *loop, std::vector<mlir::Block *
   return true;
 }
 
-auto PromotionPass::TryBuildCandidate(analysis::DomTree *dom_tree, analysis::Loop *loop, mlir::Operation *store,
-                                      mlir::Block *preheader, const std::vector<mlir::Block *> &exit_blocks,
-                                      Candidate *candidate) -> bool {
-  auto *store_op = mlir::DynamicOrNull<mlir::var::VarSetOp>(store);
-  auto *pointer = store_op->GetPtr();
-  auto *stored_value = store_op->GetNewValue();
+auto PromotionPass::TryBuildCandidate(analysis::Loop *loop, mlir::Operation *store, mlir::Block *preheader,
+                                      std::unordered_set<mlir::Operation *> *grouped, Candidate *candidate) -> bool {
+  auto *pointer = StorePtr(store);
   if (!IsInvariant(pointer, loop)) {
     return false;
   }
-  // The preheader load we will insert reads `pointer`, so its definition must dominate the
-  // preheader (guaranteed for a value used in the loop, but checked defensively).
+  // The preheader seed load reads `pointer`, so its definition must dominate the preheader.
   if (pointer->op_ != nullptr) {
     auto iter = op_to_block_.find(pointer->op_);
-    if (iter != op_to_block_.end() && !Dominates(dom_tree, iter->second, preheader)) {
-      return false;
+    if (iter != op_to_block_.end() && current_cfg_->GetNodeByBlock(iter->second) != nullptr) {
+      auto *dom_tree = GET_PASS_CONTEXT()->GetSpecPass<analysis::DomTreePass>("DomTreePass")->GetDomTree(current_cfg_);
+      if (dom_tree != nullptr && !Dominates(dom_tree, iter->second, preheader)) {
+        return false;
+      }
     }
   }
 
-  // Scan every memory operation in the loop: exactly one store may write this location, all
-  // loads of it must be must-alias, and nothing else may alias it.
+  // Gather every must-alias store/load of this location; reject if anything else may-alias it.
+  std::vector<mlir::Operation *> stores;
   std::vector<mlir::Operation *> loads;
   for (auto *block : loop->GetBlocks()) {
     for (auto *operation : block->operations_) {
       if (IsStore(operation)) {
-        auto result = alias_analysis_->Alias(pointer, mlir::DynamicOrNull<mlir::var::VarSetOp>(operation)->GetPtr());
-        if (operation == store) {
-          continue;
-        }
-        if (result != analysis::AliasResult::NoAlias) {
-          return false;  // a second must/may-alias store: not the single-store subset
+        auto result = alias_analysis_->Alias(pointer, StorePtr(operation));
+        if (result == analysis::AliasResult::MustAlias) {
+          stores.emplace_back(operation);
+        } else if (result != analysis::AliasResult::NoAlias) {
+          return false;
         }
       } else if (IsLoad(operation)) {
-        auto result = alias_analysis_->Alias(pointer, mlir::DynamicOrNull<mlir::var::VarGetValOp>(operation)->GetPtr());
+        auto result = alias_analysis_->Alias(pointer, LoadPtr(operation));
         if (result == analysis::AliasResult::MustAlias) {
           loads.emplace_back(operation);
         } else if (result != analysis::AliasResult::NoAlias) {
-          return false;  // a may-alias load may read a different-but-overlapping location
+          return false;
         }
       } else if (IsCall(operation) && alias_analysis_->CallModRef(operation, pointer)) {
         return false;
       }
     }
   }
-  // The stored value must not itself be one of the promoted loads (a self-copy `p = p`).
-  if (std::find(loads.begin(), loads.end(), stored_value->op_) != loads.end()) {
-    return false;
-  }
-
-  // The store must run on every complete iteration (dominate every latch) so the value carried
-  // across the back-edge is always the stored value -- one header phi then suffices.
-  for (auto *latch : loop->GetLatches()) {
-    if (!StoreDominatesBlockExit(dom_tree, store, latch)) {
+  // A stored value that is itself a promoted load (`p = p`) would be rewritten under itself.
+  for (auto *candidate_store : stores) {
+    if (std::find(loads.begin(), loads.end(), StoredValue(candidate_store)->op_) != loads.end()) {
       return false;
     }
   }
 
-  candidate->store = store;
+  for (auto *candidate_store : stores) {
+    grouped->insert(candidate_store);
+  }
   candidate->pointer = pointer;
-  candidate->stored_value = stored_value;
-  candidate->loads = loads;
-  candidate->needs_phi = false;
-
-  // Each load reads the stored value if the store dominates it, else the carried (phi) value.
-  for (auto *load : loads) {
-    bool uses_stored = StoreDominatesOp(dom_tree, store, load);
-    candidate->load_uses_stored.emplace_back(uses_stored);
-    candidate->needs_phi = candidate->needs_phi || !uses_stored;
-  }
-
-  // For each exit, all its in-loop predecessors must agree on whether the store has run, so a
-  // single value (stored or carried) reaches the inserted exit store without needing a phi there.
-  for (auto *exit : exit_blocks) {
-    auto *node = current_cfg_->GetNodeByBlock(exit);
-    bool any = false;
-    bool all_stored = true;
-    bool all_carried = true;
-    for (auto *predecessor : node->GetPredecessors()) {
-      auto *mlir_pred = dynamic_cast<analysis::MLIRCFGNode *>(predecessor);
-      if (mlir_pred == nullptr) {
-        return false;
-      }
-      auto *pred_block = mlir_pred->GetBlock();
-      any = true;
-      if (StoreDominatesBlockExit(dom_tree, store, pred_block)) {
-        all_carried = false;
-      } else {
-        all_stored = false;
-      }
-    }
-    if (!any || (!all_stored && !all_carried)) {
-      return false;  // mixed reaching values at this exit -> would need a phi (relaxation)
-    }
-    candidate->exits.emplace_back(exit, all_stored);
-    candidate->needs_phi = candidate->needs_phi || !all_stored;
-  }
+  candidate->sample_value = StoredValue(store);
+  candidate->stores = std::move(stores);
+  candidate->loads = std::move(loads);
   return true;
 }
 
-auto PromotionPass::Promote(analysis::Loop *loop, const Candidate &candidate, mlir::Block *preheader) -> void {
-  auto *pointer = candidate.pointer;
-  auto *stored_value = candidate.stored_value;
+auto PromotionPass::Promote(analysis::DomTree *dom_tree, analysis::Loop *loop, const Candidate &candidate,
+                            mlir::Block *preheader, const std::vector<mlir::Block *> &exit_blocks) -> void {
+  // Reset per-location rename state and define the region (preheader + loop + exit blocks).
+  promoted_pointer_ = candidate.pointer;
+  preheader_ = preheader;
+  region_.clear();
+  exit_set_.clear();
+  promoted_stores_.clear();
+  promoted_loads_.clear();
+  placed_phi_.clear();
+  phi_incomings_.clear();
+  load_reaching_.clear();
+  exit_reaching_.clear();
 
-  // Build the header phi (and its preheader seed load) only if some read observes the carried
-  // value; a pure overwrite needs neither.
-  mlir::Value *carried = nullptr;
-  if (candidate.needs_phi) {
-    auto *load = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetValOp>(GET_MLIR_CONTEXT(), pointer);
-    load->GetRes()->SetType(stored_value->GetType());
-    pointer->AddUse(load, 0);
-    preheader->operations_.insert(preheader->operations_.end() - 1, load);
+  region_.insert(preheader);
+  for (auto *block : loop->GetBlocks()) {
+    region_.insert(block);
+  }
+  for (auto *exit : exit_blocks) {
+    region_.insert(exit);
+    exit_set_.insert(exit);
+  }
+  for (auto *store : candidate.stores) {
+    promoted_stores_.insert(store);
+  }
+  for (auto *load : candidate.loads) {
+    promoted_loads_.insert(load);
+  }
 
-    auto *phi_result = GET_MLIR_CONTEXT()->CreateValue();
-    phi_result->SetType(stored_value->GetType());
+  auto *value_type = candidate.sample_value->GetType();
+
+  // Place a phi at every region block (except the preheader entry) that merges control flow.
+  for (auto *block : region_) {
+    if (block == preheader) {
+      continue;
+    }
+    auto *node = current_cfg_->GetNodeByBlock(block);
+    size_t region_preds = 0;
+    for (auto *predecessor : node->GetPredecessors()) {
+      if (region_.count(BlockOf(predecessor)) > 0) {
+        ++region_preds;
+      }
+    }
+    if (region_preds >= 2) {
+      auto *phi_value = GET_MLIR_CONTEXT()->CreateValue();
+      phi_value->SetType(value_type);
+      placed_phi_[block] = phi_value;
+    }
+  }
+
+  // Seed load: created now (so its value can seed the rename) but inserted after renaming.
+  auto *seed_load = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetValOp>(GET_MLIR_CONTEXT(), promoted_pointer_);
+  seed_load->GetRes()->SetType(value_type);
+
+  auto *entry_node = dom_tree->GetDomTreeNode(current_cfg_->GetNodeByBlock(preheader));
+  if (entry_node != nullptr) {
+    Rename(entry_node, seed_load->GetRes());
+  }
+
+  // Materialize: insert the seed load, build the phis, redirect loads, drop stores, add exit stores.
+  preheader->operations_.insert(preheader->operations_.end() - 1, seed_load);
+  promoted_pointer_->AddUse(seed_load, 0);
+
+  std::vector<std::pair<mlir::Operation *, mlir::Block *>> created_phis;
+  for (auto &entry : placed_phi_) {
+    auto *block = entry.first;
+    auto &incomings = phi_incomings_[block];
     std::vector<mlir::Value *> values;
     std::vector<mlir::Block *> blocks;
-    values.emplace_back(load->GetRes());
-    blocks.emplace_back(preheader);
-    for (auto *latch : loop->GetLatches()) {
-      values.emplace_back(stored_value);
-      blocks.emplace_back(latch);
+    for (auto &incoming : incomings) {
+      blocks.emplace_back(incoming.first);
+      values.emplace_back(incoming.second);
     }
-    auto *phi = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::PhiOp>(phi_result, values, blocks);
+    auto *phi = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::PhiOp>(entry.second, values, blocks);
     for (size_t i = 0; i < values.size(); ++i) {
       values[i]->AddUse(phi, i);
     }
-    loop->GetHeader()->operations_.insert(loop->GetHeader()->operations_.begin(), phi);
-    carried = phi_result;
+    block->operations_.insert(block->operations_.begin(), phi);
+    created_phis.emplace_back(phi, block);
   }
 
-  // Redirect each load to the value it observes, then drop it.
-  for (size_t i = 0; i < candidate.loads.size(); ++i) {
-    auto *load = candidate.loads[i];
-    auto *value = candidate.load_uses_stored[i] ? stored_value : carried;
-    if (value == nullptr) {
-      throw std::logic_error("PromotionPass: carried value required but not built");
-    }
-    load->results_[0]->ReplaceAllUsesWith(value);
-    pointer->RemoveUse(load);
+  for (auto *load : candidate.loads) {
+    load->results_[0]->ReplaceAllUsesWith(load_reaching_[load]);
+    promoted_pointer_->RemoveUse(load);
     op_to_block_[load]->RemoveOperation(load);
   }
-
-  // Drop the in-loop store; its value now flows through the phi and the exit stores.
-  pointer->RemoveUse(candidate.store);
-  stored_value->RemoveUse(candidate.store);
-  op_to_block_[candidate.store]->RemoveOperation(candidate.store);
-
-  // Write the location back once on each way out of the loop.
-  for (const auto &exit : candidate.exits) {
-    auto *exit_block = exit.first;
-    auto *value = exit.second ? stored_value : carried;
-    if (value == nullptr) {
-      throw std::logic_error("PromotionPass: carried value required but not built");
-    }
-    auto *store = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarSetOp>(GET_MLIR_CONTEXT(), pointer, value);
-    pointer->AddUse(store, 0);
+  for (auto *store : candidate.stores) {
+    promoted_pointer_->RemoveUse(store);
+    StoredValue(store)->RemoveUse(store);
+    op_to_block_[store]->RemoveOperation(store);
+  }
+  for (auto *exit : exit_blocks) {
+    auto *value = exit_reaching_[exit];
+    auto *store =
+        GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarSetOp>(GET_MLIR_CONTEXT(), promoted_pointer_, value);
+    promoted_pointer_->AddUse(store, 0);
     value->AddUse(store, 1);
     size_t insert_at = 0;
-    while (insert_at < exit_block->operations_.size() && Is<mlir::base::PhiOp>(exit_block->operations_[insert_at])) {
+    while (insert_at < exit->operations_.size() && Is<mlir::base::PhiOp>(exit->operations_[insert_at])) {
       ++insert_at;
     }
-    exit_block->operations_.insert(exit_block->operations_.begin() + insert_at, store);
+    exit->operations_.insert(exit->operations_.begin() + insert_at, store);
+  }
+
+  // Remove trivial phis (all incomings equal, ignoring self-references), cascading.
+  std::unordered_set<mlir::Operation *> removed;
+  bool changed = true;
+  while (changed) {
+    changed = false;
+    for (auto &entry : created_phis) {
+      auto *phi = mlir::DynamicOrNull<mlir::base::PhiOp>(entry.first);
+      if (phi == nullptr || removed.count(entry.first) > 0) {
+        continue;
+      }
+      mlir::Value *unique = nullptr;
+      bool multiple = false;
+      for (auto *value : phi->GetIncomingValue()) {
+        if (value == phi->GetRes()) {
+          continue;
+        }
+        if (unique == nullptr) {
+          unique = value;
+        } else if (unique != value) {
+          multiple = true;
+          break;
+        }
+      }
+      if (multiple || unique == nullptr) {
+        continue;
+      }
+      phi->GetRes()->ReplaceAllUsesWith(unique);
+      for (auto *value : phi->GetIncomingValue()) {
+        value->RemoveUse(phi);
+      }
+      entry.second->RemoveOperation(phi);
+      removed.insert(entry.first);
+      changed = true;
+    }
+  }
+
+  // Drop the seed load if promotion left it unused.
+  if (seed_load->GetRes()->GetUses().empty()) {
+    promoted_pointer_->RemoveUse(seed_load);
+    preheader->RemoveOperation(seed_load);
   }
 }
 
-auto PromotionPass::Dominates(analysis::DomTree *dom_tree, mlir::Block *a, mlir::Block *b) -> bool {
-  auto *node_a = current_cfg_->GetNodeByBlock(a);
-  auto *node_b = current_cfg_->GetNodeByBlock(b);
-  return node_a != nullptr && node_b != nullptr && dom_tree->Dominates(node_a, node_b);
-}
-
-auto PromotionPass::StoreDominatesOp(analysis::DomTree *dom_tree, mlir::Operation *store, mlir::Operation *op) -> bool {
-  auto *store_block = op_to_block_[store];
-  auto *op_block = op_to_block_[op];
-  if (store_block == op_block) {
-    return IndexInBlock(store_block, store) < IndexInBlock(op_block, op);
+auto PromotionPass::Rename(analysis::DomTreeNode *dom_node, mlir::Value *reaching) -> void {
+  auto *block = BlockOf(dom_node->GetCFGNode());
+  if (block == nullptr || !InRegion(block)) {
+    return;  // region blocks never sit below a non-region block in the dominator tree
   }
-  return Dominates(dom_tree, store_block, op_block);
+  mlir::Value *current = reaching;
+  auto phi_iter = placed_phi_.find(block);
+  if (phi_iter != placed_phi_.end()) {
+    current = phi_iter->second;
+  }
+  if (exit_set_.count(block) > 0) {
+    exit_reaching_[block] = current;
+    return;  // exits are leaves: the store is inserted, they hold no promoted access
+  }
+
+  for (auto *operation : block->operations_) {
+    if (promoted_loads_.count(operation) > 0) {
+      load_reaching_[operation] = current;
+    } else if (promoted_stores_.count(operation) > 0) {
+      current = StoredValue(operation);
+    }
+  }
+
+  for (auto *successor : dom_node->GetCFGNode()->GetSuccessors()) {
+    auto *succ_block = BlockOf(successor);
+    if (succ_block != nullptr && placed_phi_.count(succ_block) > 0) {
+      phi_incomings_[succ_block].emplace_back(block, current);
+    }
+  }
+  for (auto *child : dom_node->GetChildren()) {
+    Rename(child, current);
+  }
 }
 
-auto PromotionPass::StoreDominatesBlockExit(analysis::DomTree *dom_tree, mlir::Operation *store,
-                                            mlir::Block *block) -> bool {
-  auto *store_block = op_to_block_[store];
-  // Reaching the exit of `block`, has the store already executed? True when the store is in this
-  // very block (before its terminator) or its block dominates this block.
-  return store_block == block || Dominates(dom_tree, store_block, block);
+auto PromotionPass::ReorderBlocksToRPO(analysis::MLIRFunctionCFG *function_cfg) -> void {
+  auto *func_op = function_cfg->GetFuncOp();
+  auto *entry = func_op->GetEntryBlock();
+  auto *entry_node = function_cfg->GetNodeByBlock(entry);
+  if (entry_node == nullptr) {
+    return;
+  }
+
+  // Iterative post-order DFS over the CFG (edges are unchanged by promotion), then reverse.
+  std::vector<mlir::Block *> post_order;
+  std::unordered_set<analysis::CFGNode *> visited;
+  std::vector<std::pair<analysis::CFGNode *, size_t>> stack;
+  visited.insert(entry_node);
+  stack.emplace_back(entry_node, 0);
+  while (!stack.empty()) {
+    auto &frame = stack.back();
+    auto successors = frame.first->GetSuccessors();
+    if (frame.second < successors.size()) {
+      auto *child = successors[frame.second++];
+      if (visited.insert(child).second) {
+        stack.emplace_back(child, 0);
+      }
+    } else {
+      post_order.emplace_back(BlockOf(frame.first));
+      stack.pop_back();
+    }
+  }
+
+  std::vector<mlir::Block *> ordered(post_order.rbegin(), post_order.rend());
+  // Keep any block unreachable from entry (not in the CFG walk) at the end, preserving order.
+  std::unordered_set<mlir::Block *> placed(ordered.begin(), ordered.end());
+  for (auto *block : func_op->GetBlocks()) {
+    if (placed.count(block) == 0) {
+      ordered.emplace_back(block);
+    }
+  }
+  func_op->SetBlocks(std::move(ordered));
 }
 
 auto PromotionPass::IsInvariant(mlir::Value *value, analysis::Loop *loop) -> bool {
@@ -366,5 +467,13 @@ auto PromotionPass::IsInvariant(mlir::Value *value, analysis::Loop *loop) -> boo
   auto iter = op_to_block_.find(value->op_);
   return iter == op_to_block_.end() || !loop->Contains(iter->second);
 }
+
+auto PromotionPass::Dominates(analysis::DomTree *dom_tree, mlir::Block *a, mlir::Block *b) -> bool {
+  auto *node_a = current_cfg_->GetNodeByBlock(a);
+  auto *node_b = current_cfg_->GetNodeByBlock(b);
+  return node_a != nullptr && node_b != nullptr && dom_tree->Dominates(node_a, node_b);
+}
+
+auto PromotionPass::InRegion(mlir::Block *block) -> bool { return region_.count(block) > 0; }
 
 }  // namespace middleend::pass::transform

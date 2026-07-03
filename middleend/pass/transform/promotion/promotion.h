@@ -3,7 +3,7 @@
 
 #include <stdexcept>
 #include <unordered_map>
-#include <utility>
+#include <unordered_set>
 #include <vector>
 #include "middleend/pass/transform/transform.h"
 
@@ -16,6 +16,7 @@ class Value;
 namespace middleend::pass::analysis {
 class AliasAnalysisPass;
 class DomTree;
+class DomTreeNode;
 class Loop;
 class LoopInfoPass;
 class MLIRFunctionCFG;
@@ -25,21 +26,19 @@ namespace middleend::pass::transform {
 
 /**
  * @brief Scalar promotion of loop-invariant memory locations (LICM store sinking + load
- * hoisting), turning a location that a loop repeatedly reads and writes into a loop-carried
- * register value: one load in the preheader, a header phi, register arithmetic in the body,
- * and one store per loop exit.
+ * hoisting): a location a loop repeatedly reads and writes becomes a loop-carried register --
+ * one seed load in the preheader, phis where the value merges, register arithmetic in the body,
+ * and one store per dedicated loop exit.
  *
- * Safe subset (v1): promote a location `p` only when
- *   - all loop accesses to `p` use a loop-invariant, must-alias pointer;
- *   - exactly one store writes `p`, and its block dominates every latch (so the value carried
- *     across the back-edge is always that store's value -- a single header phi suffices);
- *   - nothing else in the loop may-alias `p` (no may-alias load/store, no mod/ref call);
- *   - every block holding such a load, and every loop-exiting block, is dominator-comparable to
- *     the store's block (no internal merge of the stored value with the carried value);
- *   - the loop has a dedicated preheader and dedicated exits.
- * The preheader load seeds the header phi, so on a zero-trip loop the exit store writes the
- * original value back -- value-preserving, and legal in single-threaded SysY with no volatile.
- * Conditional/multiple-store promotion (needing general phi insertion) is left as future work.
+ * General version: any number of stores, conditional or not. Correctness is provided by SSA
+ * construction for the single location over the region (preheader + loop + exit blocks): phis
+ * are placed where reaching definitions merge, a dominator-tree rename wires loads/stores/phis,
+ * and each exit stores the definition reaching it. The preheader seed load makes an exit that
+ * runs without any store (e.g. a zero-trip loop, or a path that skips a conditional store) write
+ * the original value back -- value-preserving, and legal in single-threaded SysY with no
+ * volatile. Promotion only fires when every access to the location is must-alias on a
+ * loop-invariant pointer, nothing else in the loop may-alias it, and the loop has a dedicated
+ * preheader and dedicated exits.
  */
 class PromotionPass : public TransformPass {
  public:
@@ -59,35 +58,47 @@ class PromotionPass : public TransformPass {
   auto Name() const -> std::string override { return "PromotionPass"; }
 
  private:
-  // One validated promotion: the single store, its location and stored value, the must-alias
-  // loads (each tagged with whether it reads the stored value or the carried phi), the exit
-  // stores to insert (each tagged likewise), and whether a header phi is needed.
+  // A promotable location: a representative invariant pointer, all its must-alias stores and
+  // loads in the loop, and a stored value used to type the promoted register.
   struct Candidate {
-    mlir::Operation *store{nullptr};
     mlir::Value *pointer{nullptr};
-    mlir::Value *stored_value{nullptr};
+    mlir::Value *sample_value{nullptr};
+    std::vector<mlir::Operation *> stores;
     std::vector<mlir::Operation *> loads;
-    std::vector<bool> load_uses_stored;
-    std::vector<std::pair<mlir::Block *, bool>> exits;  // (exit block, uses stored value)
-    bool needs_phi{false};
   };
 
   auto RunOnLoop(analysis::MLIRFunctionCFG *function_cfg, analysis::DomTree *dom_tree, analysis::Loop *loop) -> bool;
   auto FindPreheader(analysis::MLIRFunctionCFG *function_cfg, analysis::Loop *loop) -> mlir::Block *;
   auto CollectExits(analysis::Loop *loop, std::vector<mlir::Block *> *exit_blocks) -> bool;
-  auto TryBuildCandidate(analysis::DomTree *dom_tree, analysis::Loop *loop, mlir::Operation *store,
-                         mlir::Block *preheader, const std::vector<mlir::Block *> &exit_blocks,
-                         Candidate *candidate) -> bool;
-  auto Promote(analysis::Loop *loop, const Candidate &candidate, mlir::Block *preheader) -> void;
+  auto TryBuildCandidate(analysis::Loop *loop, mlir::Operation *store, mlir::Block *preheader,
+                         std::unordered_set<mlir::Operation *> *grouped, Candidate *candidate) -> bool;
+  auto Promote(analysis::DomTree *dom_tree, analysis::Loop *loop, const Candidate &candidate, mlir::Block *preheader,
+               const std::vector<mlir::Block *> &exit_blocks) -> void;
+  auto Rename(analysis::DomTreeNode *dom_node, mlir::Value *reaching) -> void;
+  // Reorder a function's blocks into reverse post-order so every non-phi definition precedes its
+  // uses in the block list, which the LLVM lowering relies on after promotion inserts cross-block
+  // stores and rewrites loads to dominating values defined in later-listed blocks.
+  auto ReorderBlocksToRPO(analysis::MLIRFunctionCFG *function_cfg) -> void;
 
-  auto Dominates(analysis::DomTree *dom_tree, mlir::Block *a, mlir::Block *b) -> bool;
-  auto StoreDominatesOp(analysis::DomTree *dom_tree, mlir::Operation *store, mlir::Operation *op) -> bool;
-  auto StoreDominatesBlockExit(analysis::DomTree *dom_tree, mlir::Operation *store, mlir::Block *block) -> bool;
   auto IsInvariant(mlir::Value *value, analysis::Loop *loop) -> bool;
+  auto Dominates(analysis::DomTree *dom_tree, mlir::Block *a, mlir::Block *b) -> bool;
+  auto InRegion(mlir::Block *block) -> bool;
 
   analysis::AliasAnalysisPass *alias_analysis_{nullptr};
   analysis::MLIRFunctionCFG *current_cfg_{nullptr};
   std::unordered_map<mlir::Operation *, mlir::Block *> op_to_block_;
+
+  // Per-promotion rename state (reset for each promoted location).
+  mlir::Value *promoted_pointer_{nullptr};
+  mlir::Block *preheader_{nullptr};
+  std::unordered_set<mlir::Block *> region_;
+  std::unordered_set<mlir::Block *> exit_set_;
+  std::unordered_set<mlir::Operation *> promoted_stores_;
+  std::unordered_set<mlir::Operation *> promoted_loads_;
+  std::unordered_map<mlir::Block *, mlir::Value *> placed_phi_;
+  std::unordered_map<mlir::Block *, std::vector<std::pair<mlir::Block *, mlir::Value *>>> phi_incomings_;
+  std::unordered_map<mlir::Operation *, mlir::Value *> load_reaching_;
+  std::unordered_map<mlir::Block *, mlir::Value *> exit_reaching_;
 };
 
 }  // namespace middleend::pass::transform
