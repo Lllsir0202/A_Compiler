@@ -319,7 +319,6 @@ auto main(int argc, char *argv[]) -> int {
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(post_sccp_adce_pass);
 
-#ifndef DISABLE_NEW_OPTS
     auto alias_analysis_pass = context::PassContext::CreatePass<middleend::pass::analysis::AliasAnalysisPass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(alias_analysis_pass);
@@ -335,7 +334,6 @@ auto main(int argc, char *argv[]) -> int {
     auto post_dse_adce_pass = context::PassContext::CreatePass<middleend::pass::transform::PostDSEADCEPass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(post_dse_adce_pass);
-#ifndef DISABLE_LICM
     auto loop_info_pass = context::PassContext::CreatePass<middleend::pass::analysis::LoopInfoPass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(loop_info_pass);
@@ -345,8 +343,6 @@ auto main(int argc, char *argv[]) -> int {
     auto licm_pass = context::PassContext::CreatePass<middleend::pass::transform::LICMPass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(licm_pass);
-#endif
-#endif
 
     auto trivial_block_merge_pass = context::PassContext::CreatePass<middleend::pass::transform::TrivialBlockMergePass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
