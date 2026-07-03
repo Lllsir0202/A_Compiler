@@ -27,6 +27,7 @@
 #include "middleend/pass/transform/mlirfunctioninline/mlirfunctioninline.h"
 #include "middleend/pass/transform/mlirreturncanonicalize/mlirreturncanonicalize.h"
 #include "middleend/pass/transform/mlirtailrecursion/mlirtailrecursion.h"
+#include "middleend/pass/transform/promotion/promotion.h"
 #include "middleend/pass/transform/sccp/sccp.h"
 #include "middleend/pass/transform/simplify/simplify.h"
 #include "middleend/pass/transform/trivialblockmerge/trivialblockmerge.h"
@@ -343,6 +344,9 @@ auto main(int argc, char *argv[]) -> int {
     auto licm_pass = context::PassContext::CreatePass<middleend::pass::transform::LICMPass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(licm_pass);
+    auto promotion_pass = context::PassContext::CreatePass<middleend::pass::transform::PromotionPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(promotion_pass);
 
     auto trivial_block_merge_pass = context::PassContext::CreatePass<middleend::pass::transform::TrivialBlockMergePass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
