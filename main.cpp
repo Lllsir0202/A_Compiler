@@ -25,6 +25,7 @@
 #include "middleend/pass/transform/loopsimplify/loopsimplify.h"
 #include "middleend/pass/transform/mlirdce/mlirdce.h"
 #include "middleend/pass/transform/mlirfunctioninline/mlirfunctioninline.h"
+#include "middleend/pass/transform/mlirloopunroll/mlirloopunroll.h"
 #include "middleend/pass/transform/mlirreturncanonicalize/mlirreturncanonicalize.h"
 #include "middleend/pass/transform/mlirtailrecursion/mlirtailrecursion.h"
 #include "middleend/pass/transform/promotion/promotion.h"
@@ -264,6 +265,9 @@ auto main(int argc, char *argv[]) -> int {
         context::PassContext::CreatePass<middleend::pass::transform::MLIRDeadFunctionEliminatePass>(
             &compiler_context, middleend::pass::PassStage::MLIR);
     mlirpass_context->AddPass(mlir_dead_function_eliminate_pass);
+    auto mlir_loop_unroll_pass = context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopUnrollPass>(
+        &compiler_context, middleend::pass::PassStage::MLIR);
+    mlirpass_context->AddPass(mlir_loop_unroll_pass);
     ret = mlirpass_context->RunPasses();
     if (ret != 0) {
       return 1;
