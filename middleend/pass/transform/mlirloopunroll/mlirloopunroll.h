@@ -73,9 +73,6 @@ class MLIRLoopUnrollPass : public TransformPass {
   // condition init that still points at a replaced value (e.g. a following loop that reused the
   // induction variable takes the unrolled loop's final value as its own init).
   auto PatchConditionInits(mlir::Region *region, const std::unordered_map<mlir::Value *, mlir::Value *> &subs) -> void;
-  auto BodyIsUnrollable(mlir::Region *body) -> bool;
-  auto OperationIsUnrollable(mlir::Operation *operation) -> bool;
-  auto CountOperations(mlir::Region *region) -> size_t;
 
   mlir::utils::OperationCloner cloner_{compiler_context_};
 
