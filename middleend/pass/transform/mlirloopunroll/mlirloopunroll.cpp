@@ -28,7 +28,14 @@ namespace middleend::pass::transform {
 namespace {
 
 // Directions of the loop condition comparison, written as (induction variable) OP (bound).
-enum class CmpKind : uint8_t { kLT, kLE, kGT, kGE, kNE, kInvalid };
+enum class CmpKind : uint8_t { kLT, kLE, kGT, kGE, kNE, kEQ, kInvalid };
+
+// How the induction variable advances each iteration: `arg + operand` or `arg * operand`.
+enum class StepKind : uint8_t { kAdd, kMul };
+struct InductionStep {
+  StepKind kind_{StepKind::kAdd};
+  int64_t operand_{0};
+};
 
 // Swaps the comparison to keep the induction variable on the left when it was on the right.
 auto SwapSides(CmpKind kind) -> CmpKind {
@@ -43,6 +50,8 @@ auto SwapSides(CmpKind kind) -> CmpKind {
       return CmpKind::kLE;
     case CmpKind::kNE:
       return CmpKind::kNE;
+    case CmpKind::kEQ:
+      return CmpKind::kEQ;
     default:
       return CmpKind::kInvalid;
   }
@@ -60,9 +69,26 @@ auto Evaluate(CmpKind kind, int64_t value, int64_t bound) -> bool {
       return value >= bound;
     case CmpKind::kNE:
       return value != bound;
+    case CmpKind::kEQ:
+      return value == bound;
     default:
       return false;
   }
+}
+
+// Advances the simulated induction value by one step, returning false if a multiplicative step
+// would overflow int64 (so the trip count cannot be computed safely).
+auto AdvanceValue(const InductionStep &step, int64_t *value) -> bool {
+  if (step.kind_ == StepKind::kAdd) {
+    *value += step.operand_;
+    return true;
+  }
+  auto wide = static_cast<__int128>(*value) * step.operand_;
+  if (wide > INT64_MAX || wide < INT64_MIN) {
+    return false;
+  }
+  *value = static_cast<int64_t>(wide);
+  return true;
 }
 
 // Follows a chain of arithm.copy definitions to the underlying value.
@@ -125,12 +151,14 @@ auto ReadComparison(mlir::Value *cond_value, CmpKind *kind, mlir::Value **lhs, m
   READ_CMP(GreaterOp, CmpKind::kGT)
   READ_CMP(GreaterEqualOp, CmpKind::kGE)
   READ_CMP(NotEqualOp, CmpKind::kNE)
+  READ_CMP(EqualOp, CmpKind::kEQ)
 #undef READ_CMP
   *kind = CmpKind::kInvalid;
 }
 
-// If `next` (after copies) is `arg +/- const`, writes the signed step and returns true.
-auto ExtractStep(mlir::Value *next, mlir::Value *induction_arg, int64_t *step) -> bool {
+// If `next` (after copies) is `arg + const` / `arg - const` / `arg * const`, writes the step and
+// returns true. The induction variable must be the subtracted-from side of a subtraction.
+auto ExtractStep(mlir::Value *next, mlir::Value *induction_arg, InductionStep *step) -> bool {
   next = TraceCopies(next);
   if (next == nullptr) {
     return false;
@@ -139,14 +167,14 @@ auto ExtractStep(mlir::Value *next, mlir::Value *induction_arg, int64_t *step) -
     if (TraceCopies(add->GetLHS()) == induction_arg) {
       auto [ok, value] = TraceConstInt(add->GetRHS());
       if (ok) {
-        *step = value;
+        *step = {StepKind::kAdd, value};
         return true;
       }
     }
     if (TraceCopies(add->GetRHS()) == induction_arg) {
       auto [ok, value] = TraceConstInt(add->GetLHS());
       if (ok) {
-        *step = value;
+        *step = {StepKind::kAdd, value};
         return true;
       }
     }
@@ -156,7 +184,24 @@ auto ExtractStep(mlir::Value *next, mlir::Value *induction_arg, int64_t *step) -
     if (TraceCopies(sub->GetLHS()) == induction_arg) {
       auto [ok, value] = TraceConstInt(sub->GetRHS());
       if (ok) {
-        *step = -value;
+        *step = {StepKind::kAdd, -value};
+        return true;
+      }
+    }
+    return false;
+  }
+  if (auto *mul = mlir::DynamicOrNull<mlir::arithm::MulOp>(next->op_)) {
+    if (TraceCopies(mul->GetLHS()) == induction_arg) {
+      auto [ok, value] = TraceConstInt(mul->GetRHS());
+      if (ok) {
+        *step = {StepKind::kMul, value};
+        return true;
+      }
+    }
+    if (TraceCopies(mul->GetRHS()) == induction_arg) {
+      auto [ok, value] = TraceConstInt(mul->GetLHS());
+      if (ok) {
+        *step = {StepKind::kMul, value};
         return true;
       }
     }
@@ -301,13 +346,13 @@ auto MLIRLoopUnrollPass::ComputeTripCount(mlir::scf::WhileOp *while_op, int64_t 
   if (!bound_ok || !init_ok) {
     return false;
   }
-  int64_t step = 0;
+  InductionStep step;
   if (!ExtractStep(yield_operands[induction_index], cond_block->arguments_[induction_index], &step)) {
     return false;
   }
 
   // Simulate the counted iteration; the cap rejects loops that are too large or (with the wrong
-  // step sign / non-dividing != bound) never terminate.
+  // step / a never-hit == or != bound) never terminate.
   int64_t value = init;
   int64_t count = 0;
   while (Evaluate(kind, value, bound)) {
@@ -315,7 +360,9 @@ auto MLIRLoopUnrollPass::ComputeTripCount(mlir::scf::WhileOp *while_op, int64_t 
     if (count > kMaxTripCount) {
       return false;
     }
-    value += step;
+    if (!AdvanceValue(step, &value)) {
+      return false;
+    }
   }
   *trip_count = count;
   return true;
