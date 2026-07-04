@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include "middleend/mlir/utils/clone/operationcloner.h"
 #include "middleend/pass/transform/transform.h"
 
 namespace middleend::mlir {
@@ -57,19 +58,10 @@ class MLIRFunctionInlinePass : public TransformPass {
   auto CanCloneOperation(mlir::Operation *operation) -> bool;
   auto CanCloneRegion(mlir::Region *region) -> bool;
   auto InlineCallSite(const InlineSite &site) -> bool;
-  auto CloneOperation(mlir::Operation *operation) -> mlir::Operation *;
-  auto CloneRegion(mlir::Region *region) -> mlir::Region *;
-  auto CloneBlock(mlir::Block *block) -> mlir::Block *;
-  auto CloneResult(mlir::Value *original) -> mlir::Value *;
-  auto RemapValue(mlir::Value *value) -> mlir::Value *;
-  auto RebuildUses(mlir::func::FuncDefOp *func_op) -> void;
-  auto ClearUsesInRegion(mlir::Region *region) -> void;
-  auto RebuildUsesInRegion(mlir::Region *region) -> void;
-  auto RebuildOperationUses(mlir::Operation *operation) -> void;
 
   std::unordered_map<std::string, mlir::func::FuncDefOp *> function_map_;
   std::unordered_map<mlir::func::FuncDefOp *, std::unordered_set<mlir::func::FuncDefOp *>> call_graph_;
-  std::unordered_map<mlir::Value *, mlir::Value *> value_map_;
+  mlir::utils::OperationCloner cloner_{compiler_context_};
   static constexpr size_t kMaxInlineOperationCount = 80;
   // Each round fully inlines every acyclic call site (RunInlineRound re-scans each
   // caller until fixpoint), so the program converges in one productive round plus
