@@ -6,7 +6,6 @@
 #include <cstddef>
 #include <memory>
 #include <string>
-#include "flatten/astinit.h"
 #include "frontend/ast/ast_decl.h"
 #include "frontend/ast/ast_expr.h"
 #include "frontend/ast/ast_spec.h"
@@ -15,12 +14,13 @@
 #include "middleend/mlir/dialect/func/func.h"
 #include "middleend/mlir/dialect/func/return.h"
 #include "middleend/mlir/dialect/scf/scf.h"
+#include "middleend/mlir/dialect/var/globaldef.h"
 #include "middleend/mlir/dialect/var/var.h"
+#include "middleend/mlir/utils/adapter/replace/replace.h"
 #include "middleend/mlir/utils/struct/block.h"
 #include "middleend/mlir/utils/struct/region.h"
 #include "middleend/mlir/utils/value/value.h"
-#include "mlir/dialect/var/globaldef.h"
-#include "mlir/utils/adapter/replace/replace.h"
+#include "utils/flatten/astinit.h"
 #include "utils/flatten/mlirinit.h"
 #include "utils/type/type.h"
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()

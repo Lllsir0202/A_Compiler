@@ -10,6 +10,26 @@
 #define GET_BACKEND_TARGET() compiler_context_->GetBackendContext()
 namespace backend::targetir::rv64 {
 
+auto LowerHelper::EnsureRegisterOperand(backend::utils::Operand *mir_operand,
+                                        const char *operand_name) -> backend::targetir::TargetOperand * {
+  auto *target_operand = GET_BACKEND_TARGET()->GetMappedOperand(mir_operand);
+  if (target_operand == nullptr) {
+    throw std::runtime_error(std::string(operand_name) + " operand is not mapped to a target operand");
+  }
+  if (target_operand->IsVirtualReg() || target_operand->IsPhysicalReg()) {
+    return target_operand;
+  }
+  if (target_operand->GetOpType() != TargetOperandType::Immediate) {
+    throw std::runtime_error(std::string(operand_name) + " operand is not a register operand");
+  }
+
+  auto *target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+  auto *li_inst = GET_BACKEND_TARGET()->CreateInstruction<RVLIInst>(target_result, target_operand);
+  GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(li_inst);
+  GET_BACKEND_TARGET()->MapOperand(mir_operand, target_result);
+  return target_result;
+}
+
 /**
  * @note Need to map all literal operands which type is int and value is zero
  * to a special zero register, which is x0 in RV64.
@@ -77,22 +97,8 @@ auto LowerHelper::LowerAdd(backend::inst::AddInst *inst) -> void {
 
   // If all operands are literals, we can compute the result as a literal and avoid generating any instructions
   if (lhs->IsLiteral() && rhs->IsLiteral()) {
-    // And they should both be integer literals
-    auto *lhs_literal = static_cast<utils::IntLiteral *>(lhs);
-    auto *rhs_literal = static_cast<utils::IntLiteral *>(rhs);
-
-    // Compute the result and set it as a literal
-    auto result_value = lhs_literal->GetValue() + rhs_literal->GetValue();
-    // If the result is zero, we can map it to the zero register
-    if (result_value == 0) {
-      auto zero_register = rv64_getter_.GetZeroRegister(GET_BACKEND_TARGET(), TargetRegSize::DWord);
-      GET_BACKEND_TARGET()->MapOperand(dst, zero_register);
-      return;
-    }
-    // Otherwise, we can create a new literal and map it to the result
-    auto result_literal = GET_BACKEND_TARGET()->CreateIntLiteral(result_value);
-    GET_BACKEND_TARGET()->MapOperand(dst, result_literal);
-    return;
+    // Should never happen, throw an exception for debugging purposes
+    throw std::runtime_error("Both operands of AddInst are literals, which should have been constant folded");
   }
   // If one of the operands is a literal, we can use an immediate instruction if the literal fits in 12 bits
   if (lhs->IsLiteral() || rhs->IsLiteral()) {
@@ -103,10 +109,7 @@ auto LowerHelper::LowerAdd(backend::inst::AddInst *inst) -> void {
     auto literal = static_cast<utils::IntLiteral *>(literal_operand);
     if (literal->GetValue() == 0) {
       // If it is zero, we can just map the non-literal operand to the result and return
-      auto target_non_literal = GET_BACKEND_TARGET()->GetMappedOperand(non_literal_operand);
-      if (target_non_literal == nullptr) {
-        throw std::runtime_error("Non-literal operand is not mapped to a target operand");
-      }
+      auto target_non_literal = EnsureRegisterOperand(non_literal_operand, "Non-literal");
       GET_BACKEND_TARGET()->MapOperand(dst, target_non_literal);
       return;
     }
@@ -121,10 +124,7 @@ auto LowerHelper::LowerAdd(backend::inst::AddInst *inst) -> void {
       // Create an addi instruction
       // Create the operands first
       auto target_literal = GET_BACKEND_TARGET()->CreateIntLiteral(literal->GetValue());
-      auto target_non_literal = GET_BACKEND_TARGET()->GetMappedOperand(non_literal_operand);
-      if (target_non_literal == nullptr) {
-        throw std::runtime_error("Non-literal operand is not mapped to a target operand");
-      }
+      auto target_non_literal = EnsureRegisterOperand(non_literal_operand, "Non-literal");
       // Create the addi instruction now
       auto addi_inst =
           GET_BACKEND_TARGET()->CreateInstruction<RVADDIInst>(target_result, target_non_literal, target_literal);
@@ -141,10 +141,7 @@ auto LowerHelper::LowerAdd(backend::inst::AddInst *inst) -> void {
       // Emplace back this instruction to the current basic block
       GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(li_inst);
       // Then get the li result and add it to the non-literal operand via an add instruction
-      auto target_non_literal = GET_BACKEND_TARGET()->GetMappedOperand(non_literal_operand);
-      if (target_non_literal == nullptr) {
-        throw std::runtime_error("Non-literal operand is not mapped to a target operand");
-      }
+      auto target_non_literal = EnsureRegisterOperand(non_literal_operand, "Non-literal");
 
       // Create an add instruction to add the li result and the non-literal operand
       auto add_inst =
@@ -163,11 +160,8 @@ auto LowerHelper::LowerAdd(backend::inst::AddInst *inst) -> void {
    * so it would be much simpler.
    */
   // We can just use a normal add instruction to add the two operands
-  auto target_lhs = GET_BACKEND_TARGET()->GetMappedOperand(lhs);
-  auto target_rhs = GET_BACKEND_TARGET()->GetMappedOperand(rhs);
-  if (target_lhs == nullptr || target_rhs == nullptr) {
-    throw std::runtime_error("One of the operands is not mapped to a target operand");
-  }
+  auto target_lhs = EnsureRegisterOperand(lhs, "Lhs");
+  auto target_rhs = EnsureRegisterOperand(rhs, "Rhs");
 
   // If one of them are zero register, we can just map the other one to the result and return
   // Maybe both of them would be zero registers, but it doesn't matter
@@ -224,10 +218,7 @@ auto LowerHelper::LowerSub(backend::inst::SubInst *inst) -> void {
     auto literal_value = static_cast<utils::IntLiteral *>(rhs)->GetValue();
     // If rhs equals to zero, we can just map lhs to the result and return
     if (literal_value == 0) {
-      auto target_lhs = GET_BACKEND_TARGET()->GetMappedOperand(lhs);
-      if (target_lhs == nullptr) {
-        throw std::runtime_error("Lhs operand is not mapped to a target operand");
-      }
+      auto target_lhs = EnsureRegisterOperand(lhs, "Lhs");
       GET_BACKEND_TARGET()->MapOperand(dst, target_lhs);
       return;
     }
@@ -239,17 +230,11 @@ auto LowerHelper::LowerSub(backend::inst::SubInst *inst) -> void {
       auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
       GET_BACKEND_TARGET()->MapOperand(dst, target_result);
       auto target_literal = GET_BACKEND_TARGET()->CreateIntLiteral(-literal_value);
-      auto target_lhs = GET_BACKEND_TARGET()->GetMappedOperand(lhs);
-      if (target_lhs == nullptr) {
-        throw std::runtime_error("Lhs operand is not mapped to a target operand");
-      }
+      auto target_lhs = EnsureRegisterOperand(lhs, "Lhs");
       auto addi_inst = GET_BACKEND_TARGET()->CreateInstruction<RVADDIInst>(target_result, target_lhs, target_literal);
       GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(addi_inst);
     } else {
-      auto target_lhs = GET_BACKEND_TARGET()->GetMappedOperand(lhs);
-      if (target_lhs == nullptr) {
-        throw std::runtime_error("Lhs operand is not mapped to a target operand");
-      }
+      auto target_lhs = EnsureRegisterOperand(lhs, "Lhs");
       // If the lhs is a zero-literal, we can just load
       // the negative rhs literal into a register via 'li' instruction and map it to the result
       if (IsZeroRegister(target_lhs)) {
@@ -287,10 +272,7 @@ auto LowerHelper::LowerSub(backend::inst::SubInst *inst) -> void {
      * 4. Otherwise, we need to load it into a register via 'li'
      */
     auto literal_value = static_cast<utils::IntLiteral *>(lhs)->GetValue();
-    auto target_rhs = GET_BACKEND_TARGET()->GetMappedOperand(rhs);
-    if (target_rhs == nullptr) {
-      throw std::runtime_error("Rhs operand is not mapped to a target operand");
-    }
+    auto target_rhs = EnsureRegisterOperand(rhs, "Rhs");
     // 1. lhs = 0
     if (literal_value == 0) {
       // If lhs is zero, we can just map the negation of rhs to the result
@@ -352,11 +334,8 @@ auto LowerHelper::LowerSub(backend::inst::SubInst *inst) -> void {
 
   // Otherwise, both operands are not literals,
   // normally they should both be virtual registers
-  auto target_lhs = GET_BACKEND_TARGET()->GetMappedOperand(lhs);
-  auto target_rhs = GET_BACKEND_TARGET()->GetMappedOperand(rhs);
-  if (target_lhs == nullptr || target_rhs == nullptr) {
-    throw std::runtime_error("One of the operands is not mapped to a target operand");
-  }
+  auto target_lhs = EnsureRegisterOperand(lhs, "Lhs");
+  auto target_rhs = EnsureRegisterOperand(rhs, "Rhs");
 
   // Create a target result virtual register
   auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
@@ -414,18 +393,12 @@ auto LowerHelper::LowerMul(backend::inst::MulInst *inst) -> void {
     }
     // If it is 1 or -1, we can just map the result to the non-literal operand or its negation
     if (literal_value == 1) {
-      auto target_non_literal = GET_BACKEND_TARGET()->GetMappedOperand(non_literal_operand);
-      if (target_non_literal == nullptr) {
-        throw std::runtime_error("Non-literal operand is not mapped to a target operand");
-      }
+      auto target_non_literal = EnsureRegisterOperand(non_literal_operand, "Non-literal");
       GET_BACKEND_TARGET()->MapOperand(dst, target_non_literal);
       return;
     }
     if (literal_value == -1) {
-      auto target_non_literal = GET_BACKEND_TARGET()->GetMappedOperand(non_literal_operand);
-      if (target_non_literal == nullptr) {
-        throw std::runtime_error("Non-literal operand is not mapped to a target operand");
-      }
+      auto target_non_literal = EnsureRegisterOperand(non_literal_operand, "Non-literal");
 
       // Create a neg instruction to negate the non-literal operand
       auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
@@ -443,10 +416,7 @@ auto LowerHelper::LowerMul(backend::inst::MulInst *inst) -> void {
     // Then check if it is a power of two
     if (IsPowerOfTwo(literal_value)) {
       // Use a shift instruction to multiply
-      auto target_non_literal = GET_BACKEND_TARGET()->GetMappedOperand(non_literal_operand);
-      if (target_non_literal == nullptr) {
-        throw std::runtime_error("Non-literal operand is not mapped to a target operand");
-      }
+      auto target_non_literal = EnsureRegisterOperand(non_literal_operand, "Non-literal");
       auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
       GET_BACKEND_TARGET()->MapOperand(dst, target_result);
       // Create a shift left instruction to multiply
@@ -462,10 +432,7 @@ auto LowerHelper::LowerMul(backend::inst::MulInst *inst) -> void {
     if (IsSumOrDifferenceOfTwoPowersOfTwo(literal_value)) {
       // TODO(loki): Implement a variable to determine whether it is a plus or substract.
       auto [i, j] = GetSumOrDifferenceOfTwoPowersOfTwo(literal_value);
-      auto target_non_literal = GET_BACKEND_TARGET()->GetMappedOperand(non_literal_operand);
-      if (target_non_literal == nullptr) {
-        throw std::runtime_error("Non-literal operand is not mapped to a target operand");
-      }
+      auto target_non_literal = EnsureRegisterOperand(non_literal_operand, "Non-literal");
       auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
       // Create two shift left instructions to multiply by 2^i and 2^j
       auto target_shift_amount_i = GET_BACKEND_TARGET()->CreateIntLiteral(i);

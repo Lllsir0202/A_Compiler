@@ -13,6 +13,7 @@
 #include "middleend/mlir/verifer/verifer.h"
 #include "middleend/pass/analysis/cfg/mlircfg.h"
 #include "middleend/pass/analysis/domtree/domtree.h"
+#include "middleend/pass/transform/constfold/constfold.h"
 #include "middleend/pass/transform/simplify/simplify.h"
 #include "middleend/pass/transform/unify/unify.h"
 #include "stages/ast/ast_stage.h"
@@ -286,6 +287,14 @@ auto main(int argc, char *argv[]) -> int {
   if (!llvm_verifier->Verify()) {
     return -1;
   }
+
+  // Run the LLVM passes
+  auto llvm_pass_context = new context::PassContext(&compiler_context, middleend::pass::PassStage::LLVMIR);
+  compiler_context.SetPassContext(llvm_pass_context);
+  auto const_fold_pass = context::PassContext::CreatePass<middleend::pass::transform::ConstFoldPass>(
+      &compiler_context, middleend::pass::PassStage::LLVMIR);
+  llvm_pass_context->AddPass(const_fold_pass);
+  ret = llvm_pass_context->RunPasses();
 
   if (stage == "llvm" && ret == 0) {
     stage_ptr = std::make_unique<stages::LLVMStage>(&compiler_context);

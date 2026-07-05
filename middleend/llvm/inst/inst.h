@@ -43,17 +43,10 @@ class Instruction {
   auto AddUser(Instruction *user) -> void { users_.emplace_back(user); }
 
   // Provide interface to replace all the users with a new operand
-  auto ReplaceAllUsersWith(utils::Operand *new_operand) -> void {
-    for (auto *user : users_) {
-      for (auto &operand : user->operands_) {
-        if (operand == result_) {
-          operand = new_operand;
-        }
-      }
-    }
-    // Clear the users after replacement
-    users_.clear();
-  }
+  auto ReplaceAllUsersWith(utils::Operand *new_operand) -> void;
+
+  // Check whether all operands are constants
+  auto AreAllOperandsConstants() const -> bool;
 
   // Interface to get the opkind
   auto GetOpKind() const -> OpKind { return op_kind_; }

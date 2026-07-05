@@ -86,6 +86,9 @@ class Operand {
 
   virtual ~Operand() = default;
 
+  // IsConstant is used to check whether the operand is a constant value, which is only true for literal operands
+  virtual auto Isconstant() const -> bool { return false; }
+
  protected:
   explicit Operand(OpType op_type) : op_type_(op_type) {}
 

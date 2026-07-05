@@ -10,6 +10,7 @@ class IntLiteral : public Operand {
  public:
   auto Emit(std::ofstream *out) const -> void override { *out << std::to_string(value_); }
   auto GetValue() const -> int { return value_; }
+  auto Isconstant() const -> bool override { return true; }
 
  private:
   explicit IntLiteral(int value) : Operand(OpType::Literal), value_(value) {}
@@ -22,6 +23,7 @@ class FloatLiteral : public Operand {
  public:
   auto Emit(std::ofstream *out) const -> void override { *out << FloatToLLVMIRFormat(value_); }
   auto GetValue() const -> float { return value_; }
+  auto Isconstant() const -> bool override { return true; }
 
  private:
   explicit FloatLiteral(float value) : Operand(OpType::Literal), value_(value) {}
@@ -34,6 +36,7 @@ class LongLiteral : public Operand {
  public:
   auto Emit(std::ofstream *out) const -> void override { *out << std::to_string(value_); }
   auto GetValue() const -> std::int64_t { return value_; }
+  auto Isconstant() const -> bool override { return true; }
 
  private:
   explicit LongLiteral(std::int64_t value) : Operand(OpType::Literal), value_(value) {}
@@ -46,6 +49,7 @@ class CharLiteral : public Operand {
  public:
   auto Emit(std::ofstream *out) const -> void override { *out << std::to_string(value_); }
   auto GetValue() const -> char { return value_; }
+  auto Isconstant() const -> bool override { return true; }
 
  private:
   explicit CharLiteral(char value) : Operand(OpType::Literal), value_(value) {}
@@ -58,6 +62,7 @@ class BoolLiteral : public Operand {
  public:
   auto Emit(std::ofstream *out) const -> void override { *out << (value_ ? "true" : "false"); }
   auto GetValue() const -> bool { return value_; }
+  auto Isconstant() const -> bool override { return true; }
 
  private:
   explicit BoolLiteral(bool value) : Operand(OpType::Literal), value_(value) {}
