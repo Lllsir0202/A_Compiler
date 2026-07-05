@@ -11,6 +11,12 @@ class Block;
 class Operation;
 class Value;
 }  // namespace middleend::mlir
+namespace middleend::mlir::base {
+class MulOp;
+}
+namespace middleend::mlir::var {
+class VarGetPtrOp;
+}
 namespace middleend::pass::analysis {
 class Loop;
 class LoopInfoPass;
@@ -59,8 +65,25 @@ class StrengthReducePass : public TransformPass {
   auto Name() const -> std::string override { return "StrengthReducePass"; }
 
  private:
+  // The three blocks a reduction inserts into: the recurrence starts in the preheader, advances in
+  // the latch, and merges through a phi in the header.
+  struct LoopFrame {
+    mlir::Block *preheader;
+    mlir::Block *latch;
+    mlir::Block *header;
+  };
+
   auto RunOnLoop(analysis::MLIRFunctionCFG *function_cfg, analysis::Loop *loop) -> bool;
   auto FindPreheader(analysis::MLIRFunctionCFG *function_cfg, analysis::Loop *loop) -> mlir::Block *;
+
+  // Replace a loop-variant multiply (whose value is an affine recurrence of the loop) with an
+  // additive induction variable.
+  auto ReduceMul(mlir::base::MulOp *mul, analysis::Loop *loop, const LoopFrame &frame,
+                 std::unordered_map<const analysis::SCEV *, mlir::Value *> &scalar_cache) -> bool;
+  // Replace a `getptr` whose last index is an affine recurrence of the loop (earlier indices
+  // invariant) with a pointer induction variable that advances by the index step each iteration.
+  auto ReduceGetPtr(mlir::var::VarGetPtrOp *get_ptr, analysis::Loop *loop, const LoopFrame &frame,
+                    std::unordered_map<std::string, mlir::Value *> &pointer_cache) -> bool;
 
   // Materialize a loop-invariant, recurrence-free SCEV as a value inserted before the preheader
   // terminator; returns nullptr if the expression cannot be expanded there.
@@ -75,7 +98,8 @@ class StrengthReducePass : public TransformPass {
 
   analysis::SCEVPass *scev_{nullptr};
   std::unordered_map<mlir::Operation *, mlir::Block *> op_to_block_;
-  int reduced_count_{0};  // number of multiplies replaced by an additive IV (benchmark stat)
+  int reduced_count_{0};      // multiplies replaced by an additive IV (benchmark stat)
+  int gep_reduced_count_{0};  // getptr addresses replaced by a pointer IV (benchmark stat)
 };
 
 }  // namespace middleend::pass::transform

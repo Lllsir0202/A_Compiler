@@ -1,13 +1,16 @@
 #include "middleend/pass/transform/strengthreduce/strengthreduce.h"
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <stdexcept>
+#include <string>
 #include <vector>
 #include "context/compiler_context.h"
 #include "context/mlir_context.h"
 #include "middleend/mlir/dialect/base/binaryop.h"
 #include "middleend/mlir/dialect/base/phi.h"
 #include "middleend/mlir/dialect/base/unaryop.h"
+#include "middleend/mlir/dialect/var/getptr.h"
 #include "middleend/mlir/utils/operation/operation.h"
 #include "middleend/mlir/utils/struct/block.h"
 #include "middleend/mlir/utils/value/value.h"
@@ -16,6 +19,7 @@
 #include "middleend/pass/analysis/loopinfo/loopinfo.h"
 #include "middleend/pass/analysis/scev/scev.h"
 #include "middleend/pass/analysis/scev/scevpass.h"
+#include "utils/type/type.h"
 
 #define GET_PASS_CONTEXT() compiler_context_->GetPassContext()
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()
@@ -61,7 +65,8 @@ auto StrengthReducePass::Run() -> void {
   }
 
   if (std::getenv("SR_STATS") != nullptr) {
-    std::fprintf(stderr, "[SR] strength-reduced multiplies: %d\n", reduced_count_);
+    std::fprintf(stderr, "[SR] strength-reduced multiplies: %d, getptr addresses: %d\n", reduced_count_,
+                 gep_reduced_count_);
   }
   if (changed) {
     GET_PASS_CONTEXT()->InvalidateAnalysis();
@@ -122,85 +127,213 @@ auto StrengthReducePass::RunOnLoop(analysis::MLIRFunctionCFG *function_cfg, anal
     }
   }
 
+  LoopFrame frame{preheader, latch, header};
   bool changed = false;
-  // Recurrences are uniqued, so identical multiplies share one reduced induction variable.
-  std::unordered_map<const analysis::SCEV *, mlir::Value *> reduced;
+  // Uniqued recurrences let identical multiplies share one IV; identical addresses share one pointer.
+  std::unordered_map<const analysis::SCEV *, mlir::Value *> scalar_cache;
+  std::unordered_map<std::string, mlir::Value *> pointer_cache;
   for (auto *block : loop->GetBlocks()) {
     std::vector<mlir::Operation *> snapshot = block->operations_;
     for (auto *operation : snapshot) {
-      auto *mul = mlir::DynamicOrNull<mlir::base::MulOp>(operation);
-      if (mul == nullptr) {
-        continue;
+      if (auto *mul = mlir::DynamicOrNull<mlir::base::MulOp>(operation)) {
+        changed = ReduceMul(mul, loop, frame, scalar_cache) || changed;
+      } else if (auto *get_ptr = mlir::DynamicOrNull<mlir::var::VarGetPtrOp>(operation)) {
+        changed = ReduceGetPtr(get_ptr, loop, frame, pointer_cache) || changed;
       }
-      auto *result = mul->GetRes();
-      if (result->GetType() == nullptr || result->GetType()->GetKind() != type::TypeKind::INT) {
-        continue;
-      }
-      const analysis::SCEV *scev = scev_->GetSCEV(result);
-      if (scev->GetKind() != analysis::SCEVKind::AddRec) {
-        continue;
-      }
-      const auto *add_rec = static_cast<const analysis::SCEVAddRecExpr *>(scev);
-      if (add_rec->GetLoop() != loop) {
-        continue;
-      }
-      const analysis::SCEV *start = add_rec->GetStart();
-      const analysis::SCEV *step = add_rec->GetStep();
-      if (ContainsAddRec(start) || ContainsAddRec(step)) {
-        continue;  // needs an outer induction value to expand: out of scope, left untouched
-      }
-      if (!scev_->IsLoopInvariant(start, loop) || !scev_->IsLoopInvariant(step, loop)) {
-        continue;
-      }
-      if (!AllUsesInLoop(result, loop)) {
-        continue;
-      }
-
-      mlir::Value *iv = nullptr;
-      auto cached = reduced.find(scev);
-      if (cached != reduced.end()) {
-        iv = cached->second;
-      } else {
-        mlir::Value *init = Expand(start, preheader);
-        mlir::Value *stride = Expand(step, preheader);
-        if (init == nullptr || stride == nullptr) {
-          continue;
-        }
-        // Advance value in the latch: next = phi + stride.
-        auto *phi_value = GET_MLIR_CONTEXT()->CreateValue();
-        phi_value->SetType(result->GetType());
-        auto *next_value = GET_MLIR_CONTEXT()->CreateValue();
-        next_value->SetType(result->GetType());
-        auto *next_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::AddOp>(next_value, phi_value, stride);
-        phi_value->AddUse(next_op, 0);
-        stride->AddUse(next_op, 1);
-        InsertBeforeTerminator(next_op, latch);
-
-        // Header phi: init from the preheader, next from the latch.
-        std::vector<mlir::Value *> values = {init, next_value};
-        std::vector<mlir::Block *> blocks = {preheader, latch};
-        auto *phi_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::PhiOp>(phi_value, values, blocks);
-        init->AddUse(phi_op, 0);
-        next_value->AddUse(phi_op, 1);
-        header->operations_.insert(header->operations_.begin(), phi_op);
-        op_to_block_[phi_op] = header;
-        op_to_block_[next_op] = latch;
-
-        iv = phi_value;
-        reduced[scev] = iv;
-      }
-
-      result->ReplaceAllUsesWith(iv);
-      for (auto *operand : mul->operands_) {
-        operand->RemoveUse(mul);
-      }
-      block->RemoveOperation(mul);
-      op_to_block_.erase(mul);
-      ++reduced_count_;
-      changed = true;
     }
   }
   return changed;
+}
+
+auto StrengthReducePass::ReduceMul(mlir::base::MulOp *mul, analysis::Loop *loop, const LoopFrame &frame,
+                                   std::unordered_map<const analysis::SCEV *, mlir::Value *> &scalar_cache) -> bool {
+  auto *result = mul->GetRes();
+  if (result->GetType() == nullptr || result->GetType()->GetKind() != type::TypeKind::INT) {
+    return false;
+  }
+  const analysis::SCEV *scev = scev_->GetSCEV(result);
+  if (scev->GetKind() != analysis::SCEVKind::AddRec) {
+    return false;
+  }
+  const auto *add_rec = static_cast<const analysis::SCEVAddRecExpr *>(scev);
+  if (add_rec->GetLoop() != loop) {
+    return false;
+  }
+  const analysis::SCEV *start = add_rec->GetStart();
+  const analysis::SCEV *step = add_rec->GetStep();
+  if (ContainsAddRec(start) || ContainsAddRec(step)) {
+    return false;  // needs an outer induction value to expand: out of scope, left untouched
+  }
+  if (!scev_->IsLoopInvariant(start, loop) || !scev_->IsLoopInvariant(step, loop)) {
+    return false;
+  }
+  if (!AllUsesInLoop(result, loop)) {
+    return false;
+  }
+
+  mlir::Value *iv = nullptr;
+  auto cached = scalar_cache.find(scev);
+  if (cached != scalar_cache.end()) {
+    iv = cached->second;
+  } else {
+    mlir::Value *init = Expand(start, frame.preheader);
+    mlir::Value *stride = Expand(step, frame.preheader);
+    if (init == nullptr || stride == nullptr) {
+      return false;
+    }
+    // Advance value in the latch: next = phi + stride.
+    auto *phi_value = GET_MLIR_CONTEXT()->CreateValue();
+    phi_value->SetType(result->GetType());
+    auto *next_value = GET_MLIR_CONTEXT()->CreateValue();
+    next_value->SetType(result->GetType());
+    auto *next_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::AddOp>(next_value, phi_value, stride);
+    phi_value->AddUse(next_op, 0);
+    stride->AddUse(next_op, 1);
+    InsertBeforeTerminator(next_op, frame.latch);
+
+    // Header phi: init from the preheader, next from the latch.
+    std::vector<mlir::Value *> values = {init, next_value};
+    std::vector<mlir::Block *> blocks = {frame.preheader, frame.latch};
+    auto *phi_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::PhiOp>(phi_value, values, blocks);
+    init->AddUse(phi_op, 0);
+    next_value->AddUse(phi_op, 1);
+    frame.header->operations_.insert(frame.header->operations_.begin(), phi_op);
+    op_to_block_[phi_op] = frame.header;
+    op_to_block_[next_op] = frame.latch;
+
+    iv = phi_value;
+    scalar_cache[scev] = iv;
+  }
+
+  result->ReplaceAllUsesWith(iv);
+  for (auto *operand : mul->operands_) {
+    operand->RemoveUse(mul);
+  }
+  op_to_block_[mul]->RemoveOperation(mul);
+  op_to_block_.erase(mul);
+  ++reduced_count_;
+  return true;
+}
+
+auto StrengthReducePass::ReduceGetPtr(mlir::var::VarGetPtrOp *get_ptr, analysis::Loop *loop, const LoopFrame &frame,
+                                      std::unordered_map<std::string, mlir::Value *> &pointer_cache) -> bool {
+  auto *result = get_ptr->GetRes();
+  auto *base = get_ptr->GetPtr();
+  std::vector<mlir::Value *> indices = get_ptr->GetIndices();
+  if (indices.empty() || result->GetType() == nullptr || result->GetType()->GetKind() != type::TypeKind::PTR) {
+    return false;
+  }
+  // Only reduce a full index down to a scalar element. Then the last index really is the innermost
+  // dimension, so advancing the pointer by `step` elements (getptr of `step` on an element pointer)
+  // changes the address by exactly the same amount as stepping that index. A partial index (e.g.
+  // getptr(a, i) yielding a row pointer) steps by a whole sub-array, which this rewrite would not
+  // reproduce, so it is left alone.
+  auto *pointee = static_cast<type::PtrType *>(result->GetType())->GetBaseType();
+  if (pointee == nullptr ||
+      (pointee->GetKind() != type::TypeKind::INT && pointee->GetKind() != type::TypeKind::FLOAT)) {
+    return false;
+  }
+  // The base and every index but the last must be loop-invariant, and the last index must be an
+  // affine recurrence of this loop with a compile-time-constant step.
+  if (base->op_ != nullptr && op_to_block_.count(base->op_) > 0 && loop->Contains(op_to_block_[base->op_])) {
+    return false;
+  }
+  for (size_t i = 0; i + 1 < indices.size(); ++i) {
+    auto iter = op_to_block_.find(indices[i]->op_);
+    if (indices[i]->op_ != nullptr && iter != op_to_block_.end() && loop->Contains(iter->second)) {
+      return false;
+    }
+  }
+  mlir::Value *last = indices.back();
+  const analysis::SCEV *scev = scev_->GetSCEV(last);
+  if (scev->GetKind() != analysis::SCEVKind::AddRec) {
+    return false;
+  }
+  const auto *add_rec = static_cast<const analysis::SCEVAddRecExpr *>(scev);
+  if (add_rec->GetLoop() != loop) {
+    return false;
+  }
+  const analysis::SCEV *start = add_rec->GetStart();
+  const analysis::SCEV *step = add_rec->GetStep();
+  int step_value = 0;
+  if (step->GetKind() != analysis::SCEVKind::Constant || !static_cast<const analysis::SCEVConstant *>(step)->IsInt()) {
+    return false;
+  }
+  step_value = static_cast<const analysis::SCEVConstant *>(step)->GetInt();
+  if (ContainsAddRec(start) || !scev_->IsLoopInvariant(start, loop)) {
+    return false;
+  }
+  if (!AllUsesInLoop(result, loop)) {
+    return false;
+  }
+
+  // Identical addresses (same base, same leading indices, same recurrence) reuse one pointer IV;
+  // this collapses e.g. a read and a write of a[i][j] onto the same walking pointer.
+  std::string key = std::to_string(reinterpret_cast<uintptr_t>(base));
+  for (size_t i = 0; i + 1 < indices.size(); ++i) {
+    key += ":" + std::to_string(reinterpret_cast<uintptr_t>(indices[i]));
+  }
+  key += "#" + std::to_string(reinterpret_cast<uintptr_t>(scev));
+
+  mlir::Value *pointer = nullptr;
+  auto cached = pointer_cache.find(key);
+  if (cached != pointer_cache.end()) {
+    pointer = cached->second;
+  } else {
+    mlir::Value *init_last = Expand(start, frame.preheader);
+    if (init_last == nullptr) {
+      return false;
+    }
+    // Initial pointer in the preheader: the same address with the last index at its start value.
+    std::vector<mlir::Value *> init_indices(indices.begin(), indices.end() - 1);
+    init_indices.emplace_back(init_last);
+    auto *init_value = GET_MLIR_CONTEXT()->CreateValue();
+    init_value->SetType(result->GetType());
+    auto *init_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetPtrOp>(GET_MLIR_CONTEXT(), base, init_indices);
+    init_op->GetRes()->SetType(result->GetType());
+    base->AddUse(init_op, 0);
+    for (size_t i = 0; i < init_indices.size(); ++i) {
+      init_indices[i]->AddUse(init_op, i + 1);
+    }
+    InsertBeforeTerminator(init_op, frame.preheader);
+    op_to_block_[init_op] = frame.preheader;
+    mlir::Value *init_pointer = init_op->GetRes();
+
+    // Header phi carries the walking pointer.
+    auto *phi_value = GET_MLIR_CONTEXT()->CreateValue();
+    phi_value->SetType(result->GetType());
+
+    // Latch advance: next = &phi[step], one getptr of `step` elements on the element pointer.
+    auto *stride = MakeConstInt(step_value, frame.latch);
+    auto *next_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetPtrOp>(GET_MLIR_CONTEXT(), phi_value,
+                                                                                std::vector<mlir::Value *>{stride});
+    next_op->GetRes()->SetType(result->GetType());
+    phi_value->AddUse(next_op, 0);
+    stride->AddUse(next_op, 1);
+    InsertBeforeTerminator(next_op, frame.latch);
+    op_to_block_[next_op] = frame.latch;
+    mlir::Value *next_pointer = next_op->GetRes();
+
+    std::vector<mlir::Value *> values = {init_pointer, next_pointer};
+    std::vector<mlir::Block *> blocks = {frame.preheader, frame.latch};
+    auto *phi_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::PhiOp>(phi_value, values, blocks);
+    init_pointer->AddUse(phi_op, 0);
+    next_pointer->AddUse(phi_op, 1);
+    frame.header->operations_.insert(frame.header->operations_.begin(), phi_op);
+    op_to_block_[phi_op] = frame.header;
+
+    pointer = phi_value;
+    pointer_cache[key] = pointer;
+  }
+
+  result->ReplaceAllUsesWith(pointer);
+  for (auto *operand : get_ptr->operands_) {
+    operand->RemoveUse(get_ptr);
+  }
+  op_to_block_[get_ptr]->RemoveOperation(get_ptr);
+  op_to_block_.erase(get_ptr);
+  ++gep_reduced_count_;
+  return true;
 }
 
 auto StrengthReducePass::ContainsAddRec(const analysis::SCEV *scev) -> bool {
