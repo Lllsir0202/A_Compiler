@@ -16,6 +16,7 @@
 #include "middleend/pass/analysis/domtree/domtree.h"
 #include "middleend/pass/analysis/loopinfo/loopinfo.h"
 #include "middleend/pass/analysis/memoryssa/memoryssa.h"
+#include "middleend/pass/analysis/scev/scevpass.h"
 #include "middleend/pass/transform/adce/adce.h"
 #include "middleend/pass/transform/dse/dse.h"
 #include "middleend/pass/transform/functioninline/functioninline.h"
@@ -32,6 +33,7 @@
 #include "middleend/pass/transform/promotion/promotion.h"
 #include "middleend/pass/transform/sccp/sccp.h"
 #include "middleend/pass/transform/simplify/simplify.h"
+#include "middleend/pass/transform/strengthreduce/strengthreduce.h"
 #include "middleend/pass/transform/trivialblockmerge/trivialblockmerge.h"
 #include "middleend/pass/transform/unify/unify.h"
 #include "stages/ast/ast_stage.h"
@@ -350,6 +352,12 @@ auto main(int argc, char *argv[]) -> int {
     auto loop_simplify_pass = context::PassContext::CreatePass<middleend::pass::transform::LoopSimplifyPass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(loop_simplify_pass);
+    auto scev_pass = context::PassContext::CreatePass<middleend::pass::analysis::SCEVPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(scev_pass);
+    auto strength_reduce_pass = context::PassContext::CreatePass<middleend::pass::transform::StrengthReducePass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(strength_reduce_pass);
     auto licm_pass = context::PassContext::CreatePass<middleend::pass::transform::LICMPass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(licm_pass);
