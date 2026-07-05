@@ -105,6 +105,13 @@ class SCEVPass : public AnalysisPass {
   auto SplitAffineTerm(const SCEV *scev, const SCEV **base) -> int;
   auto GetBinomialCoefficient(const SCEV *iteration, int order) -> const SCEV *;
 
+  // True when `scev` structurally contains `target` (pointer identity of a uniqued node).
+  auto ScevContains(const SCEV *scev, const SCEV *target) -> bool;
+  // Drop every memoized value whose SCEV still references `symbol`. Used after a header phi resolves
+  // to its recurrence, to discard the placeholder-based results computed for values along the
+  // back-edge (e.g. i+1) so they are recomputed against the finished recurrence.
+  auto ForgetValuesContaining(const SCEV *symbol) -> void;
+
   // Structural uniquing: an equal candidate returns the previously created node; otherwise the
   // candidate is adopted into owned_scevs_ and returned.
   auto Unique(SCEV *candidate) -> const SCEV *;

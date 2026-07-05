@@ -728,22 +728,63 @@ auto SCEVPass::CreateAddRecFromPhi(mlir::base::PhiOp *phi, Loop *loop) -> const 
   }
   const SCEV *step = GetAddExpr(step_terms);
   const SCEV *init_scev = GetSCEV(init_value);
+  const SCEV *recurrence = nullptr;
   // A loop-invariant step gives a plain affine recurrence {init,+,step}.
   if (IsLoopInvariant(step, loop)) {
-    return GetAddRecExpr(init_scev, step, loop);
-  }
-  // A step that is itself a recurrence of this loop (a running sum of another induction variable, as
-  // in `sum += i`) extends into a chain of recurrences: x_{n+1} = x_n + {s0,+,s1,+,...} makes x the
-  // chain {init,+,s0,+,s1,+,...}, evaluated as sum_j operand_j * C(i, j).
-  if (step->GetKind() == SCEVKind::AddRec && static_cast<const SCEVAddRecExpr *>(step)->GetLoop() == loop) {
+    recurrence = GetAddRecExpr(init_scev, step, loop);
+  } else if (step->GetKind() == SCEVKind::AddRec && static_cast<const SCEVAddRecExpr *>(step)->GetLoop() == loop) {
+    // A step that is itself a recurrence of this loop (a running sum of another induction variable,
+    // as in `sum += i`) extends into a chain of recurrences: x_{n+1} = x_n + {s0,+,s1,+,...} makes x
+    // the chain {init,+,s0,+,s1,+,...}, evaluated as sum_j operand_j * C(i, j).
     const auto &step_operands = static_cast<const SCEVAddRecExpr *>(step)->GetOperands();
     std::vector<const SCEV *> operands;
     operands.reserve(step_operands.size() + 1);
     operands.emplace_back(init_scev);
     operands.insert(operands.end(), step_operands.begin(), step_operands.end());
-    return GetAddRecExpr(operands, loop, false);
+    recurrence = GetAddRecExpr(operands, loop, false);
   }
-  return nullptr;
+  if (recurrence == nullptr) {
+    return nullptr;
+  }
+  // Resolving the phi used a self-symbol placeholder while walking the back-edge, so every value on
+  // that chain (e.g. i+1, i+2 from an unrolled body) was memoized as `symbol + c` rather than as the
+  // real recurrence. Drop those results so they are rebuilt against the finished recurrence; the phi
+  // itself is re-established by GetSCEV right after this returns.
+  ForgetValuesContaining(self_symbol);
+  return recurrence;
+}
+
+auto SCEVPass::ScevContains(const SCEV *scev, const SCEV *target) -> bool {
+  if (scev == target) {
+    return true;
+  }
+  switch (scev->GetKind()) {
+    case SCEVKind::Add:
+    case SCEVKind::Mul:
+    case SCEVKind::SMax:
+    case SCEVKind::UMin: {
+      const auto &operands = static_cast<const SCEVCommutativeExpr *>(scev)->GetOperands();
+      return std::any_of(operands.begin(), operands.end(),
+                         [&](const SCEV *operand) { return ScevContains(operand, target); });
+    }
+    case SCEVKind::AddRec: {
+      const auto &operands = static_cast<const SCEVAddRecExpr *>(scev)->GetOperands();
+      return std::any_of(operands.begin(), operands.end(),
+                         [&](const SCEV *operand) { return ScevContains(operand, target); });
+    }
+    case SCEVKind::Div: {
+      const auto *div = static_cast<const SCEVDivExpr *>(scev);
+      return ScevContains(div->GetLHS(), target) || ScevContains(div->GetRHS(), target);
+    }
+    default:
+      return false;
+  }
+}
+
+auto SCEVPass::ForgetValuesContaining(const SCEV *symbol) -> void {
+  for (auto iter = value_to_scev_.begin(); iter != value_to_scev_.end();) {
+    iter = ScevContains(iter->second, symbol) ? value_to_scev_.erase(iter) : std::next(iter);
+  }
 }
 
 // ---- Backedge-taken / trip count ---------------------------------------------------------------
