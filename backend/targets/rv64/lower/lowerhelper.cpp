@@ -10,26 +10,6 @@
 #define GET_BACKEND_TARGET() compiler_context_->GetBackendContext()
 namespace backend::targetir::rv64 {
 
-auto LowerHelper::EnsureRegisterOperand(backend::utils::Operand *mir_operand,
-                                        const char *operand_name) -> backend::targetir::TargetOperand * {
-  auto *target_operand = GET_BACKEND_TARGET()->GetMappedOperand(mir_operand);
-  if (target_operand == nullptr) {
-    throw std::runtime_error(std::string(operand_name) + " operand is not mapped to a target operand");
-  }
-  if (target_operand->IsVirtualReg() || target_operand->IsPhysicalReg()) {
-    return target_operand;
-  }
-  if (target_operand->GetOpType() != TargetOperandType::Immediate) {
-    throw std::runtime_error(std::string(operand_name) + " operand is not a register operand");
-  }
-
-  auto *target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
-  auto *li_inst = GET_BACKEND_TARGET()->CreateInstruction<RVLIInst>(target_result, target_operand);
-  GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(li_inst);
-  GET_BACKEND_TARGET()->MapOperand(mir_operand, target_result);
-  return target_result;
-}
-
 /**
  * @note Need to map all literal operands which type is int and value is zero
  * to a special zero register, which is x0 in RV64.

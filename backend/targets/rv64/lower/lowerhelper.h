@@ -29,9 +29,6 @@ class LowerHelper {
   RV64Getter rv64_getter_;
   friend class RV64Lower;
 
-  auto EnsureRegisterOperand(backend::utils::Operand *mir_operand,
-                             const char *operand_name) -> backend::targetir::TargetOperand *;
-
   auto LowerAdd(backend::inst::AddInst *inst) -> void;
   auto LowerSub(backend::inst::SubInst *inst) -> void;
   auto LowerMul(backend::inst::MulInst *inst) -> void;
