@@ -73,9 +73,19 @@ class SCEVPass : public AnalysisPass {
   auto GetUnknown(mlir::Value *value) -> const SCEV *;
   auto GetAddExpr(std::vector<const SCEV *> operands) -> const SCEV *;
   auto GetMulExpr(std::vector<const SCEV *> operands) -> const SCEV *;
+  auto GetDivExpr(const SCEV *lhs, const SCEV *rhs) -> const SCEV *;
+  auto GetSMaxExpr(std::vector<const SCEV *> operands) -> const SCEV *;
+  auto GetUMinExpr(std::vector<const SCEV *> operands) -> const SCEV *;
+  // Affine recurrence {start, +, step}; the chain form is built internally from a vector.
   auto GetAddRecExpr(const SCEV *start, const SCEV *step, Loop *loop) -> const SCEV *;
+  auto GetAddRecExpr(std::vector<const SCEV *> operands, Loop *loop, bool no_wrap = false) -> const SCEV *;
   auto GetMinusSCEV(const SCEV *lhs, const SCEV *rhs) -> const SCEV *;
   auto GetNegativeSCEV(const SCEV *scev) -> const SCEV *;
+
+  // The value of `scev` on iteration `iteration` (Newton-series evaluation of a chain of
+  // recurrences), used to close a loop into its final value. Returns nullptr when it cannot be
+  // expressed (e.g. a non-integer division that does not evaluate exactly).
+  auto EvaluateAtIteration(const SCEV *scev, const SCEV *iteration) -> const SCEV *;
 
  private:
   auto RunOnFunction(MLIRFunctionCFG *function_cfg) -> void;
@@ -87,7 +97,13 @@ class SCEVPass : public AnalysisPass {
   auto CreateAddRecFromPhi(mlir::base::PhiOp *phi, Loop *loop) -> const SCEV *;
 
   auto ComputeBackedgeTakenCount(Loop *loop) -> const SCEV *;
+  auto ComputeExitCount(Loop *loop, mlir::Block *exiting) -> const SCEV *;
   auto GetConstantValue(const SCEV *scev, int *out) -> bool;
+
+  // Decompose an Add operand into a coefficient and a base term so like terms can be merged:
+  // 3*x has coefficient 3 and base x; a bare term has coefficient 1.
+  auto SplitAffineTerm(const SCEV *scev, const SCEV **base) -> int;
+  auto GetBinomialCoefficient(const SCEV *iteration, int order) -> const SCEV *;
 
   // Structural uniquing: an equal candidate returns the previously created node; otherwise the
   // candidate is adopted into owned_scevs_ and returned.

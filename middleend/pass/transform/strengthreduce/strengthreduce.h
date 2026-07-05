@@ -85,9 +85,10 @@ class StrengthReducePass : public TransformPass {
   auto ReduceGetPtr(mlir::var::VarGetPtrOp *get_ptr, analysis::Loop *loop, const LoopFrame &frame,
                     std::unordered_map<std::string, mlir::Value *> &pointer_cache) -> bool;
 
-  // Materialize a loop-invariant, recurrence-free SCEV as a value inserted before the preheader
-  // terminator; returns nullptr if the expression cannot be expanded there.
-  auto Expand(const analysis::SCEV *scev, mlir::Block *preheader) -> mlir::Value *;
+  // Materialize a SCEV as a value inserted before the terminator of `at`; returns nullptr if the
+  // expression cannot be expanded there. An enclosing loop's induction variable is materialized as
+  // that loop's existing header phi (which dominates `at` when the loop contains it).
+  auto Expand(const analysis::SCEV *scev, mlir::Block *at) -> mlir::Value *;
   auto MakeConstInt(int value, mlir::Block *preheader) -> mlir::Value *;
   template <typename BinaryOp>
   auto MakeBinary(mlir::Value *lhs, mlir::Value *rhs, mlir::Block *preheader) -> mlir::Value *;
@@ -98,6 +99,9 @@ class StrengthReducePass : public TransformPass {
 
   analysis::SCEVPass *scev_{nullptr};
   std::unordered_map<mlir::Operation *, mlir::Block *> op_to_block_;
+  // Every loop-header induction phi in the current function, keyed by its (uniqued) recurrence, so an
+  // enclosing loop's IV can be expanded back to a concrete dominating value for nested reduction.
+  std::unordered_map<const analysis::SCEV *, mlir::Value *> iv_values_;
   int reduced_count_{0};      // multiplies replaced by an additive IV (benchmark stat)
   int gep_reduced_count_{0};  // getptr addresses replaced by a pointer IV (benchmark stat)
 };

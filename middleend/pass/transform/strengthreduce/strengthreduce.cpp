@@ -49,6 +49,7 @@ auto StrengthReducePass::Run() -> void {
     // A value's defining block is needed to decide whether every use of a candidate stays in the
     // loop; build the map once per function.
     op_to_block_.clear();
+    iv_values_.clear();
     for (auto *cfg_node : mlir_function_cfg->GetNodes()) {
       auto *mlir_node = dynamic_cast<analysis::MLIRCFGNode *>(cfg_node);
       if (mlir_node == nullptr) {
@@ -56,6 +57,26 @@ auto StrengthReducePass::Run() -> void {
       }
       for (auto *operation : mlir_node->GetBlock()->operations_) {
         op_to_block_[operation] = mlir_node->GetBlock();
+      }
+    }
+
+    // Record each header phi that evolves as a recurrence, so a nested reduction can reuse the
+    // enclosing loop's induction variable as its stride instead of failing to expand it. A recurrence
+    // is uniqued, so the first phi carrying it is a valid representative for any later lookup.
+    for (auto *cfg_node : mlir_function_cfg->GetNodes()) {
+      auto *mlir_node = dynamic_cast<analysis::MLIRCFGNode *>(cfg_node);
+      if (mlir_node == nullptr) {
+        continue;
+      }
+      for (auto *operation : mlir_node->GetBlock()->operations_) {
+        auto *phi = mlir::DynamicOrNull<mlir::base::PhiOp>(operation);
+        if (phi == nullptr) {
+          continue;
+        }
+        const analysis::SCEV *scev = scev_->GetSCEV(phi->GetRes());
+        if (scev->GetKind() == analysis::SCEVKind::AddRec) {
+          iv_values_.emplace(scev, phi->GetRes());
+        }
       }
     }
 
@@ -156,14 +177,13 @@ auto StrengthReducePass::ReduceMul(mlir::base::MulOp *mul, analysis::Loop *loop,
     return false;
   }
   const auto *add_rec = static_cast<const analysis::SCEVAddRecExpr *>(scev);
-  if (add_rec->GetLoop() != loop) {
-    return false;
+  if (add_rec->GetLoop() != loop || !add_rec->IsAffine()) {
+    return false;  // a higher-order chain has no single additive stride to reduce to
   }
   const analysis::SCEV *start = add_rec->GetStart();
   const analysis::SCEV *step = add_rec->GetStep();
-  if (ContainsAddRec(start) || ContainsAddRec(step)) {
-    return false;  // needs an outer induction value to expand: out of scope, left untouched
-  }
+  // start/step must be fixed across this loop; an enclosing loop's induction variable qualifies (it
+  // is invariant here) and Expand materializes it, so a nested i*j reduces to a walking inner IV.
   if (!scev_->IsLoopInvariant(start, loop) || !scev_->IsLoopInvariant(step, loop)) {
     return false;
   }
@@ -250,8 +270,8 @@ auto StrengthReducePass::ReduceGetPtr(mlir::var::VarGetPtrOp *get_ptr, analysis:
     return false;
   }
   const auto *add_rec = static_cast<const analysis::SCEVAddRecExpr *>(scev);
-  if (add_rec->GetLoop() != loop) {
-    return false;
+  if (add_rec->GetLoop() != loop || !add_rec->IsAffine()) {
+    return false;  // a higher-order chain has no single constant stride for a walking pointer
   }
   const analysis::SCEV *start = add_rec->GetStart();
   const analysis::SCEV *step = add_rec->GetStep();
@@ -436,8 +456,19 @@ auto StrengthReducePass::Expand(const analysis::SCEV *scev, mlir::Block *prehead
       }
       return MakeBinary<mlir::base::DivOp>(lhs, rhs, preheader);
     }
+    case analysis::SCEVKind::AddRec: {
+      // The only recurrence expandable here is an enclosing loop's induction variable, reused as its
+      // existing header phi. Requiring that loop to contain the insertion block guarantees the phi
+      // dominates it; anything else (or an unrecorded recurrence) cannot be materialized.
+      const auto *add_rec = static_cast<const analysis::SCEVAddRecExpr *>(scev);
+      if (!add_rec->GetLoop()->Contains(preheader)) {
+        return nullptr;
+      }
+      auto iter = iv_values_.find(scev);
+      return iter == iv_values_.end() ? nullptr : iter->second;
+    }
     default:
-      return nullptr;  // an AddRec is filtered out before Expand is ever called
+      return nullptr;
   }
 }
 

@@ -62,7 +62,22 @@ auto ToString(const SCEV *scev) -> std::string {
     }
     case SCEVKind::AddRec: {
       const auto *add_rec = static_cast<const SCEVAddRecExpr *>(scev);
-      return "{" + ToString(add_rec->GetStart()) + ",+," + ToString(add_rec->GetStep()) + "}";
+      std::string text = "{" + ToString(add_rec->GetOperands()[0]);
+      for (size_t index = 1; index < add_rec->GetOperands().size(); ++index) {
+        text += ",+," + ToString(add_rec->GetOperands()[index]);
+      }
+      return text + "}";
+    }
+    case SCEVKind::SMax:
+    case SCEVKind::UMin: {
+      const auto *commutative = static_cast<const SCEVCommutativeExpr *>(scev);
+      const std::string separator = scev->GetKind() == SCEVKind::SMax ? " smax " : " umin ";
+      std::string text = "(";
+      for (size_t index = 0; index < commutative->GetOperands().size(); ++index) {
+        text += (index != 0 ? separator : "");
+        text += ToString(commutative->GetOperands()[index]);
+      }
+      return text + ")";
     }
     case SCEVKind::Div: {
       const auto *div = static_cast<const SCEVDivExpr *>(scev);
@@ -144,9 +159,24 @@ auto SCEVPass::Unique(SCEV *candidate) -> const SCEV * {
       key = "U" + PtrKey(static_cast<SCEVUnknown *>(candidate)->GetValue());
       break;
     case SCEVKind::Add:
-    case SCEVKind::Mul: {
+    case SCEVKind::Mul:
+    case SCEVKind::SMax:
+    case SCEVKind::UMin: {
       auto *commutative = static_cast<SCEVCommutativeExpr *>(candidate);
-      key = candidate->GetKind() == SCEVKind::Add ? "A" : "M";
+      switch (candidate->GetKind()) {
+        case SCEVKind::Add:
+          key = "A";
+          break;
+        case SCEVKind::Mul:
+          key = "M";
+          break;
+        case SCEVKind::SMax:
+          key = "X";
+          break;
+        default:
+          key = "N";
+          break;
+      }
       for (const auto *operand : commutative->GetOperands()) {
         key += PtrKey(operand) + ",";
       }
@@ -154,7 +184,10 @@ auto SCEVPass::Unique(SCEV *candidate) -> const SCEV * {
     }
     case SCEVKind::AddRec: {
       auto *add_rec = static_cast<SCEVAddRecExpr *>(candidate);
-      key = "R" + PtrKey(add_rec->GetLoop()) + ":" + PtrKey(add_rec->GetStart()) + ":" + PtrKey(add_rec->GetStep());
+      key = "R" + PtrKey(add_rec->GetLoop()) + (add_rec->IsNoWrap() ? "!" : "") + ":";
+      for (const auto *operand : add_rec->GetOperands()) {
+        key += PtrKey(operand) + ",";
+      }
       break;
     }
     case SCEVKind::Div: {
@@ -199,22 +232,40 @@ auto SCEVPass::GetAddExpr(std::vector<const SCEV *> operands) -> const SCEV * {
     }
   }
 
-  // Fold integer constants together and combine same-loop recurrences: {a1,+,s1}+{a2,+,s2} on the
-  // same loop is {a1+a2,+,s1+s2}. Both folds are exact under modular arithmetic.
+  // Bucket operands: fold integer constants, gather recurrences to merge per loop, and combine like
+  // terms (c1*x + c2*x = (c1+c2)*x, so also x - x = 0) among everything else. The coefficient map is
+  // keyed by the uniqued base pointer; term_order preserves a stable, deterministic output order.
   int constant_sum = 0;
   std::vector<const SCEV *> recurrences;
-  std::vector<const SCEV *> others;
+  std::vector<const SCEV *> term_order;
+  std::unordered_map<const SCEV *, int> coefficients;
   for (const auto *operand : flat) {
     if (operand->GetKind() == SCEVKind::Constant && static_cast<const SCEVConstant *>(operand)->IsInt()) {
       constant_sum += static_cast<const SCEVConstant *>(operand)->GetInt();
     } else if (operand->GetKind() == SCEVKind::AddRec) {
       recurrences.emplace_back(operand);
     } else {
-      others.emplace_back(operand);
+      const SCEV *base = nullptr;
+      int coefficient = SplitAffineTerm(operand, &base);
+      if (coefficients.emplace(base, 0).second) {
+        term_order.emplace_back(base);
+      }
+      coefficients[base] += coefficient;
     }
   }
 
-  // Merge recurrences that share a loop.
+  // Materialize the non-recurrence terms, dropping any whose coefficient cancelled to zero.
+  std::vector<const SCEV *> others;
+  for (const auto *base : term_order) {
+    int coefficient = coefficients[base];
+    if (coefficient == 0) {
+      continue;
+    }
+    others.emplace_back(coefficient == 1 ? base : GetMulExpr({GetConstant(coefficient), base}));
+  }
+
+  // Merge recurrences that share a loop, operand-wise; a shorter chain is padded with zero steps.
+  // {a0,+,a1,+,...} + {b0,+,b1,+,...} on the same loop is {a0+b0,+,a1+b1,+,...}, exact under wrap.
   std::vector<const SCEV *> merged_recurrences;
   for (const auto *recurrence : recurrences) {
     const auto *add_rec = static_cast<const SCEVAddRecExpr *>(recurrence);
@@ -222,8 +273,17 @@ auto SCEVPass::GetAddExpr(std::vector<const SCEV *> operands) -> const SCEV * {
     for (auto &existing : merged_recurrences) {
       const auto *existing_rec = static_cast<const SCEVAddRecExpr *>(existing);
       if (existing_rec->GetLoop() == add_rec->GetLoop()) {
-        existing = GetAddRecExpr(GetAddExpr({existing_rec->GetStart(), add_rec->GetStart()}),
-                                 GetAddExpr({existing_rec->GetStep(), add_rec->GetStep()}), add_rec->GetLoop());
+        const auto &left_ops = existing_rec->GetOperands();
+        const auto &right_ops = add_rec->GetOperands();
+        size_t count = std::max(left_ops.size(), right_ops.size());
+        std::vector<const SCEV *> sum;
+        sum.reserve(count);
+        for (size_t index = 0; index < count; ++index) {
+          const SCEV *left = index < left_ops.size() ? left_ops[index] : GetConstant(0);
+          const SCEV *right = index < right_ops.size() ? right_ops[index] : GetConstant(0);
+          sum.emplace_back(GetAddExpr({left, right}));
+        }
+        existing = GetAddRecExpr(sum, add_rec->GetLoop(), existing_rec->IsNoWrap() && add_rec->IsNoWrap());
         merged = true;
         break;
       }
@@ -234,7 +294,7 @@ auto SCEVPass::GetAddExpr(std::vector<const SCEV *> operands) -> const SCEV * {
   }
 
   // If exactly one recurrence remains and every other term is invariant in its loop, fold the
-  // invariant part into the recurrence's start: {a,+,s} + c = {a+c,+,s}.
+  // invariant part into the recurrence's start: {a0,+,...} + c = {a0+c,+,...}.
   if (merged_recurrences.size() == 1) {
     const auto *add_rec = static_cast<const SCEVAddRecExpr *>(merged_recurrences[0]);
     bool others_invariant = std::all_of(others.begin(), others.end(),
@@ -245,7 +305,9 @@ auto SCEVPass::GetAddExpr(std::vector<const SCEV *> operands) -> const SCEV * {
       if (constant_sum != 0) {
         start_terms.emplace_back(GetConstant(constant_sum));
       }
-      return GetAddRecExpr(GetAddExpr(start_terms), add_rec->GetStep(), add_rec->GetLoop());
+      std::vector<const SCEV *> new_operands(add_rec->GetOperands().begin(), add_rec->GetOperands().end());
+      new_operands[0] = GetAddExpr(start_terms);
+      return GetAddRecExpr(new_operands, add_rec->GetLoop(), add_rec->IsNoWrap());
     }
   }
 
@@ -286,27 +348,41 @@ auto SCEVPass::GetMulExpr(std::vector<const SCEV *> operands) -> const SCEV * {
     return GetConstant(0);
   }
 
-  // Distribute a constant/invariant factor into a single recurrence: {a,+,s} * k = {a*k,+,s*k}.
-  // This is what turns a loop-variant multiply into an additive recurrence for strength reduction.
-  std::vector<const SCEV *> recurrences;
-  std::vector<const SCEV *> non_recurrences;
-  for (const auto *operand : others) {
-    (operand->GetKind() == SCEVKind::AddRec ? recurrences : non_recurrences).emplace_back(operand);
-  }
-  if (recurrences.size() == 1) {
-    const auto *add_rec = static_cast<const SCEVAddRecExpr *>(recurrences[0]);
-    bool factors_invariant = std::all_of(non_recurrences.begin(), non_recurrences.end(), [&](const SCEV *factor) {
-      return IsLoopInvariant(factor, add_rec->GetLoop());
-    });
-    if (factors_invariant) {
-      std::vector<const SCEV *> factor_terms = non_recurrences;
-      if (constant_product != 1) {
-        factor_terms.emplace_back(GetConstant(constant_product));
-      }
-      const SCEV *factor = factor_terms.empty() ? GetConstant(1) : GetMulExpr(factor_terms);
-      return GetAddRecExpr(GetMulExpr({add_rec->GetStart(), factor}), GetMulExpr({add_rec->GetStep(), factor}),
-                           add_rec->GetLoop());
+  // Distribute the remaining factors into one recurrence whose loop they are all invariant in:
+  // {a0,+,a1,+,...} * k = {a0*k,+,a1*k,+,...}, since the value sum_j a_j*C(i,j) scales linearly. The
+  // chosen recurrence is the innermost one, so an outer induction variable (itself a recurrence of an
+  // enclosing loop, hence invariant here) becomes the stride -- this is what recognizes i*j in nested
+  // loops as {0,+,i}_inner. This is what turns a loop-variant multiply into an additive recurrence.
+  for (size_t chosen = 0; chosen < others.size(); ++chosen) {
+    if (others[chosen]->GetKind() != SCEVKind::AddRec) {
+      continue;
     }
+    const auto *add_rec = static_cast<const SCEVAddRecExpr *>(others[chosen]);
+    std::vector<const SCEV *> factor_terms;
+    bool factors_invariant = true;
+    for (size_t index = 0; index < others.size(); ++index) {
+      if (index == chosen) {
+        continue;
+      }
+      if (!IsLoopInvariant(others[index], add_rec->GetLoop())) {
+        factors_invariant = false;
+        break;
+      }
+      factor_terms.emplace_back(others[index]);
+    }
+    if (!factors_invariant) {
+      continue;
+    }
+    if (constant_product != 1) {
+      factor_terms.emplace_back(GetConstant(constant_product));
+    }
+    const SCEV *factor = factor_terms.empty() ? GetConstant(1) : GetMulExpr(factor_terms);
+    std::vector<const SCEV *> scaled;
+    scaled.reserve(add_rec->GetOperands().size());
+    for (const auto *operand : add_rec->GetOperands()) {
+      scaled.emplace_back(GetMulExpr({operand, factor}));
+    }
+    return GetAddRecExpr(scaled, add_rec->GetLoop(), false);
   }
 
   std::vector<const SCEV *> result = others;
@@ -321,12 +397,167 @@ auto SCEVPass::GetMulExpr(std::vector<const SCEV *> operands) -> const SCEV * {
 }
 
 auto SCEVPass::GetAddRecExpr(const SCEV *start, const SCEV *step, Loop *loop) -> const SCEV * {
-  // A zero step means the value never changes in the loop; it is simply its start.
-  if (step->GetKind() == SCEVKind::Constant && static_cast<const SCEVConstant *>(step)->IsInt() &&
-      static_cast<const SCEVConstant *>(step)->GetInt() == 0) {
-    return start;
+  return GetAddRecExpr(std::vector<const SCEV *>{start, step}, loop, false);
+}
+
+auto SCEVPass::GetAddRecExpr(std::vector<const SCEV *> operands, Loop *loop, bool no_wrap) -> const SCEV * {
+  // Trailing zero steps carry no information: {a,+,...,+,0} collapses to the shorter chain, and a
+  // recurrence that has decayed to just its start is that start.
+  auto is_zero = [](const SCEV *scev) {
+    return scev->GetKind() == SCEVKind::Constant && static_cast<const SCEVConstant *>(scev)->IsInt() &&
+           static_cast<const SCEVConstant *>(scev)->GetInt() == 0;
+  };
+  while (operands.size() > 1 && is_zero(operands.back())) {
+    operands.pop_back();
   }
-  return Unique(new SCEVAddRecExpr(start, step, loop, IntType()));
+  if (operands.size() == 1) {
+    return operands[0];
+  }
+  return Unique(new SCEVAddRecExpr(std::move(operands), loop, IntType(), no_wrap));
+}
+
+auto SCEVPass::GetDivExpr(const SCEV *lhs, const SCEV *rhs) -> const SCEV * {
+  if (rhs->GetKind() == SCEVKind::Constant && static_cast<const SCEVConstant *>(rhs)->IsInt()) {
+    int divisor = static_cast<const SCEVConstant *>(rhs)->GetInt();
+    if (divisor == 1) {
+      return lhs;
+    }
+    // SysY integer division truncates toward zero, which is exactly C++ int division.
+    if (divisor != 0 && lhs->GetKind() == SCEVKind::Constant && static_cast<const SCEVConstant *>(lhs)->IsInt()) {
+      return GetConstant(static_cast<const SCEVConstant *>(lhs)->GetInt() / divisor);
+    }
+  }
+  return Unique(new SCEVDivExpr(lhs, rhs, IntType()));
+}
+
+auto SCEVPass::GetSMaxExpr(std::vector<const SCEV *> operands) -> const SCEV * {
+  std::vector<const SCEV *> flat;
+  for (const auto *operand : operands) {
+    if (operand->GetKind() == SCEVKind::SMax) {
+      const auto &inner = static_cast<const SCEVSMaxExpr *>(operand)->GetOperands();
+      flat.insert(flat.end(), inner.begin(), inner.end());
+    } else {
+      flat.emplace_back(operand);
+    }
+  }
+  bool has_constant = false;
+  int constant_max = 0;
+  std::vector<const SCEV *> others;
+  for (const auto *operand : flat) {
+    if (operand->GetKind() == SCEVKind::Constant && static_cast<const SCEVConstant *>(operand)->IsInt()) {
+      int value = static_cast<const SCEVConstant *>(operand)->GetInt();
+      constant_max = has_constant ? std::max(constant_max, value) : value;
+      has_constant = true;
+    } else {
+      others.emplace_back(operand);
+    }
+  }
+  std::sort(others.begin(), others.end());
+  others.erase(std::unique(others.begin(), others.end()), others.end());
+  if (has_constant) {
+    others.emplace_back(GetConstant(constant_max));
+  }
+  if (others.empty()) {
+    return GetConstant(0);
+  }
+  if (others.size() == 1) {
+    return others[0];
+  }
+  std::sort(others.begin(), others.end());
+  return Unique(new SCEVSMaxExpr(SCEVKind::SMax, IntType(), std::move(others)));
+}
+
+auto SCEVPass::GetUMinExpr(std::vector<const SCEV *> operands) -> const SCEV * {
+  std::vector<const SCEV *> flat;
+  for (const auto *operand : operands) {
+    if (operand->GetKind() == SCEVKind::UMin) {
+      const auto &inner = static_cast<const SCEVUMinExpr *>(operand)->GetOperands();
+      flat.insert(flat.end(), inner.begin(), inner.end());
+    } else {
+      flat.emplace_back(operand);
+    }
+  }
+  bool has_constant = false;
+  uint32_t constant_min = 0;
+  std::vector<const SCEV *> others;
+  for (const auto *operand : flat) {
+    if (operand->GetKind() == SCEVKind::Constant && static_cast<const SCEVConstant *>(operand)->IsInt()) {
+      auto value = static_cast<uint32_t>(static_cast<const SCEVConstant *>(operand)->GetInt());
+      constant_min = has_constant ? std::min(constant_min, value) : value;
+      has_constant = true;
+    } else {
+      others.emplace_back(operand);
+    }
+  }
+  std::sort(others.begin(), others.end());
+  others.erase(std::unique(others.begin(), others.end()), others.end());
+  if (has_constant) {
+    others.emplace_back(GetConstant(static_cast<int>(constant_min)));
+  }
+  if (others.empty()) {
+    return GetConstant(0);
+  }
+  if (others.size() == 1) {
+    return others[0];
+  }
+  std::sort(others.begin(), others.end());
+  return Unique(new SCEVUMinExpr(SCEVKind::UMin, IntType(), std::move(others)));
+}
+
+auto SCEVPass::SplitAffineTerm(const SCEV *scev, const SCEV **base) -> int {
+  // A product with a single integer constant factor splits into that coefficient and the rest; any
+  // other term has coefficient 1. Constants are handled by the caller, never reaching here.
+  if (scev->GetKind() == SCEVKind::Mul) {
+    const auto &operands = static_cast<const SCEVMulExpr *>(scev)->GetOperands();
+    int coefficient = 1;
+    std::vector<const SCEV *> rest;
+    for (const auto *operand : operands) {
+      if (operand->GetKind() == SCEVKind::Constant && static_cast<const SCEVConstant *>(operand)->IsInt()) {
+        coefficient *= static_cast<const SCEVConstant *>(operand)->GetInt();
+      } else {
+        rest.emplace_back(operand);
+      }
+    }
+    if (coefficient != 1 && !rest.empty()) {
+      *base = rest.size() == 1 ? rest[0] : GetMulExpr(rest);
+      return coefficient;
+    }
+  }
+  *base = scev;
+  return 1;
+}
+
+auto SCEVPass::GetBinomialCoefficient(const SCEV *iteration, int order) -> const SCEV * {
+  // C(iteration, order) = iteration*(iteration-1)*...*(iteration-order+1) / order!. The product of
+  // `order` consecutive integers is always divisible by order!, so this is exact.
+  if (order == 0) {
+    return GetConstant(1);
+  }
+  std::vector<const SCEV *> factors;
+  factors.reserve(order);
+  for (int index = 0; index < order; ++index) {
+    factors.emplace_back(GetMinusSCEV(iteration, GetConstant(index)));
+  }
+  const SCEV *numerator = GetMulExpr(factors);
+  int64_t factorial = 1;
+  for (int index = 2; index <= order; ++index) {
+    factorial *= index;
+  }
+  return GetDivExpr(numerator, GetConstant(static_cast<int>(factorial)));
+}
+
+auto SCEVPass::EvaluateAtIteration(const SCEV *scev, const SCEV *iteration) -> const SCEV * {
+  // A value invariant in the recurrence's loop is unchanged by iterating; only an AddRec closes.
+  if (scev->GetKind() != SCEVKind::AddRec) {
+    return scev;
+  }
+  const auto &operands = static_cast<const SCEVAddRecExpr *>(scev)->GetOperands();
+  std::vector<const SCEV *> terms;
+  terms.reserve(operands.size());
+  for (size_t order = 0; order < operands.size(); ++order) {
+    terms.emplace_back(GetMulExpr({operands[order], GetBinomialCoefficient(iteration, static_cast<int>(order))}));
+  }
+  return GetAddExpr(terms);
 }
 
 // ---- Loop invariance ---------------------------------------------------------------------------
@@ -349,7 +580,9 @@ auto SCEVPass::IsLoopInvariant(const SCEV *scev, Loop *loop) -> bool {
     case SCEVKind::Unknown:
       return !DefinedInLoop(static_cast<const SCEVUnknown *>(scev)->GetValue(), loop);
     case SCEVKind::Add:
-    case SCEVKind::Mul: {
+    case SCEVKind::Mul:
+    case SCEVKind::SMax:
+    case SCEVKind::UMin: {
       const auto &operands = static_cast<const SCEVCommutativeExpr *>(scev)->GetOperands();
       return std::all_of(operands.begin(), operands.end(),
                          [&](const SCEV *operand) { return IsLoopInvariant(operand, loop); });
@@ -365,7 +598,9 @@ auto SCEVPass::IsLoopInvariant(const SCEV *scev, Loop *loop) -> bool {
       if (add_rec->GetLoop() == loop || !add_rec->GetLoop()->Contains(loop->GetHeader())) {
         return false;
       }
-      return IsLoopInvariant(add_rec->GetStart(), loop) && IsLoopInvariant(add_rec->GetStep(), loop);
+      const auto &operands = add_rec->GetOperands();
+      return std::all_of(operands.begin(), operands.end(),
+                         [&](const SCEV *operand) { return IsLoopInvariant(operand, loop); });
     }
   }
   return false;
@@ -429,7 +664,7 @@ auto SCEVPass::CreateSCEVForOperation(mlir::Operation *op, mlir::Value *result) 
     return GetConstant(constant->GetValue());
   }
   if (auto *div = mlir::DynamicOrNull<mlir::base::DivOp>(op)) {
-    return Unique(new SCEVDivExpr(GetSCEV(div->GetLHS()), GetSCEV(div->GetRHS()), IntType()));
+    return GetDivExpr(GetSCEV(div->GetLHS()), GetSCEV(div->GetRHS()));
   }
   if (auto *phi = mlir::DynamicOrNull<mlir::base::PhiOp>(op)) {
     auto *block = GetBlockOf(result);
@@ -492,10 +727,23 @@ auto SCEVPass::CreateAddRecFromPhi(mlir::base::PhiOp *phi, Loop *loop) -> const 
     return nullptr;
   }
   const SCEV *step = GetAddExpr(step_terms);
-  if (!IsLoopInvariant(step, loop)) {
-    return nullptr;
+  const SCEV *init_scev = GetSCEV(init_value);
+  // A loop-invariant step gives a plain affine recurrence {init,+,step}.
+  if (IsLoopInvariant(step, loop)) {
+    return GetAddRecExpr(init_scev, step, loop);
   }
-  return GetAddRecExpr(GetSCEV(init_value), step, loop);
+  // A step that is itself a recurrence of this loop (a running sum of another induction variable, as
+  // in `sum += i`) extends into a chain of recurrences: x_{n+1} = x_n + {s0,+,s1,+,...} makes x the
+  // chain {init,+,s0,+,s1,+,...}, evaluated as sum_j operand_j * C(i, j).
+  if (step->GetKind() == SCEVKind::AddRec && static_cast<const SCEVAddRecExpr *>(step)->GetLoop() == loop) {
+    const auto &step_operands = static_cast<const SCEVAddRecExpr *>(step)->GetOperands();
+    std::vector<const SCEV *> operands;
+    operands.reserve(step_operands.size() + 1);
+    operands.emplace_back(init_scev);
+    operands.insert(operands.end(), step_operands.begin(), step_operands.end());
+    return GetAddRecExpr(operands, loop, false);
+  }
+  return nullptr;
 }
 
 // ---- Backedge-taken / trip count ---------------------------------------------------------------
@@ -519,182 +767,190 @@ auto SCEVPass::GetBackedgeTakenCount(Loop *loop) -> const SCEV * {
 }
 
 auto SCEVPass::ComputeBackedgeTakenCount(Loop *loop) -> const SCEV * {
-  int64_t trip = GetConstantTripCount(loop);
-  if (trip <= 0) {
+  // The loop's trip count is the minimum over every analyzable exit of that exit's own trip count:
+  // whichever exit fires first stops the loop. The backedge is then taken (trip - 1) times.
+  const SCEV *trip = nullptr;
+  for (auto *block : loop->GetBlocks()) {
+    const SCEV *exit_trip = ComputeExitCount(loop, block);
+    if (exit_trip == nullptr) {
+      continue;
+    }
+    trip = (trip == nullptr) ? exit_trip : GetUMinExpr({trip, exit_trip});
+  }
+  if (trip == nullptr) {
     return GetUnknown(nullptr);
   }
-  return GetConstant(static_cast<int>(trip - 1));
+  return GetMinusSCEV(trip, GetConstant(1));
+}
+
+auto SCEVPass::ComputeExitCount(Loop *loop, mlir::Block *exiting) -> const SCEV * {
+  // An exiting block ends in a conditional branch that leaves the loop on exactly one edge.
+  if (exiting->operations_.empty()) {
+    return nullptr;
+  }
+  auto *cond_br = mlir::DynamicOrNull<mlir::base::CondBrOp>(exiting->operations_.back());
+  if (cond_br == nullptr) {
+    return nullptr;
+  }
+  bool true_in = loop->Contains(cond_br->GetTrueTarget());
+  bool false_in = loop->Contains(cond_br->GetFalseTarget());
+  if (true_in == false_in) {
+    return nullptr;  // not an exit test (both inside, or both outside)
+  }
+
+  mlir::Value *condition = StripCopy(cond_br->GetCondition());
+  if (condition == nullptr || condition->op_ == nullptr) {
+    return nullptr;
+  }
+  auto *compare = condition->op_;
+
+  // Recover the predicate as "continue the loop while (lhs pred rhs)". When the loop is entered on
+  // the false edge, the branch condition is negated.
+  enum class Predicate { LT, LE, GT, GE, NE, EQ, NONE };
+  Predicate predicate = Predicate::NONE;
+  mlir::Value *lhs_value = nullptr;
+  mlir::Value *rhs_value = nullptr;
+  if (auto *less = mlir::DynamicOrNull<mlir::base::LessOp>(compare)) {
+    predicate = Predicate::LT;
+    lhs_value = less->GetLHS();
+    rhs_value = less->GetRHS();
+  } else if (auto *le = mlir::DynamicOrNull<mlir::base::LessEqualOp>(compare)) {
+    predicate = Predicate::LE;
+    lhs_value = le->GetLHS();
+    rhs_value = le->GetRHS();
+  } else if (auto *gt = mlir::DynamicOrNull<mlir::base::GreaterOp>(compare)) {
+    predicate = Predicate::GT;
+    lhs_value = gt->GetLHS();
+    rhs_value = gt->GetRHS();
+  } else if (auto *ge = mlir::DynamicOrNull<mlir::base::GreaterEqualOp>(compare)) {
+    predicate = Predicate::GE;
+    lhs_value = ge->GetLHS();
+    rhs_value = ge->GetRHS();
+  } else if (auto *ne = mlir::DynamicOrNull<mlir::base::NotEqualOp>(compare)) {
+    predicate = Predicate::NE;
+    lhs_value = ne->GetLHS();
+    rhs_value = ne->GetRHS();
+  } else if (auto *eq = mlir::DynamicOrNull<mlir::base::EqualOp>(compare)) {
+    predicate = Predicate::EQ;
+    lhs_value = eq->GetLHS();
+    rhs_value = eq->GetRHS();
+  } else {
+    return nullptr;
+  }
+
+  const SCEV *lhs_scev = GetSCEV(lhs_value);
+  const SCEV *rhs_scev = GetSCEV(rhs_value);
+
+  // Orient so the induction variable is on the left; swap the predicate if it is on the right.
+  auto swap_predicate = [](Predicate value) {
+    switch (value) {
+      case Predicate::LT:
+        return Predicate::GT;
+      case Predicate::LE:
+        return Predicate::GE;
+      case Predicate::GT:
+        return Predicate::LT;
+      case Predicate::GE:
+        return Predicate::LE;
+      default:
+        return value;  // NE/EQ are symmetric
+    }
+  };
+  const SCEVAddRecExpr *iv = nullptr;
+  const SCEV *bound = nullptr;
+  if (lhs_scev->GetKind() == SCEVKind::AddRec && static_cast<const SCEVAddRecExpr *>(lhs_scev)->GetLoop() == loop &&
+      IsLoopInvariant(rhs_scev, loop)) {
+    iv = static_cast<const SCEVAddRecExpr *>(lhs_scev);
+    bound = rhs_scev;
+  } else if (rhs_scev->GetKind() == SCEVKind::AddRec &&
+             static_cast<const SCEVAddRecExpr *>(rhs_scev)->GetLoop() == loop && IsLoopInvariant(lhs_scev, loop)) {
+    iv = static_cast<const SCEVAddRecExpr *>(rhs_scev);
+    bound = lhs_scev;
+    predicate = swap_predicate(predicate);
+  } else {
+    return nullptr;
+  }
+
+  // Negate the predicate when the body is entered on the false edge, so it always reads as the
+  // loop-continue condition.
+  if (false_in) {
+    switch (predicate) {
+      case Predicate::LT:
+        predicate = Predicate::GE;
+        break;
+      case Predicate::LE:
+        predicate = Predicate::GT;
+        break;
+      case Predicate::GT:
+        predicate = Predicate::LE;
+        break;
+      case Predicate::GE:
+        predicate = Predicate::LT;
+        break;
+      case Predicate::NE:
+        predicate = Predicate::EQ;
+        break;
+      case Predicate::EQ:
+        predicate = Predicate::NE;
+        break;
+      default:
+        break;
+    }
+  }
+
+  // The step sign must be a known constant to choose the monotonic direction; start and bound may be
+  // symbolic, yielding a symbolic trip count.
+  if (!iv->IsAffine()) {
+    return nullptr;
+  }
+  int step = 0;
+  if (!GetConstantValue(iv->GetStep(), &step) || step == 0) {
+    return nullptr;
+  }
+  const SCEV *start = iv->GetStart();
+
+  // Trip count for "continue while (start + i*step pred bound)". SMax(0, ...) clamps the empty case,
+  // and ceil((numerator)/divisor) with divisor > 0 is floor((numerator + divisor - 1)/divisor).
+  // Assumes the canonical monotonic form does not wrap; this is the only no-wrap assumption used.
+  auto ceil_div = [&](const SCEV *numerator, int divisor) -> const SCEV * {
+    return GetDivExpr(GetAddExpr({numerator, GetConstant(divisor - 1)}), GetConstant(divisor));
+  };
+  auto clamp = [&](const SCEV *count) -> const SCEV * { return GetSMaxExpr({GetConstant(0), count}); };
+  switch (predicate) {
+    case Predicate::LT:
+      return step > 0 ? clamp(ceil_div(GetMinusSCEV(bound, start), step)) : nullptr;
+    case Predicate::LE:
+      return step > 0 ? clamp(ceil_div(GetMinusSCEV(GetAddExpr({bound, GetConstant(1)}), start), step)) : nullptr;
+    case Predicate::GT:
+      return step < 0 ? clamp(ceil_div(GetMinusSCEV(start, bound), -step)) : nullptr;
+    case Predicate::GE:
+      return step < 0 ? clamp(ceil_div(GetMinusSCEV(start, GetAddExpr({bound, GetConstant(-1)})), -step)) : nullptr;
+    case Predicate::NE: {
+      // The bound is reached exactly only for a compile-time-known monotone distance; otherwise the
+      // loop is not statically bounded through this exit.
+      int start_value = 0;
+      int limit_value = 0;
+      if (!GetConstantValue(start, &start_value) || !GetConstantValue(bound, &limit_value)) {
+        return nullptr;
+      }
+      int64_t distance = static_cast<int64_t>(limit_value) - start_value;
+      if (distance == 0) {
+        return GetConstant(0);
+      }
+      if (distance % step != 0 || (distance > 0) != (step > 0)) {
+        return nullptr;
+      }
+      return GetConstant(static_cast<int>(distance / step));
+    }
+    default:
+      return nullptr;
+  }
 }
 
 auto SCEVPass::GetConstantTripCount(Loop *loop) -> int64_t {
-  // Find an exiting block: a loop block whose conditional branch leaves the loop on one edge.
-  for (auto *block : loop->GetBlocks()) {
-    if (block->operations_.empty()) {
-      continue;
-    }
-    auto *cond_br = mlir::DynamicOrNull<mlir::base::CondBrOp>(block->operations_.back());
-    if (cond_br == nullptr) {
-      continue;
-    }
-    bool true_in = loop->Contains(cond_br->GetTrueTarget());
-    bool false_in = loop->Contains(cond_br->GetFalseTarget());
-    if (true_in == false_in) {
-      continue;  // not an exit test (both inside, or both outside)
-    }
-
-    mlir::Value *condition = StripCopy(cond_br->GetCondition());
-    if (condition == nullptr || condition->op_ == nullptr) {
-      continue;
-    }
-    auto *compare = condition->op_;
-
-    // Recover the predicate as "continue the loop while (lhs pred rhs)". When the loop is entered on
-    // the false edge, the branch condition is negated.
-    enum class Predicate { LT, LE, GT, GE, NE, EQ, NONE };
-    Predicate predicate = Predicate::NONE;
-    if (Is<mlir::base::LessOp>(compare)) {
-      predicate = Predicate::LT;
-    } else if (Is<mlir::base::LessEqualOp>(compare)) {
-      predicate = Predicate::LE;
-    } else if (Is<mlir::base::GreaterOp>(compare)) {
-      predicate = Predicate::GT;
-    } else if (Is<mlir::base::GreaterEqualOp>(compare)) {
-      predicate = Predicate::GE;
-    } else if (Is<mlir::base::NotEqualOp>(compare)) {
-      predicate = Predicate::NE;
-    } else if (Is<mlir::base::EqualOp>(compare)) {
-      predicate = Predicate::EQ;
-    } else {
-      continue;
-    }
-
-    mlir::Value *lhs_value = nullptr;
-    mlir::Value *rhs_value = nullptr;
-    if (auto *less = mlir::DynamicOrNull<mlir::base::LessOp>(compare)) {
-      lhs_value = less->GetLHS();
-      rhs_value = less->GetRHS();
-    } else if (auto *le = mlir::DynamicOrNull<mlir::base::LessEqualOp>(compare)) {
-      lhs_value = le->GetLHS();
-      rhs_value = le->GetRHS();
-    } else if (auto *gt = mlir::DynamicOrNull<mlir::base::GreaterOp>(compare)) {
-      lhs_value = gt->GetLHS();
-      rhs_value = gt->GetRHS();
-    } else if (auto *ge = mlir::DynamicOrNull<mlir::base::GreaterEqualOp>(compare)) {
-      lhs_value = ge->GetLHS();
-      rhs_value = ge->GetRHS();
-    } else if (auto *ne = mlir::DynamicOrNull<mlir::base::NotEqualOp>(compare)) {
-      lhs_value = ne->GetLHS();
-      rhs_value = ne->GetRHS();
-    } else if (auto *eq = mlir::DynamicOrNull<mlir::base::EqualOp>(compare)) {
-      lhs_value = eq->GetLHS();
-      rhs_value = eq->GetRHS();
-    }
-
-    const SCEV *lhs_scev = GetSCEV(lhs_value);
-    const SCEV *rhs_scev = GetSCEV(rhs_value);
-
-    // Orient so the induction variable is on the left; swap the predicate if it is on the right.
-    auto swap_predicate = [](Predicate value) {
-      switch (value) {
-        case Predicate::LT:
-          return Predicate::GT;
-        case Predicate::LE:
-          return Predicate::GE;
-        case Predicate::GT:
-          return Predicate::LT;
-        case Predicate::GE:
-          return Predicate::LE;
-        default:
-          return value;  // NE/EQ are symmetric
-      }
-    };
-    const SCEVAddRecExpr *iv = nullptr;
-    const SCEV *bound = nullptr;
-    if (lhs_scev->GetKind() == SCEVKind::AddRec && static_cast<const SCEVAddRecExpr *>(lhs_scev)->GetLoop() == loop &&
-        IsLoopInvariant(rhs_scev, loop)) {
-      iv = static_cast<const SCEVAddRecExpr *>(lhs_scev);
-      bound = rhs_scev;
-    } else if (rhs_scev->GetKind() == SCEVKind::AddRec &&
-               static_cast<const SCEVAddRecExpr *>(rhs_scev)->GetLoop() == loop && IsLoopInvariant(lhs_scev, loop)) {
-      iv = static_cast<const SCEVAddRecExpr *>(rhs_scev);
-      bound = lhs_scev;
-      predicate = swap_predicate(predicate);
-    } else {
-      continue;
-    }
-
-    // Negate the predicate when the body is entered on the false edge, so it always reads as the
-    // loop-continue condition.
-    if (false_in) {
-      switch (predicate) {
-        case Predicate::LT:
-          predicate = Predicate::GE;
-          break;
-        case Predicate::LE:
-          predicate = Predicate::GT;
-          break;
-        case Predicate::GT:
-          predicate = Predicate::LE;
-          break;
-        case Predicate::GE:
-          predicate = Predicate::LT;
-          break;
-        case Predicate::NE:
-          predicate = Predicate::EQ;
-          break;
-        case Predicate::EQ:
-          predicate = Predicate::NE;
-          break;
-        default:
-          break;
-      }
-    }
-
-    int start = 0;
-    int step = 0;
-    int limit = 0;
-    if (!GetConstantValue(iv->GetStart(), &start) || !GetConstantValue(iv->GetStep(), &step) ||
-        !GetConstantValue(bound, &limit)) {
-      return -1;
-    }
-    if (step == 0) {
-      return -1;
-    }
-
-    // Body-execution count for "continue while (start + i*step pred limit)". Assumes the canonical
-    // monotonic form does not wrap; this is the only place a no-wrap assumption is used.
-    auto ceil_div = [](int64_t numerator, int64_t denominator) -> int64_t {
-      if (denominator < 0) {
-        numerator = -numerator;
-        denominator = -denominator;
-      }
-      if (numerator <= 0) {
-        return 0;
-      }
-      return (numerator + denominator - 1) / denominator;
-    };
-    switch (predicate) {
-      case Predicate::LT:
-        return step > 0 ? ceil_div(static_cast<int64_t>(limit) - start, step) : -1;
-      case Predicate::LE:
-        return step > 0 ? ceil_div(static_cast<int64_t>(limit) + 1 - start, step) : -1;
-      case Predicate::GT:
-        return step < 0 ? ceil_div(static_cast<int64_t>(start) - limit, -step) : -1;
-      case Predicate::GE:
-        return step < 0 ? ceil_div(static_cast<int64_t>(start) - limit + 1, -step) : -1;
-      case Predicate::NE: {
-        int64_t distance = static_cast<int64_t>(limit) - start;
-        if (distance == 0) {
-          return 0;
-        }
-        if (distance % step != 0 || (distance > 0) != (step > 0)) {
-          return -1;  // never reaches the bound exactly: not a statically bounded loop
-        }
-        return distance / step;
-      }
-      default:
-        return -1;
-    }
+  int backedge = 0;
+  if (GetConstantValue(GetBackedgeTakenCount(loop), &backedge) && backedge >= 0) {
+    return static_cast<int64_t>(backedge) + 1;
   }
   return -1;
 }

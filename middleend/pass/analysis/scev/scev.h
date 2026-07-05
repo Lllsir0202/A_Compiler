@@ -17,7 +17,7 @@ class Loop;
  * on it, while `DynamicOrNull`-style dynamic_cast still works for typed access; this mirrors how
  * the rest of the IR identifies operations.
  */
-enum class SCEVKind : uint8_t { Constant, Unknown, Add, Mul, AddRec, Div };
+enum class SCEVKind : uint8_t { Constant, Unknown, Add, Mul, AddRec, Div, SMax, UMin };
 
 /**
  * @brief Base class of every scalar-evolution expression. Nodes are immutable after construction,
@@ -70,8 +70,9 @@ class SCEVUnknown : public SCEV {
 };
 
 /**
- * @brief N-ary commutative sum or product. Operands are stored in a canonical order (uniqued
- * children sorted by pointer), so two structurally equal expressions produce the same node.
+ * @brief N-ary commutative expression (sum, product, signed-max or unsigned-min). Operands are
+ * stored in a canonical order (uniqued children sorted by pointer), so two structurally equal
+ * expressions produce the same node.
  */
 class SCEVCommutativeExpr : public SCEV {
  public:
@@ -93,30 +94,46 @@ class SCEVMulExpr : public SCEVCommutativeExpr {
   using SCEVCommutativeExpr::SCEVCommutativeExpr;
 };
 
-/**
- * @brief The add-recurrence {start, +, step}_L: on iteration i of loop L this value equals
- * start + i * step. `start` and `step` are invariant in L (step may itself be an AddRec of an
- * enclosing loop, which is how nested inductions are represented). It is affine when step does not
- * vary in L, which is the only form this analysis constructs.
- */
-class SCEVAddRecExpr : public SCEV {
- public:
-  auto GetStart() const -> const SCEV * { return start_; }
-  auto GetStep() const -> const SCEV * { return step_; }
-  auto GetLoop() const -> Loop * { return loop_; }
-
- private:
+class SCEVSMaxExpr : public SCEVCommutativeExpr {
   friend class SCEVPass;
-  SCEVAddRecExpr(const SCEV *start, const SCEV *step, Loop *loop, type::Type *type)
-      : SCEV(SCEVKind::AddRec, type), start_(start), step_(step), loop_(loop) {}
-  const SCEV *start_;
-  const SCEV *step_;
-  Loop *loop_;
+  using SCEVCommutativeExpr::SCEVCommutativeExpr;
+};
+
+class SCEVUMinExpr : public SCEVCommutativeExpr {
+  friend class SCEVPass;
+  using SCEVCommutativeExpr::SCEVCommutativeExpr;
 };
 
 /**
- * @brief Signed division lhs / rhs, produced for base::DivOp. It keeps division visible for index
- * and stride reasoning without asserting any recurrence, so it never introduces an unsound fold.
+ * @brief A chain of recurrences {a0, +, a1, +, ... , +, ak} on loop L. The value on iteration i is
+ * the Newton series sum_j a_j * C(i, j); an affine recurrence is the two-operand case {start, +,
+ * step}. Higher-order chains capture, e.g., a running sum of an induction variable. Every operand is
+ * invariant in L except that a later operand may itself be a recurrence of an enclosing loop, which
+ * is how nested inductions are represented.
+ */
+class SCEVAddRecExpr : public SCEV {
+ public:
+  auto GetOperands() const -> const std::vector<const SCEV *> & { return operands_; }
+  auto GetStart() const -> const SCEV * { return operands_.front(); }
+  auto GetLoop() const -> Loop * { return loop_; }
+  auto IsAffine() const -> bool { return operands_.size() == 2; }
+  // The step of an affine recurrence; only meaningful when IsAffine().
+  auto GetStep() const -> const SCEV * { return operands_[1]; }
+  // True when the recurrence is known not to wrap over its iteration range (see SCEVPass).
+  auto IsNoWrap() const -> bool { return no_wrap_; }
+
+ private:
+  friend class SCEVPass;
+  SCEVAddRecExpr(std::vector<const SCEV *> operands, Loop *loop, type::Type *type, bool no_wrap)
+      : SCEV(SCEVKind::AddRec, type), operands_(std::move(operands)), loop_(loop), no_wrap_(no_wrap) {}
+  std::vector<const SCEV *> operands_;
+  Loop *loop_;
+  bool no_wrap_;
+};
+
+/**
+ * @brief Signed division lhs / rhs, produced for base::DivOp and for ceiling-divisions in trip
+ * counts. It keeps division visible for index and stride reasoning without asserting any recurrence.
  */
 class SCEVDivExpr : public SCEV {
  public:
@@ -125,7 +142,8 @@ class SCEVDivExpr : public SCEV {
 
  private:
   friend class SCEVPass;
-  SCEVDivExpr(const SCEV *lhs, const SCEV *rhs, type::Type *type) : SCEV(SCEVKind::Div, type), lhs_(lhs), rhs_(rhs) {}
+  SCEVDivExpr(const SCEV *lhs, const SCEV *rhs, type::Type *type)
+      : SCEV(SCEVKind::Div, type), lhs_(lhs), rhs_(rhs) {}
   const SCEV *lhs_;
   const SCEV *rhs_;
 };
