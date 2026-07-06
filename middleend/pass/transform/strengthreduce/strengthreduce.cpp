@@ -25,6 +25,17 @@
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()
 
 namespace middleend::pass::transform {
+namespace {
+auto PtrKey(const void *pointer) -> std::string { return std::to_string(reinterpret_cast<uintptr_t>(pointer)); }
+
+// A recurrence starts at `anchor`; another member of the same family starts at `start`. Their
+// difference is the loop-invariant offset that derives one from the other, or nullptr-equivalent zero.
+auto IsZeroConstant(const analysis::SCEV *scev) -> bool {
+  return scev->GetKind() == analysis::SCEVKind::Constant &&
+         static_cast<const analysis::SCEVConstant *>(scev)->IsInt() &&
+         static_cast<const analysis::SCEVConstant *>(scev)->GetInt() == 0;
+}
+}  // namespace
 
 auto StrengthReducePass::Run() -> void {
   PreRun();
@@ -150,24 +161,26 @@ auto StrengthReducePass::RunOnLoop(analysis::MLIRFunctionCFG *function_cfg, anal
 
   LoopFrame frame{preheader, latch, header};
   bool changed = false;
-  // Uniqued recurrences let identical multiplies share one IV; identical addresses share one pointer.
-  std::unordered_map<const analysis::SCEV *, mlir::Value *> scalar_cache;
-  std::unordered_map<std::string, mlir::Value *> pointer_cache;
+  // Sharing is scoped to this loop: one canonical IV per step (per base+indices for pointers), reused
+  // by every recurrence that differs only by a loop-invariant offset.
+  scalar_families_.clear();
+  scalar_members_.clear();
+  pointer_families_.clear();
+  pointer_members_.clear();
   for (auto *block : loop->GetBlocks()) {
     std::vector<mlir::Operation *> snapshot = block->operations_;
     for (auto *operation : snapshot) {
       if (auto *mul = mlir::DynamicOrNull<mlir::base::MulOp>(operation)) {
-        changed = ReduceMul(mul, loop, frame, scalar_cache) || changed;
+        changed = ReduceMul(mul, loop, frame) || changed;
       } else if (auto *get_ptr = mlir::DynamicOrNull<mlir::var::VarGetPtrOp>(operation)) {
-        changed = ReduceGetPtr(get_ptr, loop, frame, pointer_cache) || changed;
+        changed = ReduceGetPtr(get_ptr, loop, frame) || changed;
       }
     }
   }
   return changed;
 }
 
-auto StrengthReducePass::ReduceMul(mlir::base::MulOp *mul, analysis::Loop *loop, const LoopFrame &frame,
-                                   std::unordered_map<const analysis::SCEV *, mlir::Value *> &scalar_cache) -> bool {
+auto StrengthReducePass::ReduceMul(mlir::base::MulOp *mul, analysis::Loop *loop, const LoopFrame &frame) -> bool {
   auto *result = mul->GetRes();
   if (result->GetType() == nullptr || result->GetType()->GetKind() != type::TypeKind::INT) {
     return false;
@@ -191,41 +204,49 @@ auto StrengthReducePass::ReduceMul(mlir::base::MulOp *mul, analysis::Loop *loop,
     return false;
   }
 
-  mlir::Value *iv = nullptr;
-  auto cached = scalar_cache.find(scev);
-  if (cached != scalar_cache.end()) {
-    iv = cached->second;
+  mlir::Value *member = nullptr;
+  auto cached = scalar_members_.find(scev);
+  if (cached != scalar_members_.end()) {
+    member = cached->second;  // an identical recurrence already has a value
   } else {
-    mlir::Value *init = Expand(start, frame.preheader);
-    mlir::Value *stride = Expand(step, frame.preheader);
-    if (init == nullptr || stride == nullptr) {
-      return false;
+    auto family = scalar_families_.find(step);
+    if (family == scalar_families_.end()) {
+      // First recurrence of this step: build the canonical IV {start, +, step}.
+      mlir::Value *init = Expand(start, frame.preheader);
+      mlir::Value *stride = Expand(step, frame.preheader);
+      if (init == nullptr || stride == nullptr) {
+        return false;
+      }
+      member = EmitScalarIV(init, stride, frame, result->GetType());
+      scalar_families_[step] = IVFamily{member, start};
+    } else {
+      // Same step, different start: this value is canonical + (start - anchor), a shared phi plus one
+      // invariant offset add -- no extra phi or latch update.
+      const analysis::SCEV *delta = scev_->GetMinusSCEV(start, family->second.anchor);
+      if (IsZeroConstant(delta)) {
+        member = family->second.canonical;
+      } else if (mlir::Value *offset = Expand(delta, frame.preheader)) {
+        auto *derived = GET_MLIR_CONTEXT()->CreateValue();
+        derived->SetType(result->GetType());
+        auto *add_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::AddOp>(derived, family->second.canonical, offset);
+        family->second.canonical->AddUse(add_op, 0);
+        offset->AddUse(add_op, 1);
+        InsertAfterPhis(add_op, frame.header);
+        member = derived;
+      } else {
+        // The offset could not be materialized; fall back to an independent IV.
+        mlir::Value *init = Expand(start, frame.preheader);
+        mlir::Value *stride = Expand(step, frame.preheader);
+        if (init == nullptr || stride == nullptr) {
+          return false;
+        }
+        member = EmitScalarIV(init, stride, frame, result->GetType());
+      }
     }
-    // Advance value in the latch: next = phi + stride.
-    auto *phi_value = GET_MLIR_CONTEXT()->CreateValue();
-    phi_value->SetType(result->GetType());
-    auto *next_value = GET_MLIR_CONTEXT()->CreateValue();
-    next_value->SetType(result->GetType());
-    auto *next_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::AddOp>(next_value, phi_value, stride);
-    phi_value->AddUse(next_op, 0);
-    stride->AddUse(next_op, 1);
-    InsertBeforeTerminator(next_op, frame.latch);
-
-    // Header phi: init from the preheader, next from the latch.
-    std::vector<mlir::Value *> values = {init, next_value};
-    std::vector<mlir::Block *> blocks = {frame.preheader, frame.latch};
-    auto *phi_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::PhiOp>(phi_value, values, blocks);
-    init->AddUse(phi_op, 0);
-    next_value->AddUse(phi_op, 1);
-    frame.header->operations_.insert(frame.header->operations_.begin(), phi_op);
-    op_to_block_[phi_op] = frame.header;
-    op_to_block_[next_op] = frame.latch;
-
-    iv = phi_value;
-    scalar_cache[scev] = iv;
+    scalar_members_[scev] = member;
   }
 
-  result->ReplaceAllUsesWith(iv);
+  result->ReplaceAllUsesWith(member);
   for (auto *operand : mul->operands_) {
     operand->RemoveUse(mul);
   }
@@ -235,8 +256,8 @@ auto StrengthReducePass::ReduceMul(mlir::base::MulOp *mul, analysis::Loop *loop,
   return true;
 }
 
-auto StrengthReducePass::ReduceGetPtr(mlir::var::VarGetPtrOp *get_ptr, analysis::Loop *loop, const LoopFrame &frame,
-                                      std::unordered_map<std::string, mlir::Value *> &pointer_cache) -> bool {
+auto StrengthReducePass::ReduceGetPtr(mlir::var::VarGetPtrOp *get_ptr, analysis::Loop *loop, const LoopFrame &frame)
+    -> bool {
   auto *result = get_ptr->GetRes();
   auto *base = get_ptr->GetPtr();
   std::vector<mlir::Value *> indices = get_ptr->GetIndices();
@@ -287,63 +308,54 @@ auto StrengthReducePass::ReduceGetPtr(mlir::var::VarGetPtrOp *get_ptr, analysis:
     return false;
   }
 
-  // Identical addresses (same base, same leading indices, same recurrence) reuse one pointer IV;
-  // this collapses e.g. a read and a write of a[i][j] onto the same walking pointer.
-  std::string key = std::to_string(reinterpret_cast<uintptr_t>(base));
+  // Addresses over the same base and leading indices that step by the same amount share one walking
+  // pointer: the family key ignores the start, the member key keeps the full recurrence so identical
+  // addresses (a read and a write of a[i][j]) still collapse onto one value.
+  std::string base_leading = PtrKey(base);
   for (size_t i = 0; i + 1 < indices.size(); ++i) {
-    key += ":" + std::to_string(reinterpret_cast<uintptr_t>(indices[i]));
+    base_leading += ":" + PtrKey(indices[i]);
   }
-  key += "#" + std::to_string(reinterpret_cast<uintptr_t>(scev));
+  std::string family_key = base_leading + "@" + std::to_string(step_value);
+  std::string member_key = base_leading + "#" + PtrKey(scev);
+  std::vector<mlir::Value *> leading(indices.begin(), indices.end() - 1);
 
   mlir::Value *pointer = nullptr;
-  auto cached = pointer_cache.find(key);
-  if (cached != pointer_cache.end()) {
+  auto cached = pointer_members_.find(member_key);
+  if (cached != pointer_members_.end()) {
     pointer = cached->second;
   } else {
-    mlir::Value *init_last = Expand(start, frame.preheader);
-    if (init_last == nullptr) {
-      return false;
+    auto family = pointer_families_.find(family_key);
+    if (family == pointer_families_.end()) {
+      // First address of this family: build the canonical walking pointer at the start index.
+      mlir::Value *init_last = Expand(start, frame.preheader);
+      if (init_last == nullptr) {
+        return false;
+      }
+      pointer = EmitPointerIV(base, leading, init_last, step_value, frame, result->GetType());
+      pointer_families_[family_key] = IVFamily{pointer, start};
+    } else {
+      // Same walk, different start: this address is canonical offset by (start - anchor) elements, one
+      // getptr of an invariant offset -- no extra pointer phi or latch advance.
+      const analysis::SCEV *delta = scev_->GetMinusSCEV(start, family->second.anchor);
+      if (IsZeroConstant(delta)) {
+        pointer = family->second.canonical;
+      } else if (mlir::Value *offset = Expand(delta, frame.preheader)) {
+        auto *gep_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetPtrOp>(
+            GET_MLIR_CONTEXT(), family->second.canonical, std::vector<mlir::Value *>{offset});
+        gep_op->GetRes()->SetType(result->GetType());
+        family->second.canonical->AddUse(gep_op, 0);
+        offset->AddUse(gep_op, 1);
+        InsertAfterPhis(gep_op, frame.header);
+        pointer = gep_op->GetRes();
+      } else {
+        mlir::Value *init_last = Expand(start, frame.preheader);
+        if (init_last == nullptr) {
+          return false;
+        }
+        pointer = EmitPointerIV(base, leading, init_last, step_value, frame, result->GetType());
+      }
     }
-    // Initial pointer in the preheader: the same address with the last index at its start value.
-    std::vector<mlir::Value *> init_indices(indices.begin(), indices.end() - 1);
-    init_indices.emplace_back(init_last);
-    auto *init_value = GET_MLIR_CONTEXT()->CreateValue();
-    init_value->SetType(result->GetType());
-    auto *init_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetPtrOp>(GET_MLIR_CONTEXT(), base, init_indices);
-    init_op->GetRes()->SetType(result->GetType());
-    base->AddUse(init_op, 0);
-    for (size_t i = 0; i < init_indices.size(); ++i) {
-      init_indices[i]->AddUse(init_op, i + 1);
-    }
-    InsertBeforeTerminator(init_op, frame.preheader);
-    op_to_block_[init_op] = frame.preheader;
-    mlir::Value *init_pointer = init_op->GetRes();
-
-    // Header phi carries the walking pointer.
-    auto *phi_value = GET_MLIR_CONTEXT()->CreateValue();
-    phi_value->SetType(result->GetType());
-
-    // Latch advance: next = &phi[step], one getptr of `step` elements on the element pointer.
-    auto *stride = MakeConstInt(step_value, frame.latch);
-    auto *next_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetPtrOp>(GET_MLIR_CONTEXT(), phi_value,
-                                                                                std::vector<mlir::Value *>{stride});
-    next_op->GetRes()->SetType(result->GetType());
-    phi_value->AddUse(next_op, 0);
-    stride->AddUse(next_op, 1);
-    InsertBeforeTerminator(next_op, frame.latch);
-    op_to_block_[next_op] = frame.latch;
-    mlir::Value *next_pointer = next_op->GetRes();
-
-    std::vector<mlir::Value *> values = {init_pointer, next_pointer};
-    std::vector<mlir::Block *> blocks = {frame.preheader, frame.latch};
-    auto *phi_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::PhiOp>(phi_value, values, blocks);
-    init_pointer->AddUse(phi_op, 0);
-    next_pointer->AddUse(phi_op, 1);
-    frame.header->operations_.insert(frame.header->operations_.begin(), phi_op);
-    op_to_block_[phi_op] = frame.header;
-
-    pointer = phi_value;
-    pointer_cache[key] = pointer;
+    pointer_members_[member_key] = pointer;
   }
 
   result->ReplaceAllUsesWith(pointer);
@@ -391,6 +403,77 @@ auto StrengthReducePass::AllUsesInLoop(mlir::Value *value, analysis::Loop *loop)
 
 auto StrengthReducePass::InsertBeforeTerminator(mlir::Operation *operation, mlir::Block *block) -> void {
   block->operations_.insert(block->operations_.end() - 1, operation);
+}
+
+auto StrengthReducePass::InsertAfterPhis(mlir::Operation *operation, mlir::Block *block) -> void {
+  auto iter = block->operations_.begin();
+  while (iter != block->operations_.end() && mlir::DynamicOrNull<mlir::base::PhiOp>(*iter) != nullptr) {
+    ++iter;
+  }
+  block->operations_.insert(iter, operation);
+  op_to_block_[operation] = block;
+}
+
+auto StrengthReducePass::EmitScalarIV(mlir::Value *init, mlir::Value *stride, const LoopFrame &frame,
+                                      type::Type *type) -> mlir::Value * {
+  auto *phi_value = GET_MLIR_CONTEXT()->CreateValue();
+  phi_value->SetType(type);
+  auto *next_value = GET_MLIR_CONTEXT()->CreateValue();
+  next_value->SetType(type);
+  // Advance value in the latch: next = phi + stride.
+  auto *next_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::AddOp>(next_value, phi_value, stride);
+  phi_value->AddUse(next_op, 0);
+  stride->AddUse(next_op, 1);
+  InsertBeforeTerminator(next_op, frame.latch);
+
+  std::vector<mlir::Value *> values = {init, next_value};
+  std::vector<mlir::Block *> blocks = {frame.preheader, frame.latch};
+  auto *phi_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::PhiOp>(phi_value, values, blocks);
+  init->AddUse(phi_op, 0);
+  next_value->AddUse(phi_op, 1);
+  frame.header->operations_.insert(frame.header->operations_.begin(), phi_op);
+  op_to_block_[phi_op] = frame.header;
+  op_to_block_[next_op] = frame.latch;
+  return phi_value;
+}
+
+auto StrengthReducePass::EmitPointerIV(mlir::Value *base, const std::vector<mlir::Value *> &leading,
+                                       mlir::Value *init_last, int step, const LoopFrame &frame, type::Type *type)
+    -> mlir::Value * {
+  // Initial pointer in the preheader: the same address with the last index at its start value.
+  std::vector<mlir::Value *> init_indices = leading;
+  init_indices.emplace_back(init_last);
+  auto *init_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetPtrOp>(GET_MLIR_CONTEXT(), base, init_indices);
+  init_op->GetRes()->SetType(type);
+  base->AddUse(init_op, 0);
+  for (size_t i = 0; i < init_indices.size(); ++i) {
+    init_indices[i]->AddUse(init_op, i + 1);
+  }
+  InsertBeforeTerminator(init_op, frame.preheader);
+  op_to_block_[init_op] = frame.preheader;
+  mlir::Value *init_pointer = init_op->GetRes();
+
+  auto *phi_value = GET_MLIR_CONTEXT()->CreateValue();
+  phi_value->SetType(type);
+  // Latch advance: next = &phi[step], one getptr of `step` elements on the element pointer.
+  auto *stride = MakeConstInt(step, frame.latch);
+  auto *next_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetPtrOp>(GET_MLIR_CONTEXT(), phi_value,
+                                                                              std::vector<mlir::Value *>{stride});
+  next_op->GetRes()->SetType(type);
+  phi_value->AddUse(next_op, 0);
+  stride->AddUse(next_op, 1);
+  InsertBeforeTerminator(next_op, frame.latch);
+  op_to_block_[next_op] = frame.latch;
+  mlir::Value *next_pointer = next_op->GetRes();
+
+  std::vector<mlir::Value *> values = {init_pointer, next_pointer};
+  std::vector<mlir::Block *> blocks = {frame.preheader, frame.latch};
+  auto *phi_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::PhiOp>(phi_value, values, blocks);
+  init_pointer->AddUse(phi_op, 0);
+  next_pointer->AddUse(phi_op, 1);
+  frame.header->operations_.insert(frame.header->operations_.begin(), phi_op);
+  op_to_block_[phi_op] = frame.header;
+  return phi_value;
 }
 
 auto StrengthReducePass::MakeConstInt(int value, mlir::Block *preheader) -> mlir::Value * {

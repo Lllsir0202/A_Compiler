@@ -2,9 +2,14 @@
 #define MIDDLEEND_PASS_TRANSFORM_STRENGTHREDUCE_STRENGTHREDUCE_H
 
 #include <stdexcept>
+#include <string>
 #include <unordered_map>
 #include <vector>
 #include "middleend/pass/transform/transform.h"
+
+namespace type {
+class Type;
+}
 
 namespace middleend::mlir {
 class Block;
@@ -73,35 +78,57 @@ class StrengthReducePass : public TransformPass {
     mlir::Block *header;
   };
 
+  // One canonical induction variable shared by every recurrence with the same step (and, for
+  // pointers, the same base and leading indices). A member that differs only by a loop-invariant
+  // offset reuses it: `canonical` is the phi, `anchor` is the start it was built at.
+  struct IVFamily {
+    mlir::Value *canonical;
+    const analysis::SCEV *anchor;
+  };
+
   auto RunOnLoop(analysis::MLIRFunctionCFG *function_cfg, analysis::Loop *loop) -> bool;
   auto FindPreheader(analysis::MLIRFunctionCFG *function_cfg, analysis::Loop *loop) -> mlir::Block *;
 
   // Replace a loop-variant multiply (whose value is an affine recurrence of the loop) with an
-  // additive induction variable.
-  auto ReduceMul(mlir::base::MulOp *mul, analysis::Loop *loop, const LoopFrame &frame,
-                 std::unordered_map<const analysis::SCEV *, mlir::Value *> &scalar_cache) -> bool;
+  // additive induction variable, reusing one per step across recurrences that differ by an offset.
+  auto ReduceMul(mlir::base::MulOp *mul, analysis::Loop *loop, const LoopFrame &frame) -> bool;
   // Replace a `getptr` whose last index is an affine recurrence of the loop (earlier indices
-  // invariant) with a pointer induction variable that advances by the index step each iteration.
-  auto ReduceGetPtr(mlir::var::VarGetPtrOp *get_ptr, analysis::Loop *loop, const LoopFrame &frame,
-                    std::unordered_map<std::string, mlir::Value *> &pointer_cache) -> bool;
+  // invariant) with a pointer induction variable, reusing one per (base, leading indices, step).
+  auto ReduceGetPtr(mlir::var::VarGetPtrOp *get_ptr, analysis::Loop *loop, const LoopFrame &frame) -> bool;
+
+  // Build the canonical additive / walking-pointer induction variable: preheader init, header phi,
+  // latch step. Returns the phi value.
+  auto EmitScalarIV(mlir::Value *init, mlir::Value *stride, const LoopFrame &frame, type::Type *type)
+      -> mlir::Value *;
+  auto EmitPointerIV(mlir::Value *base, const std::vector<mlir::Value *> &leading, mlir::Value *init_last, int step,
+                     const LoopFrame &frame, type::Type *type) -> mlir::Value *;
 
   // Materialize a SCEV as a value inserted before the terminator of `at`; returns nullptr if the
   // expression cannot be expanded there. An enclosing loop's induction variable is materialized as
   // that loop's existing header phi (which dominates `at` when the loop contains it).
   auto Expand(const analysis::SCEV *scev, mlir::Block *at) -> mlir::Value *;
-  auto MakeConstInt(int value, mlir::Block *preheader) -> mlir::Value *;
+  auto MakeConstInt(int value, mlir::Block *at) -> mlir::Value *;
   template <typename BinaryOp>
-  auto MakeBinary(mlir::Value *lhs, mlir::Value *rhs, mlir::Block *preheader) -> mlir::Value *;
+  auto MakeBinary(mlir::Value *lhs, mlir::Value *rhs, mlir::Block *at) -> mlir::Value *;
 
   auto ContainsAddRec(const analysis::SCEV *scev) -> bool;
   auto AllUsesInLoop(mlir::Value *value, analysis::Loop *loop) -> bool;
   auto InsertBeforeTerminator(mlir::Operation *operation, mlir::Block *block) -> void;
+  // Insert after the header's phi prefix, so the value dominates the whole loop body (and the exit
+  // test) while keeping the phis contiguous at the block start.
+  auto InsertAfterPhis(mlir::Operation *operation, mlir::Block *block) -> void;
 
   analysis::SCEVPass *scev_{nullptr};
   std::unordered_map<mlir::Operation *, mlir::Block *> op_to_block_;
   // Every loop-header induction phi in the current function, keyed by its (uniqued) recurrence, so an
   // enclosing loop's IV can be expanded back to a concrete dominating value for nested reduction.
   std::unordered_map<const analysis::SCEV *, mlir::Value *> iv_values_;
+  // Per-loop induction-variable sharing (cleared in RunOnLoop): families keyed by step / base+indices
+  // hold the canonical IV; members keyed by the full recurrence collapse identical uses onto it.
+  std::unordered_map<const analysis::SCEV *, IVFamily> scalar_families_;
+  std::unordered_map<const analysis::SCEV *, mlir::Value *> scalar_members_;
+  std::unordered_map<std::string, IVFamily> pointer_families_;
+  std::unordered_map<std::string, mlir::Value *> pointer_members_;
   int reduced_count_{0};      // multiplies replaced by an additive IV (benchmark stat)
   int gep_reduced_count_{0};  // getptr addresses replaced by a pointer IV (benchmark stat)
 };
