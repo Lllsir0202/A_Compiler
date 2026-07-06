@@ -5,8 +5,8 @@
  * @brief This file defines the arithmetic instructions for the RV64 target.
  * currently includes:
  * - ADD, SUB, MUL, DIV, REM
- * - ADDI
- * - ADDW
+ * - ADDI, ADDIW
+ * - ADDW, SUBW, MULW, DIVW, REMW
  */
 
 #include "backend/targets/utils/factory/instfactory.h"
@@ -30,6 +30,10 @@ RV64_ARITHMETIC_DEFINE(RVMUL)
 RV64_ARITHMETIC_DEFINE(RVDIV)
 RV64_ARITHMETIC_DEFINE(RVREM)
 RV64_ARITHMETIC_DEFINE(RVADDW)
+RV64_ARITHMETIC_DEFINE(RVSUBW)
+RV64_ARITHMETIC_DEFINE(RVMULW)
+RV64_ARITHMETIC_DEFINE(RVDIVW)
+RV64_ARITHMETIC_DEFINE(RVREMW)
 
 class RVADDIInst : public TargetInst {
  public:
@@ -42,6 +46,17 @@ class RVADDIInst : public TargetInst {
   ;
 };
 
+class RVADDIWInst : public TargetInst {
+ public:
+  auto Emit(std::ofstream *out) -> void override;
+
+ private:
+  RVADDIWInst() = default;
+  static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVADDIWInst *;
+  friend class targetir::InstFactory;
+  ;
+};
+
 class RVSLLIInst : public TargetInst {
  public:
   auto Emit(std::ofstream *out) -> void override;
@@ -49,6 +64,61 @@ class RVSLLIInst : public TargetInst {
  private:
   RVSLLIInst() = default;
   static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVSLLIInst *;
+  friend class targetir::InstFactory;
+  ;
+};
+
+class RVSLLIWInst : public TargetInst {
+ public:
+  auto Emit(std::ofstream *out) -> void override;
+
+ private:
+  RVSLLIWInst() = default;
+  static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVSLLIWInst *;
+  friend class targetir::InstFactory;
+  ;
+};
+
+class RVSRLIInst : public TargetInst {
+ public:
+  auto Emit(std::ofstream *out) -> void override;
+
+ private:
+  RVSRLIInst() = default;
+  static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVSRLIInst *;
+  friend class targetir::InstFactory;
+  ;
+};
+
+class RVSRAIInst : public TargetInst {
+ public:
+  auto Emit(std::ofstream *out) -> void override;
+
+ private:
+  RVSRAIInst() = default;
+  static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVSRAIInst *;
+  friend class targetir::InstFactory;
+  ;
+};
+
+class RVSRLIWInst : public TargetInst {
+ public:
+  auto Emit(std::ofstream *out) -> void override;
+
+ private:
+  RVSRLIWInst() = default;
+  static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVSRLIWInst *;
+  friend class targetir::InstFactory;
+  ;
+};
+
+class RVSRAIWInst : public TargetInst {
+ public:
+  auto Emit(std::ofstream *out) -> void override;
+
+ private:
+  RVSRAIWInst() = default;
+  static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVSRAIWInst *;
   friend class targetir::InstFactory;
   ;
 };

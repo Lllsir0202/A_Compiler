@@ -5,6 +5,17 @@
 #include "targets/utils/operand/targetreg.h"
 namespace backend::targetir::rv64 {
 
+enum class PowerOfTwoBinaryOp {
+  Add,
+  Sub,
+};
+
+struct PowerOfTwoDecomposition {
+  PowerOfTwoBinaryOp op_;
+  int lhs_exponent_;
+  int rhs_exponent_;
+};
+
 // Used to check if a given integer value can be represented as a 12-bit signed integer
 // Check in addi, slti, andi, ori, xori, slli, srli, srai instructions
 inline auto Is12BitSignedInteger(int value) -> bool { return value >= -2048 && value <= 2047; }
@@ -26,6 +37,7 @@ inline auto IsZeroRegister(backend::targetir::TargetOperand *operand) -> bool {
 }
 
 // Check if it is a power of two, 2^n
+// For 2^n, it must have only one bit set, so we can use the property that x & (x - 1) == 0 for powers of two
 inline auto IsPowerOfTwo(int value) -> bool { return value > 0 && (value & (value - 1)) == 0; }
 
 inline auto GetPowerOfTwoExponent(int value) -> int {
@@ -63,7 +75,7 @@ inline auto IsSumOrDifferenceOfTwoPowersOfTwo(int value) -> bool {
   return false;
 }
 
-inline auto GetSumOrDifferenceOfTwoPowersOfTwo(int value) -> std::pair<int, int> {
+inline auto GetSumOrDifferenceOfTwoPowersOfTwo(int value) -> PowerOfTwoDecomposition {
   if (!IsSumOrDifferenceOfTwoPowersOfTwo(value)) {
     throw std::runtime_error("Value is not a sum or difference of two powers of two");
   }
@@ -71,9 +83,14 @@ inline auto GetSumOrDifferenceOfTwoPowersOfTwo(int value) -> std::pair<int, int>
     int power_of_two_i = 1 << i;
     for (int j = 0; j < 31; j++) {
       int power_of_two_j = 1 << j;
-      if (power_of_two_i + power_of_two_j == value || power_of_two_i - power_of_two_j == value ||
-          power_of_two_j - power_of_two_i == value) {
-        return {i, j};
+      if (power_of_two_i + power_of_two_j == value) {
+        return {PowerOfTwoBinaryOp::Add, i, j};
+      }
+      if (power_of_two_i - power_of_two_j == value) {
+        return {PowerOfTwoBinaryOp::Sub, i, j};
+      }
+      if (power_of_two_j - power_of_two_i == value) {
+        return {PowerOfTwoBinaryOp::Sub, j, i};
       }
     }
   }

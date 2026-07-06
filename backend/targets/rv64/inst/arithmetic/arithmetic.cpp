@@ -117,6 +117,25 @@ auto RVADDIInst::Emit(std::ofstream *out) -> void {
   *out << '\n';
 }
 
+auto RVADDIWInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVADDIWInst * {
+  auto *inst = new RVADDIWInst();
+  inst->operands_.reserve(2);
+  inst->AddOperand(rs1);
+  inst->AddOperand(imm);
+  inst->SetResult(rd);
+  return inst;
+}
+
+auto RVADDIWInst::Emit(std::ofstream *out) -> void {
+  *out << "    addiw ";
+  result_->Emit(out);
+  *out << ", ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << '\n';
+}
+
 auto RVSLLIInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVSLLIInst * {
   auto *inst = new RVSLLIInst();
   inst->operands_.reserve(2);
@@ -136,6 +155,101 @@ auto RVSLLIInst::Emit(std::ofstream *out) -> void {
   *out << '\n';
 }
 
+auto RVSLLIWInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVSLLIWInst * {
+  auto *inst = new RVSLLIWInst();
+  inst->operands_.reserve(2);
+  inst->AddOperand(rs1);
+  inst->AddOperand(imm);
+  inst->SetResult(rd);
+  return inst;
+}
+
+auto RVSLLIWInst::Emit(std::ofstream *out) -> void {
+  *out << "    slliw ";
+  result_->Emit(out);
+  *out << ", ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << '\n';
+}
+
+auto RVSRLIInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVSRLIInst * {
+  auto *inst = new RVSRLIInst();
+  inst->operands_.reserve(2);
+  inst->AddOperand(rs1);
+  inst->AddOperand(imm);
+  inst->SetResult(rd);
+  return inst;
+}
+
+auto RVSRLIInst::Emit(std::ofstream *out) -> void {
+  *out << "    srli ";
+  result_->Emit(out);
+  *out << ", ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << '\n';
+}
+
+auto RVSRAIInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVSRAIInst * {
+  auto *inst = new RVSRAIInst();
+  inst->operands_.reserve(2);
+  inst->AddOperand(rs1);
+  inst->AddOperand(imm);
+  inst->SetResult(rd);
+  return inst;
+}
+
+auto RVSRAIInst::Emit(std::ofstream *out) -> void {
+  *out << "    srai ";
+  result_->Emit(out);
+  *out << ", ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << '\n';
+}
+
+auto RVSRLIWInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVSRLIWInst * {
+  auto *inst = new RVSRLIWInst();
+  inst->operands_.reserve(2);
+  inst->AddOperand(rs1);
+  inst->AddOperand(imm);
+  inst->SetResult(rd);
+  return inst;
+}
+
+auto RVSRLIWInst::Emit(std::ofstream *out) -> void {
+  *out << "    srliw ";
+  result_->Emit(out);
+  *out << ", ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << '\n';
+}
+
+auto RVSRAIWInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVSRAIWInst * {
+  auto *inst = new RVSRAIWInst();
+  inst->operands_.reserve(2);
+  inst->AddOperand(rs1);
+  inst->AddOperand(imm);
+  inst->SetResult(rd);
+  return inst;
+}
+
+auto RVSRAIWInst::Emit(std::ofstream *out) -> void {
+  *out << "    sraiw ";
+  result_->Emit(out);
+  *out << ", ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << '\n';
+}
+
 auto RVADDWInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVADDWInst * {
   auto *inst = new RVADDWInst();
   inst->operands_.reserve(2);
@@ -147,6 +261,82 @@ auto RVADDWInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs
 
 auto RVADDWInst::Emit(std::ofstream *out) -> void {
   *out << "    addw ";
+  result_->Emit(out);
+  *out << ", ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << '\n';
+}
+
+auto RVSUBWInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVSUBWInst * {
+  auto *inst = new RVSUBWInst();
+  inst->operands_.reserve(2);
+  inst->AddOperand(rs1);
+  inst->AddOperand(rs2);
+  inst->SetResult(rd);
+  return inst;
+}
+
+auto RVSUBWInst::Emit(std::ofstream *out) -> void {
+  *out << "    subw ";
+  result_->Emit(out);
+  *out << ", ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << '\n';
+}
+
+auto RVMULWInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVMULWInst * {
+  auto *inst = new RVMULWInst();
+  inst->operands_.reserve(2);
+  inst->AddOperand(rs1);
+  inst->AddOperand(rs2);
+  inst->SetResult(rd);
+  return inst;
+}
+
+auto RVMULWInst::Emit(std::ofstream *out) -> void {
+  *out << "    mulw ";
+  result_->Emit(out);
+  *out << ", ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << '\n';
+}
+
+auto RVDIVWInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVDIVWInst * {
+  auto *inst = new RVDIVWInst();
+  inst->operands_.reserve(2);
+  inst->AddOperand(rs1);
+  inst->AddOperand(rs2);
+  inst->SetResult(rd);
+  return inst;
+}
+
+auto RVDIVWInst::Emit(std::ofstream *out) -> void {
+  *out << "    divw ";
+  result_->Emit(out);
+  *out << ", ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << '\n';
+}
+
+auto RVREMWInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVREMWInst * {
+  auto *inst = new RVREMWInst();
+  inst->operands_.reserve(2);
+  inst->AddOperand(rs1);
+  inst->AddOperand(rs2);
+  inst->SetResult(rd);
+  return inst;
+}
+
+auto RVREMWInst::Emit(std::ofstream *out) -> void {
+  *out << "    remw ";
   result_->Emit(out);
   *out << ", ";
   operands_[0]->Emit(out);
