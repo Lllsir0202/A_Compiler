@@ -33,6 +33,7 @@
 #include "middleend/pass/transform/promotion/promotion.h"
 #include "middleend/pass/transform/sccp/sccp.h"
 #include "middleend/pass/transform/simplify/simplify.h"
+#include "middleend/pass/transform/deadloopelim/deadloopelim.h"
 #include "middleend/pass/transform/strengthreduce/strengthreduce.h"
 #include "middleend/pass/transform/trivialblockmerge/trivialblockmerge.h"
 #include "middleend/pass/transform/unify/unify.h"
@@ -355,6 +356,10 @@ auto main(int argc, char *argv[]) -> int {
     auto scev_pass = context::PassContext::CreatePass<middleend::pass::analysis::SCEVPass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(scev_pass);
+    auto dead_loop_eliminate_pass =
+        context::PassContext::CreatePass<middleend::pass::transform::DeadLoopEliminatePass>(
+            &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(dead_loop_eliminate_pass);
     auto strength_reduce_pass = context::PassContext::CreatePass<middleend::pass::transform::StrengthReducePass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(strength_reduce_pass);
