@@ -2,6 +2,7 @@
 #include <memory>
 #include <unordered_set>
 #include "backend/mir/lower/lower.h"
+#include "backend/targets/rv64/lower/lower.h"
 #include "context/compiler_context.h"
 #include "context/pass_context.h"
 #include "frontend/ast/visitor/semantic/sem_analysis.h"
@@ -16,6 +17,7 @@
 #include "middleend/pass/transform/constfold/constfold.h"
 #include "middleend/pass/transform/simplify/simplify.h"
 #include "middleend/pass/transform/unify/unify.h"
+#include "stages/assembly/asm_stage.h"
 #include "stages/ast/ast_stage.h"
 #include "stages/lexer/lexer_stage.h"
 #include "stages/llvm/llvm_stage.h"
@@ -251,8 +253,9 @@ auto main(int argc, char *argv[]) -> int {
     return -1;
   }
 
-  auto baseirpass_context = new context::PassContext(&compiler_context, middleend::pass::PassStage::BASEIR);
-  compiler_context.SetPassContext(baseirpass_context);
+  auto baseirpass_context =
+      std::make_unique<context::PassContext>(&compiler_context, middleend::pass::PassStage::BASEIR);
+  compiler_context.SetPassContext(baseirpass_context.get());
   auto baseir_cfg_builder = new middleend::pass::analysis::MLIRCFGBuilder(&compiler_context);
   auto cfg_pass = context::PassContext::CreatePass<middleend::pass::analysis::CFGPass>(
       &compiler_context, baseir_cfg_builder, middleend::pass::PassStage::BASEIR);
@@ -289,8 +292,9 @@ auto main(int argc, char *argv[]) -> int {
   }
 
   // Run the LLVM passes
-  auto llvm_pass_context = new context::PassContext(&compiler_context, middleend::pass::PassStage::LLVMIR);
-  compiler_context.SetPassContext(llvm_pass_context);
+  auto llvm_pass_context =
+      std::make_unique<context::PassContext>(&compiler_context, middleend::pass::PassStage::LLVMIR);
+  compiler_context.SetPassContext(llvm_pass_context.get());
   auto const_fold_pass = context::PassContext::CreatePass<middleend::pass::transform::ConstFoldPass>(
       &compiler_context, middleend::pass::PassStage::LLVMIR);
   llvm_pass_context->AddPass(const_fold_pass);
@@ -311,6 +315,19 @@ auto main(int argc, char *argv[]) -> int {
 
   if (stage == "mir" && ret == 0) {
     stage_ptr = std::make_unique<stages::MIRStage>(&compiler_context);
+    stage_ptr->Run();
+    return ret;
+  }
+
+  auto rv64_lower = std::make_unique<backend::targetir::rv64::RV64Lower>(&compiler_context);
+  ret = rv64_lower->Lower();
+
+  if (ret != 0) {
+    return 1;
+  }
+
+  if (stage == "S" || stage == "s") {
+    stage_ptr = std::make_unique<stages::AssemblyStage>(&compiler_context);
     stage_ptr->Run();
     return ret;
   }

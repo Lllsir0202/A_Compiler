@@ -15,7 +15,7 @@ class TargetOperand;
 class TargetBlock {
  public:
   // Destructor: just use default
-  ~TargetBlock() = default;
+  ~TargetBlock();
   // Output
   auto Emit(std::ofstream *out) -> void;
 

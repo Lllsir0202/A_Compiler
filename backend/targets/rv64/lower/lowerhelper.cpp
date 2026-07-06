@@ -2,11 +2,14 @@
 #include <stdexcept>
 #include "backend/mir/inst/inst.h"
 #include "backend/targets/rv64/inst/arithmetic/arithmetic.h"
+#include "backend/targets/rv64/inst/cast/cast.h"
+#include "backend/targets/rv64/inst/cmp/cmp.h"
+#include "backend/targets/rv64/inst/immediate/immediate.h"
 #include "backend/targets/rv64/inst/pseudo/pseudo.h"
 #include "backend/targets/rv64/utils/checker.h"
+#include "backend/targets/rv64/utils/materializer.h"
 #include "backend/targets/utils/operand/targetoperand.h"
 #include "context/compiler_context.h"
-#include "mir/utils/operand/literaloperand.h"
 
 #define GET_BACKEND_TARGET() compiler_context_->GetBackendContext()
 namespace backend::targetir::rv64 {
@@ -61,7 +64,7 @@ auto LowerHelper::LowerDispatch(backend::inst::Instruction *inst) -> void {
     DISPATCH_MIR_INST(backend::inst::Bool2FloatInst, LowerBool2Float)
 
     DISPATCH_MIR_INST(backend::inst::CopyInst, LowerCopy)
-    DISPATCH_MIR_INST(backend::inst::PhiInst, LowerPhi)
+    // Phi has been lowered.
   } catch (const std::exception &e) {
     throw std::runtime_error(std::string("Error lowering instruction: ") + e.what());
   }
@@ -227,8 +230,7 @@ auto LowerHelper::LowerSub(backend::inst::SubInst *inst) -> void {
         compiler_context_->ReportError("LHS operand is not mapped to a target operand");
         return;
       }
-      auto addi_inst =
-          GET_BACKEND_TARGET()->CreateInstruction<RVADDIWInst>(target_result, target_lhs, target_literal);
+      auto addi_inst = GET_BACKEND_TARGET()->CreateInstruction<RVADDIWInst>(target_result, target_lhs, target_literal);
       GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(addi_inst);
     } else {
       auto target_lhs = GET_BACKEND_TARGET()->GetMappedOperand(lhs);
@@ -303,8 +305,7 @@ auto LowerHelper::LowerSub(backend::inst::SubInst *inst) -> void {
 
       // First use an addi instruction to add rhs and the negated literal
       auto target_literal = GET_BACKEND_TARGET()->CreateIntLiteral(-literal_value);
-      auto addi_inst =
-          GET_BACKEND_TARGET()->CreateInstruction<RVADDIWInst>(target_result, target_rhs, target_literal);
+      auto addi_inst = GET_BACKEND_TARGET()->CreateInstruction<RVADDIWInst>(target_result, target_rhs, target_literal);
       GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(addi_inst);
       // Then use a sub instruction to negate the result of the addi instruction
 
@@ -377,6 +378,7 @@ auto LowerHelper::LowerMul(backend::inst::MulInst *inst) -> void {
      * 2. If the literal is a power of two, we can use a shift instruction
      * 3. If the literal can be expressed as a sum or difference of two powers of two,
      * we can use two shift instructions and an add or sub instruction
+     * (Maybe not beneift the performance, as a single pass in the future)
      * 4. Otherwise, we can just use a normal mul instruction
      */
 
@@ -436,33 +438,39 @@ auto LowerHelper::LowerMul(backend::inst::MulInst *inst) -> void {
       GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(sll_inst);
       return;
     }
-    // If it can be expressed as a sum or difference of two powers of two, we can use two shift instructions and an add
-    // or sub instruction
-    if (IsSumOrDifferenceOfTwoPowersOfTwo(literal_value)) {
-      auto decomposition = GetSumOrDifferenceOfTwoPowersOfTwo(literal_value);
-      auto target_non_literal = GET_BACKEND_TARGET()->GetMappedOperand(non_literal_operand);
-      auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
-      // Create two shift left instructions to multiply by 2^i and 2^j
-      auto target_shift_amount_i = GET_BACKEND_TARGET()->CreateIntLiteral(decomposition.lhs_exponent_);
-      auto target_shift_amount_j = GET_BACKEND_TARGET()->CreateIntLiteral(decomposition.rhs_exponent_);
-      auto sll_inst_i = GET_BACKEND_TARGET()->CreateInstruction<RVSLLIWInst>(target_result, target_non_literal,
-                                                                             target_shift_amount_i);
-      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(sll_inst_i);
-      auto target_temp = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
-      auto sll_inst_j =
-          GET_BACKEND_TARGET()->CreateInstruction<RVSLLIWInst>(target_temp, target_non_literal, target_shift_amount_j);
-      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(sll_inst_j);
-      if (decomposition.op_ == PowerOfTwoBinaryOp::Add) {
-        auto add_inst = GET_BACKEND_TARGET()->CreateInstruction<RVADDWInst>(target_result, target_result, target_temp);
-        GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(add_inst);
-      } else {
-        auto sub_inst =
-            GET_BACKEND_TARGET()->CreateInstruction<RVSUBWInst>(target_result, target_result, target_temp);
-        GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(sub_inst);
-      }
-      GET_BACKEND_TARGET()->MapOperand(dst, target_result);
-      return;
-    }
+
+    // In the future, do strength reduction as a single pass
+
+    // // If it can be expressed as a sum or difference of two powers of two, we can use two shift instructions and an
+    // add
+    // // or sub instruction
+    // if (IsSumOrDifferenceOfTwoPowersOfTwo(literal_value)) {
+    //   auto decomposition = GetSumOrDifferenceOfTwoPowersOfTwo(literal_value);
+    //   auto target_non_literal = GET_BACKEND_TARGET()->GetMappedOperand(non_literal_operand);
+    //   auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord,
+    //   TargetRegClass::General);
+    //   // Create two shift left instructions to multiply by 2^i and 2^j
+    //   auto target_shift_amount_i = GET_BACKEND_TARGET()->CreateIntLiteral(decomposition.lhs_exponent_);
+    //   auto target_shift_amount_j = GET_BACKEND_TARGET()->CreateIntLiteral(decomposition.rhs_exponent_);
+    //   auto sll_inst_i = GET_BACKEND_TARGET()->CreateInstruction<RVSLLIWInst>(target_result, target_non_literal,
+    //                                                                          target_shift_amount_i);
+    //   GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(sll_inst_i);
+    //   auto target_temp = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+    //   auto sll_inst_j =
+    //       GET_BACKEND_TARGET()->CreateInstruction<RVSLLIWInst>(target_temp, target_non_literal,
+    //       target_shift_amount_j);
+    //   GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(sll_inst_j);
+    //   if (decomposition.op_ == PowerOfTwoBinaryOp::Add) {
+    //     auto add_inst = GET_BACKEND_TARGET()->CreateInstruction<RVADDWInst>(target_result, target_result,
+    //     target_temp); GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(add_inst);
+    //   } else {
+    //     auto sub_inst =
+    //         GET_BACKEND_TARGET()->CreateInstruction<RVSUBWInst>(target_result, target_result, target_temp);
+    //     GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(sub_inst);
+    //   }
+    //   GET_BACKEND_TARGET()->MapOperand(dst, target_result);
+    //   return;
+    // }
   }
 
   auto target_lhs = GET_BACKEND_TARGET()->GetMappedOperand(lhs);
@@ -491,14 +499,6 @@ auto LowerHelper::LowerDiv(backend::inst::DivInst *inst) -> void {
     return;
   }
 
-  auto materialize_literal = [&](int value) -> backend::targetir::TargetOperand * {
-    auto target_reg = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
-    auto target_literal = GET_BACKEND_TARGET()->CreateIntLiteral(value);
-    auto li_inst = GET_BACKEND_TARGET()->CreateInstruction<RVLIInst>(target_reg, target_literal);
-    GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(li_inst);
-    return target_reg;
-  };
-
   // A few safe constant divisors are worth handling directly.
   if (rhs->IsLiteral()) {
     auto literal_value = static_cast<utils::IntLiteral *>(rhs)->GetValue();
@@ -523,10 +523,12 @@ auto LowerHelper::LowerDiv(backend::inst::DivInst *inst) -> void {
     }
   }
 
-  auto target_lhs = lhs->IsLiteral() ? materialize_literal(static_cast<utils::IntLiteral *>(lhs)->GetValue())
-                                     : GET_BACKEND_TARGET()->GetMappedOperand(lhs);
-  auto target_rhs = rhs->IsLiteral() ? materialize_literal(static_cast<utils::IntLiteral *>(rhs)->GetValue())
-                                     : GET_BACKEND_TARGET()->GetMappedOperand(rhs);
+  auto target_lhs = lhs->IsLiteral()
+                        ? MaterializeLiteral(compiler_context_, static_cast<utils::IntLiteral *>(lhs)->GetValue())
+                        : GET_BACKEND_TARGET()->GetMappedOperand(lhs);
+  auto target_rhs = rhs->IsLiteral()
+                        ? MaterializeLiteral(compiler_context_, static_cast<utils::IntLiteral *>(rhs)->GetValue())
+                        : GET_BACKEND_TARGET()->GetMappedOperand(rhs);
 
   if (target_lhs == nullptr || target_rhs == nullptr) {
     compiler_context_->ReportError("One of the operands is not mapped to a target operand");
@@ -548,18 +550,12 @@ auto LowerHelper::LowerMod(backend::inst::ModInst *inst) -> void {
     return;
   }
 
-  auto materialize_literal = [&](int value) -> backend::targetir::TargetOperand * {
-    auto target_reg = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
-    auto target_literal = GET_BACKEND_TARGET()->CreateIntLiteral(value);
-    auto li_inst = GET_BACKEND_TARGET()->CreateInstruction<RVLIInst>(target_reg, target_literal);
-    GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(li_inst);
-    return target_reg;
-  };
-
-  auto target_lhs = lhs->IsLiteral() ? materialize_literal(static_cast<utils::IntLiteral *>(lhs)->GetValue())
-                                     : GET_BACKEND_TARGET()->GetMappedOperand(lhs);
-  auto target_rhs = rhs->IsLiteral() ? materialize_literal(static_cast<utils::IntLiteral *>(rhs)->GetValue())
-                                     : GET_BACKEND_TARGET()->GetMappedOperand(rhs);
+  auto target_lhs = lhs->IsLiteral()
+                        ? MaterializeLiteral(compiler_context_, static_cast<utils::IntLiteral *>(lhs)->GetValue())
+                        : GET_BACKEND_TARGET()->GetMappedOperand(lhs);
+  auto target_rhs = rhs->IsLiteral()
+                        ? MaterializeLiteral(compiler_context_, static_cast<utils::IntLiteral *>(rhs)->GetValue())
+                        : GET_BACKEND_TARGET()->GetMappedOperand(rhs);
 
   if (target_lhs == nullptr || target_rhs == nullptr) {
     compiler_context_->ReportError("One of the operands is not mapped to a target operand");
@@ -572,13 +568,242 @@ auto LowerHelper::LowerMod(backend::inst::ModInst *inst) -> void {
   GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(rem_inst);
 }
 
-auto LowerHelper::LowerAddF([[maybe_unused]] backend::inst::AddFInst *inst) -> void {}
-auto LowerHelper::LowerSubF([[maybe_unused]] backend::inst::SubFInst *inst) -> void {}
-auto LowerHelper::LowerMulF([[maybe_unused]] backend::inst::MulFInst *inst) -> void {}
-auto LowerHelper::LowerDivF([[maybe_unused]] backend::inst::DivFInst *inst) -> void {}
+auto LowerHelper::LowerAddF(backend::inst::AddFInst *inst) -> void {
+  auto lhs = inst->GetLHS();
+  auto rhs = inst->GetRHS();
+  auto dst = inst->GetResult();
 
-auto LowerHelper::LowerICmp([[maybe_unused]] backend::inst::ICmpInst *inst) -> void {}
-auto LowerHelper::LowerFCmp([[maybe_unused]] backend::inst::FCmpInst *inst) -> void {}
+  if (lhs->IsLiteral() && rhs->IsLiteral()) {
+    compiler_context_->ReportError("Both float operands are literals, should have been constant folded");
+    return;
+  }
+
+  if (lhs->IsLiteral() || rhs->IsLiteral()) {
+    // TODO(loki) : Implement the float literal pool and insert related instructions
+    compiler_context_->ReportError("Float literal materialization is not implemented yet");
+    return;
+  }
+
+  auto target_lhs = GET_BACKEND_TARGET()->GetMappedOperand(lhs);
+  auto target_rhs = GET_BACKEND_TARGET()->GetMappedOperand(rhs);
+  if (target_lhs == nullptr || target_rhs == nullptr) {
+    compiler_context_->ReportError("One of the float operands is not mapped to a target operand");
+    return;
+  }
+
+  auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::Float);
+  GET_BACKEND_TARGET()->MapOperand(dst, target_result);
+  auto addf_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFADDSInst>(target_result, target_lhs, target_rhs);
+  GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(addf_inst);
+}
+auto LowerHelper::LowerSubF(backend::inst::SubFInst *inst) -> void {
+  auto lhs = inst->GetLHS();
+  auto rhs = inst->GetRHS();
+  auto dst = inst->GetResult();
+
+  if (lhs->IsLiteral() && rhs->IsLiteral()) {
+    compiler_context_->ReportError("Both float operands are literals, should have been constant folded");
+    return;
+  }
+
+  if (lhs->IsLiteral() || rhs->IsLiteral()) {
+    // TODO(loki) : Implement the float literal pool and insert related instructions
+    compiler_context_->ReportError("Float literal materialization is not implemented yet");
+    return;
+  }
+
+  auto target_lhs = GET_BACKEND_TARGET()->GetMappedOperand(lhs);
+  auto target_rhs = GET_BACKEND_TARGET()->GetMappedOperand(rhs);
+  if (target_lhs == nullptr || target_rhs == nullptr) {
+    compiler_context_->ReportError("One of the float operands is not mapped to a target operand");
+    return;
+  }
+
+  auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::Float);
+  GET_BACKEND_TARGET()->MapOperand(dst, target_result);
+  auto subf_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFSUBSInst>(target_result, target_lhs, target_rhs);
+  GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(subf_inst);
+}
+auto LowerHelper::LowerMulF(backend::inst::MulFInst *inst) -> void {
+  auto lhs = inst->GetLHS();
+  auto rhs = inst->GetRHS();
+  auto dst = inst->GetResult();
+
+  if (lhs->IsLiteral() && rhs->IsLiteral()) {
+    compiler_context_->ReportError("Both float operands are literals, should have been constant folded");
+    return;
+  }
+
+  if (lhs->IsLiteral() || rhs->IsLiteral()) {
+    // TODO(loki) : Implement the float literal pool and insert related instructions
+    compiler_context_->ReportError("Float literal materialization is not implemented yet");
+    return;
+  }
+
+  auto target_lhs = GET_BACKEND_TARGET()->GetMappedOperand(lhs);
+  auto target_rhs = GET_BACKEND_TARGET()->GetMappedOperand(rhs);
+  if (target_lhs == nullptr || target_rhs == nullptr) {
+    compiler_context_->ReportError("One of the float operands is not mapped to a target operand");
+    return;
+  }
+
+  auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::Float);
+  GET_BACKEND_TARGET()->MapOperand(dst, target_result);
+  auto mulf_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFMULSInst>(target_result, target_lhs, target_rhs);
+  GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(mulf_inst);
+}
+auto LowerHelper::LowerDivF(backend::inst::DivFInst *inst) -> void {
+  auto lhs = inst->GetLHS();
+  auto rhs = inst->GetRHS();
+  auto dst = inst->GetResult();
+
+  if (lhs->IsLiteral() && rhs->IsLiteral()) {
+    compiler_context_->ReportError("Both float operands are literals, should have been constant folded");
+    return;
+  }
+
+  if (lhs->IsLiteral() || rhs->IsLiteral()) {
+    // TODO(loki) : Implement the float literal pool and insert related instructions
+    compiler_context_->ReportError("Float literal materialization is not implemented yet");
+    return;
+  }
+
+  auto target_lhs = GET_BACKEND_TARGET()->GetMappedOperand(lhs);
+  auto target_rhs = GET_BACKEND_TARGET()->GetMappedOperand(rhs);
+  if (target_lhs == nullptr || target_rhs == nullptr) {
+    compiler_context_->ReportError("One of the float operands is not mapped to a target operand");
+    return;
+  }
+
+  auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::Float);
+  GET_BACKEND_TARGET()->MapOperand(dst, target_result);
+  auto divf_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFDIVSInst>(target_result, target_lhs, target_rhs);
+  GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(divf_inst);
+}
+
+auto LowerHelper::LowerICmp(backend::inst::ICmpInst *inst) -> void {
+  auto lhs = inst->GetOperands()[0];
+  auto rhs = inst->GetOperands()[1];
+  auto dst = inst->GetResult();
+
+  auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+  GET_BACKEND_TARGET()->MapOperand(dst, target_result);
+
+  if (!lhs->IsLiteral() && rhs->IsLiteral()) {
+    auto target_lhs = GET_BACKEND_TARGET()->GetMappedOperand(lhs);
+    if (target_lhs == nullptr) {
+      compiler_context_->ReportError("LHS integer compare operand is not mapped to a target operand");
+      return;
+    }
+
+    auto rhs_value = static_cast<utils::IntLiteral *>(rhs)->GetValue();
+    switch (inst->GetPredicate()) {
+      case backend::inst::CmpPredicate::LT:
+        if (Is12BitSignedInteger(rhs_value)) {
+          auto target_imm = GET_BACKEND_TARGET()->CreateIntLiteral(rhs_value);
+          auto cmp_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSLTIInst>(target_result, target_lhs, target_imm);
+          GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(cmp_inst);
+          return;
+        }
+        break;
+      case backend::inst::CmpPredicate::LE:
+        if (rhs_value < 2047 && Is12BitSignedInteger(rhs_value + 1)) {
+          auto target_imm = GET_BACKEND_TARGET()->CreateIntLiteral(rhs_value + 1);
+          auto cmp_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSLTIInst>(target_result, target_lhs, target_imm);
+          GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(cmp_inst);
+          return;
+        }
+        break;
+      default:
+        break;
+    }
+  }
+
+  auto target_lhs = lhs->IsLiteral()
+                        ? MaterializeLiteral(compiler_context_, static_cast<utils::IntLiteral *>(lhs)->GetValue())
+                        : GET_BACKEND_TARGET()->GetMappedOperand(lhs);
+  auto target_rhs = rhs->IsLiteral()
+                        ? MaterializeLiteral(compiler_context_, static_cast<utils::IntLiteral *>(rhs)->GetValue())
+                        : GET_BACKEND_TARGET()->GetMappedOperand(rhs);
+  if (target_lhs == nullptr || target_rhs == nullptr) {
+    compiler_context_->ReportError("One of the integer compare operands is not mapped to a target operand");
+    return;
+  }
+
+  switch (inst->GetPredicate()) {
+    case backend::inst::CmpPredicate::EQ: {
+      auto cmp_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSEQInst>(target_result, target_lhs, target_rhs);
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(cmp_inst);
+      return;
+    }
+    case backend::inst::CmpPredicate::LT: {
+      auto cmp_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSLTInst>(target_result, target_lhs, target_rhs);
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(cmp_inst);
+      return;
+    }
+    case backend::inst::CmpPredicate::LE: {
+      auto cmp_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSLEInst>(target_result, target_lhs, target_rhs);
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(cmp_inst);
+      return;
+    }
+    case backend::inst::CmpPredicate::GT: {
+      auto cmp_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSLTInst>(target_result, target_rhs, target_lhs);
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(cmp_inst);
+      return;
+    }
+    case backend::inst::CmpPredicate::GE: {
+      auto cmp_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSLEInst>(target_result, target_rhs, target_lhs);
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(cmp_inst);
+      return;
+    }
+    case backend::inst::CmpPredicate::NE:
+      compiler_context_->ReportError("ICmp predicate lowering is not implemented yet");
+      return;
+  }
+}
+auto LowerHelper::LowerFCmp(backend::inst::FCmpInst *inst) -> void {
+  auto lhs = inst->GetOperands()[0];
+  auto rhs = inst->GetOperands()[1];
+  auto dst = inst->GetResult();
+
+  if (lhs->IsLiteral() || rhs->IsLiteral()) {
+    compiler_context_->ReportError("Float literal materialization is not implemented yet");
+    return;
+  }
+
+  auto target_lhs = GET_BACKEND_TARGET()->GetMappedOperand(lhs);
+  auto target_rhs = GET_BACKEND_TARGET()->GetMappedOperand(rhs);
+  if (target_lhs == nullptr || target_rhs == nullptr) {
+    compiler_context_->ReportError("One of the float compare operands is not mapped to a target operand");
+    return;
+  }
+
+  auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+  GET_BACKEND_TARGET()->MapOperand(dst, target_result);
+
+  switch (inst->GetPredicate()) {
+    case backend::inst::CmpPredicate::EQ: {
+      auto cmp_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFEQSInst>(target_result, target_lhs, target_rhs);
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(cmp_inst);
+      return;
+    }
+    case backend::inst::CmpPredicate::LT: {
+      auto cmp_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFLTSInst>(target_result, target_lhs, target_rhs);
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(cmp_inst);
+      return;
+    }
+    case backend::inst::CmpPredicate::LE: {
+      auto cmp_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFLESInst>(target_result, target_lhs, target_rhs);
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(cmp_inst);
+      return;
+    }
+    case backend::inst::CmpPredicate::NE:
+    case backend::inst::CmpPredicate::GT:
+    case backend::inst::CmpPredicate::GE:
+      compiler_context_->ReportError("FCmp predicate lowering is not implemented yet");
+      return;
+  }
+}
 auto LowerHelper::LowerXor([[maybe_unused]] backend::inst::XorInst *inst) -> void {}
 
 auto LowerHelper::LowerLoad([[maybe_unused]] backend::inst::LoadInst *inst) -> void {}
@@ -593,12 +818,86 @@ auto LowerHelper::LowerFuncDef([[maybe_unused]] backend::inst::FuncDefInst *inst
 auto LowerHelper::LowerFuncDeclare([[maybe_unused]] backend::inst::FuncDeclareInst *inst) -> void {}
 auto LowerHelper::LowerCall([[maybe_unused]] backend::inst::CallInst *inst) -> void {}
 
-auto LowerHelper::LowerZext([[maybe_unused]] backend::inst::ZextInst *inst) -> void {}
-auto LowerHelper::LowerInt2Float([[maybe_unused]] backend::inst::Int2FloatInst *inst) -> void {}
-auto LowerHelper::LowerFloat2Int([[maybe_unused]] backend::inst::Float2IntInst *inst) -> void {}
-auto LowerHelper::LowerBool2Float([[maybe_unused]] backend::inst::Bool2FloatInst *inst) -> void {}
+auto LowerHelper::LowerZext(backend::inst::ZextInst *inst) -> void {
+  auto src = inst->GetOperands()[0];
+  auto dst = inst->GetResult();
+
+  if (src->IsLiteral()) {
+    auto literal_value = static_cast<utils::BoolLiteral *>(src)->GetValue();
+    auto target_literal = GET_BACKEND_TARGET()->CreateIntLiteral(literal_value ? 1 : 0);
+    GET_BACKEND_TARGET()->MapOperand(dst, target_literal);
+    return;
+  }
+
+  auto target_src = GET_BACKEND_TARGET()->GetMappedOperand(src);
+  if (target_src == nullptr) {
+    compiler_context_->ReportError("Zext source operand is not mapped to a target operand");
+    return;
+  }
+
+  auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+  GET_BACKEND_TARGET()->MapOperand(dst, target_result);
+  auto zext_inst = GET_BACKEND_TARGET()->CreateInstruction<RVZextWInst>(target_result, target_src);
+  GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(zext_inst);
+}
+auto LowerHelper::LowerInt2Float(backend::inst::Int2FloatInst *inst) -> void {
+  auto src = inst->GetOperands()[0];
+  auto dst = inst->GetResult();
+
+  auto target_src = src->IsLiteral()
+                        ? MaterializeLiteral(compiler_context_, static_cast<utils::IntLiteral *>(src)->GetValue())
+                        : GET_BACKEND_TARGET()->GetMappedOperand(src);
+  if (target_src == nullptr) {
+    compiler_context_->ReportError("Int2Float source operand is not mapped to a target operand");
+    return;
+  }
+
+  auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::Float);
+  GET_BACKEND_TARGET()->MapOperand(dst, target_result);
+  auto cast_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFCVTSWInst>(target_result, target_src);
+  GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(cast_inst);
+}
+auto LowerHelper::LowerFloat2Int(backend::inst::Float2IntInst *inst) -> void {
+  auto src = inst->GetOperands()[0];
+  auto dst = inst->GetResult();
+
+  if (src->IsLiteral()) {
+    compiler_context_->ReportError("Float literal materialization is not implemented yet");
+    return;
+  }
+
+  auto target_src = GET_BACKEND_TARGET()->GetMappedOperand(src);
+  if (target_src == nullptr) {
+    compiler_context_->ReportError("Float2Int source operand is not mapped to a target operand");
+    return;
+  }
+
+  auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+  GET_BACKEND_TARGET()->MapOperand(dst, target_result);
+  auto cast_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFCVTWSInst>(target_result, target_src);
+  GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(cast_inst);
+}
+auto LowerHelper::LowerBool2Float(backend::inst::Bool2FloatInst *inst) -> void {
+  auto src = inst->GetOperands()[0];
+  auto dst = inst->GetResult();
+
+  backend::targetir::TargetOperand *target_src = nullptr;
+  if (src->IsLiteral()) {
+    target_src = MaterializeLiteral(compiler_context_, static_cast<utils::BoolLiteral *>(src)->GetValue() ? 1 : 0);
+  } else {
+    target_src = GET_BACKEND_TARGET()->GetMappedOperand(src);
+  }
+  if (target_src == nullptr) {
+    compiler_context_->ReportError("Bool2Float source operand is not mapped to a target operand");
+    return;
+  }
+
+  auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::Float);
+  GET_BACKEND_TARGET()->MapOperand(dst, target_result);
+  auto cast_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFCVTSWUInst>(target_result, target_src);
+  GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(cast_inst);
+}
 
 auto LowerHelper::LowerCopy([[maybe_unused]] backend::inst::CopyInst *inst) -> void {}
-auto LowerHelper::LowerPhi([[maybe_unused]] backend::inst::PhiInst *inst) -> void {}
 
 }  // namespace backend::targetir::rv64

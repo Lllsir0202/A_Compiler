@@ -50,4 +50,20 @@ auto RVFCVTSWUInst::Create(TargetOperand *rd, TargetOperand *rs1) -> RVFCVTSWUIn
   return inst;
 }
 
+auto RVZextWInst::Emit(std::ofstream *out) -> void {
+  *out << "    zext.w ";
+  result_->Emit(out);
+  *out << ", ";
+  operands_[0]->Emit(out);
+  *out << '\n';
+}
+
+auto RVZextWInst::Create(TargetOperand *rd, TargetOperand *rs1) -> RVZextWInst * {
+  auto inst = new RVZextWInst();
+  inst->operands_.reserve(1);
+  inst->AddOperand(rs1);
+  inst->SetResult(rd);
+  return inst;
+}
+
 }  // namespace backend::targetir::rv64

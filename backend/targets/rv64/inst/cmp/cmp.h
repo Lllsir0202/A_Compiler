@@ -35,6 +35,17 @@ class RVSEQInst : public TargetInst {
   friend class targetir::InstFactory;
 };
 
+// Immediate Comparsion Instructions
+class RVSLTIInst : public TargetInst {
+ public:
+  auto Emit(std::ofstream *out) -> void override;
+
+ private:
+  RVSLTIInst() = default;
+  static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVSLTIInst *;
+  friend class targetir::InstFactory;
+};
+
 // FCmp
 class RVFLTSInst : public TargetInst {
  public:

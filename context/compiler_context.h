@@ -46,7 +46,8 @@ class CompilerContext {
     delete ast_context_;
     delete symboltable_context_;
     delete ir_context_;
-    delete pass_context_;
+    // Since the pass_context will change during different stages,
+    // we will just let the compiler_context hold the pointer but not the source.
     delete mir_context_;
     delete backend_context_;
   }

@@ -62,7 +62,6 @@ class LowerHelper {
   auto LowerBool2Float(backend::inst::Bool2FloatInst *inst) -> void;
 
   auto LowerCopy(backend::inst::CopyInst *inst) -> void;
-  auto LowerPhi(backend::inst::PhiInst *inst) -> void;
 };
 
 }  // namespace backend::targetir::rv64

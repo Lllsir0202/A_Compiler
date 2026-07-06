@@ -5,11 +5,11 @@ namespace backend::targetir::rv64 {
 // ICmp
 auto RVSLTInst::Emit(std::ofstream *out) -> void {
   *out << "    slt ";
+  result_->Emit(out);
+  *out << ", ";
   operands_[0]->Emit(out);
   *out << ", ";
   operands_[1]->Emit(out);
-  *out << ", ";
-  operands_[2]->Emit(out);
   *out << '\n';
 }
 
@@ -24,11 +24,11 @@ auto RVSLTInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2
 
 auto RVSLEInst::Emit(std::ofstream *out) -> void {
   *out << "    sle ";
+  result_->Emit(out);
+  *out << ", ";
   operands_[0]->Emit(out);
   *out << ", ";
   operands_[1]->Emit(out);
-  *out << ", ";
-  operands_[2]->Emit(out);
   *out << '\n';
 }
 
@@ -43,11 +43,11 @@ auto RVSLEInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2
 
 auto RVSEQInst::Emit(std::ofstream *out) -> void {
   *out << "    seq ";
+  result_->Emit(out);
+  *out << ", ";
   operands_[0]->Emit(out);
   *out << ", ";
   operands_[1]->Emit(out);
-  *out << ", ";
-  operands_[2]->Emit(out);
   *out << '\n';
 }
 
@@ -60,14 +60,33 @@ auto RVSEQInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2
   return inst;
 }
 
-// FCmp
-auto RVFLTSInst::Emit(std::ofstream *out) -> void {
-  *out << "    flt.s ";
+auto RVSLTIInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVSLTIInst * {
+  auto *inst = new RVSLTIInst();
+  inst->operands_.reserve(2);
+  inst->AddOperand(rs1);
+  inst->AddOperand(imm);
+  inst->SetResult(rd);
+  return inst;
+}
+
+auto RVSLTIInst::Emit(std::ofstream *out) -> void {
+  *out << "    slti ";
+  result_->Emit(out);
+  *out << ", ";
   operands_[0]->Emit(out);
   *out << ", ";
   operands_[1]->Emit(out);
+  *out << '\n';
+}
+
+// FCmp
+auto RVFLTSInst::Emit(std::ofstream *out) -> void {
+  *out << "    flt.s ";
+  result_->Emit(out);
   *out << ", ";
-  operands_[2]->Emit(out);
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
   *out << '\n';
 }
 
@@ -82,11 +101,11 @@ auto RVFLTSInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs
 
 auto RVFLESInst::Emit(std::ofstream *out) -> void {
   *out << "    fle.s ";
+  result_->Emit(out);
+  *out << ", ";
   operands_[0]->Emit(out);
   *out << ", ";
   operands_[1]->Emit(out);
-  *out << ", ";
-  operands_[2]->Emit(out);
   *out << '\n';
 }
 
@@ -101,11 +120,11 @@ auto RVFLESInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs
 
 auto RVFEQSInst::Emit(std::ofstream *out) -> void {
   *out << "    feq.s ";
+  result_->Emit(out);
+  *out << ", ";
   operands_[0]->Emit(out);
   *out << ", ";
   operands_[1]->Emit(out);
-  *out << ", ";
-  operands_[2]->Emit(out);
   *out << '\n';
 }
 

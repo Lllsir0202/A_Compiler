@@ -25,7 +25,6 @@ auto RV64Lower::Lower() -> int {
 
     for (auto *mir_function : mir_module->GetFunctions()) {
       auto *target_function = backend_context->CreateFunction(mir_function->GetName());
-      backend_context->AddFunction(target_function);
       backend_context->SetCurrentFunction(target_function);
       backend_context->ClearBlockMap();
 
