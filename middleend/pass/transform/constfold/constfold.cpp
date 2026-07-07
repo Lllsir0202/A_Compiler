@@ -1,4 +1,5 @@
 #include "middleend/pass/transform/constfold/constfold.h"
+#include <cstddef>
 #include <stdexcept>
 #include "context/compiler_context.h"
 #include "middleend/llvm/inst/arithm/arithm.h"
@@ -151,6 +152,11 @@ auto ConstFoldPass::ComputeArithmResult(Instruction *inst) -> Operand * {
       return nullptr;
     }
     auto rhs = GetIntValue(div->GetRHS());
+    if (rhs == 0) {
+      // If the divisor is zero, we cannot compute the result,
+      // return nullptr to indicate that.
+      return nullptr;
+    }
     return llvmir_context->GetIntLiteral(GetIntValue(div->GetLHS()) / rhs);
   }
 
@@ -159,6 +165,11 @@ auto ConstFoldPass::ComputeArithmResult(Instruction *inst) -> Operand * {
       return nullptr;
     }
     auto rhs = GetFloatValue(divf->GetRHS());
+    if (rhs == 0.0F) {
+      // If the divisor is zero, we cannot compute the result,
+      // return nullptr to indicate that.
+      return nullptr;
+    }
     return llvmir_context->GetFloatLiteral(GetFloatValue(divf->GetLHS()) / rhs);
   }
 

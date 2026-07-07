@@ -840,6 +840,7 @@ auto LowerHelper::LowerZext(backend::inst::ZextInst *inst) -> void {
   auto zext_inst = GET_BACKEND_TARGET()->CreateInstruction<RVZextWInst>(target_result, target_src);
   GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(zext_inst);
 }
+
 auto LowerHelper::LowerInt2Float(backend::inst::Int2FloatInst *inst) -> void {
   auto src = inst->GetOperands()[0];
   auto dst = inst->GetResult();
@@ -857,6 +858,7 @@ auto LowerHelper::LowerInt2Float(backend::inst::Int2FloatInst *inst) -> void {
   auto cast_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFCVTSWInst>(target_result, target_src);
   GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(cast_inst);
 }
+
 auto LowerHelper::LowerFloat2Int(backend::inst::Float2IntInst *inst) -> void {
   auto src = inst->GetOperands()[0];
   auto dst = inst->GetResult();
@@ -877,6 +879,7 @@ auto LowerHelper::LowerFloat2Int(backend::inst::Float2IntInst *inst) -> void {
   auto cast_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFCVTWSInst>(target_result, target_src);
   GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(cast_inst);
 }
+
 auto LowerHelper::LowerBool2Float(backend::inst::Bool2FloatInst *inst) -> void {
   auto src = inst->GetOperands()[0];
   auto dst = inst->GetResult();
