@@ -19,6 +19,9 @@ class RV64Getter {
 
   // Get the zero register
   auto GetZeroRegister(context::BackendContext *context, TargetRegSize size) -> TargetPhysicalReg *;
+
+  // Get the return value register
+  auto GetReturnValueReg(context::BackendContext *context, TargetRegSize size) -> TargetPhysicalReg *;
 };
 
 }  // namespace backend::targetir::rv64

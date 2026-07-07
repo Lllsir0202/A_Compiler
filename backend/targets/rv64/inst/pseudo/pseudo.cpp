@@ -26,11 +26,10 @@ auto RVMVInst::Emit(std::ofstream *out) -> void {
   *out << '\n';
 }
 
-auto RVMVInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVMVInst * {
+auto RVMVInst::Create(TargetOperand *rd, TargetOperand *rs) -> RVMVInst * {
   auto inst = new RVMVInst();
-  inst->operands_.reserve(2);
-  inst->AddOperand(rs1);
-  inst->AddOperand(rs2);
+  inst->operands_.reserve(1);
+  inst->AddOperand(rs);
   inst->SetResult(rd);
   return inst;
 }

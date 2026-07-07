@@ -98,6 +98,45 @@ auto RVREMInst::Emit(std::ofstream *out) -> void {
   *out << '\n';
 }
 
+// Xor instruction
+auto RVXORInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVXORInst * {
+  auto *inst = new RVXORInst();
+  inst->operands_.reserve(2);
+  inst->AddOperand(rs1);
+  inst->AddOperand(rs2);
+  inst->SetResult(rd);
+  return inst;
+}
+
+auto RVXORInst::Emit(std::ofstream *out) -> void {
+  *out << "    xor ";
+  result_->Emit(out);
+  *out << ", ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << '\n';
+}
+
+auto RVXORIInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVXORIInst * {
+  auto *inst = new RVXORIInst();
+  inst->operands_.reserve(2);
+  inst->AddOperand(rs1);
+  inst->AddOperand(imm);
+  inst->SetResult(rd);
+  return inst;
+}
+
+auto RVXORIInst::Emit(std::ofstream *out) -> void {
+  *out << "    xori ";
+  result_->Emit(out);
+  *out << ", ";
+  operands_[0]->Emit(out);
+  *out << ", ";
+  operands_[1]->Emit(out);
+  *out << '\n';
+}
+
 auto RVADDIInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVADDIInst * {
   auto *inst = new RVADDIInst();
   inst->operands_.reserve(2);

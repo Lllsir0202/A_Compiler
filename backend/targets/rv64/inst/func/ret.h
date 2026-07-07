@@ -11,6 +11,7 @@ class RVRETInst : public TargetInst {
  private:
   RVRETInst() = default;
   static auto Create(TargetOperand *operand) -> RVRETInst *;
+  static auto Create() -> RVRETInst *;
   friend class targetir::InstFactory;
 };
 

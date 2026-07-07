@@ -10,4 +10,9 @@ auto RVRETInst::Create(TargetOperand *operand) -> RVRETInst * {
   return inst;
 }
 
+auto RVRETInst::Create() -> RVRETInst * {
+  auto *inst = new RVRETInst();
+  return inst;
+}
+
 }  // namespace backend::targetir::rv64

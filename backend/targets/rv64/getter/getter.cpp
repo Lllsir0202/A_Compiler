@@ -28,4 +28,10 @@ auto RV64Getter::GetZeroRegister(context::BackendContext *context, TargetRegSize
   return context->CreatePhysicalRegView(size, TargetRegClass::General, x0, TargetRegRole::ZERO);
 }
 
+auto RV64Getter::GetReturnValueReg(context::BackendContext *context, TargetRegSize size) -> TargetPhysicalReg * {
+  // In RISC-V, the return value register is x10 (alias a0)
+  auto x10 = context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::General, 10);
+  return context->CreatePhysicalRegView(size, TargetRegClass::General, x10, TargetRegRole::NONE);
+}
+
 }  // namespace backend::targetir::rv64

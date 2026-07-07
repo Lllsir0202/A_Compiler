@@ -7,6 +7,8 @@
  * - ADD, SUB, MUL, DIV, REM
  * - ADDI, ADDIW
  * - ADDW, SUBW, MULW, DIVW, REMW
+ * - SLLI, SLLIW
+ * - XOR, XORI
  */
 
 #include "backend/targets/utils/factory/instfactory.h"
@@ -34,6 +36,20 @@ RV64_ARITHMETIC_DEFINE(RVSUBW)
 RV64_ARITHMETIC_DEFINE(RVMULW)
 RV64_ARITHMETIC_DEFINE(RVDIVW)
 RV64_ARITHMETIC_DEFINE(RVREMW)
+
+// Xor instruction
+RV64_ARITHMETIC_DEFINE(RVXOR)
+
+class RVXORIInst : public TargetInst {
+ public:
+  auto Emit(std::ofstream *out) -> void override;
+
+ private:
+  RVXORIInst() = default;
+  static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVXORIInst *;
+  friend class targetir::InstFactory;
+  ;
+};
 
 class RVADDIInst : public TargetInst {
  public:

@@ -20,7 +20,7 @@ class RVMVInst : public TargetInst {
 
  private:
   RVMVInst() = default;
-  static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVMVInst *;
+  static auto Create(TargetOperand *rd, TargetOperand *rs) -> RVMVInst *;
   friend class targetir::InstFactory;
 };
 

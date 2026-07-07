@@ -4,6 +4,7 @@
 #include "backend/targets/rv64/inst/arithmetic/arithmetic.h"
 #include "backend/targets/rv64/inst/cast/cast.h"
 #include "backend/targets/rv64/inst/cmp/cmp.h"
+#include "backend/targets/rv64/inst/func/ret.h"
 #include "backend/targets/rv64/inst/immediate/immediate.h"
 #include "backend/targets/rv64/inst/pseudo/pseudo.h"
 #include "backend/targets/rv64/utils/checker.h"
@@ -804,7 +805,68 @@ auto LowerHelper::LowerFCmp(backend::inst::FCmpInst *inst) -> void {
       return;
   }
 }
-auto LowerHelper::LowerXor([[maybe_unused]] backend::inst::XorInst *inst) -> void {}
+auto LowerHelper::LowerXor(backend::inst::XorInst *inst) -> void {
+  auto lhs = inst->GetOperands()[0];
+  auto rhs = inst->GetOperands()[1];
+  auto dst = inst->GetResult();
+
+  // If both operands are literals, report error since we have done constfold
+  if (lhs->IsLiteral() && rhs->IsLiteral()) {
+    compiler_context_->ReportError("Both operands are literals, should have been constant folded");
+    return;
+  }
+
+  // If one of the operands is a literal, we can use the immediate instruction to optimize
+  if (lhs->IsLiteral() || rhs->IsLiteral()) {
+    auto literal_operand = lhs->IsLiteral() ? lhs : rhs;
+    auto non_literal_operand = lhs->IsLiteral() ? rhs : lhs;
+
+    auto literal_value = static_cast<utils::IntLiteral *>(literal_operand)->GetValue();
+    auto target_non_literal = GET_BACKEND_TARGET()->GetMappedOperand(non_literal_operand);
+    if (target_non_literal == nullptr) {
+      compiler_context_->ReportError("Non-literal operand is not mapped to a target operand");
+      return;
+    }
+
+    // If the literal is zero, we can just map the result to the non-literal operand
+    if (literal_value == 0) {
+      GET_BACKEND_TARGET()->MapOperand(dst, target_non_literal);
+      return;
+    }
+
+    // If the literal is in 12-bit signed range, we can use the immediate instruction to optimize
+    if (Is12BitSignedInteger(literal_value)) {
+      auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+      GET_BACKEND_TARGET()->MapOperand(dst, target_result);
+      auto target_literal = GET_BACKEND_TARGET()->CreateIntLiteral(literal_value);
+      auto xor_inst =
+          GET_BACKEND_TARGET()->CreateInstruction<RVXORIInst>(target_result, target_non_literal, target_literal);
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(xor_inst);
+      return;
+    }
+
+    // Otherwise, we need to materialize the literal into a register and use the normal xor instruction
+    auto target_literal = MaterializeLiteral(compiler_context_, literal_value);
+    auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+    GET_BACKEND_TARGET()->MapOperand(dst, target_result);
+    auto xor_inst =
+        GET_BACKEND_TARGET()->CreateInstruction<RVXORInst>(target_result, target_non_literal, target_literal);
+    GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(xor_inst);
+    return;
+  }
+
+  // Otherwise, both operands are not literals, normally they should both be virtual registers
+  auto target_lhs = GET_BACKEND_TARGET()->GetMappedOperand(lhs);
+  auto target_rhs = GET_BACKEND_TARGET()->GetMappedOperand(rhs);
+  if (target_lhs == nullptr || target_rhs == nullptr) {
+    compiler_context_->ReportError("One of the operands is not mapped to a target operand");
+    return;
+  }
+  auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+  GET_BACKEND_TARGET()->MapOperand(dst, target_result);
+  auto xor_inst = GET_BACKEND_TARGET()->CreateInstruction<RVXORInst>(target_result, target_lhs, target_rhs);
+  GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(xor_inst);
+}
 
 auto LowerHelper::LowerLoad([[maybe_unused]] backend::inst::LoadInst *inst) -> void {}
 auto LowerHelper::LowerStore([[maybe_unused]] backend::inst::StoreInst *inst) -> void {}
@@ -812,7 +874,38 @@ auto LowerHelper::LowerGlobalDef([[maybe_unused]] backend::inst::GlobalDefInst *
 
 auto LowerHelper::LowerBr([[maybe_unused]] backend::inst::BrInst *inst) -> void {}
 auto LowerHelper::LowerCondBr([[maybe_unused]] backend::inst::BrCondInst *inst) -> void {}
-auto LowerHelper::LowerRet([[maybe_unused]] backend::inst::RetInst *inst) -> void {}
+auto LowerHelper::LowerRet(backend::inst::RetInst *inst) -> void {
+  if (auto return_value = inst->GetReturnValue()) {
+    // If has a return value, we need to move it to the return register
+    auto target_return_value = GET_BACKEND_TARGET()->GetMappedOperand(return_value);
+    // If the return value is a literal, we need to materialize it into a register first
+    if (return_value->IsLiteral()) {
+      if (auto int_literal = dynamic_cast<utils::IntLiteral *>(return_value)) {
+        target_return_value = MaterializeLiteral(compiler_context_, int_literal->GetValue());
+      } else if (auto bool_literal = dynamic_cast<utils::BoolLiteral *>(return_value)) {
+        target_return_value = MaterializeLiteral(compiler_context_, bool_literal->GetValue() ? 1 : 0);
+      } else {
+        compiler_context_->ReportError("Return value is a literal but not an integer or boolean literal");
+        return;
+      }
+    }
+    // Then the return value must be mapped to a target operand
+    if (target_return_value == nullptr) {
+      compiler_context_->ReportError("Return value is not mapped to a target operand");
+      return;
+    }
+    auto target_return_register = rv64_getter_.GetReturnValueReg(GET_BACKEND_TARGET(), TargetRegSize::DWord);
+    auto mv_inst = GET_BACKEND_TARGET()->CreateInstruction<RVMVInst>(target_return_register, target_return_value);
+    GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(mv_inst);
+    auto ret_inst = GET_BACKEND_TARGET()->CreateInstruction<RVRETInst>(target_return_register);
+    GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(ret_inst);
+    return;
+  }
+
+  // void return : just insert the 'ret' instruction
+  auto ret_inst = GET_BACKEND_TARGET()->CreateInstruction<RVRETInst>();
+  GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(ret_inst);
+}
 
 auto LowerHelper::LowerFuncDef([[maybe_unused]] backend::inst::FuncDefInst *inst) -> void {}
 auto LowerHelper::LowerFuncDeclare([[maybe_unused]] backend::inst::FuncDeclareInst *inst) -> void {}
@@ -901,6 +994,41 @@ auto LowerHelper::LowerBool2Float(backend::inst::Bool2FloatInst *inst) -> void {
   GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(cast_inst);
 }
 
-auto LowerHelper::LowerCopy([[maybe_unused]] backend::inst::CopyInst *inst) -> void {}
+auto LowerHelper::LowerCopy(backend::inst::CopyInst *inst) -> void {
+  // Use mv instruction to copy the value from src to dst
+  auto src = inst->GetOperands()[0];
+  auto dst = inst->GetResult();
+
+  // If the src is a literal, we need to materialize it into a register first
+  backend::targetir::TargetOperand *target_src = nullptr;
+  if (src->IsLiteral()) {
+    if (auto int_literal = dynamic_cast<utils::IntLiteral *>(src)) {
+      target_src = MaterializeLiteral(compiler_context_, int_literal->GetValue());
+    } else if (auto bool_literal = dynamic_cast<utils::BoolLiteral *>(src)) {
+      target_src = MaterializeLiteral(compiler_context_, bool_literal->GetValue() ? 1 : 0);
+    } else {
+      compiler_context_->ReportError("Copy source is a literal but not an integer or boolean literal");
+      return;
+    }
+  } else {
+    target_src = GET_BACKEND_TARGET()->GetMappedOperand(src);
+  }
+
+  if (target_src == nullptr) {
+    compiler_context_->ReportError("Copy source operand is not mapped to a target operand");
+    return;
+  }
+
+  // If the copy instruction's result has not been created,
+  // create a virtual register for the result
+  auto target_result = GET_BACKEND_TARGET()->GetMappedOperand(dst);
+  if (target_result == nullptr) {
+    target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+    GET_BACKEND_TARGET()->MapOperand(dst, target_result);
+  }
+
+  auto mv_inst = GET_BACKEND_TARGET()->CreateInstruction<RVMVInst>(target_result, target_src);
+  GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(mv_inst);
+}
 
 }  // namespace backend::targetir::rv64
