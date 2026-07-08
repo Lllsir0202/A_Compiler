@@ -17,7 +17,11 @@ class RV64Lower {
   context::CompilerContext *compiler_context_;
   LowerHelper *lower_helper_;
 
-  void RegisterLibraryFunctions();
+  // Ignore the llvm-related library functions
+  std::unordered_set<std::string> library_functions_ = {"putint",    "getint",    "putfloat",        "getfloat",
+                                                        "putch",     "getch",     "putarray",        "getarray",
+                                                        "putfarray", "getfarray", "_sysy_starttime", "_sysy_stoptime"};
+  std::unordered_set<std::string> llvm_library_functions_ = {"llvm.memcpy.p0i8.p0i8.i64", "llvm.memset.p0i8.i64"};
 };
 }  // namespace backend::targetir::rv64
 
