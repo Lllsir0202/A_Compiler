@@ -16,6 +16,8 @@ class RV64Lower {
  private:
   context::CompilerContext *compiler_context_;
   LowerHelper *lower_helper_;
+
+  void RegisterLibraryFunctions();
 };
 }  // namespace backend::targetir::rv64
 

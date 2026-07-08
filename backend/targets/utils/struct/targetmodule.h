@@ -12,6 +12,9 @@ class TargetModule {
   auto GetFunctions() -> const std::vector<TargetFunction *> & { return functions_; }
   auto AddGlobalObject(TargetGlobalObject *global_object) -> void { global_objects_.emplace_back(global_object); }
   auto GetGlobalObjects() const -> const std::vector<TargetGlobalObject *> & { return global_objects_; }
+  auto AddLibraryFunction(const std::string &lib_func_name) -> void { library_functions_.emplace_back(lib_func_name); }
+  auto GetLibraryFunctions() const -> const std::vector<std::string> & { return library_functions_; }
+
   auto Reset() -> void {
     for (auto *func : functions_) {
       delete func;
@@ -21,6 +24,7 @@ class TargetModule {
       delete global;
     }
     global_objects_.clear();
+    library_functions_.clear();
   }
 
  private:

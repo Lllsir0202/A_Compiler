@@ -14,6 +14,34 @@
 
 namespace backend::targetir::rv64 {
 
+// Register library functions
+auto RV64Lower::RegisterLibraryFunctions() -> void {
+  // putint
+  compiler_context_->GetBackendContext()->GetModule()->AddLibraryFunction("putint");
+  // getint
+  compiler_context_->GetBackendContext()->GetModule()->AddLibraryFunction("getint");
+  // putfloat
+  compiler_context_->GetBackendContext()->GetModule()->AddLibraryFunction("putfloat");
+  // getfloat
+  compiler_context_->GetBackendContext()->GetModule()->AddLibraryFunction("getfloat");
+  // putch
+  compiler_context_->GetBackendContext()->GetModule()->AddLibraryFunction("putch");
+  // getch
+  compiler_context_->GetBackendContext()->GetModule()->AddLibraryFunction("getch");
+  // putarray
+  compiler_context_->GetBackendContext()->GetModule()->AddLibraryFunction("putarray");
+  // getarray
+  compiler_context_->GetBackendContext()->GetModule()->AddLibraryFunction("getarray");
+  // putfarray
+  compiler_context_->GetBackendContext()->GetModule()->AddLibraryFunction("putfarray");
+  // getfarray
+  compiler_context_->GetBackendContext()->GetModule()->AddLibraryFunction("getfarray");
+  // _sysy_starttime
+  compiler_context_->GetBackendContext()->GetModule()->AddLibraryFunction("_sysy_starttime");
+  // _sysy_stoptime
+  compiler_context_->GetBackendContext()->GetModule()->AddLibraryFunction("_sysy_stoptime");
+}
+
 auto RV64Lower::Lower() -> int {
   try {
     auto *backend_context = compiler_context_->GetBackendContext();
@@ -24,6 +52,9 @@ auto RV64Lower::Lower() -> int {
 
     auto *target_module = backend_context->CreateModule();
     backend_context->SetModule(target_module);
+
+    // Register library functions, which are used for linking and code generation
+    RegisterLibraryFunctions();
 
     for (const auto &[_, global_def] : mir_module->GetGlobalDefs()) {
       if (!global_def->GetIntInitialValues().empty()) {

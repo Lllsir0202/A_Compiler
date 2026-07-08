@@ -10,6 +10,7 @@ TargetModule::~TargetModule() {
     delete global;
   }
   global_objects_.clear();
+  library_functions_.clear();
 }
 
 auto TargetModule::Emit(std::ofstream *out) -> void {
@@ -25,6 +26,15 @@ auto TargetModule::Emit(std::ofstream *out) -> void {
   }
 
   // In the end, emit the global variables and library functions
+  if (!library_functions_.empty()) {
+    *out << "    .addrsig\n";
+  }
+  for (auto &lib_func : library_functions_) {
+    *out << "    .addrsig_sym " << lib_func;
+    if (lib_func != library_functions_.back()) {
+      *out << "\n";
+    }
+  }
 }
 
 }  // namespace backend::targetir
