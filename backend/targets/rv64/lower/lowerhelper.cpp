@@ -2,6 +2,7 @@
 #include <stdexcept>
 #include "backend/mir/inst/inst.h"
 #include "backend/targets/rv64/inst/arithmetic/arithmetic.h"
+#include "backend/targets/rv64/inst/branch/jmp.h"
 #include "backend/targets/rv64/inst/cast/cast.h"
 #include "backend/targets/rv64/inst/cmp/cmp.h"
 #include "backend/targets/rv64/inst/func/ret.h"
@@ -49,14 +50,12 @@ auto LowerHelper::LowerDispatch(backend::inst::Instruction *inst) -> void {
 
     DISPATCH_MIR_INST(backend::inst::LoadInst, LowerLoad)
     DISPATCH_MIR_INST(backend::inst::StoreInst, LowerStore)
-    DISPATCH_MIR_INST(backend::inst::GlobalDefInst, LowerGlobalDef)
 
     DISPATCH_MIR_INST(backend::inst::BrInst, LowerBr)
     DISPATCH_MIR_INST(backend::inst::BrCondInst, LowerCondBr)
     DISPATCH_MIR_INST(backend::inst::RetInst, LowerRet)
 
     DISPATCH_MIR_INST(backend::inst::FuncDefInst, LowerFuncDef)
-    DISPATCH_MIR_INST(backend::inst::FuncDeclareInst, LowerFuncDeclare)
     DISPATCH_MIR_INST(backend::inst::CallInst, LowerCall)
 
     DISPATCH_MIR_INST(backend::inst::ZextInst, LowerZext)
@@ -541,6 +540,7 @@ auto LowerHelper::LowerDiv(backend::inst::DivInst *inst) -> void {
   auto div_inst = GET_BACKEND_TARGET()->CreateInstruction<RVDIVWInst>(target_result, target_lhs, target_rhs);
   GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(div_inst);
 }
+
 auto LowerHelper::LowerMod(backend::inst::ModInst *inst) -> void {
   auto lhs = inst->GetLHS();
   auto rhs = inst->GetRHS();
@@ -597,6 +597,7 @@ auto LowerHelper::LowerAddF(backend::inst::AddFInst *inst) -> void {
   auto addf_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFADDSInst>(target_result, target_lhs, target_rhs);
   GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(addf_inst);
 }
+
 auto LowerHelper::LowerSubF(backend::inst::SubFInst *inst) -> void {
   auto lhs = inst->GetLHS();
   auto rhs = inst->GetRHS();
@@ -625,6 +626,7 @@ auto LowerHelper::LowerSubF(backend::inst::SubFInst *inst) -> void {
   auto subf_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFSUBSInst>(target_result, target_lhs, target_rhs);
   GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(subf_inst);
 }
+
 auto LowerHelper::LowerMulF(backend::inst::MulFInst *inst) -> void {
   auto lhs = inst->GetLHS();
   auto rhs = inst->GetRHS();
@@ -653,6 +655,7 @@ auto LowerHelper::LowerMulF(backend::inst::MulFInst *inst) -> void {
   auto mulf_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFMULSInst>(target_result, target_lhs, target_rhs);
   GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(mulf_inst);
 }
+
 auto LowerHelper::LowerDivF(backend::inst::DivFInst *inst) -> void {
   auto lhs = inst->GetLHS();
   auto rhs = inst->GetRHS();
@@ -870,10 +873,74 @@ auto LowerHelper::LowerXor(backend::inst::XorInst *inst) -> void {
 
 auto LowerHelper::LowerLoad([[maybe_unused]] backend::inst::LoadInst *inst) -> void {}
 auto LowerHelper::LowerStore([[maybe_unused]] backend::inst::StoreInst *inst) -> void {}
-auto LowerHelper::LowerGlobalDef([[maybe_unused]] backend::inst::GlobalDefInst *inst) -> void {}
 
-auto LowerHelper::LowerBr([[maybe_unused]] backend::inst::BrInst *inst) -> void {}
-auto LowerHelper::LowerCondBr([[maybe_unused]] backend::inst::BrCondInst *inst) -> void {}
+auto LowerHelper::LowerBr(backend::inst::BrInst *inst) -> void {
+  // For unconditional branch, we can just create the label operand
+  auto target_label = inst->GetTargetLabel();
+  // Need to get the target block from the label operand
+  if (target_label == nullptr) {
+    compiler_context_->ReportError("Target block is not found");
+    return;
+  }
+
+  auto target_block = GET_BACKEND_TARGET()->GetMappedBlock(target_label->GetId());
+
+  auto target_label_operand = GET_BACKEND_TARGET()->CreateLabelOperand(target_block->GetName());
+
+  // Then create the branch instruction
+  auto br_inst = GET_BACKEND_TARGET()->CreateInstruction<RVJMPInst>(target_label_operand);
+  GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(br_inst);
+}
+
+auto LowerHelper::LowerCondBr(backend::inst::BrCondInst *inst) -> void {
+  // conditional branch instruction, we need to get the condition operand and the target label operand
+  auto cond = inst->GetCondition();
+  auto true_label = inst->GetTrueLabel();
+  auto false_label = inst->GetFalseLabel();
+
+  // Get the target operands for the condition and the labels
+  if (cond->IsLiteral()) {
+    auto literal_value = static_cast<utils::BoolLiteral *>(cond)->GetValue();
+    if (literal_value) {
+      // If the condition is true, we can just create an unconditional branch to the true label
+      auto target_true_block = GET_BACKEND_TARGET()->GetMappedBlock(true_label->GetId());
+      auto target_true_label_operand = GET_BACKEND_TARGET()->CreateLabelOperand(target_true_block->GetName());
+      auto br_inst = GET_BACKEND_TARGET()->CreateInstruction<RVJMPInst>(target_true_label_operand);
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(br_inst);
+      return;
+    }
+    // If the condition is false, we can just create an unconditional branch to the false label
+    auto target_false_block = GET_BACKEND_TARGET()->GetMappedBlock(false_label->GetId());
+    auto target_false_label_operand = GET_BACKEND_TARGET()->CreateLabelOperand(target_false_block->GetName());
+    auto br_inst = GET_BACKEND_TARGET()->CreateInstruction<RVJMPInst>(target_false_label_operand);
+    GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(br_inst);
+    return;
+  }
+
+  // If the condition is not a literal, we need to get the target operand for the condition
+  auto target_cond = GET_BACKEND_TARGET()->GetMappedOperand(cond);
+  if (target_cond == nullptr) {
+    compiler_context_->ReportError("Condition operand is not mapped to a target operand");
+    return;
+  }
+
+  // Then we need to get the target operands for the true and false labels
+  auto target_true_block = GET_BACKEND_TARGET()->GetMappedBlock(true_label->GetId());
+  auto target_false_block = GET_BACKEND_TARGET()->GetMappedBlock(false_label->GetId());
+  if (target_true_block == nullptr || target_false_block == nullptr) {
+    compiler_context_->ReportError("One of the target blocks is not found");
+    return;
+  }
+
+  auto target_true_label_operand = GET_BACKEND_TARGET()->CreateLabelOperand(target_true_block->GetName());
+  auto target_false_label_operand = GET_BACKEND_TARGET()->CreateLabelOperand(target_false_block->GetName());
+
+  // Create branch instructions for both true and false labels
+  auto br_true_inst = GET_BACKEND_TARGET()->CreateInstruction<RVBEQInst>(target_cond, target_true_label_operand);
+  GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(br_true_inst);
+  auto br_false_inst = GET_BACKEND_TARGET()->CreateInstruction<RVJMPInst>(target_false_label_operand);
+  GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(br_false_inst);
+}
 auto LowerHelper::LowerRet(backend::inst::RetInst *inst) -> void {
   if (auto return_value = inst->GetReturnValue()) {
     // If has a return value, we need to move it to the return register
@@ -908,7 +975,6 @@ auto LowerHelper::LowerRet(backend::inst::RetInst *inst) -> void {
 }
 
 auto LowerHelper::LowerFuncDef([[maybe_unused]] backend::inst::FuncDefInst *inst) -> void {}
-auto LowerHelper::LowerFuncDeclare([[maybe_unused]] backend::inst::FuncDeclareInst *inst) -> void {}
 auto LowerHelper::LowerCall([[maybe_unused]] backend::inst::CallInst *inst) -> void {}
 
 auto LowerHelper::LowerZext(backend::inst::ZextInst *inst) -> void {

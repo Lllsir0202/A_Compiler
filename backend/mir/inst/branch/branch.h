@@ -12,6 +12,9 @@ class BrInst : public Instruction {
   auto IsBranch() const -> bool override { return true; }
   auto IsTerminal() const -> bool override { return true; }
 
+  // Get the branch target label operand
+  auto GetTargetLabel() const -> utils::LabelOperand * { return static_cast<utils::LabelOperand *>(GetOperands()[0]); }
+
  private:
   explicit BrInst() : Instruction(OpKind::Br) {}
   static auto Create(context::MIRContext *context, utils::LabelOperand *label) -> BrInst *;
@@ -24,6 +27,13 @@ class BrCondInst : public Instruction {
   auto Emit(std::ofstream *out) const -> void override;
   auto IsBranch() const -> bool override { return true; }
   auto IsTerminal() const -> bool override { return true; }
+
+  // Get the condition operand
+  auto GetCondition() const -> utils::Operand * { return GetOperands()[0]; }
+  // Get the true label operand
+  auto GetTrueLabel() const -> utils::LabelOperand * { return static_cast<utils::LabelOperand *>(GetOperands()[1]); }
+  // Get the false label operand
+  auto GetFalseLabel() const -> utils::LabelOperand * { return static_cast<utils::LabelOperand *>(GetOperands()[2]); }
 
  private:
   explicit BrCondInst() : Instruction(OpKind::CondBr) {}

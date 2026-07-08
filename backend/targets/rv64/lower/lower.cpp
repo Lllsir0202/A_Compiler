@@ -3,9 +3,11 @@
 #include <exception>
 #include <string>
 
+#include "backend/mir/inst/memory/globaldef.h"
 #include "backend/mir/utils/struct/block.h"
 #include "backend/mir/utils/struct/function.h"
 #include "backend/mir/utils/struct/module.h"
+#include "backend/targets/rv64/symbol/rv64global.h"
 #include "context/backend_context.h"
 #include "context/compiler_context.h"
 #include "context/mir_context.h"
@@ -22,6 +24,18 @@ auto RV64Lower::Lower() -> int {
 
     auto *target_module = backend_context->CreateModule();
     backend_context->SetModule(target_module);
+
+    for (const auto &[_, global_def] : mir_module->GetGlobalDefs()) {
+      if (!global_def->GetIntInitialValues().empty()) {
+        target_module->AddGlobalObject(
+            new RV64GlobalObject(global_def->GetName(), global_def->GetAllocatedType(), global_def->GetDimensions(),
+                                 global_def->GetIntInitialValues(), global_def->IsConstant()));
+      } else {
+        target_module->AddGlobalObject(
+            new RV64GlobalObject(global_def->GetName(), global_def->GetAllocatedType(), global_def->GetDimensions(),
+                                 global_def->GetFloatInitialValues(), global_def->IsConstant()));
+      }
+    }
 
     for (auto *mir_function : mir_module->GetFunctions()) {
       auto *target_function = backend_context->CreateFunction(mir_function->GetName());
@@ -45,6 +59,12 @@ auto RV64Lower::Lower() -> int {
           lower_helper_->LowerDispatch(mir_inst);
         }
       }
+
+      // Before exiting the function, we need to clear the current function and current block in the backend context
+      // Also need to clear the block map
+      backend_context->SetCurrentFunction(nullptr);
+      backend_context->SetCurrentBlock(nullptr);
+      backend_context->ClearBlockMap();
     }
   } catch (const std::exception &e) {
     compiler_context_->Print("Error during RV64 lowering: " + std::string(e.what()));

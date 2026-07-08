@@ -21,6 +21,9 @@ class Module {
   auto GetFuncDefByName(const std::string &name) const -> inst::FuncDefInst *;
   auto GetFuncDeclareByName(const std::string &name) const -> inst::FuncDeclareInst *;
   auto GetGlobalDefByName(const std::string &name) const -> inst::GlobalDefInst *;
+  auto GetGlobalDefs() const -> const std::unordered_map<std::string, inst::GlobalDefInst *> & {
+    return global_var_insts_;
+  }
 
   auto AddFunction(Function *func) -> void { functions_.emplace_back(func); }
   auto GetFunctions() const -> const std::vector<Function *> & { return functions_; }

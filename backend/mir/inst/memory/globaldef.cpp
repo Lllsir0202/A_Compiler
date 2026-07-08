@@ -39,6 +39,9 @@ auto GlobalDefInst::Create(context::MIRContext *context, type::Type *result_type
 
 auto GlobalDefInst::Emit(std::ofstream *out) const -> void {
   *out << "GlobalDef " << name_ << " : " << allocated_type_->ToString();
+  if (is_constant_) {
+    *out << " const";
+  }
   if (!dimensions_.empty()) {
     *out << " [";
     for (size_t i = 0; i < dimensions_.size(); ++i) {

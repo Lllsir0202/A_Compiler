@@ -16,6 +16,7 @@ class GlobalDefInst : public Instruction {
   auto GetIntInitialValues() const -> const std::vector<int> & { return int_initial_values_; }
   auto GetFloatInitialValues() const -> const std::vector<float> & { return float_initial_values_; }
   auto GetDimensions() const -> const std::vector<int> & { return dimensions_; }
+  auto IsConstant() const -> bool { return is_constant_; }
 
  private:
   explicit GlobalDefInst(type::Type *allocated_type, std::string name, std::vector<int> dimensions,

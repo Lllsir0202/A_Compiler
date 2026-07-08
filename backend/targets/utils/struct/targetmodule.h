@@ -1,6 +1,7 @@
 #ifndef BACKEND_TARGETS_UTILS_STRUCT_TARGETMODULE_H
 #define BACKEND_TARGETS_UTILS_STRUCT_TARGETMODULE_H
 #include "backend/targets/utils/struct/targetfunction.h"
+#include "backend/targets/utils/struct/targetglobalobject.h"
 namespace backend::targetir {
 class TargetModule {
  public:
@@ -9,11 +10,17 @@ class TargetModule {
   auto Emit(std::ofstream *out) -> void;
   auto AddFunction(TargetFunction *function) -> void { functions_.emplace_back(function); }
   auto GetFunctions() -> const std::vector<TargetFunction *> & { return functions_; }
+  auto AddGlobalObject(TargetGlobalObject *global_object) -> void { global_objects_.emplace_back(global_object); }
+  auto GetGlobalObjects() const -> const std::vector<TargetGlobalObject *> & { return global_objects_; }
   auto Reset() -> void {
     for (auto *func : functions_) {
       delete func;
     }
     functions_.clear();
+    for (auto *global : global_objects_) {
+      delete global;
+    }
+    global_objects_.clear();
   }
 
  private:
@@ -22,6 +29,13 @@ class TargetModule {
   friend class ModuleFactory;
   // Record a list of functions
   std::vector<TargetFunction *> functions_;
+
+  // Record a list of global variables
+  std::vector<TargetGlobalObject *> global_objects_;
+
+  // Record a list of library functions
+  // Need to record the name of the library function
+  std::vector<std::string> library_functions_;
 };
 
 }  // namespace backend::targetir

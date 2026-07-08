@@ -47,7 +47,7 @@ auto MIRLower::Lower() -> int {
         auto initial_values = global_def->GetIntInitialValues();
         auto mir_global_def = GET_MIR_CONTEXT()->GetResourceContext()->CreateInstruction<inst::GlobalDefInst>(
             GET_MIR_CONTEXT(), global_def->GetResult()->GetType(), var_type, var_name, global_def->GetDimensions(),
-            initial_values);
+            initial_values, global_def->IsConstant());
         GET_MIR_CONTEXT()->AddGlobalDefInst(mir_global_def);
         GET_MIR_CONTEXT()->GetLowerContext()->MapLLVMOperandToMIROperand(global_def->GetResult(),
                                                                          mir_global_def->GetResult());
@@ -55,7 +55,7 @@ auto MIRLower::Lower() -> int {
         auto initial_values = global_def->GetFloatInitialValues();
         auto mir_global_def = GET_MIR_CONTEXT()->GetResourceContext()->CreateInstruction<inst::GlobalDefInst>(
             GET_MIR_CONTEXT(), global_def->GetResult()->GetType(), var_type, var_name, global_def->GetDimensions(),
-            initial_values);
+            initial_values, global_def->IsConstant());
         GET_MIR_CONTEXT()->AddGlobalDefInst(mir_global_def);
         GET_MIR_CONTEXT()->GetLowerContext()->MapLLVMOperandToMIROperand(global_def->GetResult(),
                                                                          mir_global_def->GetResult());
@@ -64,21 +64,21 @@ auto MIRLower::Lower() -> int {
       else if (var_type->GetKind() == type::TypeKind::INT) {
         auto mir_global_def = GET_MIR_CONTEXT()->GetResourceContext()->CreateInstruction<inst::GlobalDefInst>(
             GET_MIR_CONTEXT(), global_def->GetResult()->GetType(), var_type, var_name, global_def->GetDimensions(),
-            std::vector<int>());
+            std::vector<int>(), global_def->IsConstant());
         GET_MIR_CONTEXT()->AddGlobalDefInst(mir_global_def);
         GET_MIR_CONTEXT()->GetLowerContext()->MapLLVMOperandToMIROperand(global_def->GetResult(),
                                                                          mir_global_def->GetResult());
       } else if (var_type->GetKind() == type::TypeKind::FLOAT) {
         auto mir_global_def = GET_MIR_CONTEXT()->GetResourceContext()->CreateInstruction<inst::GlobalDefInst>(
             GET_MIR_CONTEXT(), global_def->GetResult()->GetType(), var_type, var_name, global_def->GetDimensions(),
-            std::vector<float>());
+            std::vector<float>(), global_def->IsConstant());
         GET_MIR_CONTEXT()->AddGlobalDefInst(mir_global_def);
         GET_MIR_CONTEXT()->GetLowerContext()->MapLLVMOperandToMIROperand(global_def->GetResult(),
                                                                          mir_global_def->GetResult());
       } else if (var_type->GetKind() == type::TypeKind::FLOAT) {
         auto mir_global_def = GET_MIR_CONTEXT()->GetResourceContext()->CreateInstruction<inst::GlobalDefInst>(
             GET_MIR_CONTEXT(), global_def->GetResult()->GetType(), var_type, var_name, global_def->GetDimensions(),
-            std::vector<float>());
+            std::vector<float>(), global_def->IsConstant());
         GET_MIR_CONTEXT()->AddGlobalDefInst(mir_global_def);
         GET_MIR_CONTEXT()->GetLowerContext()->MapLLVMOperandToMIROperand(global_def->GetResult(),
                                                                          mir_global_def->GetResult());
