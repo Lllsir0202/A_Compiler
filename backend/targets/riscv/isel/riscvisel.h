@@ -83,6 +83,12 @@ class RISCVISel {
   auto Emit(RVOpcode opcode, TargetOperand *result, const std::vector<TargetOperand *> &operands) -> RISCVInst *;
   auto Comment(const std::string &text) -> void;
 
+  // Emit a load/store relative to a physical base register (sp/fp), legalizing an
+  // offset outside the ±2047 immediate range by computing the address in a fresh
+  // scratch vreg first. Used for incoming/outgoing stack arguments.
+  auto EmitBaseLoad(RVOpcode opcode, TargetOperand *dst, uint8_t base_id, int offset) -> void;
+  auto EmitBaseStore(RVOpcode opcode, TargetOperand *value, uint8_t base_id, int offset) -> void;
+
   // True if an icmp result feeds exactly one user and that user is a CondBr,
   // so the compare can be folded into the branch instead of materialized.
   auto IsFusableToBranch(backend::inst::Instruction *icmp) const -> bool;

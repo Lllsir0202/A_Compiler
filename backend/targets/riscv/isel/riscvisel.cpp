@@ -126,7 +126,7 @@ auto RISCVISel::SelectFunction(backend::utils::Function *mir_func) -> TargetFunc
             Emit(RVOpcode::FMV_S, vreg, {PhysFPR(static_cast<uint8_t>(FPR::Fa0) + static_cast<uint8_t>(float_idx))});
             float_idx++;
           } else {
-            Emit(RVOpcode::FLW, vreg, {PhysGPR(FP), ctx_->Imm(static_cast<int>(stack_slot * 8))});
+            EmitBaseLoad(RVOpcode::FLW, vreg, FP, static_cast<int>(stack_slot * 8));
             stack_slot++;
           }
         } else if (int_idx < MAX_REG_ARGS) {
@@ -134,7 +134,7 @@ auto RISCVISel::SelectFunction(backend::utils::Function *mir_func) -> TargetFunc
           int_idx++;
         } else {
           auto opcode = param->IsPtr() ? RVOpcode::LD : RVOpcode::LW;
-          Emit(opcode, vreg, {PhysGPR(FP), ctx_->Imm(static_cast<int>(stack_slot * 8))});
+          EmitBaseLoad(opcode, vreg, FP, static_cast<int>(stack_slot * 8));
           stack_slot++;
         }
       }
@@ -340,7 +340,7 @@ auto RISCVISel::SelectCall(backend::inst::Instruction *inst) -> void {
         call_ops.push_back(fa);
         float_idx++;
       } else {
-        Emit(RVOpcode::FSW, nullptr, {val, PhysGPR(SP), ctx_->Imm(static_cast<int>(stack_slot * 8))});
+        EmitBaseStore(RVOpcode::FSW, val, SP, static_cast<int>(stack_slot * 8));
         stack_slot++;
       }
     } else if (int_idx < MAX_REG_ARGS) {
@@ -349,7 +349,7 @@ auto RISCVISel::SelectCall(backend::inst::Instruction *inst) -> void {
       call_ops.push_back(areg);
       int_idx++;
     } else {
-      Emit(RVOpcode::SD, nullptr, {val, PhysGPR(SP), ctx_->Imm(static_cast<int>(stack_slot * 8))});
+      EmitBaseStore(RVOpcode::SD, val, SP, static_cast<int>(stack_slot * 8));
       stack_slot++;
     }
   }
@@ -449,6 +449,28 @@ auto RISCVISel::Comment(const std::string &text) -> void {
   auto *inst = ctx_->CreateInst<RISCVInst>(RVOpcode::COMMENT);
   inst->SetComment(text);
   cur_block_->AddInst(inst);
+}
+
+auto RISCVISel::EmitBaseLoad(RVOpcode opcode, TargetOperand *dst, uint8_t base_id, int offset) -> void {
+  if (offset >= -2048 && offset <= 2047) {
+    Emit(opcode, dst, {PhysGPR(base_id), ctx_->Imm(offset)});
+    return;
+  }
+  auto *addr = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
+  Emit(RVOpcode::LI, addr, {ctx_->Imm(offset)});
+  Emit(RVOpcode::ADD, addr, {PhysGPR(base_id), addr});
+  Emit(opcode, dst, {addr, ctx_->Imm(0)});
+}
+
+auto RISCVISel::EmitBaseStore(RVOpcode opcode, TargetOperand *value, uint8_t base_id, int offset) -> void {
+  if (offset >= -2048 && offset <= 2047) {
+    Emit(opcode, nullptr, {value, PhysGPR(base_id), ctx_->Imm(offset)});
+    return;
+  }
+  auto *addr = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
+  Emit(RVOpcode::LI, addr, {ctx_->Imm(offset)});
+  Emit(RVOpcode::ADD, addr, {PhysGPR(base_id), addr});
+  Emit(opcode, nullptr, {value, addr, ctx_->Imm(0)});
 }
 
 auto RISCVISel::SelectLoad(backend::inst::Instruction *inst) -> void {
