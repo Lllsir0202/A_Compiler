@@ -530,10 +530,7 @@ auto RISCVISel::LowerAddress(backend::utils::Operand *ptr) -> TargetOperand * {
     return GetOrCreateVReg(ptr);
   }
   if (ptr->IsMemory()) {
-    // GEP result: base address plus the linearized element offset. Strides are
-    // right-aligned to the innermost dimension, which handles local arrays (with
-    // a leading 0 index), globals, and pointer parameters (leading dim -1)
-    // uniformly. See docs/backend_codegen_plan.md.
+    // GEP result: base address plus the linearized (row-major) element offset.
     auto *mem = static_cast<backend::utils::MemoryOperand *>(ptr);
     const auto &info = mem->GetAddressInfo();
     if (info.base_ptr_ == nullptr) {
@@ -550,14 +547,26 @@ auto RISCVISel::LowerAddress(backend::utils::Operand *ptr) -> TargetOperand * {
     if (m == 0) {
       return addr;  // no indices: the address is just the base
     }
+    // Two MIR conventions, distinguished by a -1 sentinel outermost dimension:
+    //   * local/global array `int a[61][67]`: `dims` holds every dimension and the
+    //     access carries a leading array-decay index (a[17] -> idx {0,17}), so
+    //     index k addresses array dimension k-1;
+    //   * pointer parameter `int b[][59]`: the unsized outer dimension is -1 and
+    //     there is no decay index (b[i][j] -> idx {i,j}), so index k addresses
+    //     dimension k.
+    // Either way a stride is ELEM times the product of the dimensions nested
+    // inside its index; the sentinel -1 is never multiplied (it is the outermost,
+    // so no stride reaches back to it). This makes partial indexing that takes a
+    // sub-array row by address (e.g. `a[17]` -> stride 67*ELEM) correct.
+    bool decayed = !(n > 0 && dims[0] < 0);  // real leading dim => a decay index precedes
     std::vector<long> strides(m, ELEM);
-    for (size_t k = m - 1; k > 0; --k) {
-      long dim = 1;
-      auto dim_idx = static_cast<long>(n) - static_cast<long>(m) + static_cast<long>(k);
-      if (dim_idx >= 0 && dim_idx < static_cast<long>(n)) {
-        dim = dims[dim_idx];
+    for (size_t k = 0; k < m; ++k) {
+      long stride = ELEM;
+      size_t start_d = decayed ? k : k + 1;
+      for (size_t d = start_d; d < n; ++d) {
+        stride *= dims[d];
       }
-      strides[k - 1] = strides[k] * dim;
+      strides[k] = stride;
     }
 
     for (size_t k = 0; k < m; ++k) {
