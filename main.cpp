@@ -2,6 +2,7 @@
 #include <memory>
 #include <unordered_set>
 #include "backend/mir/lower/lower.h"
+#include "backend/targets/riscv/riscv.h"
 #include "context/compiler_context.h"
 #include "context/pass_context.h"
 #include "frontend/ast/visitor/semantic/sem_analysis.h"
@@ -40,6 +41,7 @@
 #include "stages/ast/ast_stage.h"
 #include "stages/lexer/lexer_stage.h"
 #include "stages/llvm/llvm_stage.h"
+#include "stages/asm/asm_stage.h"
 #include "stages/mir/mir_stage.h"
 #include "stages/mlir/mlir_stage.h"
 #include "stages/parser/parser_stage.h"
@@ -428,6 +430,19 @@ auto main(int argc, char *argv[]) -> int {
   if (stage == "mir" && ret == 0) {
     stage_ptr = std::make_unique<stages::MIRStage>(&compiler_context);
     stage_ptr->Run();
+    return ret;
+  }
+
+  // Backend code generation: MIR -> RISC-V assembly.
+  auto riscv_backend = std::make_unique<backend::targetir::riscv::RISCVBackend>(&compiler_context);
+  ret = riscv_backend->Run();
+  if (ret != 0) {
+    return 1;
+  }
+
+  if ((stage == "S" || stage == "s") && ret == 0) {
+    stages::AsmStage asm_stage(&compiler_context, riscv_backend.get());
+    asm_stage.Run();
     return ret;
   }
 
