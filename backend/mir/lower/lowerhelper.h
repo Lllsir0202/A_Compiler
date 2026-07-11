@@ -2,6 +2,8 @@
 #define BACKEND_MIR_LOWER_LOWERHELPER_H
 
 #include <queue>
+#include <utility>
+#include <vector>
 #include "backend/mir/inst/pseudo/phi.h"
 #include "compiler_context.h"
 #include "llvm/utils/struct/block.h"
@@ -33,6 +35,13 @@ class LowerHelper {
 
   // Lower Blocks
   auto LowerBlock(middleend::llvm::utils::BasicBlock *bb) -> utils::Block *;
+
+  // Emit the phi copies for one CFG edge as a *parallel* copy: the copies are
+  // sequentialized so simultaneous updates (e.g. a swap a<->b at a loop
+  // back-edge) are not corrupted by the lost-copy problem, breaking cycles with
+  // a fresh temporary. Inserted before the terminator of `block`.
+  auto EmitParallelCopy(utils::Block *block,
+                        std::vector<std::pair<utils::Operand *, utils::Operand *>> copies) -> void;
 
   // Lowering llvmir instructions
   // Integer
