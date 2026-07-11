@@ -34,4 +34,10 @@ auto RV64Getter::GetReturnValueReg(context::BackendContext *context, TargetRegSi
   return context->CreatePhysicalRegView(size, TargetRegClass::General, x10, TargetRegRole::NONE);
 }
 
+auto RV64Getter::GetFloatReturnValueReg(context::BackendContext *context, TargetRegSize size) -> TargetPhysicalReg * {
+  // In RISC-V, the floating-point return value register is f10 (alias fa0)
+  auto f10 = context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::Float, 10);
+  return context->CreatePhysicalRegView(size, TargetRegClass::Float, f10, TargetRegRole::NONE);
+}
+
 }  // namespace backend::targetir::rv64

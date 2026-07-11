@@ -2,7 +2,6 @@
 
 #include <cstdint>
 #include <cstring>
-#include <stdexcept>
 
 namespace backend::targetir {
 namespace {
@@ -28,16 +27,12 @@ auto RV64GlobalObject::EmitInitializer(std::ofstream *out) const -> void {
   for (auto dim : GetDimensions()) {
     element_count *= static_cast<size_t>(dim);
   }
-  if (GetDimensions().empty()) {
-    element_count = 1;
-  }
 
   if (!GetIntInitialValues().empty()) {
     for (size_t i = 0; i < element_count; ++i) {
       const auto value = i < GetIntInitialValues().size() ? GetIntInitialValues()[i] : 0;
-      *out << "    .word    " << value;
-      *out << "\t\t\t";
-      *out << "# int " << value << "\n";
+      *out << "    .word    " << value << "    ";
+      *out << "#  " << value << "\n";
     }
     return;
   }
@@ -45,10 +40,8 @@ auto RV64GlobalObject::EmitInitializer(std::ofstream *out) const -> void {
   if (!GetFloatInitialValues().empty()) {
     for (size_t i = 0; i < element_count; ++i) {
       const auto value = i < GetFloatInitialValues().size() ? GetFloatInitialValues()[i] : 0.0F;
-      // output as hexadecimal representation of the float value
-      *out << "    .word    " << std::hex << FloatToBits(value);
-      *out << "\t\t\t";
-      *out << "# float " << std::dec << value << "\n";
+      *out << "    .word    " << std::hex << FloatToBits(value) << "    ";
+      *out << std::dec << "# " << value << "\n";
     }
     return;
   }
@@ -57,10 +50,6 @@ auto RV64GlobalObject::EmitInitializer(std::ofstream *out) const -> void {
 }
 
 auto RV64GlobalObject::Emit(std::ofstream *out) const -> void {
-  if (GetAllocatedType() == nullptr) {
-    throw std::runtime_error("RV64GlobalObject has null allocated type");
-  }
-
   *out << "    .type    " << GetName() << ",@object\n";
   if (IsConstant()) {
     *out << "    .section    .rodata\n";

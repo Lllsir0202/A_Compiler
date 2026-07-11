@@ -1,4 +1,6 @@
 #include "backend/mir/lower/lowerhelper.h"
+#include <algorithm>
+#include <cstddef>
 #include "backend/mir/inst/arithm/arithm.h"
 #include "backend/mir/inst/branch/branch.h"
 #include "backend/mir/inst/branch/ret.h"
@@ -19,6 +21,7 @@
 #include "middleend/llvm/inst/memory/globaldef.h"
 #include "middleend/llvm/inst/opkind.h"
 #include "middleend/llvm/utils/struct/block.h"
+#include "mir/utils/operand/literaloperand.h"
 #include "type/type.h"
 
 #define GET_MIR_CONTEXT() compiler_context_->GetMIRContext()
@@ -513,14 +516,53 @@ auto LowerHelper::LowerGetElementPtrInst(middleend::llvm::inst::GetElementPtrIns
   auto mir_base_ptr = GET_LOWER_CONTEXT()->GetMIROperandFromLLVMOperand(base_ptr);
 
   auto mir_indices = std::vector<utils::Operand *>();
-  for (auto index : indices) {
-    auto mir_index = GET_LOWER_CONTEXT()->GetMIROperandFromLLVMOperand(index);
-    mir_indices.emplace_back(mir_index);
+  if (base_ptr->GetInstruction() != nullptr) {
+    // if not from function parameter, we need to skip the first index,
+    // since it is always 0, and it is used to access the base pointer itself.
+    for (size_t i = 1; i < indices.size(); ++i) {
+      auto index = indices[i];
+      auto mir_index = GET_LOWER_CONTEXT()->GetMIROperandFromLLVMOperand(index);
+      mir_indices.emplace_back(mir_index);
+    }
+  } else {
+    // From function parameter
+    for (auto index : indices) {
+      auto mir_index = GET_LOWER_CONTEXT()->GetMIROperandFromLLVMOperand(index);
+      mir_indices.emplace_back(mir_index);
+    }
   }
 
   address_info.base_ptr_ = mir_base_ptr;
   address_info.dimensions_ = dimensions;
   address_info.indices_ = mir_indices;
+
+  // If all indices are literal, we can calculate the element offset directly.
+  // `dimensions` describes the shaped object, while `mir_indices` only contains
+  // the actual source indices. For array parameters such as arr[], the leading
+  // dimension is -1 but arr[2] still has offset 2.
+  bool all_literal = std::all_of(mir_indices.begin(), mir_indices.end(),
+                                 [](utils::Operand *op) { return op != nullptr && op->IsLiteral(); });
+  if (all_literal) {
+    int offset = 0;
+    for (size_t index_id = 0; index_id < mir_indices.size(); ++index_id) {
+      auto index_literal = static_cast<utils::IntLiteral *>(mir_indices[index_id]);
+      int stride = 1;
+
+      if (!dimensions.empty()) {
+        for (size_t dim_id = index_id + 1; dim_id < dimensions.size(); ++dim_id) {
+          if (dimensions[dim_id] > 0) {
+            stride *= dimensions[dim_id];
+          }
+        }
+      }
+
+      offset += index_literal->GetValue() * stride;
+    }
+    address_info.offset_ = GET_RESOURCE_CONTEXT()->GetIntLiteral(offset);
+  } else {
+    address_info.offset_ = nullptr;
+  }
+
   memory_operand->SetAddressInfo(address_info);
 
   // Memory information will be used as a record of the result's memory layout

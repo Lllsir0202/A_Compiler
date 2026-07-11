@@ -145,8 +145,8 @@ class PtrType : public Type {
  public:
   auto ToString() const -> std::string override { return "Ptr to " + base_type_->ToString(); }
   auto GetBaseType() const -> Type * { return base_type_; }
-  auto GetAlign() const -> size_t override { return 16; }
-  auto GetDataSize() const -> size_t override { return 16; }
+  auto GetAlign() const -> size_t override { return 8; }
+  auto GetDataSize() const -> size_t override { return 8; }
   ~PtrType() override = default;
 
  private:

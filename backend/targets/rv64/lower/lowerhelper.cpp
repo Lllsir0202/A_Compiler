@@ -1,20 +1,59 @@
 #include "backend/targets/rv64/lower/lowerhelper.h"
 #include <stdexcept>
 #include "backend/mir/inst/inst.h"
+#include "backend/mir/utils/operand/literaloperand.h"
 #include "backend/targets/rv64/inst/arithmetic/arithmetic.h"
 #include "backend/targets/rv64/inst/branch/jmp.h"
 #include "backend/targets/rv64/inst/cast/cast.h"
 #include "backend/targets/rv64/inst/cmp/cmp.h"
 #include "backend/targets/rv64/inst/func/ret.h"
 #include "backend/targets/rv64/inst/immediate/immediate.h"
+#include "backend/targets/rv64/inst/memory/load.h"
 #include "backend/targets/rv64/inst/pseudo/pseudo.h"
+#include "backend/targets/rv64/symbol/rv64symbol.h"
 #include "backend/targets/rv64/utils/checker.h"
 #include "backend/targets/rv64/utils/materializer.h"
 #include "backend/targets/utils/operand/targetoperand.h"
+#include "backend/targets/utils/operand/targetreg.h"
 #include "context/compiler_context.h"
 
 #define GET_BACKEND_TARGET() compiler_context_->GetBackendContext()
 namespace backend::targetir::rv64 {
+namespace {
+auto MaterializeFloatLiteral(context::CompilerContext *compiler_context, float value) -> TargetOperand * {
+  auto *backend_context = compiler_context->GetBackendContext();
+  auto label = backend_context->GetModule()->GetOrCreateFloatLiteralLabel(value);
+
+  auto *addr_reg = backend_context->CreateVirtualRegister(TargetRegSize::QWord, TargetRegClass::General);
+  auto *symbol = backend_context->CreateSymbolOperand<RV64Symbol>(label, RV64SymbolModifier::None);
+  auto *la_inst = backend_context->CreateInstruction<RVLAInst>(addr_reg, symbol);
+  backend_context->GetCurrentBlock()->AddInst(la_inst);
+
+  auto *float_reg = backend_context->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::Float);
+  auto *zero_offset = backend_context->CreateIntLiteral(0);
+  auto *load_inst = backend_context->CreateInstruction<RVFLWInst>(float_reg, zero_offset, addr_reg);
+  backend_context->GetCurrentBlock()->AddInst(load_inst);
+  return float_reg;
+}
+
+auto GetFloatOperand(context::CompilerContext *compiler_context, backend::utils::Operand *operand) -> TargetOperand * {
+  if (auto *literal = dynamic_cast<backend::utils::FloatLiteral *>(operand)) {
+    return MaterializeFloatLiteral(compiler_context, literal->GetValue());
+  }
+  return compiler_context->GetBackendContext()->GetMappedOperand(operand);
+}
+
+auto IsFloatTargetOperand(TargetOperand *operand) -> bool {
+  if (auto *vreg = dynamic_cast<TargetVirtualReg *>(operand)) {
+    return vreg->GetRegClass() == TargetRegClass::Float;
+  }
+  if (auto *preg = dynamic_cast<TargetPhysicalReg *>(operand)) {
+    return preg->GetRegClass() == TargetRegClass::Float;
+  }
+  return false;
+}
+}  // namespace
+
 /**
  * @note Need to map all literal operands which type is int and value is zero
  * to a special zero register, which is x0 in RV64.
@@ -579,14 +618,8 @@ auto LowerHelper::LowerAddF(backend::inst::AddFInst *inst) -> void {
     return;
   }
 
-  if (lhs->IsLiteral() || rhs->IsLiteral()) {
-    // TODO(loki) : Implement the float literal pool and insert related instructions
-    compiler_context_->ReportError("Float literal materialization is not implemented yet");
-    return;
-  }
-
-  auto target_lhs = GET_BACKEND_TARGET()->GetMappedOperand(lhs);
-  auto target_rhs = GET_BACKEND_TARGET()->GetMappedOperand(rhs);
+  auto target_lhs = GetFloatOperand(compiler_context_, lhs);
+  auto target_rhs = GetFloatOperand(compiler_context_, rhs);
   if (target_lhs == nullptr || target_rhs == nullptr) {
     compiler_context_->ReportError("One of the float operands is not mapped to a target operand");
     return;
@@ -608,14 +641,8 @@ auto LowerHelper::LowerSubF(backend::inst::SubFInst *inst) -> void {
     return;
   }
 
-  if (lhs->IsLiteral() || rhs->IsLiteral()) {
-    // TODO(loki) : Implement the float literal pool and insert related instructions
-    compiler_context_->ReportError("Float literal materialization is not implemented yet");
-    return;
-  }
-
-  auto target_lhs = GET_BACKEND_TARGET()->GetMappedOperand(lhs);
-  auto target_rhs = GET_BACKEND_TARGET()->GetMappedOperand(rhs);
+  auto target_lhs = GetFloatOperand(compiler_context_, lhs);
+  auto target_rhs = GetFloatOperand(compiler_context_, rhs);
   if (target_lhs == nullptr || target_rhs == nullptr) {
     compiler_context_->ReportError("One of the float operands is not mapped to a target operand");
     return;
@@ -637,14 +664,8 @@ auto LowerHelper::LowerMulF(backend::inst::MulFInst *inst) -> void {
     return;
   }
 
-  if (lhs->IsLiteral() || rhs->IsLiteral()) {
-    // TODO(loki) : Implement the float literal pool and insert related instructions
-    compiler_context_->ReportError("Float literal materialization is not implemented yet");
-    return;
-  }
-
-  auto target_lhs = GET_BACKEND_TARGET()->GetMappedOperand(lhs);
-  auto target_rhs = GET_BACKEND_TARGET()->GetMappedOperand(rhs);
+  auto target_lhs = GetFloatOperand(compiler_context_, lhs);
+  auto target_rhs = GetFloatOperand(compiler_context_, rhs);
   if (target_lhs == nullptr || target_rhs == nullptr) {
     compiler_context_->ReportError("One of the float operands is not mapped to a target operand");
     return;
@@ -666,14 +687,8 @@ auto LowerHelper::LowerDivF(backend::inst::DivFInst *inst) -> void {
     return;
   }
 
-  if (lhs->IsLiteral() || rhs->IsLiteral()) {
-    // TODO(loki) : Implement the float literal pool and insert related instructions
-    compiler_context_->ReportError("Float literal materialization is not implemented yet");
-    return;
-  }
-
-  auto target_lhs = GET_BACKEND_TARGET()->GetMappedOperand(lhs);
-  auto target_rhs = GET_BACKEND_TARGET()->GetMappedOperand(rhs);
+  auto target_lhs = GetFloatOperand(compiler_context_, lhs);
+  auto target_rhs = GetFloatOperand(compiler_context_, rhs);
   if (target_lhs == nullptr || target_rhs == nullptr) {
     compiler_context_->ReportError("One of the float operands is not mapped to a target operand");
     return;
@@ -770,13 +785,8 @@ auto LowerHelper::LowerFCmp(backend::inst::FCmpInst *inst) -> void {
   auto rhs = inst->GetOperands()[1];
   auto dst = inst->GetResult();
 
-  if (lhs->IsLiteral() || rhs->IsLiteral()) {
-    compiler_context_->ReportError("Float literal materialization is not implemented yet");
-    return;
-  }
-
-  auto target_lhs = GET_BACKEND_TARGET()->GetMappedOperand(lhs);
-  auto target_rhs = GET_BACKEND_TARGET()->GetMappedOperand(rhs);
+  auto target_lhs = GetFloatOperand(compiler_context_, lhs);
+  auto target_rhs = GetFloatOperand(compiler_context_, rhs);
   if (target_lhs == nullptr || target_rhs == nullptr) {
     compiler_context_->ReportError("One of the float compare operands is not mapped to a target operand");
     return;
@@ -945,20 +955,32 @@ auto LowerHelper::LowerRet(backend::inst::RetInst *inst) -> void {
   if (auto return_value = inst->GetReturnValue()) {
     // If has a return value, we need to move it to the return register
     auto target_return_value = GET_BACKEND_TARGET()->GetMappedOperand(return_value);
+    auto is_float_return = return_value->IsFloat();
     // If the return value is a literal, we need to materialize it into a register first
     if (return_value->IsLiteral()) {
       if (auto int_literal = dynamic_cast<utils::IntLiteral *>(return_value)) {
         target_return_value = MaterializeLiteral(compiler_context_, int_literal->GetValue());
       } else if (auto bool_literal = dynamic_cast<utils::BoolLiteral *>(return_value)) {
         target_return_value = MaterializeLiteral(compiler_context_, bool_literal->GetValue() ? 1 : 0);
+      } else if (auto float_literal = dynamic_cast<utils::FloatLiteral *>(return_value)) {
+        target_return_value = MaterializeFloatLiteral(compiler_context_, float_literal->GetValue());
+        is_float_return = true;
       } else {
-        compiler_context_->ReportError("Return value is a literal but not an integer or boolean literal");
+        compiler_context_->ReportError("Return value is an unsupported literal");
         return;
       }
     }
     // Then the return value must be mapped to a target operand
     if (target_return_value == nullptr) {
       compiler_context_->ReportError("Return value is not mapped to a target operand");
+      return;
+    }
+    if (is_float_return || IsFloatTargetOperand(target_return_value)) {
+      auto target_return_register = rv64_getter_.GetFloatReturnValueReg(GET_BACKEND_TARGET(), TargetRegSize::DWord);
+      auto mv_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFMVInst>(target_return_register, target_return_value);
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(mv_inst);
+      auto ret_inst = GET_BACKEND_TARGET()->CreateInstruction<RVRETInst>(target_return_register);
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(ret_inst);
       return;
     }
     auto target_return_register = rv64_getter_.GetReturnValueReg(GET_BACKEND_TARGET(), TargetRegSize::DWord);
@@ -1022,12 +1044,7 @@ auto LowerHelper::LowerFloat2Int(backend::inst::Float2IntInst *inst) -> void {
   auto src = inst->GetOperands()[0];
   auto dst = inst->GetResult();
 
-  if (src->IsLiteral()) {
-    compiler_context_->ReportError("Float literal materialization is not implemented yet");
-    return;
-  }
-
-  auto target_src = GET_BACKEND_TARGET()->GetMappedOperand(src);
+  auto target_src = GetFloatOperand(compiler_context_, src);
   if (target_src == nullptr) {
     compiler_context_->ReportError("Float2Int source operand is not mapped to a target operand");
     return;
@@ -1072,8 +1089,10 @@ auto LowerHelper::LowerCopy(backend::inst::CopyInst *inst) -> void {
       target_src = MaterializeLiteral(compiler_context_, int_literal->GetValue());
     } else if (auto bool_literal = dynamic_cast<utils::BoolLiteral *>(src)) {
       target_src = MaterializeLiteral(compiler_context_, bool_literal->GetValue() ? 1 : 0);
+    } else if (auto float_literal = dynamic_cast<utils::FloatLiteral *>(src)) {
+      target_src = MaterializeFloatLiteral(compiler_context_, float_literal->GetValue());
     } else {
-      compiler_context_->ReportError("Copy source is a literal but not an integer or boolean literal");
+      compiler_context_->ReportError("Copy source is an unsupported literal");
       return;
     }
   } else {
@@ -1089,11 +1108,15 @@ auto LowerHelper::LowerCopy(backend::inst::CopyInst *inst) -> void {
   // create a virtual register for the result
   auto target_result = GET_BACKEND_TARGET()->GetMappedOperand(dst);
   if (target_result == nullptr) {
-    target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+    const auto reg_class = dst->IsFloat() ? TargetRegClass::Float : TargetRegClass::General;
+    target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, reg_class);
     GET_BACKEND_TARGET()->MapOperand(dst, target_result);
   }
 
-  auto mv_inst = GET_BACKEND_TARGET()->CreateInstruction<RVMVInst>(target_result, target_src);
+  auto mv_inst =
+      dst->IsFloat()
+          ? static_cast<TargetInst *>(GET_BACKEND_TARGET()->CreateInstruction<RVFMVInst>(target_result, target_src))
+          : static_cast<TargetInst *>(GET_BACKEND_TARGET()->CreateInstruction<RVMVInst>(target_result, target_src));
   GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(mv_inst);
 }
 

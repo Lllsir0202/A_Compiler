@@ -21,6 +21,9 @@ class MemoryOperand : public Operand {
   auto Emit(std::ofstream *out) const -> void override {
     // The memory operand will be emitted as the memory address, which will be calculated in lowering
     *out << "mem_addr";
+    *out << " (mem_size: " << static_cast<int>(mem_size_) << ")";
+    *out << " (address_info: " << address_info_.ToString() << ")";
+    *out << " (memory_info: " << memory_info_.ToString() << ")" << "\n";
   }
 
   /**

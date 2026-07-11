@@ -1,10 +1,26 @@
 #ifndef BACKEND_TARGETS_UTILS_STRUCT_TARGETMODULE_H
 #define BACKEND_TARGETS_UTILS_STRUCT_TARGETMODULE_H
+
+#include <cstdint>
+#include <string>
 #include <unordered_map>
-#include "backend/targets/utils/operand/targetliteral.h"
+#include <vector>
+
 #include "backend/targets/utils/struct/targetfunction.h"
 #include "backend/targets/utils/struct/targetglobalobject.h"
 namespace backend::targetir {
+class TargetFloatLiteralPoolEntry {
+ public:
+  TargetFloatLiteralPoolEntry(std::string label, std::uint32_t bits) : label_(std::move(label)), bits_(bits) {}
+
+  auto GetLabel() const -> const std::string & { return label_; }
+  auto GetBits() const -> std::uint32_t { return bits_; }
+
+ private:
+  std::string label_;
+  std::uint32_t bits_;
+};
+
 class TargetModule {
  public:
   // Destructor: delete all functions
@@ -17,15 +33,8 @@ class TargetModule {
   auto AddLibraryFunction(const std::string &lib_func_name) -> void { library_functions_.emplace_back(lib_func_name); }
   auto GetLibraryFunctions() const -> const std::vector<std::string> & { return library_functions_; }
 
-  // Add a float literal
-  // auto AddFloatLiteral(float value, TargetFloatLiteral *literal) -> void { float_literal_pool_[value] = literal; }
-  // auto GetFloatLiteral(float value) -> TargetFloatLiteral * {
-  //   auto it = float_literal_pool_.find(value);
-  //   if (it != float_literal_pool_.end()) {
-  //     return it->second;
-  //   }
-  //   return nullptr;
-  // }
+  auto GetOrCreateFloatLiteralLabel(float value) -> std::string;
+  auto GetFloatLiteralPool() const -> const std::vector<TargetFloatLiteralPoolEntry> & { return float_literal_pool_; }
 
   auto Reset() -> void {
     for (auto *func : functions_) {
@@ -37,6 +46,8 @@ class TargetModule {
     }
     global_objects_.clear();
     library_functions_.clear();
+    float_literal_pool_.clear();
+    float_literal_pool_index_.clear();
   }
 
  private:
@@ -54,7 +65,8 @@ class TargetModule {
   std::vector<std::string> library_functions_;
 
   // Literal pool, which will be used to store the literal values in the module
-  // std::unordered_map<float, TargetFloatLiteral *> float_literal_pool_;
+  std::vector<TargetFloatLiteralPoolEntry> float_literal_pool_;
+  std::unordered_map<std::uint32_t, size_t> float_literal_pool_index_;
 };
 
 }  // namespace backend::targetir

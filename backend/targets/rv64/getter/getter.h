@@ -22,6 +22,9 @@ class RV64Getter {
 
   // Get the return value register
   auto GetReturnValueReg(context::BackendContext *context, TargetRegSize size) -> TargetPhysicalReg *;
+
+  // Get the floating-point return value register
+  auto GetFloatReturnValueReg(context::BackendContext *context, TargetRegSize size) -> TargetPhysicalReg *;
 };
 
 }  // namespace backend::targetir::rv64

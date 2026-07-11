@@ -39,7 +39,6 @@ auto TargetGlobalObject::IsZeroInitialized() const -> bool {
     return std::all_of(float_initial_values_.begin(), float_initial_values_.end(),
                        [](float value) { return value == 0.0F; });
   }
-  // Should not reach here, as either int_initial_values_ or float_initial_values_ should be empty
   return false;
 }
 

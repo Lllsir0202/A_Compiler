@@ -16,6 +16,12 @@ TargetFunction::~TargetFunction() {
 }
 
 auto TargetFunction::Emit(std::ofstream *out) -> void {
+  // Output the function-related information
+  *out << "    .text\n";
+  *out << "    .globl " << name_ << "\n";
+  *out << "    .p2align    1\n";
+  *out << "    .type    " << name_ << ", @function\n";
+
   // Output this function's signature
   *out << name_ << ":\n";
   for (auto block : blocks_) {
