@@ -3,12 +3,10 @@
 
 #include <fstream>
 #include <vector>
+#include "backend/targets/utils/context/targetcontext.h"
 
 namespace context {
 class CompilerContext;
-}
-namespace backend::targetir {
-class TargetFunction;
 }
 
 namespace backend::targetir::riscv {
@@ -17,14 +15,15 @@ namespace backend::targetir::riscv {
  * @brief Top-level RISC-V (rv64, lp64d) code-generation driver.
  *
  * Consumes the target-independent MIR module from the CompilerContext and runs
- * the full backend pipeline, then emits assembly. See docs/backend_codegen_plan.md.
+ * the backend pipeline, then emits assembly. See docs/backend_codegen_plan.md.
  *
- *   Run():   MIR -> ISel -> (peephole) -> RegAlloc(graph coloring) -> Frame/PEI
- *            -> post-RA peephole, producing target_functions_.
- *   Emit():  RISCVPrinter renders target_functions_ + globals as a .s file.
+ *   Run():   MIR -> ISel -> (peephole) -> RegAlloc(graph coloring) -> Frame/PEI,
+ *            producing target_functions_.
+ *   Emit():  renders target_functions_ + globals as a .s file.
  *
- * Milestone M0 (current): the pipeline is wired but its phases are stubs; Emit
- * writes a placeholder assembly header so the -S stage is verifiably end-to-end.
+ * Milestone M1: instruction selection is implemented for the integer subset;
+ * register allocation and frame lowering are the next milestones, so emitted
+ * code still contains virtual registers (v0, v1, ...) and a bare `ret`.
  */
 class RISCVBackend {
  public:
@@ -39,7 +38,10 @@ class RISCVBackend {
  private:
   context::CompilerContext *compiler_context_;
 
-  // Selected + allocated functions, ready for emission (populated by Run()).
+  // Owns all target IR (operands, instructions, blocks, functions).
+  TargetContext ctx_;
+
+  // Selected functions, ready for emission (populated by Run()).
   std::vector<TargetFunction *> target_functions_;
 };
 

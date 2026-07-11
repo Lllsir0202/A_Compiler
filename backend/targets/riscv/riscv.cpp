@@ -1,22 +1,23 @@
 #include "backend/targets/riscv/riscv.h"
+#include "backend/targets/riscv/inst/riscvinst.h"
+#include "backend/targets/riscv/isel/riscvisel.h"
+#include "backend/targets/riscv/printer/riscvprinter.h"
+#include "backend/targets/utils/operand/targetreg.h"
+#include "backend/targets/utils/struct/targetblock.h"
+#include "backend/targets/utils/struct/targetfunction.h"
+#include "context/compiler_context.h"
 
 namespace backend::targetir::riscv {
 
 auto RISCVBackend::Run() -> int {
-  // Codegen pipeline (see docs/backend_codegen_plan.md). Each phase below is a
-  // separate module so the stages stay decoupled and independently testable:
-  //
-  //   RISCVISel isel(compiler_context_);
-  //   for (auto *mir_func : <MIR module functions>) {
-  //     auto *tf = isel.SelectFunction(mir_func);           // -> virtual regs
-  //     GraphColoringAllocator(tf, &reg_info, GPR-class).Run();
-  //     GraphColoringAllocator(tf, &reg_info, FPR-class).Run();
-  //     RISCVFrame().Finalize(tf);                           // PEI + ABI
-  //     target_functions_.push_back(tf);
-  //   }
-  //
-  // M0: phases are stubs; nothing is selected yet.
-  (void)compiler_context_;
+  auto *module = compiler_context_->GetMIRContext()->GetModule();
+  if (module == nullptr) {
+    return 0;
+  }
+  RISCVISel isel(compiler_context_, &ctx_);
+  for (auto *mir_func : module->GetFunctions()) {
+    target_functions_.push_back(isel.SelectFunction(mir_func));
+  }
   return 0;
 }
 
@@ -24,11 +25,21 @@ auto RISCVBackend::Emit(std::ofstream *out) -> void {
   if (out == nullptr) {
     return;
   }
-  // M0 placeholder: proves the -S stage is wired end-to-end. Real emission walks
-  // target_functions_ through RISCVPrinter once ISel/RegAlloc/Frame are filled in.
+  // Physical registers render through the RISC-V ABI name table.
+  static const RISCVPrinter PRINTER;
+  TargetPhysicalReg::SetTargetPrinter(&PRINTER);
+
   *out << "\t.text\n";
-  *out << "# RISC-V (rv64) backend skeleton -- code generation not yet implemented.\n";
-  *out << "# " << target_functions_.size() << " function(s) selected.\n";
+  for (auto *func : target_functions_) {
+    *out << "\t.globl " << func->GetName() << "\n";
+    *out << func->GetName() << ":\n";
+    for (auto *block : func->GetBlocks()) {
+      *out << block->GetLabel() << ":\n";
+      for (auto *inst : block->GetInsts()) {
+        inst->Emit(out);
+      }
+    }
+  }
 }
 
 }  // namespace backend::targetir::riscv

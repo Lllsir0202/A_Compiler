@@ -1,10 +1,13 @@
 #ifndef BACKEND_TARGETS_UTILS_STRUCT_TARGETBLOCK_H
 #define BACKEND_TARGETS_UTILS_STRUCT_TARGETBLOCK_H
 #include <fstream>
+#include <string>
+#include <utility>
 #include <vector>
 namespace backend::targetir {
 class TargetInst;
 class TargetOperand;
+class TargetContext;
 
 /**
  * @brief TargetBlock represents a block in target instruction level,
@@ -31,9 +34,15 @@ class TargetBlock {
   // Get and Set id
   auto GetID() const -> size_t { return id_; }
 
+  // Assembly label for this block (e.g. ".L_main_3"), set during instruction
+  // selection and used both as a branch target and as the emitted block header.
+  auto SetLabel(std::string label) -> void { label_ = std::move(label); }
+  auto GetLabel() const -> const std::string & { return label_; }
+
  private:
   // Constructor with id
   explicit TargetBlock(size_t id) : id_(id) {}
+  friend class TargetContext;
   std::vector<TargetInst *> insts_;
   std::vector<TargetBlock *> successors_;
   std::vector<TargetBlock *> predecessors_;
@@ -43,6 +52,9 @@ class TargetBlock {
 
   // Function name
   std::string func_name_;
+
+  // Assembly label for this block, e.g. ".L_main_3".
+  std::string label_;
 };
 
 }  // namespace backend::targetir

@@ -1,4 +1,5 @@
 #include "backend/mir/lower/lowerhelper.h"
+#include <unordered_map>
 #include "backend/mir/inst/arithm/arithm.h"
 #include "backend/mir/inst/branch/branch.h"
 #include "backend/mir/inst/branch/ret.h"
@@ -96,6 +97,13 @@ auto LowerHelper::LowerFunction(middleend::llvm::utils::Function *function) -> v
       }
     }
 
+    // Index MIR blocks by their id. Block ids are not contiguous (the CFG may
+    // drop ids), so they cannot be used as positions into the block vector.
+    std::unordered_map<size_t, utils::Block *> block_by_id;
+    for (auto *mir_block : GET_LOWER_CONTEXT()->GetCurrentFunction()->GetBlocks()) {
+      block_by_id[mir_block->GetId()] = mir_block;
+    }
+
     // Finish lowering a function, deal with the phi instructions here
     while (!pending_phi_mirs_.empty()) {
       auto phi_mir = pending_phi_mirs_.front();
@@ -112,7 +120,7 @@ auto LowerHelper::LowerFunction(middleend::llvm::utils::Function *function) -> v
         // auto mir_incoming_value = GET_LOWER_CONTEXT()->GetMIROperandFromLLVMOperand(incoming_value);
         // auto mir_incoming_block = GET_RESOURCE_CONTEXT()->GetLabelOperand(incoming_block->GetID());
         // phi_mir->AddIncoming(mir_incoming_value, mir_incoming_block);
-        auto block = GET_LOWER_CONTEXT()->GetCurrentFunction()->GetBlocks()[incoming_blocks[i]->GetID()];
+        auto block = block_by_id.at(incoming_blocks[i]->GetID());
         // copy the incoming value to original phi instruction's result register,
         // and then add the instruction to the end of the incoming block
         auto incoming_value = incoming_values[i];

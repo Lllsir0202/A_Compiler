@@ -23,6 +23,7 @@ class Module {
   auto GetGlobalDefByName(const std::string &name) const -> inst::GlobalDefInst *;
 
   auto AddFunction(Function *func) -> void { functions_.emplace_back(func); }
+  auto GetFunctions() const -> const std::vector<Function *> & { return functions_; }
   auto AddFuncDefInst(inst::FuncDefInst *func_def_inst) -> void;
   auto AddFuncDeclareInst(inst::FuncDeclareInst *func_declare_inst) -> void;
   auto AddGlobalDefInst(inst::GlobalDefInst *global_def_inst) -> void;

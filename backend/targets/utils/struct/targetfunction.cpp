@@ -2,12 +2,9 @@
 #include "backend/targets/utils/struct/targetblock.h"
 
 namespace backend::targetir {
-// Delete all blocks in the function
-TargetFunction::~TargetFunction() {
-  for (auto block : blocks_) {
-    delete block;
-  }
-}
+// Blocks are owned by the TargetContext (single ownership), so the function does
+// not delete them here — doing so would double-free.
+TargetFunction::~TargetFunction() = default;
 
 auto TargetFunction::Emit(std::ofstream *out) -> void {
   // Output this function's signature

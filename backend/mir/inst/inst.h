@@ -27,6 +27,9 @@ class Instruction {
   auto GetResult() const -> utils::Operand * { return result_; }
   auto SetResult(utils::Operand *result) -> void { result_ = result; }
 
+  auto GetOpKind() const -> OpKind { return op_kind_; }
+  auto GetOperands() const -> const std::vector<utils::Operand *> & { return operands_; }
+
   auto AddOperand(utils::Operand *operand) -> void { operands_.emplace_back(operand); }
 
   auto AddUser(Instruction *user) -> void { users_.emplace_back(user); }

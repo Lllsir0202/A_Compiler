@@ -2,6 +2,7 @@
 #define BACKEND_TARGETS_UTILS_OPERAND_TARGETLITERAL_H
 #include "backend/targets/utils/operand/targetoperand.h"
 namespace backend::targetir {
+class TargetContext;
 class TargetIntLiteral : public TargetOperand {
  public:
   auto Emit(std::ofstream *out) -> void override { *out << value_; }
@@ -10,6 +11,7 @@ class TargetIntLiteral : public TargetOperand {
  private:
   explicit TargetIntLiteral(int value) : TargetOperand(TargetOperandType::Immediate), value_(value) {}
   int value_;
+  friend class TargetContext;
 };
 
 class TargetFloatLiteral : public TargetOperand {

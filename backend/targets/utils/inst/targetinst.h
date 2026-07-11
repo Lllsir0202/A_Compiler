@@ -8,6 +8,7 @@ class TargetBlock;
 
 class TargetInst {
  public:
+  virtual ~TargetInst() = default;
   virtual auto Emit(std::ofstream *out) -> void = 0;
 
   // Common interface for adding operands and setting result

@@ -7,6 +7,7 @@
 #include "targets/utils/operand/targetprinter.h"
 
 namespace backend::targetir {
+class TargetContext;
 // Virtual register operand, before register allocation
 class TargetVirtualReg : public TargetOperand {
  public:
@@ -17,15 +18,18 @@ class TargetVirtualReg : public TargetOperand {
 
   auto GetID() -> size_t { return id_; }
   auto GetRegSize() -> TargetRegSize { return reg_size_; }
+  auto GetRegClass() -> TargetRegClass { return reg_class_; }
 
  private:
-  explicit TargetVirtualReg(TargetRegSize reg_size, size_t id)
-      : TargetOperand(TargetOperandType::VirtualReg), id_(id), reg_size_(reg_size) {}
+  explicit TargetVirtualReg(TargetRegClass reg_class, TargetRegSize reg_size, size_t id)
+      : TargetOperand(TargetOperandType::VirtualReg), id_(id), reg_size_(reg_size), reg_class_(reg_class) {}
 
   size_t id_;  // Unique ID for this virtual register
 
-  // Target register size
+  // Target register size and class (class = General/Float decides the allocation file)
   TargetRegSize reg_size_;
+  TargetRegClass reg_class_;
+  friend class TargetContext;
 };
 
 // Physical register operand, after register allocation
@@ -66,6 +70,7 @@ class TargetPhysicalReg : public TargetOperand {
   [[maybe_unused]] uint8_t offset_ = 0;
 
   static const TargetPrinter *target_printer;
+  friend class TargetContext;
 };
 }  // namespace backend::targetir
 #endif
