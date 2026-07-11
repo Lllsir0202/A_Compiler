@@ -435,7 +435,11 @@ auto GraphColorRegAlloc::Coalesce() -> void {
   if (u == v) {
     coalesced_moves_.insert(m);
     AddWorkList(u);
-  } else if (precolored_[v] || adj_set_.count(EdgeKey(u, v)) != 0) {
+  } else if (precolored_[v] || adj_set_.count(EdgeKey(u, v)) != 0 ||
+             (precolored_[u] && allocatable_ids_.count(color_[u]) == 0)) {
+    // Never coalesce a value into a reserved, non-allocatable physical register
+    // (sp / zero / fp / ra): those cannot become value-carrying homes. Such a
+    // move (e.g. `mv v, sp` for a frame address) is left in place instead.
     constrained_moves_.insert(m);
     AddWorkList(u);
     AddWorkList(v);
@@ -680,6 +684,10 @@ auto GraphColorRegAlloc::RewriteProgram() -> void {
 auto GraphColorRegAlloc::AllocateClass(TargetRegClass reg_class) -> void {
   class_ = reg_class;
   num_colors_ = static_cast<int>(reg_info_.NumAllocatable(reg_class));
+  allocatable_ids_.clear();
+  for (auto id : reg_info_.AllocatableRegs(reg_class)) {
+    allocatable_ids_.insert(id);
+  }
 
   BuildCFG();  // topology is stable across iterations, but rebuild is cheap
   while (true) {

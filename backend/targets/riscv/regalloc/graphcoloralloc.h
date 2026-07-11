@@ -112,6 +112,9 @@ class GraphColorRegAlloc {
   // --- per-class state (reset in AllocateClass) ---
   TargetRegClass class_{};
   int num_colors_ = 0;
+  // Allocatable physical-register ids for the class being colored; a value may be
+  // coalesced only into one of these (never into a reserved register like sp).
+  std::unordered_set<int> allocatable_ids_;
 
   std::vector<TargetOperand *> nodes_;                    // NodeId -> operand
   std::unordered_map<TargetOperand *, NodeId> vreg_node_;
