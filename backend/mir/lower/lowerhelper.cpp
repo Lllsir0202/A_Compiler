@@ -138,8 +138,42 @@ auto LowerHelper::LowerFunction(middleend::llvm::utils::Function *function) -> v
       // Erase Phi instruction after we finish handling all incoming edges
       phi_mir->GetParentBlock()->RemoveInst(phi_mir);
     }
+    // Fresh block ids for any split blocks sit above all existing ids.
+    size_t next_split_id = 0;
+    for (const auto &[id, blk] : block_by_id) {
+      next_split_id = std::max(next_split_id, id);
+    }
+    next_split_id += 1;
+
     for (const auto &key : edge_order) {
-      EmitParallelCopy(key.first, edge_copies[key]);
+      auto *pred = key.first;
+      auto *succ = key.second;
+      auto &copies = edge_copies[key];
+      auto *term = pred->GetInstructions().empty() ? nullptr : pred->GetInstructions().back();
+      // A conditional branch means the predecessor has more than one successor,
+      // so the edge pred -> succ is *critical*: the phi copies cannot be placed
+      // unconditionally in pred (they would also run on the other outgoing edge,
+      // corrupting a value the sibling block still needs). Split the edge with a
+      // new block that holds the copies and jumps to succ, and retarget pred's
+      // branch to it.
+      if (term != nullptr && term->GetOpKind() == inst::OpKind::CondBr) {
+        auto *split = GET_RESOURCE_CONTEXT()->CreateBlock(next_split_id);
+        EmitParallelCopy(split, copies);
+        auto *jump = GET_RESOURCE_CONTEXT()->CreateInstruction<inst::BrInst>(
+            GET_MIR_CONTEXT(), GET_MIR_CONTEXT()->GetLabelOperand(succ->GetId()));
+        split->AddInstBack(jump);
+        const auto &ops = term->GetOperands();  // [cond, true_label, false_label]
+        for (size_t i = 1; i < ops.size(); ++i) {
+          if (ops[i]->GetOpType() == utils::OpType::Label &&
+              static_cast<utils::LabelOperand *>(ops[i])->GetId() == succ->GetId()) {
+            term->SetOperand(i, GET_MIR_CONTEXT()->GetLabelOperand(next_split_id));
+          }
+        }
+        GET_LOWER_CONTEXT()->GetCurrentFunction()->AddBlock(split);
+        next_split_id += 1;
+      } else {
+        EmitParallelCopy(pred, copies);
+      }
     }
 
   } catch (std::exception &e) {
