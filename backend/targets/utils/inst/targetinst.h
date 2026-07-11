@@ -25,7 +25,8 @@ class TargetInst {
  protected:
   // Operands of this instruction
   std::vector<TargetOperand *> operands_;
-  TargetOperand *result_;
+  // nullptr for instructions without a result (branches, stores, calls, ret).
+  TargetOperand *result_ = nullptr;
 };
 
 }  // namespace backend::targetir

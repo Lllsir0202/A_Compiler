@@ -36,6 +36,8 @@ class RISCVFrame {
 
  private:
   auto MakeAddSp(int delta) -> std::vector<TargetInst *>;  // sp += delta (imm-legalized)
+  // Append a legalized `op reg, offset(sp)` (SD store or LD load) to `out`.
+  auto EmitStackAccess(std::vector<TargetInst *> *out, RVOpcode op, TargetOperand *reg, int offset) -> void;
 
   TargetContext *ctx_;
 };

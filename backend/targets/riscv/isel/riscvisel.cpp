@@ -365,10 +365,16 @@ auto RISCVISel::AllocaOffset(backend::utils::Operand *frame_op) -> size_t {
 
 auto RISCVISel::LowerAddress(backend::utils::Operand *ptr) -> TargetOperand * {
   if (ptr->IsFrame()) {
-    // Address of a stack slot: sp + alloca offset.
+    // Address of a stack slot: sp + alloca offset (immediate-legalized).
     auto offset = static_cast<int>(AllocaOffset(ptr));
     auto *addr = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
-    Emit(RVOpcode::ADDI, addr, {PhysGPR(static_cast<uint8_t>(2)), ctx_->Imm(offset)});  // x2 = sp
+    auto *sp = PhysGPR(static_cast<uint8_t>(2));  // x2 = sp
+    if (offset >= -2048 && offset <= 2047) {
+      Emit(RVOpcode::ADDI, addr, {sp, ctx_->Imm(offset)});
+    } else {
+      Emit(RVOpcode::LI, addr, {ctx_->Imm(offset)});
+      Emit(RVOpcode::ADD, addr, {sp, addr});
+    }
     return addr;
   }
   if (ptr->IsGlobal()) {
@@ -387,6 +393,10 @@ auto RISCVISel::LowerAddress(backend::utils::Operand *ptr) -> TargetOperand * {
     // uniformly. See docs/backend_codegen_plan.md.
     auto *mem = static_cast<backend::utils::MemoryOperand *>(ptr);
     const auto &info = mem->GetAddressInfo();
+    if (info.base_ptr_ == nullptr) {
+      Comment("TODO: memory operand without base pointer");
+      return Zero();
+    }
     auto *addr = LowerAddress(info.base_ptr_);
     const auto &dims = info.dimensions_;
     const auto &indices = info.indices_;
@@ -394,6 +404,9 @@ auto RISCVISel::LowerAddress(backend::utils::Operand *ptr) -> TargetOperand * {
 
     auto m = indices.size();
     auto n = dims.size();
+    if (m == 0) {
+      return addr;  // no indices: the address is just the base
+    }
     std::vector<long> strides(m, ELEM);
     for (size_t k = m - 1; k > 0; --k) {
       long dim = 1;
