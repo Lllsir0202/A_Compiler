@@ -44,11 +44,22 @@ auto IsWideVReg(TargetOperand *op) -> bool {
   return op->IsVirtualReg() && static_cast<TargetVirtualReg *>(op)->GetRegSize() == TargetRegSize::QWord;
 }
 
+// The compiler-generated bulk-memory intrinsics, emitted by the middle end for
+// aggregate init/copy (middleend/llvm/lower). Matched by their `llvm.` prefix so
+// user functions that merely contain "memset"/"memcpy" in their name (e.g.
+// `my_memset`) are never mistaken for the intrinsic — SysY identifiers cannot
+// contain a '.', so the prefix is unambiguous.
+auto IsMemsetIntrinsic(const std::string &callee) -> bool { return callee.rfind("llvm.memset", 0) == 0; }
+auto IsMemcpyIntrinsic(const std::string &callee) -> bool { return callee.rfind("llvm.memcpy", 0) == 0; }
+auto IsMemIntrinsic(const std::string &callee) -> bool {
+  return IsMemsetIntrinsic(callee) || IsMemcpyIntrinsic(callee);
+}
+
 // Number of arguments a call actually passes through the integer ABI. The
 // memset/memcpy intrinsics are rewritten to 3-argument libc calls.
 auto CallArgCount(backend::inst::Instruction *inst) -> size_t {
   const auto &callee = static_cast<backend::inst::CallInst *>(inst)->GetCallee();
-  if (callee.find("memset") != std::string::npos || callee.find("memcpy") != std::string::npos) {
+  if (IsMemIntrinsic(callee)) {
     return 3;
   }
   return inst->GetOperands().size();
@@ -311,8 +322,8 @@ auto RISCVISel::SelectCall(backend::inst::Instruction *inst) -> void {
 
   // The LLVM memset/memcpy intrinsics lower to the libc routines, which sylib /
   // the C runtime provide. Their pointer arguments are addresses, not values.
-  if (callee.find("memset") != std::string::npos || callee.find("memcpy") != std::string::npos) {
-    bool is_memset = callee.find("memset") != std::string::npos;
+  if (IsMemIntrinsic(callee)) {
+    bool is_memset = IsMemsetIntrinsic(callee);
     const auto &ops = inst->GetOperands();
     Emit(RVOpcode::MV, PhysGPR(A0), {LowerAddress(ops[0])});  // dest address
     // memset(dest, val, n); memcpy(dest, src, n) -- src is also an address.
