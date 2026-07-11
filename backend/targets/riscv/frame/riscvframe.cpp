@@ -40,12 +40,13 @@ auto RISCVFrame::MakeAddSp(int delta) -> std::vector<TargetInst *> {
   return seq;
 }
 
-auto RISCVFrame::Finalize(TargetFunction *func, size_t spill_slots) -> void {
+auto RISCVFrame::Finalize(TargetFunction *func, size_t alloca_bytes, size_t spill_slots) -> void {
   const auto &blocks = func->GetBlocks();
   if (blocks.empty()) {
     return;
   }
-  auto frame = static_cast<int>(AlignUp16(spill_slots * 8 + 8));  // +8 for ra
+  // alloca area + spill area + saved ra, 16-byte aligned.
+  auto frame = static_cast<int>(AlignUp16(alloca_bytes + spill_slots * 8 + 8));
   int ra_off = frame - 8;
 
   auto *sp = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, SP);

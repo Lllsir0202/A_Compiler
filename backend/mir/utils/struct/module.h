@@ -27,6 +27,9 @@ class Module {
   auto AddFuncDefInst(inst::FuncDefInst *func_def_inst) -> void;
   auto AddFuncDeclareInst(inst::FuncDeclareInst *func_declare_inst) -> void;
   auto AddGlobalDefInst(inst::GlobalDefInst *global_def_inst) -> void;
+  auto GetGlobalDefs() const -> const std::unordered_map<std::string, inst::GlobalDefInst *> & {
+    return global_var_insts_;
+  }
 
   // Used in replace the module
   auto Reset() -> void;

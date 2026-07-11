@@ -29,7 +29,7 @@ auto NaiveRegAlloc::SlotOf(TargetVirtualReg *vreg) -> size_t {
 }
 
 auto NaiveRegAlloc::EmitReload(std::vector<TargetInst *> *out, RVOpcode op, TargetOperand *dst, size_t slot) -> void {
-  auto offset = slot * 8;
+  auto offset = alloca_base_ + slot * 8;
   auto *sp = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, SP);
   if (IsInImmRange(offset)) {
     auto *ld = ctx_->CreateInst<RISCVInst>(op);
@@ -58,7 +58,7 @@ auto NaiveRegAlloc::EmitReload(std::vector<TargetInst *> *out, RVOpcode op, Targ
 }
 
 auto NaiveRegAlloc::EmitSpill(std::vector<TargetInst *> *out, RVOpcode op, TargetOperand *src, size_t slot) -> void {
-  auto offset = slot * 8;
+  auto offset = alloca_base_ + slot * 8;
   auto *sp = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, SP);
   if (IsInImmRange(offset)) {
     auto *st = ctx_->CreateInst<RISCVInst>(op);
@@ -85,8 +85,9 @@ auto NaiveRegAlloc::EmitSpill(std::vector<TargetInst *> *out, RVOpcode op, Targe
   out->push_back(st);
 }
 
-auto NaiveRegAlloc::Run(TargetFunction *func) -> size_t {
+auto NaiveRegAlloc::Run(TargetFunction *func, size_t alloca_base) -> size_t {
   slot_.clear();
+  alloca_base_ = alloca_base;
   for (auto *block : func->GetBlocks()) {
     std::vector<TargetInst *> rewritten;
     for (auto *inst : block->GetInsts()) {

@@ -36,6 +36,8 @@ class RISCVBackend {
   auto Emit(std::ofstream *out) -> void;
 
  private:
+  auto EmitGlobals(std::ofstream *out) -> void;
+
   context::CompilerContext *compiler_context_;
 
   // Owns all target IR (operands, instructions, blocks, functions).

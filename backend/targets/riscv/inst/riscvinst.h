@@ -18,7 +18,7 @@ namespace backend::targetir::riscv {
 enum class RVOpcode : uint8_t {
   // R-type integer (rd, rs1, rs2)
   ADDW, SUBW, MULW, DIVW, REMW,
-  ADD, SUB,  // 64-bit, address arithmetic
+  ADD, SUB, MUL,  // 64-bit, address arithmetic
   AND, OR, XOR,
   SLLW, SRLW, SRAW,
   SLT, SLTU,

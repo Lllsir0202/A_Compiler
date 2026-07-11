@@ -1,5 +1,6 @@
 #include "backend/targets/riscv/isel/riscvisel.h"
 #include <string>
+#include <vector>
 #include "backend/mir/inst/arithm/arithm.h"
 #include "backend/mir/inst/branch/branch.h"
 #include "backend/mir/inst/branch/ret.h"
@@ -8,8 +9,12 @@
 #include "backend/mir/inst/func/funcdef.h"
 #include "backend/mir/inst/inst.h"
 #include "backend/mir/inst/pseudo/copy.h"
+#include "backend/mir/utils/memory/frameinfo.h"
+#include "backend/mir/utils/operand/frameoperand.h"
+#include "backend/mir/utils/operand/globaloperand.h"
 #include "backend/mir/utils/operand/labeloperand.h"
 #include "backend/mir/utils/operand/literaloperand.h"
+#include "backend/mir/utils/operand/memoryoperand.h"
 #include "backend/mir/utils/operand/operand.h"
 #include "backend/mir/utils/struct/block.h"
 #include "backend/mir/utils/struct/function.h"
@@ -33,6 +38,8 @@ auto RISCVISel::SelectFunction(backend::utils::Function *mir_func) -> TargetFunc
   fused_icmps_.clear();
   use_count_.clear();
   one_user_.clear();
+  alloca_offset_.clear();
+  alloca_bytes_ = 0;
 
   auto *tfunc = ctx_->NewFunction(func_name_);
 
@@ -116,6 +123,8 @@ auto RISCVISel::SelectInst(backend::inst::Instruction *inst) -> void {
     case OpKind::Copy: SelectCopy(inst); break;
     case OpKind::Zext: SelectCopy(inst); break;  // i1 -> i32 is a value-preserving move
     case OpKind::Call: SelectCall(inst); break;
+    case OpKind::Load: SelectLoad(inst); break;
+    case OpKind::Store: SelectStore(inst); break;
     default:
       Comment("TODO select opkind " + std::to_string(static_cast<int>(inst->GetOpKind())));
       break;
@@ -217,6 +226,21 @@ auto RISCVISel::SelectCopy(backend::inst::Instruction *inst) -> void {
 
 auto RISCVISel::SelectCall(backend::inst::Instruction *inst) -> void {
   auto *call = static_cast<backend::inst::CallInst *>(inst);
+  const auto &callee = call->GetCallee();
+
+  // The LLVM memset/memcpy intrinsics lower to the libc routines, which sylib /
+  // the C runtime provide. Their pointer arguments are addresses, not values.
+  if (callee.find("memset") != std::string::npos || callee.find("memcpy") != std::string::npos) {
+    bool is_memset = callee.find("memset") != std::string::npos;
+    const auto &ops = inst->GetOperands();
+    Emit(RVOpcode::MV, PhysGPR(A0), {LowerAddress(ops[0])});  // dest address
+    // memset(dest, val, n); memcpy(dest, src, n) -- src is also an address.
+    Emit(RVOpcode::MV, PhysGPR(A0 + 1), {is_memset ? GetReg(ops[1]) : LowerAddress(ops[1])});
+    Emit(RVOpcode::MV, PhysGPR(A0 + 2), {GetReg(ops[2])});
+    Emit(RVOpcode::CALL, nullptr, {ctx_->Symbol(is_memset ? "memset" : "memcpy")});
+    return;
+  }
+
   size_t idx = 0;
   for (auto *param : inst->GetOperands()) {
     if (param->IsFloat()) {
@@ -274,6 +298,10 @@ auto RISCVISel::GetReg(backend::utils::Operand *mir_operand) -> TargetOperand * 
     Emit(RVOpcode::LI, vreg, {ctx_->Imm(value)});
     return vreg;
   }
+  // Frame slot / global / GEP result: the "value" is the address it denotes.
+  if (mir_operand->IsFrame() || mir_operand->IsGlobal() || mir_operand->IsMemory()) {
+    return LowerAddress(mir_operand);
+  }
   Comment("TODO: unhandled operand kind");
   return Zero();
 }
@@ -305,6 +333,96 @@ auto RISCVISel::Comment(const std::string &text) -> void {
   auto *inst = ctx_->CreateInst<RISCVInst>(RVOpcode::COMMENT);
   inst->SetComment(text);
   cur_block_->AddInst(inst);
+}
+
+auto RISCVISel::SelectLoad(backend::inst::Instruction *inst) -> void {
+  auto *addr = LowerAddress(inst->GetOperands()[0]);
+  auto *res = GetOrCreateVReg(inst->GetResult());
+  auto opcode = inst->GetResult()->IsPtr() ? RVOpcode::LD : RVOpcode::LW;
+  Emit(opcode, res, {addr, ctx_->Imm(0)});
+}
+
+auto RISCVISel::SelectStore(backend::inst::Instruction *inst) -> void {
+  auto *value = GetReg(inst->GetOperands()[0]);
+  auto *addr = LowerAddress(inst->GetOperands()[1]);
+  auto opcode = inst->GetOperands()[0]->IsPtr() ? RVOpcode::SD : RVOpcode::SW;
+  Emit(opcode, nullptr, {value, addr, ctx_->Imm(0)});
+}
+
+auto RISCVISel::AllocaOffset(backend::utils::Operand *frame_op) -> size_t {
+  auto it = alloca_offset_.find(frame_op);
+  if (it != alloca_offset_.end()) {
+    return it->second;
+  }
+  auto *frame_operand = static_cast<backend::utils::FrameOperand *>(frame_op);
+  auto *info = compiler_context_->GetMIRContext()->GetLowerContext()->GetFrameInfoFromFrameOperand(frame_operand);
+  auto size = info->GetSize();
+  auto offset = alloca_bytes_;
+  alloca_offset_[frame_op] = offset;
+  alloca_bytes_ += (size + 7U) & ~static_cast<size_t>(7U);  // 8-byte aligned
+  return offset;
+}
+
+auto RISCVISel::LowerAddress(backend::utils::Operand *ptr) -> TargetOperand * {
+  if (ptr->IsFrame()) {
+    // Address of a stack slot: sp + alloca offset.
+    auto offset = static_cast<int>(AllocaOffset(ptr));
+    auto *addr = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
+    Emit(RVOpcode::ADDI, addr, {PhysGPR(static_cast<uint8_t>(2)), ctx_->Imm(offset)});  // x2 = sp
+    return addr;
+  }
+  if (ptr->IsGlobal()) {
+    auto *addr = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
+    Emit(RVOpcode::LA, addr, {ctx_->Symbol(static_cast<backend::utils::GlobalOperand *>(ptr)->GetName())});
+    return addr;
+  }
+  if (ptr->IsRegister()) {
+    // A pointer already materialized in a register (e.g. an array parameter).
+    return GetOrCreateVReg(ptr);
+  }
+  if (ptr->IsMemory()) {
+    // GEP result: base address plus the linearized element offset. Strides are
+    // right-aligned to the innermost dimension, which handles local arrays (with
+    // a leading 0 index), globals, and pointer parameters (leading dim -1)
+    // uniformly. See docs/backend_codegen_plan.md.
+    auto *mem = static_cast<backend::utils::MemoryOperand *>(ptr);
+    const auto &info = mem->GetAddressInfo();
+    auto *addr = LowerAddress(info.base_ptr_);
+    const auto &dims = info.dimensions_;
+    const auto &indices = info.indices_;
+    constexpr int ELEM = 4;  // int element (float arrays are also 4 bytes)
+
+    auto m = indices.size();
+    auto n = dims.size();
+    std::vector<long> strides(m, ELEM);
+    for (size_t k = m - 1; k > 0; --k) {
+      long dim = 1;
+      auto dim_idx = static_cast<long>(n) - static_cast<long>(m) + static_cast<long>(k);
+      if (dim_idx >= 0 && dim_idx < static_cast<long>(n)) {
+        dim = dims[dim_idx];
+      }
+      strides[k - 1] = strides[k] * dim;
+    }
+
+    for (size_t k = 0; k < m; ++k) {
+      // Skip constant-zero indices (the common leading array-decay index).
+      auto *lit = dynamic_cast<backend::utils::IntLiteral *>(indices[k]);
+      if (lit != nullptr && lit->GetValue() == 0) {
+        continue;
+      }
+      auto *idx_reg = GetReg(indices[k]);
+      auto *term = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
+      auto *stride_reg = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
+      Emit(RVOpcode::LI, stride_reg, {ctx_->Imm(static_cast<int>(strides[k]))});
+      Emit(RVOpcode::MUL, term, {idx_reg, stride_reg});
+      auto *next = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
+      Emit(RVOpcode::ADD, next, {addr, term});
+      addr = next;
+    }
+    return addr;
+  }
+  Comment("TODO: unhandled address kind");
+  return Zero();
 }
 
 auto RISCVISel::IsFusableToBranch(backend::inst::Instruction *icmp) const -> bool {

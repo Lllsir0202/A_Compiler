@@ -41,6 +41,10 @@ class RISCVISel {
   /// Select a whole MIR function into a RISC-V TargetFunction (virtual regs).
   auto SelectFunction(backend::utils::Function *mir_func) -> TargetFunction *;
 
+  /// Total stack bytes reserved for this function's allocas (arrays / address-
+  /// taken locals); consumed by the register allocator and frame layer.
+  auto AllocaBytes() const -> size_t { return alloca_bytes_; }
+
  private:
   // Per-instruction selection.
   auto SelectInst(backend::inst::Instruction *inst) -> void;
@@ -51,6 +55,15 @@ class RISCVISel {
   auto SelectRet(backend::inst::Instruction *inst) -> void;
   auto SelectCopy(backend::inst::Instruction *inst) -> void;
   auto SelectCall(backend::inst::Instruction *inst) -> void;
+  auto SelectLoad(backend::inst::Instruction *inst) -> void;
+  auto SelectStore(backend::inst::Instruction *inst) -> void;
+
+  // Materialize the address denoted by a MIR pointer operand (frame slot, global
+  // symbol, GEP memory operand, or a register already holding an address) into a
+  // fresh virtual register.
+  auto LowerAddress(backend::utils::Operand *ptr) -> TargetOperand *;
+  // Byte offset of an alloca frame slot within this function's alloca area.
+  auto AllocaOffset(backend::utils::Operand *frame_op) -> size_t;
 
   // Operand helpers.
   auto GetOrCreateVReg(backend::utils::Operand *mir_operand) -> TargetOperand *;
@@ -80,6 +93,10 @@ class RISCVISel {
   // each register value is used, and (when used exactly once) its sole user.
   std::unordered_map<backend::utils::Operand *, int> use_count_;
   std::unordered_map<backend::utils::Operand *, backend::inst::Instruction *> one_user_;
+
+  // Alloca (stack storage) layout for this function.
+  std::unordered_map<backend::utils::Operand *, size_t> alloca_offset_;
+  size_t alloca_bytes_ = 0;
 };
 
 }  // namespace backend::targetir::riscv

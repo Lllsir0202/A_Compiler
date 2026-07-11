@@ -32,9 +32,10 @@ class NaiveRegAlloc {
  public:
   explicit NaiveRegAlloc(TargetContext *ctx) : ctx_(ctx) {}
 
-  /// Rewrite the function so no virtual registers remain. Returns the number of
-  /// 8-byte spill slots used, which the frame layer turns into stack space.
-  auto Run(TargetFunction *func) -> size_t;
+  /// Rewrite the function so no virtual registers remain. `alloca_base` is the
+  /// byte offset where the spill area starts (above the alloca area). Returns the
+  /// number of 8-byte spill slots used, which the frame layer turns into space.
+  auto Run(TargetFunction *func, size_t alloca_base) -> size_t;
 
  private:
   auto SlotOf(TargetVirtualReg *vreg) -> size_t;
@@ -43,6 +44,7 @@ class NaiveRegAlloc {
   auto EmitSpill(std::vector<TargetInst *> *out, RVOpcode op, TargetOperand *src, size_t slot) -> void;
 
   TargetContext *ctx_;
+  size_t alloca_base_ = 0;
   std::unordered_map<TargetVirtualReg *, size_t> slot_;
 };
 
