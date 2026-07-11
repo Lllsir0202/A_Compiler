@@ -27,7 +27,8 @@ namespace backend::targetir::riscv {
  */
 class RISCVBackend {
  public:
-  explicit RISCVBackend(context::CompilerContext *compiler_context) : compiler_context_(compiler_context) {}
+  explicit RISCVBackend(context::CompilerContext *compiler_context, int opt_level = 0)
+      : compiler_context_(compiler_context), opt_level_(opt_level) {}
 
   /// Run the whole codegen pipeline over the MIR module. Returns 0 on success.
   auto Run() -> int;
@@ -39,6 +40,9 @@ class RISCVBackend {
   auto EmitGlobals(std::ofstream *out) -> void;
 
   context::CompilerContext *compiler_context_;
+
+  // Optimization level (0 = none). At >=1 the machine-level pass pipeline runs.
+  int opt_level_;
 
   // Owns all target IR (operands, instructions, blocks, functions).
   TargetContext ctx_;

@@ -5,7 +5,7 @@
 namespace backend::targetir::riscv {
 
 auto GetRVOpcodeInfo(RVOpcode opcode) -> const RVOpcodeInfo & {
-  static const std::array<RVOpcodeInfo, 59> TABLE = {{
+  static const std::array<RVOpcodeInfo, 60> TABLE = {{
       {"addw", RVForm::RType},   {"subw", RVForm::RType},   {"mulw", RVForm::RType},
       {"divw", RVForm::RType},   {"remw", RVForm::RType},   {"add", RVForm::RType},
       {"sub", RVForm::RType},    {"mul", RVForm::RType},    {"and", RVForm::RType},    {"or", RVForm::RType},
@@ -13,7 +13,8 @@ auto GetRVOpcodeInfo(RVOpcode opcode) -> const RVOpcodeInfo & {
       {"sraw", RVForm::RType},   {"slt", RVForm::RType},    {"sltu", RVForm::RType},
       {"addiw", RVForm::IType},  {"addi", RVForm::IType},   {"andi", RVForm::IType},
       {"ori", RVForm::IType},    {"xori", RVForm::IType},   {"slliw", RVForm::IType},
-      {"srliw", RVForm::IType},  {"sraiw", RVForm::IType},  {"slti", RVForm::IType},
+      {"srliw", RVForm::IType},  {"sraiw", RVForm::IType},  {"slli", RVForm::IType},
+      {"slti", RVForm::IType},
       {"sltiu", RVForm::IType},  {"mv", RVForm::Unary},     {"negw", RVForm::Unary},
       {"seqz", RVForm::Unary},   {"snez", RVForm::Unary},   {"sext.w", RVForm::Unary},
       {"li", RVForm::LoadImm},   {"la", RVForm::LoadSym},   {"lw", RVForm::Load},

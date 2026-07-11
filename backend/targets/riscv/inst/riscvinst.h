@@ -25,6 +25,7 @@ enum class RVOpcode : uint8_t {
   // I-type integer (rd, rs1, imm)
   ADDIW, ADDI, ANDI, ORI, XORI,
   SLLIW, SRLIW, SRAIW,
+  SLLI,  // 64-bit shift-left immediate (address arithmetic / strength reduction)
   SLTI, SLTIU,
   // Unary (rd, rs1)
   MV, NEGW, SEQZ, SNEZ, SEXT_W,
@@ -83,6 +84,9 @@ class RISCVInst : public TargetInst {
   explicit RISCVInst(RVOpcode opcode) : opcode_(opcode) {}
 
   auto GetOpcode() const -> RVOpcode { return opcode_; }
+  // Rewrite the opcode in place, used by machine peephole passes (e.g. turning
+  // `mul` by a power of two into `slli`, or an R-type op into its I-type form).
+  auto SetOpcode(RVOpcode opcode) -> void { opcode_ = opcode; }
 
   // Optional trailing "# ..." annotation; on a COMMENT opcode it is the whole line.
   auto SetComment(std::string comment) -> void { comment_ = std::move(comment); }

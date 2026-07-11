@@ -6,9 +6,13 @@
 #include "backend/targets/riscv/frame/riscvframe.h"
 #include "backend/targets/riscv/inst/riscvinst.h"
 #include "backend/targets/riscv/isel/riscvisel.h"
+#include "backend/targets/riscv/pass/branchfold.h"
+#include "backend/targets/riscv/pass/machinedce.h"
+#include "backend/targets/riscv/pass/peephole.h"
 #include "backend/targets/riscv/printer/riscvprinter.h"
 #include "backend/targets/riscv/regalloc/graphcoloralloc.h"
 #include "backend/targets/utils/operand/targetreg.h"
+#include "backend/targets/utils/pass/machinepassmanager.h"
 #include "backend/targets/utils/struct/targetblock.h"
 #include "backend/targets/utils/struct/targetfunction.h"
 #include "backend/mir/inst/memory/globaldef.h"
@@ -24,8 +28,22 @@ auto RISCVBackend::Run() -> int {
   RISCVISel isel(compiler_context_, &ctx_);
   GraphColorRegAlloc reg_alloc(&ctx_);
   RISCVFrame frame(&ctx_);
+
+  // Machine-level optimization pipeline, toggled by the optimization level (like
+  // the middle-end pass pipeline). Runs on the selected code before register
+  // allocation, on virtual registers.
+  MachinePassManager machine_passes(&ctx_);
+  if (opt_level_ >= 1) {
+    machine_passes.AddPass(new RISCVPeephole(&ctx_));
+    machine_passes.AddPass(new MachineDCE(&ctx_));
+    machine_passes.AddPass(new BranchFold(&ctx_));
+  }
+
   for (auto *mir_func : module->GetFunctions()) {
     auto *tfunc = isel.SelectFunction(mir_func);
+    if (!machine_passes.Empty()) {
+      machine_passes.Run(tfunc);
+    }
     auto outgoing = isel.OutgoingBytes();
     auto alloca_bytes = isel.AllocaBytes();
     // Spills sit above the outgoing-args and alloca areas.

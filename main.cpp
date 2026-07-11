@@ -433,8 +433,10 @@ auto main(int argc, char *argv[]) -> int {
     return ret;
   }
 
-  // Backend code generation: MIR -> RISC-V assembly.
-  auto riscv_backend = std::make_unique<backend::targetir::riscv::RISCVBackend>(&compiler_context);
+  // Backend code generation: MIR -> RISC-V assembly. The optimization level gates
+  // the machine-level pass pipeline, mirroring the middle-end.
+  auto riscv_backend =
+      std::make_unique<backend::targetir::riscv::RISCVBackend>(&compiler_context, optimization_level);
   ret = riscv_backend->Run();
   if (ret != 0) {
     return 1;

@@ -14,6 +14,9 @@ class TargetInst {
   // Common interface for adding operands and setting result
   auto AddOperand(TargetOperand *operand) -> void { operands_.emplace_back(operand); }
   auto SetResult(TargetOperand *result) -> void { result_ = result; }
+  // Replace the whole operand list, used by machine peephole passes that rewrite
+  // an instruction's operands (e.g. folding a constant into an immediate form).
+  auto SetOperands(std::vector<TargetOperand *> operands) -> void { operands_ = std::move(operands); }
   auto GetOperands() -> const std::vector<TargetOperand *> & { return operands_; }
   auto GetResult() -> TargetOperand * { return result_; }
 
