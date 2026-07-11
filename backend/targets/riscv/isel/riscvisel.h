@@ -45,6 +45,10 @@ class RISCVISel {
   /// taken locals); consumed by the register allocator and frame layer.
   auto AllocaBytes() const -> size_t { return alloca_bytes_; }
 
+  /// Bytes reserved at the bottom of the frame for outgoing stack arguments
+  /// (the 9th and later arguments of the widest call this function makes).
+  auto OutgoingBytes() const -> size_t { return outgoing_bytes_; }
+
  private:
   // Per-instruction selection.
   auto SelectInst(backend::inst::Instruction *inst) -> void;
@@ -97,6 +101,8 @@ class RISCVISel {
   // Alloca (stack storage) layout for this function.
   std::unordered_map<backend::utils::Operand *, size_t> alloca_offset_;
   size_t alloca_bytes_ = 0;
+  // Outgoing stack-argument area, sized from the widest call (pre-scanned).
+  size_t outgoing_bytes_ = 0;
 };
 
 }  // namespace backend::targetir::riscv

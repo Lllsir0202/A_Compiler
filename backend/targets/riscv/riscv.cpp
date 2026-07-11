@@ -23,9 +23,11 @@ auto RISCVBackend::Run() -> int {
   RISCVFrame frame(&ctx_);
   for (auto *mir_func : module->GetFunctions()) {
     auto *tfunc = isel.SelectFunction(mir_func);
+    auto outgoing = isel.OutgoingBytes();
     auto alloca_bytes = isel.AllocaBytes();
-    auto spill_slots = reg_alloc.Run(tfunc, alloca_bytes);
-    frame.Finalize(tfunc, alloca_bytes, spill_slots);
+    // Spills sit above the outgoing-args and alloca areas.
+    auto spill_slots = reg_alloc.Run(tfunc, outgoing + alloca_bytes);
+    frame.Finalize(tfunc, outgoing + alloca_bytes, spill_slots);
     target_functions_.push_back(tfunc);
   }
   return 0;

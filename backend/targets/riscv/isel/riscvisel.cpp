@@ -1,4 +1,5 @@
 #include "backend/targets/riscv/isel/riscvisel.h"
+#include <algorithm>
 #include <string>
 #include <vector>
 #include "backend/mir/inst/arithm/arithm.h"
@@ -28,7 +29,19 @@ using backend::inst::OpKind;
 namespace {
 constexpr auto A0 = static_cast<uint8_t>(GPR::A0);
 constexpr auto ZERO = static_cast<uint8_t>(GPR::Zero);
+constexpr auto SP = static_cast<uint8_t>(GPR::Sp);
+constexpr auto FP = static_cast<uint8_t>(GPR::Fp);
 constexpr size_t MAX_REG_ARGS = 8;
+
+// Number of arguments a call actually passes through the integer ABI. The
+// memset/memcpy intrinsics are rewritten to 3-argument libc calls.
+auto CallArgCount(backend::inst::Instruction *inst) -> size_t {
+  const auto &callee = static_cast<backend::inst::CallInst *>(inst)->GetCallee();
+  if (callee.find("memset") != std::string::npos || callee.find("memcpy") != std::string::npos) {
+    return 3;
+  }
+  return inst->GetOperands().size();
+}
 }  // namespace
 
 auto RISCVISel::SelectFunction(backend::utils::Function *mir_func) -> TargetFunction * {
@@ -40,6 +53,20 @@ auto RISCVISel::SelectFunction(backend::utils::Function *mir_func) -> TargetFunc
   one_user_.clear();
   alloca_offset_.clear();
   alloca_bytes_ = 0;
+  outgoing_bytes_ = 0;
+
+  // Pre-scan: size the outgoing stack-argument area from the widest call, so the
+  // alloca area can sit just above it (offsets are then known before selection).
+  size_t max_stack_args = 0;
+  for (auto *mir_block : mir_func->GetBlocks()) {
+    for (auto *inst : mir_block->GetInstructions()) {
+      if (inst->GetOpKind() == OpKind::Call) {
+        auto args = CallArgCount(inst);
+        max_stack_args = std::max(max_stack_args, args > MAX_REG_ARGS ? args - MAX_REG_ARGS : 0);
+      }
+    }
+  }
+  outgoing_bytes_ = max_stack_args * 8;
 
   auto *tfunc = ctx_->NewFunction(func_name_);
 
@@ -80,10 +107,16 @@ auto RISCVISel::SelectFunction(backend::utils::Function *mir_func) -> TargetFunc
       for (auto *param : func_def->GetOperands()) {
         if (param->IsFloat()) {
           Comment("TODO: float parameter passing");
+          idx++;
           continue;
         }
         if (idx >= MAX_REG_ARGS) {
-          Comment("TODO: stack-passed parameter " + std::to_string(idx));
+          // Incoming stack argument: caller placed it at incoming_sp + off, which
+          // the frame pointer (fp = incoming sp) addresses independently of the
+          // frame size.
+          auto off = static_cast<int>((idx - MAX_REG_ARGS) * 8);
+          auto opcode = param->IsPtr() ? RVOpcode::LD : RVOpcode::LW;
+          Emit(opcode, GetOrCreateVReg(param), {PhysGPR(FP), ctx_->Imm(off)});
           idx++;
           continue;
         }
@@ -245,10 +278,13 @@ auto RISCVISel::SelectCall(backend::inst::Instruction *inst) -> void {
   for (auto *param : inst->GetOperands()) {
     if (param->IsFloat()) {
       Comment("TODO: float argument passing");
+      idx++;
       continue;
     }
     if (idx >= MAX_REG_ARGS) {
-      Comment("TODO: stack-passed argument " + std::to_string(idx));
+      // Outgoing stack argument: store at sp + (idx-8)*8 in the outgoing area.
+      auto off = static_cast<int>((idx - MAX_REG_ARGS) * 8);
+      Emit(RVOpcode::SD, nullptr, {GetReg(param), PhysGPR(SP), ctx_->Imm(off)});
       idx++;
       continue;
     }
@@ -357,7 +393,8 @@ auto RISCVISel::AllocaOffset(backend::utils::Operand *frame_op) -> size_t {
   auto *frame_operand = static_cast<backend::utils::FrameOperand *>(frame_op);
   auto *info = compiler_context_->GetMIRContext()->GetLowerContext()->GetFrameInfoFromFrameOperand(frame_operand);
   auto size = info->GetSize();
-  auto offset = alloca_bytes_;
+  // Alloca area sits just above the outgoing stack-argument area.
+  auto offset = outgoing_bytes_ + alloca_bytes_;
   alloca_offset_[frame_op] = offset;
   alloca_bytes_ += (size + 7U) & ~static_cast<size_t>(7U);  // 8-byte aligned
   return offset;

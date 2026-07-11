@@ -9,6 +9,7 @@ namespace backend::targetir::riscv {
 namespace {
 constexpr auto SP = static_cast<uint8_t>(GPR::Sp);
 constexpr auto RA = static_cast<uint8_t>(GPR::Ra);
+constexpr auto FP = static_cast<uint8_t>(GPR::Fp);
 constexpr auto T3 = static_cast<uint8_t>(GPR::T3);
 constexpr int IMM_MAX = 2047;
 
@@ -37,6 +38,32 @@ auto RISCVFrame::MakeAddSp(int delta) -> std::vector<TargetInst *> {
   op->AddOperand(sp);
   op->AddOperand(tmp);
   seq.push_back(op);
+  return seq;
+}
+
+auto RISCVFrame::MakeSetFp(int frame) -> std::vector<TargetInst *> {
+  // fp = sp + frame (the incoming stack pointer), immediate-legalized.
+  std::vector<TargetInst *> seq;
+  auto *sp = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, SP);
+  auto *fp = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, FP);
+  if (frame <= IMM_MAX) {
+    auto *addi = ctx_->CreateInst<RISCVInst>(RVOpcode::ADDI);
+    addi->SetResult(fp);
+    addi->AddOperand(sp);
+    addi->AddOperand(ctx_->Imm(frame));
+    seq.push_back(addi);
+    return seq;
+  }
+  auto *tmp = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, T3);
+  auto *li = ctx_->CreateInst<RISCVInst>(RVOpcode::LI);
+  li->SetResult(tmp);
+  li->AddOperand(ctx_->Imm(frame));
+  seq.push_back(li);
+  auto *add = ctx_->CreateInst<RISCVInst>(RVOpcode::ADD);
+  add->SetResult(fp);
+  add->AddOperand(sp);
+  add->AddOperand(tmp);
+  seq.push_back(add);
   return seq;
 }
 
@@ -72,21 +99,28 @@ auto RISCVFrame::EmitStackAccess(std::vector<TargetInst *> *out, RVOpcode op, Ta
   build(addr, 0);
 }
 
-auto RISCVFrame::Finalize(TargetFunction *func, size_t alloca_bytes, size_t spill_slots) -> void {
+auto RISCVFrame::Finalize(TargetFunction *func, size_t locals_bytes, size_t spill_slots) -> void {
   const auto &blocks = func->GetBlocks();
   if (blocks.empty()) {
     return;
   }
-  // alloca area + spill area + saved ra, 16-byte aligned.
-  auto frame = static_cast<int>(AlignUp16(alloca_bytes + spill_slots * 8 + 8));
+  // outgoing-args + alloca (locals) + spill area + saved ra & fp, 16-byte aligned.
+  auto frame = static_cast<int>(AlignUp16(locals_bytes + spill_slots * 8 + 16));
   int ra_off = frame - 8;
+  int fp_off = frame - 16;
 
   auto *sp = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, SP);
   auto *ra = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, RA);
+  auto *fp = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, FP);
 
-  // Prologue: sp -= frame; sd ra, ra_off(sp) (offset immediate-legalized).
+  // Prologue: sp -= frame; save ra & caller's fp; fp = incoming sp (= sp + frame),
+  // which addresses incoming stack arguments independent of the frame size.
   std::vector<TargetInst *> prologue = MakeAddSp(-frame);
   EmitStackAccess(&prologue, RVOpcode::SD, ra, ra_off);
+  EmitStackAccess(&prologue, RVOpcode::SD, fp, fp_off);
+  for (auto *add : MakeSetFp(frame)) {
+    prologue.push_back(add);
+  }
 
   auto *entry = blocks.front();
   std::vector<TargetInst *> new_entry = prologue;
@@ -95,7 +129,7 @@ auto RISCVFrame::Finalize(TargetFunction *func, size_t alloca_bytes, size_t spil
   }
   entry->SetInsts(new_entry);
 
-  // Epilogue: expand every `ret` into ld ra, ra_off(sp); sp += frame; ret.
+  // Epilogue: restore ra & fp, release the frame, return.
   for (auto *block : blocks) {
     std::vector<TargetInst *> rewritten;
     for (auto *inst : block->GetInsts()) {
@@ -105,6 +139,7 @@ auto RISCVFrame::Finalize(TargetFunction *func, size_t alloca_bytes, size_t spil
         continue;
       }
       EmitStackAccess(&rewritten, RVOpcode::LD, ra, ra_off);
+      EmitStackAccess(&rewritten, RVOpcode::LD, fp, fp_off);
       for (auto *add : MakeAddSp(frame)) {
         rewritten.push_back(add);
       }

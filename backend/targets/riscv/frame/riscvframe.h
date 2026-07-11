@@ -30,12 +30,13 @@ class RISCVFrame {
  public:
   explicit RISCVFrame(TargetContext *ctx) : ctx_(ctx) {}
 
-  /// Finalize the frame given the alloca-area size (bytes) and the number of
-  /// 8-byte spill slots that sit above it.
-  auto Finalize(TargetFunction *func, size_t alloca_bytes, size_t spill_slots) -> void;
+  /// Finalize the frame. `locals_bytes` covers the outgoing-arg + alloca areas
+  /// at the bottom of the frame; `spill_slots` 8-byte slots sit above them.
+  auto Finalize(TargetFunction *func, size_t locals_bytes, size_t spill_slots) -> void;
 
  private:
   auto MakeAddSp(int delta) -> std::vector<TargetInst *>;  // sp += delta (imm-legalized)
+  auto MakeSetFp(int frame) -> std::vector<TargetInst *>;  // fp = sp + frame (imm-legalized)
   // Append a legalized `op reg, offset(sp)` (SD store or LD load) to `out`.
   auto EmitStackAccess(std::vector<TargetInst *> *out, RVOpcode op, TargetOperand *reg, int offset) -> void;
 
