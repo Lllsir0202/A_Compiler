@@ -69,9 +69,10 @@ auto RISCVFrame::MakeSetFp(int frame) -> std::vector<TargetInst *> {
 
 auto RISCVFrame::EmitStackAccess(std::vector<TargetInst *> *out, RVOpcode op, TargetOperand *reg, int offset) -> void {
   auto *sp = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, SP);
+  bool is_load = op == RVOpcode::LD || op == RVOpcode::LW || op == RVOpcode::FLW;
   auto build = [&](TargetOperand *base, int imm) {
     auto *inst = ctx_->CreateInst<RISCVInst>(op);
-    if (op == RVOpcode::LD) {  // load: rd, imm(base)
+    if (is_load) {  // load: rd, imm(base)
       inst->SetResult(reg);
       inst->AddOperand(base);
       inst->AddOperand(ctx_->Imm(imm));
@@ -99,27 +100,41 @@ auto RISCVFrame::EmitStackAccess(std::vector<TargetInst *> *out, RVOpcode op, Ta
   build(addr, 0);
 }
 
-auto RISCVFrame::Finalize(TargetFunction *func, size_t locals_bytes, size_t spill_slots) -> void {
+auto RISCVFrame::Finalize(TargetFunction *func, size_t locals_bytes, size_t spill_slots,
+                          const std::vector<std::pair<TargetRegClass, uint8_t>> &callee_saved) -> void {
   const auto &blocks = func->GetBlocks();
   if (blocks.empty()) {
     return;
   }
-  // outgoing-args + alloca (locals) + spill area + saved ra & fp, 16-byte aligned.
-  auto frame = static_cast<int>(AlignUp16(locals_bytes + spill_slots * 8 + 16));
+  // Layout (low -> high): outgoing-args + alloca (locals) | spill slots |
+  // callee-saved register saves | saved fp | saved ra. 16-byte aligned.
+  size_t cs_base = locals_bytes + spill_slots * 8;
+  auto frame = static_cast<int>(AlignUp16(cs_base + callee_saved.size() * 8 + 16));
   int ra_off = frame - 8;
   int fp_off = frame - 16;
 
-  auto *sp = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, SP);
   auto *ra = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, RA);
   auto *fp = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, FP);
 
+  // Store (prologue) / load (epilogue) opcode for a callee-saved register.
+  auto save_op = [](TargetRegClass cls) { return cls == TargetRegClass::Float ? RVOpcode::FSW : RVOpcode::SD; };
+  auto restore_op = [](TargetRegClass cls) { return cls == TargetRegClass::Float ? RVOpcode::FLW : RVOpcode::LD; };
+  auto cs_reg = [&](TargetRegClass cls, uint8_t id) {
+    return ctx_->PhysReg(cls, cls == TargetRegClass::Float ? TargetRegSize::DWord : TargetRegSize::QWord, id);
+  };
+
   // Prologue: sp -= frame; save ra & caller's fp; fp = incoming sp (= sp + frame),
-  // which addresses incoming stack arguments independent of the frame size.
+  // which addresses incoming stack arguments independent of the frame size; then
+  // preserve the callee-saved registers the allocator used.
   std::vector<TargetInst *> prologue = MakeAddSp(-frame);
   EmitStackAccess(&prologue, RVOpcode::SD, ra, ra_off);
   EmitStackAccess(&prologue, RVOpcode::SD, fp, fp_off);
   for (auto *add : MakeSetFp(frame)) {
     prologue.push_back(add);
+  }
+  for (size_t i = 0; i < callee_saved.size(); ++i) {
+    auto [cls, id] = callee_saved[i];
+    EmitStackAccess(&prologue, save_op(cls), cs_reg(cls, id), static_cast<int>(cs_base + i * 8));
   }
 
   auto *entry = blocks.front();
@@ -129,7 +144,7 @@ auto RISCVFrame::Finalize(TargetFunction *func, size_t locals_bytes, size_t spil
   }
   entry->SetInsts(new_entry);
 
-  // Epilogue: restore ra & fp, release the frame, return.
+  // Epilogue: restore callee-saved regs & ra & fp, release the frame, return.
   for (auto *block : blocks) {
     std::vector<TargetInst *> rewritten;
     for (auto *inst : block->GetInsts()) {
@@ -137,6 +152,10 @@ auto RISCVFrame::Finalize(TargetFunction *func, size_t locals_bytes, size_t spil
       if (ri->GetOpcode() != RVOpcode::RET) {
         rewritten.push_back(inst);
         continue;
+      }
+      for (size_t i = 0; i < callee_saved.size(); ++i) {
+        auto [cls, id] = callee_saved[i];
+        EmitStackAccess(&rewritten, restore_op(cls), cs_reg(cls, id), static_cast<int>(cs_base + i * 8));
       }
       EmitStackAccess(&rewritten, RVOpcode::LD, ra, ra_off);
       EmitStackAccess(&rewritten, RVOpcode::LD, fp, fp_off);

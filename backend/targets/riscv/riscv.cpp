@@ -7,7 +7,7 @@
 #include "backend/targets/riscv/inst/riscvinst.h"
 #include "backend/targets/riscv/isel/riscvisel.h"
 #include "backend/targets/riscv/printer/riscvprinter.h"
-#include "backend/targets/riscv/regalloc/naivealloc.h"
+#include "backend/targets/riscv/regalloc/graphcoloralloc.h"
 #include "backend/targets/utils/operand/targetreg.h"
 #include "backend/targets/utils/struct/targetblock.h"
 #include "backend/targets/utils/struct/targetfunction.h"
@@ -22,7 +22,7 @@ auto RISCVBackend::Run() -> int {
     return 0;
   }
   RISCVISel isel(compiler_context_, &ctx_);
-  NaiveRegAlloc reg_alloc(&ctx_);
+  GraphColorRegAlloc reg_alloc(&ctx_);
   RISCVFrame frame(&ctx_);
   for (auto *mir_func : module->GetFunctions()) {
     auto *tfunc = isel.SelectFunction(mir_func);
@@ -30,7 +30,7 @@ auto RISCVBackend::Run() -> int {
     auto alloca_bytes = isel.AllocaBytes();
     // Spills sit above the outgoing-args and alloca areas.
     auto spill_slots = reg_alloc.Run(tfunc, outgoing + alloca_bytes);
-    frame.Finalize(tfunc, outgoing + alloca_bytes, spill_slots);
+    frame.Finalize(tfunc, outgoing + alloca_bytes, spill_slots, reg_alloc.UsedCalleeSaved());
     target_functions_.push_back(tfunc);
   }
   return 0;

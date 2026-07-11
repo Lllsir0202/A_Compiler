@@ -20,9 +20,10 @@ namespace backend::targetir::riscv {
  * lives in its own stack slot, and each instruction reloads its operands into
  * scratch registers (t0-t2) and stores its result back. Correct for arbitrarily
  * many values with no interference analysis, but slow — it exists to make the
- * integer backend runnable end-to-end. The graph-coloring allocator
- * (backend/targets/utils/regalloc/graphcoloring.h) replaces it behind the same
- * pipeline slot without touching ISel or the frame layer.
+ * integer backend runnable end-to-end and as a simple correctness fallback. The
+ * graph-coloring allocator (backend/targets/riscv/regalloc/graphcoloralloc.h) is
+ * the production allocator behind the same pipeline slot; both share the frame /
+ * spill-slot conventions, so switching between them touches only the driver.
  *
  * Reserves t0/t1/t2 as value scratch and t3 as address scratch (for spill
  * offsets outside the [-2048, 2047] immediate range), so those are never handed

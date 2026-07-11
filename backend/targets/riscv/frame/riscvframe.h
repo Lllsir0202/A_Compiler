@@ -2,6 +2,8 @@
 #define BACKEND_TARGETS_RISCV_FRAME_RISCVFRAME_H
 
 #include <cstddef>
+#include <cstdint>
+#include <utility>
 #include <vector>
 #include "backend/targets/riscv/inst/riscvinst.h"
 #include "backend/targets/utils/context/targetcontext.h"
@@ -31,8 +33,11 @@ class RISCVFrame {
   explicit RISCVFrame(TargetContext *ctx) : ctx_(ctx) {}
 
   /// Finalize the frame. `locals_bytes` covers the outgoing-arg + alloca areas
-  /// at the bottom of the frame; `spill_slots` 8-byte slots sit above them.
-  auto Finalize(TargetFunction *func, size_t locals_bytes, size_t spill_slots) -> void;
+  /// at the bottom of the frame; `spill_slots` 8-byte slots sit above them, and
+  /// the `callee_saved` (class,id) registers the allocator handed out are saved
+  /// above the spill area and restored in the epilogue.
+  auto Finalize(TargetFunction *func, size_t locals_bytes, size_t spill_slots,
+                const std::vector<std::pair<TargetRegClass, uint8_t>> &callee_saved) -> void;
 
  private:
   auto MakeAddSp(int delta) -> std::vector<TargetInst *>;  // sp += delta (imm-legalized)

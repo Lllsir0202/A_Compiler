@@ -318,32 +318,42 @@ auto RISCVISel::SelectCall(backend::inst::Instruction *inst) -> void {
     // memset(dest, val, n); memcpy(dest, src, n) -- src is also an address.
     Emit(RVOpcode::MV, PhysGPR(A0 + 1), {is_memset ? GetReg(ops[1]) : LowerAddress(ops[1])});
     Emit(RVOpcode::MV, PhysGPR(A0 + 2), {GetReg(ops[2])});
-    Emit(RVOpcode::CALL, nullptr, {ctx_->Symbol(is_memset ? "memset" : "memcpy")});
+    // The argument registers are recorded as CALL operands (after the symbol, and
+    // ignored by the printer) so register allocation sees them live into the call.
+    Emit(RVOpcode::CALL, nullptr,
+         {ctx_->Symbol(is_memset ? "memset" : "memcpy"), PhysGPR(A0), PhysGPR(A0 + 1), PhysGPR(A0 + 2)});
     return;
   }
 
   size_t int_idx = 0;
   size_t float_idx = 0;
   size_t stack_slot = 0;
+  // Argument registers, recorded as CALL operands so the allocator keeps them
+  // live from their setup move to the call (they are ignored by the printer).
+  std::vector<TargetOperand *> call_ops{ctx_->Symbol(call->GetCallee())};
   for (auto *param : inst->GetOperands()) {
     auto *val = GetReg(param);
     if (IsFloatVReg(val)) {
       if (float_idx < MAX_REG_ARGS) {
-        Emit(RVOpcode::FMV_S, PhysFPR(static_cast<uint8_t>(FPR::Fa0) + static_cast<uint8_t>(float_idx)), {val});
+        auto *fa = PhysFPR(static_cast<uint8_t>(FPR::Fa0) + static_cast<uint8_t>(float_idx));
+        Emit(RVOpcode::FMV_S, fa, {val});
+        call_ops.push_back(fa);
         float_idx++;
       } else {
         Emit(RVOpcode::FSW, nullptr, {val, PhysGPR(SP), ctx_->Imm(static_cast<int>(stack_slot * 8))});
         stack_slot++;
       }
     } else if (int_idx < MAX_REG_ARGS) {
-      Emit(RVOpcode::MV, PhysGPR(A0 + static_cast<uint8_t>(int_idx)), {val});
+      auto *areg = PhysGPR(A0 + static_cast<uint8_t>(int_idx));
+      Emit(RVOpcode::MV, areg, {val});
+      call_ops.push_back(areg);
       int_idx++;
     } else {
       Emit(RVOpcode::SD, nullptr, {val, PhysGPR(SP), ctx_->Imm(static_cast<int>(stack_slot * 8))});
       stack_slot++;
     }
   }
-  Emit(RVOpcode::CALL, nullptr, {ctx_->Symbol(call->GetCallee())});
+  Emit(RVOpcode::CALL, nullptr, call_ops);
   if (inst->GetResult() != nullptr) {
     if (inst->GetResult()->IsFloat()) {
       Emit(RVOpcode::FMV_S, GetOrCreateVReg(inst->GetResult()), {PhysFPR(static_cast<uint8_t>(FPR::Fa0))});

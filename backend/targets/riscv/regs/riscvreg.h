@@ -105,12 +105,14 @@ inline constexpr std::array<GPR, 8> INT_ARG_REGS = {GPR::A0, GPR::A1, GPR::A2, G
 inline constexpr std::array<FPR, 8> FLOAT_ARG_REGS = {FPR::Fa0, FPR::Fa1, FPR::Fa2, FPR::Fa3,
                                                       FPR::Fa4, FPR::Fa5, FPR::Fa6, FPR::Fa7};
 
-/// Allocatable GPRs for the register allocator (excludes zero/ra/sp/gp/tp; fp is
-/// reserved only when a frame pointer is used — the frame layer decides).
-inline constexpr std::array<GPR, 27> ALLOCATABLE_GPR = {
+/// Allocatable GPRs for the register allocator. Excludes zero/ra/sp/gp/tp (fixed
+/// by the ABI), fp (reserved as the frame pointer by the frame layer), and t3
+/// (reserved as the spill/frame address scratch for offsets outside the ±2047
+/// immediate range).
+inline constexpr std::array<GPR, 25> ALLOCATABLE_GPR = {
     GPR::T0, GPR::T1, GPR::T2, GPR::S1, GPR::A0, GPR::A1, GPR::A2, GPR::A3, GPR::A4,
     GPR::A5, GPR::A6, GPR::A7, GPR::S2, GPR::S3, GPR::S4, GPR::S5, GPR::S6, GPR::S7,
-    GPR::S8, GPR::S9, GPR::S10, GPR::S11, GPR::T3, GPR::T4, GPR::T5, GPR::T6, GPR::Fp};
+    GPR::S8, GPR::S9, GPR::S10, GPR::S11, GPR::T4, GPR::T5, GPR::T6};
 
 /// Allocatable FPRs.
 inline constexpr std::array<FPR, 32> ALLOCATABLE_FPR = {
