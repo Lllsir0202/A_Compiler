@@ -1,5 +1,8 @@
 #include "backend/targets/riscv/riscv.h"
 #include <algorithm>
+#include <cstdint>
+#include <cstring>
+#include <vector>
 #include "backend/targets/riscv/frame/riscvframe.h"
 #include "backend/targets/riscv/inst/riscvinst.h"
 #include "backend/targets/riscv/isel/riscvisel.h"
@@ -68,18 +71,31 @@ auto RISCVBackend::EmitGlobals(std::ofstream *out) -> void {
       elems *= static_cast<size_t>(d);
     }
     const auto &int_init = def->GetIntInitialValues();
-    bool zero_init = int_init.empty() || std::all_of(int_init.begin(), int_init.end(), [](int v) { return v == 0; });
+    const auto &float_init = def->GetFloatInitialValues();
+    // Both int and float initializers are emitted as raw 4-byte words (a float's
+    // IEEE-754 bit pattern), so a single code path handles either.
+    std::vector<uint32_t> words;
+    words.reserve(std::max(int_init.size(), float_init.size()));
+    for (int v : int_init) {
+      words.push_back(static_cast<uint32_t>(v));
+    }
+    for (float f : float_init) {
+      uint32_t bits = 0;
+      std::memcpy(&bits, &f, sizeof(bits));
+      words.push_back(bits);
+    }
+    bool zero_init = std::all_of(words.begin(), words.end(), [](uint32_t w) { return w == 0; });
 
     *out << "\t.globl " << name << "\n";
     if (zero_init) {
       *out << "\t.bss\n\t.align 2\n" << name << ":\n\t.zero " << elems * 4 << "\n";
     } else {
       *out << "\t.data\n\t.align 2\n" << name << ":\n";
-      for (int v : int_init) {
-        *out << "\t.word " << v << "\n";
+      for (uint32_t w : words) {
+        *out << "\t.word " << w << "\n";
       }
-      if (int_init.size() < elems) {  // trailing implicit zeros
-        *out << "\t.zero " << (elems - int_init.size()) * 4 << "\n";
+      if (words.size() < elems) {  // trailing implicit zeros
+        *out << "\t.zero " << (elems - words.size()) * 4 << "\n";
       }
     }
   }

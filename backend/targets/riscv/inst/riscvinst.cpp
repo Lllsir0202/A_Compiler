@@ -5,7 +5,7 @@
 namespace backend::targetir::riscv {
 
 auto GetRVOpcodeInfo(RVOpcode opcode) -> const RVOpcodeInfo & {
-  static const std::array<RVOpcodeInfo, 44> TABLE = {{
+  static const std::array<RVOpcodeInfo, 59> TABLE = {{
       {"addw", RVForm::RType},   {"subw", RVForm::RType},   {"mulw", RVForm::RType},
       {"divw", RVForm::RType},   {"remw", RVForm::RType},   {"add", RVForm::RType},
       {"sub", RVForm::RType},    {"mul", RVForm::RType},    {"and", RVForm::RType},    {"or", RVForm::RType},
@@ -18,6 +18,11 @@ auto GetRVOpcodeInfo(RVOpcode opcode) -> const RVOpcodeInfo & {
       {"seqz", RVForm::Unary},   {"snez", RVForm::Unary},   {"sext.w", RVForm::Unary},
       {"li", RVForm::LoadImm},   {"la", RVForm::LoadSym},   {"lw", RVForm::Load},
       {"ld", RVForm::Load},      {"sw", RVForm::Store},     {"sd", RVForm::Store},
+      {"fadd.s", RVForm::RType}, {"fsub.s", RVForm::RType}, {"fmul.s", RVForm::RType},
+      {"fdiv.s", RVForm::RType}, {"feq.s", RVForm::RType},  {"flt.s", RVForm::RType},
+      {"fle.s", RVForm::RType},  {"fmv.s", RVForm::Unary},  {"fcvt.s.w", RVForm::Unary},
+      {"fcvt.w.s", RVForm::ConvertToInt}, {"fmv.w.x", RVForm::Unary}, {"fmv.x.w", RVForm::Unary},
+      {"flw", RVForm::Load},     {"fsw", RVForm::Store},
       {"beq", RVForm::Branch},   {"bne", RVForm::Branch},   {"blt", RVForm::Branch},
       {"bge", RVForm::Branch},   {"bltu", RVForm::Branch},  {"bgeu", RVForm::Branch},
       {"j", RVForm::Jump},
@@ -103,6 +108,13 @@ auto RISCVInst::Emit(std::ofstream *out) -> void {
     case RVForm::Call:
       *out << " ";
       ops[0]->Emit(out);
+      break;
+    case RVForm::ConvertToInt:  // fcvt.w.s rd, fs, rtz
+      *out << " ";
+      result_->Emit(out);
+      *out << ", ";
+      ops[0]->Emit(out);
+      *out << ", rtz";
       break;
     case RVForm::Ret:
       break;

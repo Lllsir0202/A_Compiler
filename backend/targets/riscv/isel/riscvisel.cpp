@@ -1,5 +1,6 @@
 #include "backend/targets/riscv/isel/riscvisel.h"
 #include <algorithm>
+#include <cstring>
 #include <string>
 #include <vector>
 #include "backend/mir/inst/arithm/arithm.h"
@@ -32,6 +33,16 @@ constexpr auto ZERO = static_cast<uint8_t>(GPR::Zero);
 constexpr auto SP = static_cast<uint8_t>(GPR::Sp);
 constexpr auto FP = static_cast<uint8_t>(GPR::Fp);
 constexpr size_t MAX_REG_ARGS = 8;
+
+// True if a selected value lives in a floating-point register. The vreg class is
+// reliable where the MIR operand type is not (e.g. untyped float literals).
+auto IsFloatVReg(TargetOperand *op) -> bool {
+  return op->IsVirtualReg() && static_cast<TargetVirtualReg *>(op)->GetRegClass() == TargetRegClass::Float;
+}
+
+auto IsWideVReg(TargetOperand *op) -> bool {
+  return op->IsVirtualReg() && static_cast<TargetVirtualReg *>(op)->GetRegSize() == TargetRegSize::QWord;
+}
 
 // Number of arguments a call actually passes through the integer ABI. The
 // memset/memcpy intrinsics are rewritten to 3-argument libc calls.
@@ -103,25 +114,29 @@ auto RISCVISel::SelectFunction(backend::utils::Function *mir_func) -> TargetFunc
     cur_block_ = block_by_id_[blocks.front()->GetId()];
     auto *func_def = compiler_context_->GetMIRContext()->GetFuncDefByName(func_name_);
     if (func_def != nullptr) {
-      size_t idx = 0;
+      // Integer args come in a0-a7, float args in fa0-fa7 (counted separately);
+      // overflow goes to the stack in argument order, read via fp (incoming sp).
+      size_t int_idx = 0;
+      size_t float_idx = 0;
+      size_t stack_slot = 0;
       for (auto *param : func_def->GetOperands()) {
+        auto *vreg = GetOrCreateVReg(param);
         if (param->IsFloat()) {
-          Comment("TODO: float parameter passing");
-          idx++;
-          continue;
-        }
-        if (idx >= MAX_REG_ARGS) {
-          // Incoming stack argument: caller placed it at incoming_sp + off, which
-          // the frame pointer (fp = incoming sp) addresses independently of the
-          // frame size.
-          auto off = static_cast<int>((idx - MAX_REG_ARGS) * 8);
+          if (float_idx < MAX_REG_ARGS) {
+            Emit(RVOpcode::FMV_S, vreg, {PhysFPR(static_cast<uint8_t>(FPR::Fa0) + static_cast<uint8_t>(float_idx))});
+            float_idx++;
+          } else {
+            Emit(RVOpcode::FLW, vreg, {PhysGPR(FP), ctx_->Imm(static_cast<int>(stack_slot * 8))});
+            stack_slot++;
+          }
+        } else if (int_idx < MAX_REG_ARGS) {
+          Emit(RVOpcode::MV, vreg, {PhysGPR(A0 + static_cast<uint8_t>(int_idx))});
+          int_idx++;
+        } else {
           auto opcode = param->IsPtr() ? RVOpcode::LD : RVOpcode::LW;
-          Emit(opcode, GetOrCreateVReg(param), {PhysGPR(FP), ctx_->Imm(off)});
-          idx++;
-          continue;
+          Emit(opcode, vreg, {PhysGPR(FP), ctx_->Imm(static_cast<int>(stack_slot * 8))});
+          stack_slot++;
         }
-        Emit(RVOpcode::MV, GetOrCreateVReg(param), {PhysGPR(A0 + static_cast<uint8_t>(idx))});
-        idx++;
       }
     }
   }
@@ -149,6 +164,14 @@ auto RISCVISel::SelectInst(backend::inst::Instruction *inst) -> void {
     case OpKind::Shl: SelectBinary(inst, RVOpcode::SLLW); break;
     case OpKind::LShr: SelectBinary(inst, RVOpcode::SRLW); break;
     case OpKind::AShr: SelectBinary(inst, RVOpcode::SRAW); break;
+    case OpKind::AddF: SelectBinary(inst, RVOpcode::FADD_S); break;
+    case OpKind::SubF: SelectBinary(inst, RVOpcode::FSUB_S); break;
+    case OpKind::MulF: SelectBinary(inst, RVOpcode::FMUL_S); break;
+    case OpKind::DivF: SelectBinary(inst, RVOpcode::FDIV_S); break;
+    case OpKind::FCmp: SelectFCmp(inst); break;
+    case OpKind::Int2Float: SelectConvert(inst, RVOpcode::FCVT_S_W); break;
+    case OpKind::Float2Int: SelectConvert(inst, RVOpcode::FCVT_W_S); break;
+    case OpKind::Bool2Float: SelectConvert(inst, RVOpcode::FCVT_S_W); break;
     case OpKind::ICmp: SelectICmp(inst); break;
     case OpKind::CondBr: SelectCondBr(inst); break;
     case OpKind::Br: SelectBr(inst); break;
@@ -205,6 +228,30 @@ auto RISCVISel::SelectICmp(backend::inst::Instruction *inst) -> void {
   }
 }
 
+auto RISCVISel::SelectFCmp(backend::inst::Instruction *inst) -> void {
+  auto pred = static_cast<backend::inst::FCmpInst *>(inst)->GetPredicate();
+  auto *lhs = GetReg(inst->GetOperands()[0]);
+  auto *rhs = GetReg(inst->GetOperands()[1]);
+  auto *res = GetOrCreateVReg(inst->GetResult());  // 0/1 in a GPR
+  using backend::inst::CmpPredicate;
+  switch (pred) {
+    case CmpPredicate::EQ: Emit(RVOpcode::FEQ_S, res, {lhs, rhs}); break;
+    case CmpPredicate::NE:
+      Emit(RVOpcode::FEQ_S, res, {lhs, rhs});
+      Emit(RVOpcode::XORI, res, {res, ctx_->Imm(1)});
+      break;
+    case CmpPredicate::LT: Emit(RVOpcode::FLT_S, res, {lhs, rhs}); break;
+    case CmpPredicate::LE: Emit(RVOpcode::FLE_S, res, {lhs, rhs}); break;
+    case CmpPredicate::GT: Emit(RVOpcode::FLT_S, res, {rhs, lhs}); break;
+    case CmpPredicate::GE: Emit(RVOpcode::FLE_S, res, {rhs, lhs}); break;
+  }
+}
+
+auto RISCVISel::SelectConvert(backend::inst::Instruction *inst, RVOpcode opcode) -> void {
+  auto *src = GetReg(inst->GetOperands()[0]);
+  Emit(opcode, GetOrCreateVReg(inst->GetResult()), {src});
+}
+
 auto RISCVISel::SelectCondBr(backend::inst::Instruction *inst) -> void {
   const auto &ops = inst->GetOperands();
   auto *cond = ops[0];
@@ -242,7 +289,7 @@ auto RISCVISel::SelectRet(backend::inst::Instruction *inst) -> void {
   const auto &ops = inst->GetOperands();
   if (!ops.empty()) {
     if (ops[0]->IsFloat()) {
-      Comment("TODO: float return value");
+      Emit(RVOpcode::FMV_S, PhysFPR(static_cast<uint8_t>(FPR::Fa0)), {GetReg(ops[0])});
     } else {
       Emit(RVOpcode::MV, PhysGPR(A0), {GetReg(ops[0])});
     }
@@ -254,7 +301,8 @@ auto RISCVISel::SelectRet(backend::inst::Instruction *inst) -> void {
 
 auto RISCVISel::SelectCopy(backend::inst::Instruction *inst) -> void {
   auto *src = GetReg(inst->GetOperands()[0]);
-  Emit(RVOpcode::MV, GetOrCreateVReg(inst->GetResult()), {src});
+  auto opcode = inst->GetResult()->IsFloat() ? RVOpcode::FMV_S : RVOpcode::MV;
+  Emit(opcode, GetOrCreateVReg(inst->GetResult()), {src});
 }
 
 auto RISCVISel::SelectCall(backend::inst::Instruction *inst) -> void {
@@ -274,28 +322,34 @@ auto RISCVISel::SelectCall(backend::inst::Instruction *inst) -> void {
     return;
   }
 
-  size_t idx = 0;
+  size_t int_idx = 0;
+  size_t float_idx = 0;
+  size_t stack_slot = 0;
   for (auto *param : inst->GetOperands()) {
-    if (param->IsFloat()) {
-      Comment("TODO: float argument passing");
-      idx++;
-      continue;
+    auto *val = GetReg(param);
+    if (IsFloatVReg(val)) {
+      if (float_idx < MAX_REG_ARGS) {
+        Emit(RVOpcode::FMV_S, PhysFPR(static_cast<uint8_t>(FPR::Fa0) + static_cast<uint8_t>(float_idx)), {val});
+        float_idx++;
+      } else {
+        Emit(RVOpcode::FSW, nullptr, {val, PhysGPR(SP), ctx_->Imm(static_cast<int>(stack_slot * 8))});
+        stack_slot++;
+      }
+    } else if (int_idx < MAX_REG_ARGS) {
+      Emit(RVOpcode::MV, PhysGPR(A0 + static_cast<uint8_t>(int_idx)), {val});
+      int_idx++;
+    } else {
+      Emit(RVOpcode::SD, nullptr, {val, PhysGPR(SP), ctx_->Imm(static_cast<int>(stack_slot * 8))});
+      stack_slot++;
     }
-    if (idx >= MAX_REG_ARGS) {
-      // Outgoing stack argument: store at sp + (idx-8)*8 in the outgoing area.
-      auto off = static_cast<int>((idx - MAX_REG_ARGS) * 8);
-      Emit(RVOpcode::SD, nullptr, {GetReg(param), PhysGPR(SP), ctx_->Imm(off)});
-      idx++;
-      continue;
-    }
-    Emit(RVOpcode::MV, PhysGPR(A0 + static_cast<uint8_t>(idx)), {GetReg(param)});
-    idx++;
   }
   Emit(RVOpcode::CALL, nullptr, {ctx_->Symbol(call->GetCallee())});
-  if (inst->GetResult() != nullptr && !inst->GetResult()->IsFloat()) {
-    Emit(RVOpcode::MV, GetOrCreateVReg(inst->GetResult()), {PhysGPR(A0)});
-  } else if (inst->GetResult() != nullptr) {
-    Comment("TODO: float return value from call");
+  if (inst->GetResult() != nullptr) {
+    if (inst->GetResult()->IsFloat()) {
+      Emit(RVOpcode::FMV_S, GetOrCreateVReg(inst->GetResult()), {PhysFPR(static_cast<uint8_t>(FPR::Fa0))});
+    } else {
+      Emit(RVOpcode::MV, GetOrCreateVReg(inst->GetResult()), {PhysGPR(A0)});
+    }
   }
 }
 
@@ -316,6 +370,18 @@ auto RISCVISel::GetReg(backend::utils::Operand *mir_operand) -> TargetOperand * 
     return GetOrCreateVReg(mir_operand);
   }
   if (mir_operand->IsLiteral()) {
+    // A float literal is materialized as its 32-bit pattern in a GPR, then moved
+    // into an FPR (RISC-V cannot load a float immediate directly).
+    if (auto *flit = dynamic_cast<backend::utils::FloatLiteral *>(mir_operand)) {
+      float value = flit->GetValue();
+      int bits = 0;
+      std::memcpy(&bits, &value, sizeof(bits));
+      auto *greg = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::DWord);
+      Emit(RVOpcode::LI, greg, {ctx_->Imm(bits)});
+      auto *freg = ctx_->NewVirtualReg(TargetRegClass::Float, TargetRegSize::DWord);
+      Emit(RVOpcode::FMV_W_X, freg, {greg});
+      return freg;
+    }
     // MIR literal operands do not carry a type, so IsInt()/IsBool() cannot be
     // trusted here; dispatch on the concrete literal subtype instead.
     int value = 0;
@@ -348,6 +414,10 @@ auto RISCVISel::PhysGPR(uint8_t id) -> TargetOperand * {
   return ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, id);
 }
 
+auto RISCVISel::PhysFPR(uint8_t id) -> TargetOperand * {
+  return ctx_->PhysReg(TargetRegClass::Float, TargetRegSize::DWord, id);
+}
+
 auto RISCVISel::LabelForBlock(size_t block_id) -> TargetLabel * {
   return ctx_->Label(".L_" + func_name_ + "_" + std::to_string(block_id));
 }
@@ -374,14 +444,18 @@ auto RISCVISel::Comment(const std::string &text) -> void {
 auto RISCVISel::SelectLoad(backend::inst::Instruction *inst) -> void {
   auto *addr = LowerAddress(inst->GetOperands()[0]);
   auto *res = GetOrCreateVReg(inst->GetResult());
-  auto opcode = inst->GetResult()->IsPtr() ? RVOpcode::LD : RVOpcode::LW;
+  auto opcode = inst->GetResult()->IsFloat() ? RVOpcode::FLW
+                : inst->GetResult()->IsPtr()  ? RVOpcode::LD
+                                              : RVOpcode::LW;
   Emit(opcode, res, {addr, ctx_->Imm(0)});
 }
 
 auto RISCVISel::SelectStore(backend::inst::Instruction *inst) -> void {
   auto *value = GetReg(inst->GetOperands()[0]);
   auto *addr = LowerAddress(inst->GetOperands()[1]);
-  auto opcode = inst->GetOperands()[0]->IsPtr() ? RVOpcode::SD : RVOpcode::SW;
+  // Width follows the value's register (class/size), which is reliable where the
+  // MIR operand type is not.
+  auto opcode = IsFloatVReg(value) ? RVOpcode::FSW : IsWideVReg(value) ? RVOpcode::SD : RVOpcode::SW;
   Emit(opcode, nullptr, {value, addr, ctx_->Imm(0)});
 }
 

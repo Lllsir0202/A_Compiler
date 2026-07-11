@@ -10,13 +10,38 @@ namespace backend::targetir::riscv {
 namespace {
 constexpr auto SP = static_cast<uint8_t>(GPR::Sp);
 constexpr auto T3 = static_cast<uint8_t>(GPR::T3);  // address scratch
-// Value scratch registers, one per operand/result of a single instruction.
+// Value scratch registers, one per operand/result of a single instruction, kept
+// separate per register class (integer t0-t2, float ft0-ft2).
 constexpr std::array<GPR, 3> VALUE_SCRATCH = {GPR::T0, GPR::T1, GPR::T2};
+constexpr std::array<FPR, 3> FLOAT_SCRATCH = {FPR::Ft0, FPR::Ft1, FPR::Ft2};
 constexpr int IMM_MIN = -2048;
 constexpr int IMM_MAX = 2047;
 
 auto IsInImmRange(size_t offset) -> bool { return static_cast<long>(offset) <= IMM_MAX; }
+
+auto ReloadOp(TargetVirtualReg *vreg) -> RVOpcode {
+  if (vreg->GetRegClass() == TargetRegClass::Float) {
+    return RVOpcode::FLW;
+  }
+  return vreg->GetRegSize() == TargetRegSize::QWord ? RVOpcode::LD : RVOpcode::LW;
+}
+
+auto SpillOp(TargetVirtualReg *vreg) -> RVOpcode {
+  if (vreg->GetRegClass() == TargetRegClass::Float) {
+    return RVOpcode::FSW;
+  }
+  return vreg->GetRegSize() == TargetRegSize::QWord ? RVOpcode::SD : RVOpcode::SW;
+}
 }  // namespace
+
+auto NaiveRegAlloc::ScratchFor(TargetVirtualReg *vreg, size_t *gpr_scratch, size_t *fpr_scratch) -> TargetOperand * {
+  if (vreg->GetRegClass() == TargetRegClass::Float) {
+    return ctx_->PhysReg(TargetRegClass::Float, TargetRegSize::DWord,
+                         static_cast<uint8_t>(FLOAT_SCRATCH.at((*fpr_scratch)++)));
+  }
+  return ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord,
+                       static_cast<uint8_t>(VALUE_SCRATCH.at((*gpr_scratch)++)));
+}
 
 auto NaiveRegAlloc::SlotOf(TargetVirtualReg *vreg) -> size_t {
   auto it = slot_.find(vreg);
@@ -101,12 +126,11 @@ auto NaiveRegAlloc::Run(TargetFunction *func, size_t alloca_base) -> size_t {
           }
         }
       }
-      size_t scratch = 0;
+      size_t gpr_scratch = 0;
+      size_t fpr_scratch = 0;
       for (auto *vreg : vops) {
-        auto *preg = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord,
-                                   static_cast<uint8_t>(VALUE_SCRATCH.at(scratch++)));
-        auto reload = vreg->GetRegSize() == TargetRegSize::QWord ? RVOpcode::LD : RVOpcode::LW;
-        EmitReload(&rewritten, reload, preg, SlotOf(vreg));
+        auto *preg = ScratchFor(vreg, &gpr_scratch, &fpr_scratch);
+        EmitReload(&rewritten, ReloadOp(vreg), preg, SlotOf(vreg));
         inst->ReplaceOperand(vreg, preg);
       }
 
@@ -114,14 +138,12 @@ auto NaiveRegAlloc::Run(TargetFunction *func, size_t alloca_base) -> size_t {
       TargetVirtualReg *vres = res != nullptr && res->IsVirtualReg() ? static_cast<TargetVirtualReg *>(res) : nullptr;
       TargetOperand *res_preg = nullptr;
       if (vres != nullptr) {
-        res_preg = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord,
-                                 static_cast<uint8_t>(VALUE_SCRATCH.at(scratch++)));
+        res_preg = ScratchFor(vres, &gpr_scratch, &fpr_scratch);
         inst->ReplaceResult(res_preg);
       }
       rewritten.push_back(inst);
       if (vres != nullptr) {
-        auto spill = vres->GetRegSize() == TargetRegSize::QWord ? RVOpcode::SD : RVOpcode::SW;
-        EmitSpill(&rewritten, spill, res_preg, SlotOf(vres));
+        EmitSpill(&rewritten, SpillOp(vres), res_preg, SlotOf(vres));
       }
     }
     block->SetInsts(rewritten);

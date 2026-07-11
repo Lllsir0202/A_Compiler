@@ -33,6 +33,14 @@ enum class RVOpcode : uint8_t {
   // Memory
   LW, LD,   // load  : rd, imm(rs1)
   SW, SD,   // store : rs2, imm(rs1)
+  // Single-precision float
+  FADD_S, FSUB_S, FMUL_S, FDIV_S,  // R-type, FPR operands + FPR result
+  FEQ_S, FLT_S, FLE_S,             // R-type, FPR operands -> GPR result
+  FMV_S,                           // fmv.s  fd, fs   (float register move)
+  FCVT_S_W,                        // fcvt.s.w fd, rs (int -> float)
+  FCVT_W_S,                        // fcvt.w.s rd, fs, rtz (float -> int, truncate)
+  FMV_W_X, FMV_X_W,                // bit-pattern move GPR<->FPR
+  FLW, FSW,                        // float load / store
   // Control flow
   BEQ, BNE, BLT, BGE, BLTU, BGEU,  // rs1, rs2, label
   J,        // label
@@ -54,6 +62,7 @@ enum class RVForm : uint8_t {
   LoadSym, // mnem rd, op0             op0 = symbol
   Call,    // mnem op0                 op0 = symbol
   Ret,     // mnem
+  ConvertToInt,  // mnem rd, op0, rtz  (fcvt.w.s truncating convert)
 };
 
 struct RVOpcodeInfo {

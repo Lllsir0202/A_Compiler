@@ -54,6 +54,8 @@ class RISCVISel {
   auto SelectInst(backend::inst::Instruction *inst) -> void;
   auto SelectBinary(backend::inst::Instruction *inst, RVOpcode opcode) -> void;
   auto SelectICmp(backend::inst::Instruction *inst) -> void;
+  auto SelectFCmp(backend::inst::Instruction *inst) -> void;
+  auto SelectConvert(backend::inst::Instruction *inst, RVOpcode opcode) -> void;
   auto SelectCondBr(backend::inst::Instruction *inst) -> void;
   auto SelectBr(backend::inst::Instruction *inst) -> void;
   auto SelectRet(backend::inst::Instruction *inst) -> void;
@@ -74,6 +76,7 @@ class RISCVISel {
   auto GetReg(backend::utils::Operand *mir_operand) -> TargetOperand *;  // materializes literals via li
   auto Zero() -> TargetOperand *;                                        // x0
   auto PhysGPR(uint8_t id) -> TargetOperand *;
+  auto PhysFPR(uint8_t id) -> TargetOperand *;
   auto LabelForBlock(size_t block_id) -> TargetLabel *;
 
   // Instruction emission helper: build a RISCVInst, wire result + operands, append.

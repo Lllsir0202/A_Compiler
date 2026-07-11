@@ -39,6 +39,8 @@ class NaiveRegAlloc {
 
  private:
   auto SlotOf(TargetVirtualReg *vreg) -> size_t;
+  // Next class-appropriate scratch physical register (t0-t2 / ft0-ft2).
+  auto ScratchFor(TargetVirtualReg *vreg, size_t *gpr_scratch, size_t *fpr_scratch) -> TargetOperand *;
   // Append a load of `dst` <- slot, or a store of `src` -> slot, to `out`.
   auto EmitReload(std::vector<TargetInst *> *out, RVOpcode op, TargetOperand *dst, size_t slot) -> void;
   auto EmitSpill(std::vector<TargetInst *> *out, RVOpcode op, TargetOperand *src, size_t slot) -> void;
