@@ -256,11 +256,19 @@ auto RISCVISel::GetReg(backend::utils::Operand *mir_operand) -> TargetOperand * 
     return GetOrCreateVReg(mir_operand);
   }
   if (mir_operand->IsLiteral()) {
+    // MIR literal operands do not carry a type, so IsInt()/IsBool() cannot be
+    // trusted here; dispatch on the concrete literal subtype instead.
     int value = 0;
-    if (mir_operand->IsBool()) {
-      value = static_cast<int>(static_cast<backend::utils::BoolLiteral *>(mir_operand)->GetValue());
+    if (auto *lit = dynamic_cast<backend::utils::IntLiteral *>(mir_operand)) {
+      value = lit->GetValue();
+    } else if (auto *lit = dynamic_cast<backend::utils::BoolLiteral *>(mir_operand)) {
+      value = lit->GetValue() ? 1 : 0;
+    } else if (auto *lit = dynamic_cast<backend::utils::CharLiteral *>(mir_operand)) {
+      value = static_cast<int>(lit->GetValue());
+    } else if (auto *lit = dynamic_cast<backend::utils::LongLiteral *>(mir_operand)) {
+      value = static_cast<int>(lit->GetValue());
     } else {
-      value = static_cast<backend::utils::IntLiteral *>(mir_operand)->GetValue();
+      Comment("TODO: unhandled literal kind");
     }
     auto *vreg = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::DWord);
     Emit(RVOpcode::LI, vreg, {ctx_->Imm(value)});

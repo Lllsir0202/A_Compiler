@@ -28,6 +28,9 @@ class TargetBlock {
 
   // Add-part
   auto AddInst(TargetInst *inst) -> void { insts_.emplace_back(inst); }
+  // Replace the whole instruction list, used by register allocation / frame
+  // lowering to splice in spill and prologue/epilogue code.
+  auto SetInsts(std::vector<TargetInst *> insts) -> void { insts_ = std::move(insts); }
   auto AddSuccessor(TargetBlock *succ) -> void { successors_.emplace_back(succ); }
   auto AddPredecessor(TargetBlock *pred) -> void { predecessors_.emplace_back(pred); }
 

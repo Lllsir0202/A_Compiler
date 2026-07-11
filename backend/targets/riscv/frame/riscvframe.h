@@ -1,30 +1,42 @@
 #ifndef BACKEND_TARGETS_RISCV_FRAME_RISCVFRAME_H
 #define BACKEND_TARGETS_RISCV_FRAME_RISCVFRAME_H
 
+#include <cstddef>
+#include <vector>
+#include "backend/targets/riscv/inst/riscvinst.h"
+#include "backend/targets/utils/context/targetcontext.h"
+
 namespace backend::targetir {
 class TargetFunction;
-}
+class TargetInst;
+}  // namespace backend::targetir
 
 namespace backend::targetir::riscv {
 
 /**
- * @brief Stack-frame layout, prologue/epilogue insertion (PEI) and the lp64d
- * calling convention for a RISC-V function. Runs after register allocation, when
- * the set of used callee-saved registers and the spill-slot count are known.
+ * @brief Stack-frame layout + prologue/epilogue insertion for a RISC-V function
+ * (lp64d). Runs after register allocation, once the spill-slot count is known.
  *
- * Frame layout (high -> low address), see docs/backend_codegen_plan.md §4:
- *   incoming stack args | ra | saved fp | callee-saved s/fs regs | spill slots
- *   plus locals/allocas | outgoing stack args
- * 16-byte aligned. The prologue `addi sp,sp,-frame` uses a legalized immediate
- * (li + sub when the frame exceeds the addi range).
- *
- * Skeleton: declares the contract; bodies land in milestone M2.
+ * Frame (from sp after the prologue, low -> high address):
+ *   [0, spill_bytes)        spill slots (assigned by the allocator)
+ *   [frame - 8, frame)      saved return address (ra)
+ * 16-byte aligned. `ret` instructions are expanded to restore ra, release the
+ * frame, and return. Callee-saved s-registers need no saving yet because the
+ * bring-up allocator only uses caller-saved scratch (t0-t3) and ABI argument
+ * registers; the graph-coloring allocator will report its used callee-saved set
+ * for this layer to preserve.
  */
 class RISCVFrame {
  public:
-  /// Finalize the frame: assign FrameIndex slots to sp offsets, emit prologue /
-  /// epilogue, save/restore ra + used callee-saved registers.
-  auto Finalize(TargetFunction *func) -> void;
+  explicit RISCVFrame(TargetContext *ctx) : ctx_(ctx) {}
+
+  /// Finalize the frame given the number of 8-byte spill slots.
+  auto Finalize(TargetFunction *func, size_t spill_slots) -> void;
+
+ private:
+  auto MakeAddSp(int delta) -> std::vector<TargetInst *>;  // sp += delta (imm-legalized)
+
+  TargetContext *ctx_;
 };
 
 }  // namespace backend::targetir::riscv
