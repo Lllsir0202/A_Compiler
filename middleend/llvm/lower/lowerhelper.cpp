@@ -15,7 +15,7 @@
 #include "middleend/llvm/inst/func/call.h"
 #include "middleend/llvm/inst/func/funcdef.h"
 #include "middleend/llvm/inst/inst.h"
-#include "middleend/llvm/inst/memory/alloca.h"
+#include "middleend/llvm/inst/memory/allocainst.h"
 #include "middleend/llvm/inst/memory/gep.h"
 #include "middleend/llvm/inst/memory/globaldef.h"
 #include "middleend/llvm/inst/memory/load.h"

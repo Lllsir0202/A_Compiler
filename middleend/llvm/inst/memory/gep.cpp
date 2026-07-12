@@ -1,6 +1,6 @@
 #include "middleend/llvm/inst/memory/gep.h"
 #include "context/compiler_context.h"
-#include "llvm/inst/memory/alloca.h"
+#include "llvm/inst/memory/allocainst.h"
 #include "llvm/inst/opkind.h"
 
 namespace middleend::llvm::inst {

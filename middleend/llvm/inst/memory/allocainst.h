@@ -1,5 +1,5 @@
-#ifndef MIDDLEEND_LLVM_INST_MEMORY_ALLOCA_H
-#define MIDDLEEND_LLVM_INST_MEMORY_ALLOCA_H
+#ifndef MIDDLEEND_LLVM_INST_MEMORY_ALLOCAINST_H
+#define MIDDLEEND_LLVM_INST_MEMORY_ALLOCAINST_H
 #include <utility>
 
 #include "middleend/llvm/inst/inst.h"
