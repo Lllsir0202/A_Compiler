@@ -59,7 +59,8 @@ static int optimization_level = 0;
 // Mark whether regard warnings as errors, default to false
 static bool warnings_as_errors = false;
 // Target backend: "riscv" (default, competition target) or "aarch64".
-static std::string target_arch = "riscv";
+// static std::string target_arch = "riscv";
+static std::string target_arch = "aarch64";  // for benchmark at competition webset
 
 static const std::unordered_set<std::string> STAGES = {"lexer", "parser", "ast", "mlir", "baseir",
                                                        "llvm",  "mir",    "S",   "s"};
