@@ -252,7 +252,7 @@ auto main(int argc, char *argv[]) -> int {
     return ret;
   }
 
-  if (optimization_level == 1) {
+  if (optimization_level >= 1) {
     auto mlirpass_context = new context::PassContext(&compiler_context, middleend::pass::PassStage::MLIR);
     compiler_context.SetPassContext(mlirpass_context);
     auto mlir_return_canonicalize_pass =
@@ -313,7 +313,7 @@ auto main(int argc, char *argv[]) -> int {
       &compiler_context, middleend::pass::PassStage::BASEIR);
   baseirpass_context->AddPass(unify_pass);
 
-  if (optimization_level == 1) {
+  if (optimization_level >= 1) {
     // auto function_inline_pass = context::PassContext::CreatePass<middleend::pass::transform::FunctionInlinePass>(
     // &compiler_context, middleend::pass::PassStage::BASEIR);
     // baseirpass_context->AddPass(function_inline_pass);
