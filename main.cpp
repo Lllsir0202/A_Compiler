@@ -2,6 +2,7 @@
 #include <memory>
 #include <unordered_set>
 #include "backend/mir/lower/lower.h"
+#include "backend/targets/aarch64/aarch64.h"
 #include "backend/targets/riscv/riscv.h"
 #include "context/compiler_context.h"
 #include "context/pass_context.h"
@@ -57,6 +58,8 @@ static std::string stage = "llvm";
 static int optimization_level = 0;
 // Mark whether regard warnings as errors, default to false
 static bool warnings_as_errors = false;
+// Target backend: "riscv" (default, competition target) or "aarch64".
+static std::string target_arch = "riscv";
 
 static const std::unordered_set<std::string> STAGES = {"lexer", "parser", "ast", "mlir", "baseir",
                                                        "llvm",  "mir",    "S",   "s"};
@@ -91,6 +94,10 @@ auto static inline ParseArgs(int argc, char *argv[]) -> bool {
         stage = arg.substr(1);  // remove leading '-'
       } else if (arg == "-Werror" || arg == "--Werror") {
         warnings_as_errors = true;
+      } else if (arg == "-aarch64" || arg == "-arm64") {
+        target_arch = "aarch64";
+      } else if (arg == "-riscv") {
+        target_arch = "riscv";
       } else {
         // invalid option
         std::cerr << "Invalid option: " << arg << '\n';
@@ -433,8 +440,23 @@ auto main(int argc, char *argv[]) -> int {
     return ret;
   }
 
-  // Backend code generation: MIR -> RISC-V assembly. The optimization level gates
-  // the machine-level pass pipeline, mirroring the middle-end.
+  // Backend code generation: MIR -> target assembly. The optimization level gates
+  // the machine-level pass pipeline, mirroring the middle-end. Target defaults to
+  // RISC-V (the competition target); -aarch64 selects the ARMv8-A backend.
+  bool want_asm = (stage == "S" || stage == "s");
+  if (target_arch == "aarch64") {
+    auto aarch64_backend =
+        std::make_unique<backend::targetir::aarch64::AArch64Backend>(&compiler_context, optimization_level);
+    ret = aarch64_backend->Run();
+    if (ret != 0) {
+      return 1;
+    }
+    if (want_asm) {
+      aarch64_backend->Emit(compiler_context.GetOutputStream());
+    }
+    return ret;
+  }
+
   auto riscv_backend =
       std::make_unique<backend::targetir::riscv::RISCVBackend>(&compiler_context, optimization_level);
   ret = riscv_backend->Run();
@@ -442,7 +464,7 @@ auto main(int argc, char *argv[]) -> int {
     return 1;
   }
 
-  if ((stage == "S" || stage == "s") && ret == 0) {
+  if (want_asm && ret == 0) {
     stages::AsmStage asm_stage(&compiler_context, riscv_backend.get());
     asm_stage.Run();
     return ret;
