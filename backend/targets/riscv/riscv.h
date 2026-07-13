@@ -27,8 +27,8 @@ namespace backend::targetir::riscv {
  */
 class RISCVBackend {
  public:
-  explicit RISCVBackend(context::CompilerContext *compiler_context, int opt_level = 0)
-      : compiler_context_(compiler_context), opt_level_(opt_level) {}
+  explicit RISCVBackend(context::CompilerContext *compiler_context, int opt_level = 0, bool magic_div = true)
+      : compiler_context_(compiler_context), opt_level_(opt_level), magic_div_(magic_div) {}
 
   /// Run the whole codegen pipeline over the MIR module. Returns 0 on success.
   auto Run() -> int;
@@ -43,6 +43,9 @@ class RISCVBackend {
 
   // Optimization level (0 = none). At >=1 the machine-level pass pipeline runs.
   int opt_level_;
+
+  // Turn constant division/modulo into a magic multiply (vs divw/remw). On.
+  bool magic_div_ = true;
 
   // Owns all target IR (operands, instructions, blocks, functions).
   TargetContext ctx_;

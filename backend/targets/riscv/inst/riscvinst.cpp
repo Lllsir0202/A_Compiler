@@ -32,11 +32,15 @@ auto GetRVOpcodeInfo(RVOpcode opcode) -> const RVOpcodeInfo & {
   // table stays index-aligned with the RVOpcode enum up to J.
   static const RVOpcodeInfo CALL_INFO = {"call", RVForm::Call};
   static const RVOpcodeInfo RET_INFO = {"ret", RVForm::Ret};
+  static const RVOpcodeInfo SRAI_INFO = {"srai", RVForm::IType};
   if (opcode == RVOpcode::CALL) {
     return CALL_INFO;
   }
   if (opcode == RVOpcode::RET) {
     return RET_INFO;
+  }
+  if (opcode == RVOpcode::SRAI) {
+    return SRAI_INFO;
   }
   return TABLE[static_cast<size_t>(opcode)];
 }

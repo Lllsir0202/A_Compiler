@@ -1,5 +1,6 @@
 #include "backend/targets/riscv/isel/riscvisel.h"
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -21,6 +22,7 @@
 #include "backend/mir/utils/struct/block.h"
 #include "backend/mir/utils/struct/function.h"
 #include "backend/targets/riscv/regs/riscvreg.h"
+#include "backend/targets/utils/divmagic.h"
 #include "context/compiler_context.h"
 
 namespace backend::targetir::riscv {
@@ -167,8 +169,8 @@ auto RISCVISel::SelectInst(backend::inst::Instruction *inst) -> void {
     case OpKind::Add: SelectBinary(inst, RVOpcode::ADDW); break;
     case OpKind::Sub: SelectBinary(inst, RVOpcode::SUBW); break;
     case OpKind::Mul: SelectBinary(inst, RVOpcode::MULW); break;
-    case OpKind::Div: SelectBinary(inst, RVOpcode::DIVW); break;
-    case OpKind::Mod: SelectBinary(inst, RVOpcode::REMW); break;
+    case OpKind::Div: SelectDiv(inst); break;
+    case OpKind::Mod: SelectMod(inst); break;
     case OpKind::And: SelectBinary(inst, RVOpcode::AND); break;
     case OpKind::Or: SelectBinary(inst, RVOpcode::OR); break;
     case OpKind::Xor: SelectBinary(inst, RVOpcode::XOR); break;
@@ -202,6 +204,95 @@ auto RISCVISel::SelectBinary(backend::inst::Instruction *inst, RVOpcode opcode) 
   auto *lhs = GetReg(inst->GetOperands()[0]);
   auto *rhs = GetReg(inst->GetOperands()[1]);
   Emit(opcode, GetOrCreateVReg(inst->GetResult()), {lhs, rhs});
+}
+
+auto RISCVISel::SelectDiv(backend::inst::Instruction *inst) -> void {
+  auto *lit = dynamic_cast<backend::utils::IntLiteral *>(inst->GetOperands()[1]);
+  if (lit != nullptr) {
+    auto *numer = GetReg(inst->GetOperands()[0]);
+    if (auto *quot = EmitConstDivide(numer, lit->GetValue())) {
+      Emit(RVOpcode::MV, GetOrCreateVReg(inst->GetResult()), {quot});
+      return;
+    }
+  }
+  SelectBinary(inst, RVOpcode::DIVW);
+}
+
+auto RISCVISel::SelectMod(backend::inst::Instruction *inst) -> void {
+  auto *numer = GetReg(inst->GetOperands()[0]);
+  auto *lit = dynamic_cast<backend::utils::IntLiteral *>(inst->GetOperands()[1]);
+  if (lit != nullptr) {
+    if (auto *q = EmitConstDivide(numer, lit->GetValue())) {
+      // r = n - q * d.
+      auto *d = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::DWord);
+      Emit(RVOpcode::LI, d, {ctx_->Imm(lit->GetValue())});
+      auto *prod = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::DWord);
+      Emit(RVOpcode::MULW, prod, {q, d});
+      Emit(RVOpcode::SUBW, GetOrCreateVReg(inst->GetResult()), {numer, prod});
+      return;
+    }
+  }
+  SelectBinary(inst, RVOpcode::REMW);
+}
+
+// Signed division of `numer` by the compile-time constant `divisor`, avoiding the
+// costly `divw`. Positive powers of two use a sign-biased shift; other divisors use
+// a magic multiply-high + shift (Hacker's Delight). On RV64 the high 32 bits of the
+// signed 32x32 product come from a full 64-bit `mul` followed by `srai #32`.
+// Returns the quotient register, or nullptr to fall back to `divw`/`remw`.
+auto RISCVISel::EmitConstDivide(TargetOperand *numer, int divisor) -> TargetOperand * {
+  auto new_reg = [&] { return ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::DWord); };
+  if (!magic_div_ || divisor == -1 || divisor == INT32_MIN) {
+    return nullptr;
+  }
+  if (divisor == 1) {
+    return numer;
+  }
+  unsigned ad = divisor < 0 ? 0U - static_cast<unsigned>(divisor) : static_cast<unsigned>(divisor);
+
+  if (divisor > 0 && (ad & (ad - 1)) == 0) {
+    int k = __builtin_ctz(ad);
+    auto *sign = new_reg();
+    Emit(RVOpcode::SRAIW, sign, {numer, ctx_->Imm(31)});        // 0 or -1
+    auto *bias = new_reg();
+    Emit(RVOpcode::SRLIW, bias, {sign, ctx_->Imm(32 - k)});     // 0 or (2^k - 1)
+    auto *adj = new_reg();
+    Emit(RVOpcode::ADDW, adj, {numer, bias});
+    auto *quot = new_reg();
+    Emit(RVOpcode::SRAIW, quot, {adj, ctx_->Imm(k)});
+    return quot;
+  }
+
+  auto m = ComputeSignedDivMagic(divisor);
+  auto *magic = new_reg();
+  Emit(RVOpcode::LI, magic, {ctx_->Imm(m.magic_)});
+  // High 32 bits of the signed product: sign-extend n to 64 bits, 64-bit multiply,
+  // then arithmetic shift right by 32.
+  auto *nx = new_reg();
+  Emit(RVOpcode::SEXT_W, nx, {numer});
+  auto *prod = new_reg();
+  Emit(RVOpcode::MUL, prod, {nx, magic});
+  auto *q = new_reg();
+  Emit(RVOpcode::SRAI, q, {prod, ctx_->Imm(32)});
+  if (divisor > 0 && m.magic_ < 0) {
+    auto *t = new_reg();
+    Emit(RVOpcode::ADDW, t, {q, numer});
+    q = t;
+  } else if (divisor < 0 && m.magic_ > 0) {
+    auto *t = new_reg();
+    Emit(RVOpcode::SUBW, t, {q, numer});
+    q = t;
+  }
+  if (m.shift_ > 0) {
+    auto *t = new_reg();
+    Emit(RVOpcode::SRAIW, t, {q, ctx_->Imm(m.shift_)});
+    q = t;
+  }
+  auto *sign = new_reg();
+  Emit(RVOpcode::SRLIW, sign, {q, ctx_->Imm(31)});
+  auto *quot = new_reg();
+  Emit(RVOpcode::ADDW, quot, {q, sign});
+  return quot;
 }
 
 auto RISCVISel::SelectICmp(backend::inst::Instruction *inst) -> void {

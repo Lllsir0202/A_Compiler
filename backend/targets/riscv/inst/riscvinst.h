@@ -48,6 +48,8 @@ enum class RVOpcode : uint8_t {
   CALL,     // symbol
   RET,      // (none)
   COMMENT,  // "# text" pseudo, carries no operands; used for annotations / TODOs
+  SRAI,     // 64-bit arithmetic shift-right immediate (magic-division high part);
+            // kept out of the index-aligned table like CALL/RET
 };
 
 /// How an opcode's operands are rendered as text.

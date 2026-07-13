@@ -45,6 +45,17 @@ auto AArch64Inst::Emit(std::ofstream *out) -> void {
     *out << "\t// " << comment_ << "\n";
     return;
   }
+  if (opcode_ == A64Opcode::SMULH) {
+    // High 32 bits of the signed 32x32 product, via the reserved x16 scratch.
+    *out << "\tsmull x16, ";
+    operands_[0]->Emit(out);
+    *out << ", ";
+    operands_[1]->Emit(out);
+    *out << "\n\tasr x16, x16, #32\n\tmov ";
+    result_->Emit(out);
+    *out << ", w16\n";
+    return;
+  }
   const auto &info = GetA64OpcodeInfo(opcode_);
   const auto &ops = operands_;
   auto imm = [&](TargetOperand *o) {

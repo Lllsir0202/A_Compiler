@@ -25,7 +25,7 @@ auto AArch64Backend::Run() -> int {
   if (module == nullptr) {
     return 0;
   }
-  AArch64ISel isel(compiler_context_, &ctx_);
+  AArch64ISel isel(compiler_context_, &ctx_, magic_div_);
   AArch64GraphColorRegAlloc reg_alloc(&ctx_);
   AArch64Frame frame(&ctx_);
 

@@ -18,8 +18,8 @@ namespace backend::targetir::aarch64 {
  */
 class AArch64Backend {
  public:
-  explicit AArch64Backend(context::CompilerContext *compiler_context, int opt_level = 0)
-      : compiler_context_(compiler_context), opt_level_(opt_level) {}
+  explicit AArch64Backend(context::CompilerContext *compiler_context, int opt_level = 0, bool magic_div = true)
+      : compiler_context_(compiler_context), opt_level_(opt_level), magic_div_(magic_div) {}
 
   auto Run() -> int;
   auto Emit(std::ofstream *out) -> void;
@@ -29,6 +29,7 @@ class AArch64Backend {
 
   context::CompilerContext *compiler_context_;
   int opt_level_;
+  bool magic_div_ = true;  // constant division -> magic multiply (vs sdiv)
   TargetContext ctx_;
   std::vector<TargetFunction *> target_functions_;
 };

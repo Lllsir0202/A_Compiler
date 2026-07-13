@@ -22,6 +22,7 @@
 #include "backend/mir/utils/struct/block.h"
 #include "backend/mir/utils/struct/function.h"
 #include "backend/targets/aarch64/regs/aarch64reg.h"
+#include "backend/targets/utils/divmagic.h"
 #include "backend/targets/utils/operand/targetreg.h"
 #include "context/compiler_context.h"
 
@@ -166,7 +167,7 @@ auto AArch64ISel::SelectInst(backend::inst::Instruction *inst) -> void {
     case OpKind::Add: SelectBinary(inst, A64Opcode::ADD); break;
     case OpKind::Sub: SelectBinary(inst, A64Opcode::SUB); break;
     case OpKind::Mul: SelectBinary(inst, A64Opcode::MUL); break;
-    case OpKind::Div: SelectBinary(inst, A64Opcode::SDIV); break;
+    case OpKind::Div: SelectDiv(inst); break;
     case OpKind::Mod: SelectMod(inst); break;
     case OpKind::And: SelectBinary(inst, A64Opcode::AND); break;
     case OpKind::Or: SelectBinary(inst, A64Opcode::ORR); break;
@@ -203,13 +204,90 @@ auto AArch64ISel::SelectBinary(backend::inst::Instruction *inst, A64Opcode opcod
   Emit(opcode, GetOrCreateVReg(inst->GetResult()), {lhs, rhs});
 }
 
+auto AArch64ISel::SelectDiv(backend::inst::Instruction *inst) -> void {
+  auto *lit = dynamic_cast<backend::utils::IntLiteral *>(inst->GetOperands()[1]);
+  if (lit != nullptr) {
+    auto *numer = GetReg(inst->GetOperands()[0]);
+    if (auto *quot = EmitConstDivide(numer, lit->GetValue())) {
+      Emit(A64Opcode::MOV, GetOrCreateVReg(inst->GetResult()), {quot});
+      return;
+    }
+  }
+  SelectBinary(inst, A64Opcode::SDIV);
+}
+
 auto AArch64ISel::SelectMod(backend::inst::Instruction *inst) -> void {
   // AArch64 has no modulo: r = a - (a / b) * b  via  sdiv q, a, b; msub r, q, b, a.
   auto *a = GetReg(inst->GetOperands()[0]);
+  auto *lit = dynamic_cast<backend::utils::IntLiteral *>(inst->GetOperands()[1]);
+  if (lit != nullptr) {
+    if (auto *q = EmitConstDivide(a, lit->GetValue())) {
+      auto *d = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::DWord);
+      EmitMovImm(d, lit->GetValue());
+      Emit(A64Opcode::MSUB, GetOrCreateVReg(inst->GetResult()), {q, d, a});
+      return;
+    }
+  }
   auto *b = GetReg(inst->GetOperands()[1]);
   auto *q = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::DWord);
   Emit(A64Opcode::SDIV, q, {a, b});
   Emit(A64Opcode::MSUB, GetOrCreateVReg(inst->GetResult()), {q, b, a});
+}
+
+// Signed division of `numer` by the compile-time constant `divisor`, avoiding the
+// costly `sdiv`. Positive powers of two use a sign-biased shift; other divisors use
+// a magic multiply-high + shift (Hacker's Delight). Returns the quotient register,
+// or nullptr for divisors best left to `sdiv` (|d| < 2, d == INT_MIN, which magic
+// cannot represent). All arithmetic is on 32-bit (w) registers.
+auto AArch64ISel::EmitConstDivide(TargetOperand *numer, int divisor) -> TargetOperand * {
+  auto new_reg = [&] { return ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::DWord); };
+  if (!magic_div_ || divisor == -1 || divisor == INT32_MIN) {
+    return nullptr;  // -x needs a zero reg; INT_MIN breaks the magic algorithm
+  }
+  if (divisor == 1) {
+    return numer;
+  }
+  unsigned ad = divisor < 0 ? 0U - static_cast<unsigned>(divisor) : static_cast<unsigned>(divisor);
+
+  if (divisor > 0 && (ad & (ad - 1)) == 0) {
+    // q = (n + (n >> 31 logical-masked to 2^k-1 when negative)) >> k.
+    int k = __builtin_ctz(ad);
+    auto *sign = new_reg();
+    Emit(A64Opcode::ASR_I, sign, {numer, ctx_->Imm(31)});        // 0 or -1
+    auto *bias = new_reg();
+    Emit(A64Opcode::LSR_I, bias, {sign, ctx_->Imm(32 - k)});     // 0 or (2^k - 1)
+    auto *adj = new_reg();
+    Emit(A64Opcode::ADD, adj, {numer, bias});
+    auto *quot = new_reg();
+    Emit(A64Opcode::ASR_I, quot, {adj, ctx_->Imm(k)});
+    return quot;
+  }
+
+  auto m = ComputeSignedDivMagic(divisor);
+  auto *magic = new_reg();
+  EmitMovImm(magic, m.magic_);
+  auto *q = new_reg();
+  Emit(A64Opcode::SMULH, q, {numer, magic});                    // high 32 of n * magic
+  if (divisor > 0 && m.magic_ < 0) {
+    auto *t = new_reg();
+    Emit(A64Opcode::ADD, t, {q, numer});
+    q = t;
+  } else if (divisor < 0 && m.magic_ > 0) {
+    auto *t = new_reg();
+    Emit(A64Opcode::SUB, t, {q, numer});
+    q = t;
+  }
+  if (m.shift_ > 0) {
+    auto *t = new_reg();
+    Emit(A64Opcode::ASR_I, t, {q, ctx_->Imm(m.shift_)});
+    q = t;
+  }
+  // Add the sign bit of the shifted quotient to round toward zero.
+  auto *sign = new_reg();
+  Emit(A64Opcode::LSR_I, sign, {q, ctx_->Imm(31)});
+  auto *quot = new_reg();
+  Emit(A64Opcode::ADD, quot, {q, sign});
+  return quot;
 }
 
 auto AArch64ISel::SelectICmp(backend::inst::Instruction *inst) -> void {

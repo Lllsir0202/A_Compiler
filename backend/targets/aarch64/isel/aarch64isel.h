@@ -31,8 +31,8 @@ namespace backend::targetir::aarch64 {
  */
 class AArch64ISel {
  public:
-  AArch64ISel(context::CompilerContext *compiler_context, TargetContext *ctx)
-      : compiler_context_(compiler_context), ctx_(ctx) {}
+  AArch64ISel(context::CompilerContext *compiler_context, TargetContext *ctx, bool magic_div = true)
+      : compiler_context_(compiler_context), ctx_(ctx), magic_div_(magic_div) {}
 
   auto SelectFunction(backend::utils::Function *mir_func) -> TargetFunction *;
   auto AllocaBytes() const -> size_t { return alloca_bytes_; }
@@ -41,7 +41,12 @@ class AArch64ISel {
  private:
   auto SelectInst(backend::inst::Instruction *inst) -> void;
   auto SelectBinary(backend::inst::Instruction *inst, A64Opcode opcode) -> void;
+  auto SelectDiv(backend::inst::Instruction *inst) -> void;
   auto SelectMod(backend::inst::Instruction *inst) -> void;
+  // Emit a signed division of `numer` by the constant `divisor` (no `sdiv`),
+  // returning the quotient register, or nullptr if the divisor is not handled
+  // (|d| < 2, d == INT_MIN) and the caller should fall back to `sdiv`.
+  auto EmitConstDivide(TargetOperand *numer, int divisor) -> TargetOperand *;
   auto SelectICmp(backend::inst::Instruction *inst) -> void;
   auto SelectFCmp(backend::inst::Instruction *inst) -> void;
   auto SelectConvert(backend::inst::Instruction *inst, A64Opcode opcode) -> void;
@@ -80,6 +85,7 @@ class AArch64ISel {
 
   context::CompilerContext *compiler_context_;
   TargetContext *ctx_;
+  bool magic_div_ = true;  // constant division -> magic multiply (vs sdiv)
 
   std::string func_name_;
   TargetBlock *cur_block_ = nullptr;

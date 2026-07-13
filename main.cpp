@@ -61,6 +61,10 @@ static bool warnings_as_errors = false;
 // Target backend: "riscv" (default, competition target) or "aarch64".
 // static std::string target_arch = "riscv";
 static std::string target_arch = "aarch64";  // for benchmark at competition webset
+// Turn `x / C` and `x % C` (constant C) into a magic multiply instead of the
+// hardware divide. A win on out-of-order cores (BOOM, A72/Neoverse); `-no-magic-div`
+// disables it for A/B testing on in-order boards.
+static bool magic_div = true;
 
 static const std::unordered_set<std::string> STAGES = {"lexer", "parser", "ast", "mlir", "baseir",
                                                        "llvm",  "mir",    "S",   "s"};
@@ -99,6 +103,8 @@ auto static inline ParseArgs(int argc, char *argv[]) -> bool {
         target_arch = "aarch64";
       } else if (arg == "-riscv") {
         target_arch = "riscv";
+      } else if (arg == "-no-magic-div") {
+        magic_div = false;
       } else {
         // invalid option
         std::cerr << "Invalid option: " << arg << '\n';
@@ -446,8 +452,8 @@ auto main(int argc, char *argv[]) -> int {
   // RISC-V (the competition target); -aarch64 selects the ARMv8-A backend.
   bool want_asm = (stage == "S" || stage == "s");
   if (target_arch == "aarch64") {
-    auto aarch64_backend =
-        std::make_unique<backend::targetir::aarch64::AArch64Backend>(&compiler_context, optimization_level);
+    auto aarch64_backend = std::make_unique<backend::targetir::aarch64::AArch64Backend>(
+        &compiler_context, optimization_level, magic_div);
     ret = aarch64_backend->Run();
     if (ret != 0) {
       return 1;
@@ -458,8 +464,8 @@ auto main(int argc, char *argv[]) -> int {
     return ret;
   }
 
-  auto riscv_backend =
-      std::make_unique<backend::targetir::riscv::RISCVBackend>(&compiler_context, optimization_level);
+  auto riscv_backend = std::make_unique<backend::targetir::riscv::RISCVBackend>(
+      &compiler_context, optimization_level, magic_div);
   ret = riscv_backend->Run();
   if (ret != 0) {
     return 1;

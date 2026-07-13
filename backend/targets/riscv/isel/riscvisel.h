@@ -35,8 +35,8 @@ namespace backend::targetir::riscv {
  */
 class RISCVISel {
  public:
-  RISCVISel(context::CompilerContext *compiler_context, TargetContext *ctx)
-      : compiler_context_(compiler_context), ctx_(ctx) {}
+  RISCVISel(context::CompilerContext *compiler_context, TargetContext *ctx, bool magic_div = true)
+      : compiler_context_(compiler_context), ctx_(ctx), magic_div_(magic_div) {}
 
   /// Select a whole MIR function into a RISC-V TargetFunction (virtual regs).
   auto SelectFunction(backend::utils::Function *mir_func) -> TargetFunction *;
@@ -53,6 +53,12 @@ class RISCVISel {
   // Per-instruction selection.
   auto SelectInst(backend::inst::Instruction *inst) -> void;
   auto SelectBinary(backend::inst::Instruction *inst, RVOpcode opcode) -> void;
+  auto SelectDiv(backend::inst::Instruction *inst) -> void;
+  auto SelectMod(backend::inst::Instruction *inst) -> void;
+  // Emit a signed division of `numer` by the constant `divisor` without `divw`,
+  // returning the quotient register, or nullptr if unsupported (magic disabled,
+  // |d| < 2, d == INT_MIN) so the caller falls back to `divw`/`remw`.
+  auto EmitConstDivide(TargetOperand *numer, int divisor) -> TargetOperand *;
   auto SelectICmp(backend::inst::Instruction *inst) -> void;
   auto SelectFCmp(backend::inst::Instruction *inst) -> void;
   auto SelectConvert(backend::inst::Instruction *inst, RVOpcode opcode) -> void;
@@ -95,6 +101,7 @@ class RISCVISel {
 
   context::CompilerContext *compiler_context_;
   TargetContext *ctx_;
+  bool magic_div_ = true;  // turn constant division into magic multiply (vs divw/remw)
 
   std::string func_name_;
   TargetBlock *cur_block_ = nullptr;
