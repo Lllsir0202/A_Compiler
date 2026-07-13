@@ -121,16 +121,50 @@ auto AArch64Frame::EmitStackAccess(std::vector<TargetInst *> *out, A64Opcode op,
   build(MatOffset(out, offset), 0);
 }
 
+// The frame pointer (x29) and link register (x30) are non-allocatable, so the
+// selected body only ever mentions them for what the frame layer itself needs:
+// x30 is clobbered only by a call (`bl`), and x29 is read only to reach incoming
+// stack arguments (`ldr .., [fp, #k]`). A leaf that touches neither can skip the
+// corresponding save/restore (and, for x29, the `add x29, sp, #frame` set-up),
+// which for a small leaf collapses the whole prologue/epilogue to nothing.
 auto AArch64Frame::Finalize(TargetFunction *func, size_t locals_bytes, size_t spill_slots,
                             const std::vector<std::pair<TargetRegClass, uint8_t>> &callee_saved) -> void {
   const auto &blocks = func->GetBlocks();
   if (blocks.empty()) {
     return;
   }
+
+  bool has_call = false;
+  bool uses_fp = false;
+  for (auto *block : blocks) {
+    for (auto *inst : block->GetInsts()) {
+      auto *ai = static_cast<AArch64Inst *>(inst);
+      if (ai->GetOpcode() == A64Opcode::BL) {
+        has_call = true;
+      }
+      auto is_fp = [](TargetOperand *op) {
+        return op != nullptr && op->IsPhysicalReg() &&
+               static_cast<TargetPhysicalReg *>(op)->GetID() == FP;
+      };
+      if (is_fp(inst->GetResult())) {
+        uses_fp = true;
+      }
+      for (auto *op : inst->GetOperands()) {
+        if (is_fp(op)) {
+          uses_fp = true;
+        }
+      }
+    }
+  }
+  bool save_lr = has_call;  // bl is the only writer of x30
+  bool save_fp = uses_fp;   // set x29 (and thus preserve it) only if the body reads it
+
   size_t cs_base = locals_bytes + spill_slots * 8;
-  auto frame = static_cast<int>(AlignUp16(cs_base + callee_saved.size() * 8 + 16));
-  int fp_off = frame - 16;
-  int lr_off = frame - 8;
+  size_t top = cs_base + callee_saved.size() * 8;
+  int fp_off = static_cast<int>(top);
+  int lr_off = static_cast<int>(top + (save_fp ? 8U : 0U));
+  size_t saved = (save_fp ? 8U : 0U) + (save_lr ? 8U : 0U);
+  auto frame = static_cast<int>(AlignUp16(top + saved));
 
   auto *fp = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, FP);
   auto *lr = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, LR);
@@ -143,11 +177,20 @@ auto AArch64Frame::Finalize(TargetFunction *func, size_t locals_bytes, size_t sp
   };
 
   // Prologue.
-  std::vector<TargetInst *> prologue = MakeAddSp(-frame);
-  EmitStackAccess(&prologue, A64Opcode::STR_OFF, fp, fp_off);
-  EmitStackAccess(&prologue, A64Opcode::STR_OFF, lr, lr_off);
-  for (auto *inst : MakeSetFp(frame)) {
-    prologue.push_back(inst);
+  std::vector<TargetInst *> prologue;
+  if (frame != 0) {
+    prologue = MakeAddSp(-frame);
+  }
+  if (save_fp) {
+    EmitStackAccess(&prologue, A64Opcode::STR_OFF, fp, fp_off);
+  }
+  if (save_lr) {
+    EmitStackAccess(&prologue, A64Opcode::STR_OFF, lr, lr_off);
+  }
+  if (save_fp) {
+    for (auto *inst : MakeSetFp(frame)) {
+      prologue.push_back(inst);
+    }
   }
   for (size_t i = 0; i < callee_saved.size(); ++i) {
     auto [cls, id] = callee_saved[i];
@@ -174,10 +217,16 @@ auto AArch64Frame::Finalize(TargetFunction *func, size_t locals_bytes, size_t sp
         auto [cls, id] = callee_saved[i];
         EmitStackAccess(&rewritten, A64Opcode::LDR_OFF, cs_reg(cls, id), static_cast<int>(cs_base + i * 8));
       }
-      EmitStackAccess(&rewritten, A64Opcode::LDR_OFF, fp, fp_off);
-      EmitStackAccess(&rewritten, A64Opcode::LDR_OFF, lr, lr_off);
-      for (auto *add : MakeAddSp(frame)) {
-        rewritten.push_back(add);
+      if (save_fp) {
+        EmitStackAccess(&rewritten, A64Opcode::LDR_OFF, fp, fp_off);
+      }
+      if (save_lr) {
+        EmitStackAccess(&rewritten, A64Opcode::LDR_OFF, lr, lr_off);
+      }
+      if (frame != 0) {
+        for (auto *add : MakeAddSp(frame)) {
+          rewritten.push_back(add);
+        }
       }
       rewritten.push_back(ai);  // the bare `ret`
     }

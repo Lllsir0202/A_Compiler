@@ -106,12 +106,43 @@ auto RISCVFrame::Finalize(TargetFunction *func, size_t locals_bytes, size_t spil
   if (blocks.empty()) {
     return;
   }
+  // ra (x1) and fp (s0) are non-allocatable, so the body only mentions them for
+  // what the frame layer itself needs: `call` is the sole writer of ra, and fp is
+  // read only to reach incoming stack arguments. A leaf that touches neither skips
+  // the matching save/restore (and the fp set-up), collapsing a small leaf's whole
+  // prologue/epilogue to nothing.
+  bool has_call = false;
+  bool uses_fp = false;
+  for (auto *block : blocks) {
+    for (auto *inst : block->GetInsts()) {
+      if (static_cast<RISCVInst *>(inst)->GetOpcode() == RVOpcode::CALL) {
+        has_call = true;
+      }
+      auto is_fp = [](TargetOperand *op) {
+        return op != nullptr && op->IsPhysicalReg() &&
+               static_cast<TargetPhysicalReg *>(op)->GetID() == FP;
+      };
+      if (is_fp(inst->GetResult())) {
+        uses_fp = true;
+      }
+      for (auto *op : inst->GetOperands()) {
+        if (is_fp(op)) {
+          uses_fp = true;
+        }
+      }
+    }
+  }
+  bool save_ra = has_call;  // `call` is the only writer of ra
+  bool save_fp = uses_fp;   // set fp (and thus preserve it) only if the body reads it
+
   // Layout (low -> high): outgoing-args + alloca (locals) | spill slots |
   // callee-saved register saves | saved fp | saved ra. 16-byte aligned.
   size_t cs_base = locals_bytes + spill_slots * 8;
-  auto frame = static_cast<int>(AlignUp16(cs_base + callee_saved.size() * 8 + 16));
-  int ra_off = frame - 8;
-  int fp_off = frame - 16;
+  size_t top = cs_base + callee_saved.size() * 8;
+  int fp_off = static_cast<int>(top);
+  int ra_off = static_cast<int>(top + (save_fp ? 8U : 0U));
+  size_t saved = (save_fp ? 8U : 0U) + (save_ra ? 8U : 0U);
+  auto frame = static_cast<int>(AlignUp16(top + saved));
 
   auto *ra = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, RA);
   auto *fp = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, FP);
@@ -126,11 +157,18 @@ auto RISCVFrame::Finalize(TargetFunction *func, size_t locals_bytes, size_t spil
   // Prologue: sp -= frame; save ra & caller's fp; fp = incoming sp (= sp + frame),
   // which addresses incoming stack arguments independent of the frame size; then
   // preserve the callee-saved registers the allocator used.
-  std::vector<TargetInst *> prologue = MakeAddSp(-frame);
-  EmitStackAccess(&prologue, RVOpcode::SD, ra, ra_off);
-  EmitStackAccess(&prologue, RVOpcode::SD, fp, fp_off);
-  for (auto *add : MakeSetFp(frame)) {
-    prologue.push_back(add);
+  std::vector<TargetInst *> prologue;
+  if (frame != 0) {
+    prologue = MakeAddSp(-frame);
+  }
+  if (save_ra) {
+    EmitStackAccess(&prologue, RVOpcode::SD, ra, ra_off);
+  }
+  if (save_fp) {
+    EmitStackAccess(&prologue, RVOpcode::SD, fp, fp_off);
+    for (auto *add : MakeSetFp(frame)) {
+      prologue.push_back(add);
+    }
   }
   for (size_t i = 0; i < callee_saved.size(); ++i) {
     auto [cls, id] = callee_saved[i];
@@ -157,10 +195,16 @@ auto RISCVFrame::Finalize(TargetFunction *func, size_t locals_bytes, size_t spil
         auto [cls, id] = callee_saved[i];
         EmitStackAccess(&rewritten, restore_op(cls), cs_reg(cls, id), static_cast<int>(cs_base + i * 8));
       }
-      EmitStackAccess(&rewritten, RVOpcode::LD, ra, ra_off);
-      EmitStackAccess(&rewritten, RVOpcode::LD, fp, fp_off);
-      for (auto *add : MakeAddSp(frame)) {
-        rewritten.push_back(add);
+      if (save_ra) {
+        EmitStackAccess(&rewritten, RVOpcode::LD, ra, ra_off);
+      }
+      if (save_fp) {
+        EmitStackAccess(&rewritten, RVOpcode::LD, fp, fp_off);
+      }
+      if (frame != 0) {
+        for (auto *add : MakeAddSp(frame)) {
+          rewritten.push_back(add);
+        }
       }
       rewritten.push_back(ri);  // the bare `ret`
     }
