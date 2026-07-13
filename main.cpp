@@ -59,8 +59,8 @@ static int optimization_level = 0;
 // Mark whether regard warnings as errors, default to false
 static bool warnings_as_errors = false;
 // Target backend: "riscv" (default, competition target) or "aarch64".
-// static std::string target_arch = "riscv";
-static std::string target_arch = "aarch64";  // for benchmark at competition webset
+static std::string target_arch = "riscv";  // RV default (Backend-tmp-rv branch)
+// static std::string target_arch = "aarch64";
 // Turn `x / C` and `x % C` (constant C) into a magic multiply instead of the
 // hardware divide. A win on out-of-order cores (BOOM, A72/Neoverse); `-no-magic-div`
 // disables it for A/B testing on in-order boards.
