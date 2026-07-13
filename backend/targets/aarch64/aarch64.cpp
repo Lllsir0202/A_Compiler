@@ -5,6 +5,7 @@
 #include <vector>
 #include "backend/targets/aarch64/frame/aarch64frame.h"
 #include "backend/targets/aarch64/isel/aarch64isel.h"
+#include "backend/targets/aarch64/pass/addrfold.h"
 #include "backend/targets/aarch64/pass/branchfold.h"
 #include "backend/targets/aarch64/pass/machinedce.h"
 #include "backend/targets/aarch64/pass/peephole.h"
@@ -34,6 +35,7 @@ auto AArch64Backend::Run() -> int {
   MachinePassManager machine_passes(&ctx_);
   if (opt_level_ >= 1) {
     machine_passes.AddPass(new AArch64Peephole(&ctx_));
+    machine_passes.AddPass(new AArch64AddrFold(&ctx_));
     machine_passes.AddPass(new AArch64MachineDCE(&ctx_));
     machine_passes.AddPass(new AArch64BranchFold(&ctx_));
   }
