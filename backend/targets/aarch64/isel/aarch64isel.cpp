@@ -86,6 +86,9 @@ auto AArch64ISel::SelectFunction(backend::utils::Function *mir_func) -> TargetFu
   alloca_offset_.clear();
   alloca_bytes_ = 0;
   outgoing_bytes_ = 0;
+  global_addr_.clear();
+  entry_globals_.clear();
+  entry_block_ = nullptr;
 
   size_t max_stack_args = 0;
   for (auto *mir_block : mir_func->GetBlocks()) {
@@ -127,6 +130,7 @@ auto AArch64ISel::SelectFunction(backend::utils::Function *mir_func) -> TargetFu
   const auto &blocks = mir_func->GetBlocks();
   if (!blocks.empty()) {
     cur_block_ = block_by_id_[blocks.front()->GetId()];
+    entry_block_ = cur_block_;
     auto *func_def = compiler_context_->GetMIRContext()->GetFuncDefByName(func_name_);
     if (func_def != nullptr) {
       size_t int_idx = 0;
@@ -158,6 +162,16 @@ auto AArch64ISel::SelectFunction(backend::utils::Function *mir_func) -> TargetFu
     for (auto *inst : mir_block->GetInstructions()) {
       SelectInst(inst);
     }
+  }
+
+  // Prepend the once-per-function global-address materializations to the entry
+  // block, ahead of the body so their defs dominate every use.
+  if (entry_block_ != nullptr && !entry_globals_.empty()) {
+    std::vector<TargetInst *> head = entry_globals_;
+    for (auto *inst : entry_block_->GetInsts()) {
+      head.push_back(inst);
+    }
+    entry_block_->SetInsts(head);
   }
   return tfunc;
 }
@@ -574,10 +588,25 @@ auto AArch64ISel::LowerAddress(backend::utils::Operand *ptr) -> TargetOperand * 
     return addr;
   }
   if (ptr->IsGlobal()) {
+    auto name = static_cast<backend::utils::GlobalOperand *>(ptr)->GetName();
+    auto it = global_addr_.find(name);
+    if (it != global_addr_.end()) {
+      return it->second;
+    }
     auto *addr = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
-    auto *sym = ctx_->Symbol(static_cast<backend::utils::GlobalOperand *>(ptr)->GetName());
-    Emit(A64Opcode::ADRP, addr, {sym});
-    Emit(A64Opcode::ADD_LO12, addr, {addr, sym});
+    auto *sym = ctx_->Symbol(name);
+    // Emit into the entry block (deferred), not the current block, so one copy
+    // dominates all accesses; a fresh symbol operand per instruction keeps use-lists clean.
+    auto *adrp = ctx_->CreateInst<AArch64Inst>(A64Opcode::ADRP);
+    adrp->SetResult(addr);
+    adrp->AddOperand(sym);
+    auto *add = ctx_->CreateInst<AArch64Inst>(A64Opcode::ADD_LO12);
+    add->SetResult(addr);
+    add->AddOperand(addr);
+    add->AddOperand(ctx_->Symbol(name));
+    entry_globals_.push_back(adrp);
+    entry_globals_.push_back(add);
+    global_addr_[name] = addr;
     return addr;
   }
   if (ptr->IsRegister()) {

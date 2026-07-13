@@ -98,6 +98,14 @@ class AArch64ISel {
   std::unordered_map<backend::utils::Operand *, size_t> alloca_offset_;
   size_t alloca_bytes_ = 0;
   size_t outgoing_bytes_ = 0;
+
+  // Global-address reuse: a global's address (adrp + add :lo12:) is loop- and
+  // function-invariant, so materialize it once per function in the entry block
+  // (which dominates every use) and share it, instead of recomputing at each
+  // access. Filled by LowerAddress, flushed into the entry block by SelectFunction.
+  TargetBlock *entry_block_ = nullptr;
+  std::unordered_map<std::string, TargetOperand *> global_addr_;
+  std::vector<TargetInst *> entry_globals_;
 };
 
 }  // namespace backend::targetir::aarch64

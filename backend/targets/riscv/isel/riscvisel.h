@@ -119,6 +119,13 @@ class RISCVISel {
   size_t alloca_bytes_ = 0;
   // Outgoing stack-argument area, sized from the widest call (pre-scanned).
   size_t outgoing_bytes_ = 0;
+
+  // Global-address reuse: `la` of a global is loop- and function-invariant, so
+  // materialize it once per function in the entry block (which dominates every
+  // use) and share it, instead of recomputing at each access.
+  TargetBlock *entry_block_ = nullptr;
+  std::unordered_map<std::string, TargetOperand *> global_addr_;
+  std::vector<TargetInst *> entry_globals_;
 };
 
 }  // namespace backend::targetir::riscv

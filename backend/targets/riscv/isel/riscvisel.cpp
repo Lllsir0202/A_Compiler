@@ -78,6 +78,9 @@ auto RISCVISel::SelectFunction(backend::utils::Function *mir_func) -> TargetFunc
   alloca_offset_.clear();
   alloca_bytes_ = 0;
   outgoing_bytes_ = 0;
+  global_addr_.clear();
+  entry_globals_.clear();
+  entry_block_ = nullptr;
 
   // Pre-scan: size the outgoing stack-argument area from the widest call, so the
   // alloca area can sit just above it (offsets are then known before selection).
@@ -125,6 +128,7 @@ auto RISCVISel::SelectFunction(backend::utils::Function *mir_func) -> TargetFunc
   const auto &blocks = mir_func->GetBlocks();
   if (!blocks.empty()) {
     cur_block_ = block_by_id_[blocks.front()->GetId()];
+    entry_block_ = cur_block_;
     auto *func_def = compiler_context_->GetMIRContext()->GetFuncDefByName(func_name_);
     if (func_def != nullptr) {
       // Integer args come in a0-a7, float args in fa0-fa7 (counted separately);
@@ -160,6 +164,16 @@ auto RISCVISel::SelectFunction(backend::utils::Function *mir_func) -> TargetFunc
     for (auto *inst : mir_block->GetInstructions()) {
       SelectInst(inst);
     }
+  }
+
+  // Prepend the once-per-function global-address materializations to the entry
+  // block, ahead of the body so their defs dominate every use.
+  if (entry_block_ != nullptr && !entry_globals_.empty()) {
+    std::vector<TargetInst *> head = entry_globals_;
+    for (auto *inst : entry_block_->GetInsts()) {
+      head.push_back(inst);
+    }
+    entry_block_->SetInsts(head);
   }
   return tfunc;
 }
@@ -623,8 +637,19 @@ auto RISCVISel::LowerAddress(backend::utils::Operand *ptr) -> TargetOperand * {
     return addr;
   }
   if (ptr->IsGlobal()) {
+    auto name = static_cast<backend::utils::GlobalOperand *>(ptr)->GetName();
+    auto it = global_addr_.find(name);
+    if (it != global_addr_.end()) {
+      return it->second;
+    }
     auto *addr = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
-    Emit(RVOpcode::LA, addr, {ctx_->Symbol(static_cast<backend::utils::GlobalOperand *>(ptr)->GetName())});
+    // Emit into the entry block (deferred), not the current block, so one copy
+    // dominates all accesses.
+    auto *la = ctx_->CreateInst<RISCVInst>(RVOpcode::LA);
+    la->SetResult(addr);
+    la->AddOperand(ctx_->Symbol(name));
+    entry_globals_.push_back(la);
+    global_addr_[name] = addr;
     return addr;
   }
   if (ptr->IsRegister()) {
