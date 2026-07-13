@@ -7,6 +7,7 @@
 #include "backend/targets/aarch64/isel/aarch64isel.h"
 #include "backend/targets/aarch64/pass/addrfold.h"
 #include "backend/targets/aarch64/pass/branchfold.h"
+#include "backend/targets/aarch64/pass/localcse.h"
 #include "backend/targets/aarch64/pass/machinedce.h"
 #include "backend/targets/aarch64/pass/peephole.h"
 #include "backend/targets/aarch64/printer/aarch64printer.h"
@@ -36,6 +37,7 @@ auto AArch64Backend::Run() -> int {
   if (opt_level_ >= 1) {
     machine_passes.AddPass(new AArch64Peephole(&ctx_));
     machine_passes.AddPass(new AArch64AddrFold(&ctx_));
+    machine_passes.AddPass(new AArch64LocalCSE(&ctx_));
     machine_passes.AddPass(new AArch64MachineDCE(&ctx_));
     machine_passes.AddPass(new AArch64BranchFold(&ctx_));
   }
