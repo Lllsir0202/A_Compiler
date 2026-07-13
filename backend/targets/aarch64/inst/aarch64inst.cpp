@@ -56,6 +56,19 @@ auto AArch64Inst::Emit(std::ofstream *out) -> void {
     *out << ", w16\n";
     return;
   }
+  if (opcode_ == A64Opcode::STP || opcode_ == A64Opcode::LDP) {
+    // {rt1, rt2, base, imm} -> stp/ldp rt1, rt2, [base, #imm].
+    *out << (opcode_ == A64Opcode::STP ? "\tstp " : "\tldp ");
+    operands_[0]->Emit(out);
+    *out << ", ";
+    operands_[1]->Emit(out);
+    *out << ", [";
+    operands_[2]->Emit(out);
+    *out << ", #";
+    operands_[3]->Emit(out);
+    *out << "]\n";
+    return;
+  }
   const auto &info = GetA64OpcodeInfo(opcode_);
   const auto &ops = operands_;
   auto imm = [&](TargetOperand *o) {

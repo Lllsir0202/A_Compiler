@@ -176,25 +176,59 @@ auto AArch64Frame::Finalize(TargetFunction *func, size_t locals_bytes, size_t sp
     return ctx_->PhysReg(cls, TargetRegSize::QWord, id);
   };
 
-  // Prologue.
+  // Registers preserved on the stack, in ascending slot order: callee-saved, then
+  // the (optional) saved fp and lr. Adjacent same-class slots fuse into stp/ldp.
+  struct Slot {
+    TargetOperand *reg;
+    int off;
+    TargetRegClass cls;
+  };
+  std::vector<Slot> slots;
+  for (size_t i = 0; i < callee_saved.size(); ++i) {
+    auto [cls, id] = callee_saved[i];
+    slots.push_back({cs_reg(cls, id), static_cast<int>(cs_base + i * 8), cls});
+  }
+  if (save_fp) {
+    slots.push_back({fp, fp_off, TargetRegClass::General});
+  }
+  if (save_lr) {
+    slots.push_back({lr, lr_off, TargetRegClass::General});
+  }
+
+  auto *sp = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, SP);
+  // stp/ldp use a 7-bit signed offset scaled by 8, so the base offset must be a
+  // multiple of 8 (always true here) within [0, 504]; larger frames fall back to
+  // singles, which EmitStackAccess legalizes through x16.
+  auto pairable = [](const Slot &a, const Slot &b) {
+    return a.cls == b.cls && b.off == a.off + 8 && a.off >= 0 && a.off <= 504;
+  };
+  auto emit_slots = [&](std::vector<TargetInst *> *out, bool store) {
+    for (size_t i = 0; i < slots.size();) {
+      if (i + 1 < slots.size() && pairable(slots[i], slots[i + 1])) {
+        auto *pair = ctx_->CreateInst<AArch64Inst>(store ? A64Opcode::STP : A64Opcode::LDP);
+        pair->AddOperand(slots[i].reg);
+        pair->AddOperand(slots[i + 1].reg);
+        pair->AddOperand(sp);
+        pair->AddOperand(ctx_->Imm(slots[i].off));
+        out->push_back(pair);
+        i += 2;
+      } else {
+        EmitStackAccess(out, store ? A64Opcode::STR_OFF : A64Opcode::LDR_OFF, slots[i].reg, slots[i].off);
+        i += 1;
+      }
+    }
+  };
+
+  // Prologue: reserve the frame, save the preserved registers, then set fp.
   std::vector<TargetInst *> prologue;
   if (frame != 0) {
     prologue = MakeAddSp(-frame);
   }
-  if (save_fp) {
-    EmitStackAccess(&prologue, A64Opcode::STR_OFF, fp, fp_off);
-  }
-  if (save_lr) {
-    EmitStackAccess(&prologue, A64Opcode::STR_OFF, lr, lr_off);
-  }
+  emit_slots(&prologue, /*store=*/true);
   if (save_fp) {
     for (auto *inst : MakeSetFp(frame)) {
       prologue.push_back(inst);
     }
-  }
-  for (size_t i = 0; i < callee_saved.size(); ++i) {
-    auto [cls, id] = callee_saved[i];
-    EmitStackAccess(&prologue, A64Opcode::STR_OFF, cs_reg(cls, id), static_cast<int>(cs_base + i * 8));
   }
 
   auto *entry = blocks.front();
@@ -213,16 +247,7 @@ auto AArch64Frame::Finalize(TargetFunction *func, size_t locals_bytes, size_t sp
         rewritten.push_back(inst);
         continue;
       }
-      for (size_t i = 0; i < callee_saved.size(); ++i) {
-        auto [cls, id] = callee_saved[i];
-        EmitStackAccess(&rewritten, A64Opcode::LDR_OFF, cs_reg(cls, id), static_cast<int>(cs_base + i * 8));
-      }
-      if (save_fp) {
-        EmitStackAccess(&rewritten, A64Opcode::LDR_OFF, fp, fp_off);
-      }
-      if (save_lr) {
-        EmitStackAccess(&rewritten, A64Opcode::LDR_OFF, lr, lr_off);
-      }
+      emit_slots(&rewritten, /*store=*/false);
       if (frame != 0) {
         for (auto *add : MakeAddSp(frame)) {
           rewritten.push_back(add);

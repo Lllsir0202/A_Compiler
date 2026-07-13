@@ -56,6 +56,8 @@ enum class A64Opcode : uint8_t {
   COMMENT,                   // "// text" pseudo
   SMULH,                     // pseudo: rd = high 32 of signed (rn * rm); expands to
                              // `smull x16, wn, wm; asr x16,x16,#32; mov wd,w16`
+  STP, LDP,                  // stp/ldp rt1, rt2, [rn, #imm]  (frame save/restore pairing);
+                             // operands {rt1, rt2, base, imm}, rendered out of the table
 };
 
 /// AArch64 condition codes used by cset / b.<cond>. SysY comparisons are signed
