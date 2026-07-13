@@ -5,9 +5,13 @@
 #include <vector>
 #include "backend/targets/aarch64/frame/aarch64frame.h"
 #include "backend/targets/aarch64/isel/aarch64isel.h"
+#include "backend/targets/aarch64/pass/branchfold.h"
+#include "backend/targets/aarch64/pass/machinedce.h"
+#include "backend/targets/aarch64/pass/peephole.h"
 #include "backend/targets/aarch64/printer/aarch64printer.h"
 #include "backend/targets/aarch64/regalloc/aarch64alloc.h"
 #include "backend/targets/utils/operand/targetreg.h"
+#include "backend/targets/utils/pass/machinepassmanager.h"
 #include "backend/targets/utils/struct/targetblock.h"
 #include "backend/targets/utils/struct/targetfunction.h"
 #include "backend/mir/inst/memory/globaldef.h"
@@ -23,8 +27,22 @@ auto AArch64Backend::Run() -> int {
   AArch64ISel isel(compiler_context_, &ctx_);
   AArch64GraphColorRegAlloc reg_alloc(&ctx_);
   AArch64Frame frame(&ctx_);
+
+  // Machine-level optimization pipeline, toggled by the optimization level (like
+  // the middle-end pass pipeline). Runs on the selected code before register
+  // allocation, on virtual registers.
+  MachinePassManager machine_passes(&ctx_);
+  if (opt_level_ >= 1) {
+    machine_passes.AddPass(new AArch64Peephole(&ctx_));
+    machine_passes.AddPass(new AArch64MachineDCE(&ctx_));
+    machine_passes.AddPass(new AArch64BranchFold(&ctx_));
+  }
+
   for (auto *mir_func : module->GetFunctions()) {
     auto *tfunc = isel.SelectFunction(mir_func);
+    if (!machine_passes.Empty()) {
+      machine_passes.Run(tfunc);
+    }
     auto outgoing = isel.OutgoingBytes();
     auto alloca_bytes = isel.AllocaBytes();
     auto spill_slots = reg_alloc.Run(tfunc, outgoing + alloca_bytes);
