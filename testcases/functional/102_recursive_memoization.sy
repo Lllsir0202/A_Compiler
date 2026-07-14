@@ -1,0 +1,25 @@
+int weight[25] = {10, 11, 5, 6, 9, 15, 15, 15, 15, 15, 13, 7, 3,
+                  12, 3, 10, 2, 9, 13, 2, 13, 7, 1, 14, 3};
+int value[25] = {38, 66, 84, 13, 11, 32, 64, 78, 92, 28, 99, 82, 1,
+                 21, 59, 49, 16, 76, 31, 81, 24, 61, 75, 6, 15};
+
+int memo_knapsack(int i, int w) {
+  if (i == 0 || w == 0) {
+    return 0;
+  }
+  if (weight[i - 1] > w) {
+    return memo_knapsack(i - 1, w);
+  }
+  int without_item = memo_knapsack(i - 1, w);
+  int with_item = value[i - 1] + memo_knapsack(i - 1, w - weight[i - 1]);
+  if (with_item > without_item) {
+    return with_item;
+  }
+  return without_item;
+}
+
+int main() {
+  putint(memo_knapsack(25, 150));
+  putch(10);
+  return 0;
+}

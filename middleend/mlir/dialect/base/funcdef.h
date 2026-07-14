@@ -56,6 +56,7 @@ class FuncDefOp : public BaseOps {
    * @brief Interface to get the name of the function
    */
   auto GetName() const -> std::string { return name_; }
+  auto SetName(std::string name) -> void { name_ = std::move(name); }
 
   /**
    * @brief Interface to get the return type of the function
