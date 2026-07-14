@@ -1,0 +1,14 @@
+int values[1];
+
+int update(int lhs[], int rhs[]) {
+  int before = lhs[0];
+  rhs[0] = rhs[0] + 2;
+  return lhs[0] - before;
+}
+
+int main() {
+  values[0] = 7;
+  putint(update(values, values));
+  putch(10);
+  return 0;
+}
