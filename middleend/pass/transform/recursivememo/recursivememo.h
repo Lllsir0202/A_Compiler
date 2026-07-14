@@ -1,6 +1,7 @@
 #ifndef MIDDLEEND_PASS_TRANSFORM_RECURSIVEMEMO_RECURSIVEMEMO_H
 #define MIDDLEEND_PASS_TRANSFORM_RECURSIVEMEMO_RECURSIVEMEMO_H
 
+#include <stdexcept>
 #include <string>
 #include <unordered_set>
 #include <vector>
