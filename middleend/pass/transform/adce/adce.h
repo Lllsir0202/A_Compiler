@@ -97,6 +97,18 @@ class PostLoopADCEPass : public ADCEPass {
   auto Name() const -> std::string override { return "PostLoopADCEPass"; }
 };
 
+// Final scalar cleanup after reassociation has made old expression-tree nodes dead.
+class PostReassociateADCEPass : public ADCEPass {
+ public:
+  PostReassociateADCEPass(context::CompilerContext *compiler_context, PassStage stage)
+      : ADCEPass(compiler_context, stage) {
+    AddDependency("ReassociatePass");
+  }
+  ~PostReassociateADCEPass() override = default;
+
+  auto Name() const -> std::string override { return "PostReassociateADCEPass"; }
+};
+
 }  // namespace middleend::pass::transform
 
 #endif
