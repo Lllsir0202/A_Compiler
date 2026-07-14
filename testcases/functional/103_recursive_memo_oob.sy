@@ -1,0 +1,16 @@
+int data[5] = {1, 2, 3, 4, 5};
+
+int duplicate(int i, int state) {
+  if (i == 0) {
+    return data[0];
+  }
+  int lhs = duplicate(i - 1, state);
+  int rhs = duplicate(i - 1, state);
+  return lhs + rhs + data[i - 1];
+}
+
+int main() {
+  putint(duplicate(5, 300));
+  putch(10);
+  return 0;
+}
