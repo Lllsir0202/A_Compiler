@@ -56,6 +56,17 @@ auto AArch64Inst::Emit(std::ofstream *out) -> void {
     *out << ", w16\n";
     return;
   }
+  if (opcode_ == A64Opcode::CSEL) {
+    // rd = cond ? rn : rm.  operands {rn, rm}, condition in cond_.
+    *out << "\tcsel ";
+    result_->Emit(out);
+    *out << ", ";
+    operands_[0]->Emit(out);
+    *out << ", ";
+    operands_[1]->Emit(out);
+    *out << ", " << A64CondName(cond_) << "\n";
+    return;
+  }
   if (opcode_ == A64Opcode::STP || opcode_ == A64Opcode::LDP) {
     // {rt1, rt2, base, imm} -> stp/ldp rt1, rt2, [base, #imm].
     *out << (opcode_ == A64Opcode::STP ? "\tstp " : "\tldp ");
