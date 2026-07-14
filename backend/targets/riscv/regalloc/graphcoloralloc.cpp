@@ -1,5 +1,6 @@
 #include "backend/targets/riscv/regalloc/graphcoloralloc.h"
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include "backend/targets/riscv/regs/riscvreg.h"
 #include "backend/targets/utils/operand/targetreg.h"
@@ -156,8 +157,7 @@ auto GraphColorRegAlloc::BuildCFG() -> void {
         for (auto *op : inst->GetOperands()) {
           if (op->GetOpType() == TargetOperandType::Label) {
             auto it = by_label.find(static_cast<TargetLabel *>(op)->GetName());
-            if (it != by_label.end() &&
-                std::find(succs.begin(), succs.end(), it->second) == succs.end()) {
+            if (it != by_label.end() && std::find(succs.begin(), succs.end(), it->second) == succs.end()) {
               succs.push_back(it->second);
             }
           }
@@ -173,6 +173,35 @@ auto GraphColorRegAlloc::BuildCFG() -> void {
         std::find(succs.begin(), succs.end(), blocks[i + 1]) == succs.end()) {
       succs.push_back(blocks[i + 1]);
     }
+  }
+}
+
+auto GraphColorRegAlloc::ComputeLoopDepth() -> void {
+  // Loop-nesting depth per block, used to weight spill cost so a value used in a
+  // hot loop body is far more expensive to spill than one used once at top level.
+  // SysY lowers to a reducible CFG whose natural loops are contiguous block
+  // ranges, so a back-edge b->h (successor h laid out at or before b) delimits a
+  // loop spanning [index(h), index(b)]; a block's depth is the number of such
+  // intervals covering it, which nests correctly for nested loops.
+  loop_depth_.clear();
+  const auto &blocks = func_->GetBlocks();
+  std::unordered_map<TargetBlock *, size_t> index;
+  for (size_t i = 0; i < blocks.size(); ++i) {
+    index[blocks[i]] = i;
+  }
+  std::vector<int> depth(blocks.size(), 0);
+  for (size_t i = 0; i < blocks.size(); ++i) {
+    for (auto *s : succ_[blocks[i]]) {
+      auto it = index.find(s);
+      if (it != index.end() && it->second <= i) {  // back-edge: header .. latch
+        for (size_t k = it->second; k <= i; ++k) {
+          depth[k]++;
+        }
+      }
+    }
+  }
+  for (size_t i = 0; i < blocks.size(); ++i) {
+    loop_depth_[blocks[i]] = depth[i];
   }
 }
 
@@ -252,16 +281,20 @@ auto GraphColorRegAlloc::Build() -> void {
   std::vector<NodeId> defs;
   std::vector<NodeId> uses;
   for (auto *b : func_->GetBlocks()) {
+    // Weight each reference by loop depth (10x per level, capped) so that hot
+    // loop-body values dominate the spill-cost ranking and stay in registers.
+    int depth = loop_depth_.count(b) != 0 ? loop_depth_[b] : 0;
+    double ref_weight = std::pow(10.0, std::min(depth, 6));
     std::unordered_set<NodeId> live = live_out_[b];
     const auto &insts = b->GetInsts();
     for (auto it = insts.rbegin(); it != insts.rend(); ++it) {
       auto *inst = *it;
       DefsUses(inst, &defs, &uses);
       for (auto n : defs) {
-        spill_weight_[n] += 1.0;
+        spill_weight_[n] += ref_weight;
       }
       for (auto n : uses) {
-        spill_weight_[n] += 1.0;
+        spill_weight_[n] += ref_weight;
       }
       NodeId mdst = 0;
       NodeId msrc = 0;
@@ -568,8 +601,8 @@ auto GraphColorRegAlloc::EmitReload(std::vector<TargetInst *> *out, TargetOperan
                                     size_t slot) -> void {
   auto *v = static_cast<TargetVirtualReg *>(vreg);
   RVOpcode op = v->GetRegClass() == TargetRegClass::Float ? RVOpcode::FLW
-                : v->GetRegSize() == TargetRegSize::QWord  ? RVOpcode::LD
-                                                           : RVOpcode::LW;
+                : v->GetRegSize() == TargetRegSize::QWord ? RVOpcode::LD
+                                                          : RVOpcode::LW;
   auto offset = static_cast<long>(spill_base_ + slot * 8);
   auto *sp = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, SP);
   if (offset >= IMM_MIN && offset <= IMM_MAX) {
@@ -601,8 +634,8 @@ auto GraphColorRegAlloc::EmitSpill(std::vector<TargetInst *> *out, TargetOperand
                                    size_t slot) -> void {
   auto *v = static_cast<TargetVirtualReg *>(vreg);
   RVOpcode op = v->GetRegClass() == TargetRegClass::Float ? RVOpcode::FSW
-                : v->GetRegSize() == TargetRegSize::QWord  ? RVOpcode::SD
-                                                           : RVOpcode::SW;
+                : v->GetRegSize() == TargetRegSize::QWord ? RVOpcode::SD
+                                                          : RVOpcode::SW;
   auto offset = static_cast<long>(spill_base_ + slot * 8);
   auto *sp = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, SP);
   if (offset >= IMM_MIN && offset <= IMM_MAX) {
@@ -690,6 +723,7 @@ auto GraphColorRegAlloc::AllocateClass(TargetRegClass reg_class) -> void {
   }
 
   BuildCFG();  // topology is stable across iterations, but rebuild is cheap
+  ComputeLoopDepth();
   while (true) {
     // Reset per-iteration graph state.
     nodes_.clear();

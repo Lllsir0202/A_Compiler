@@ -45,9 +45,7 @@ class AArch64GraphColorRegAlloc {
   auto Run(TargetFunction *func, size_t spill_base) -> size_t;
 
   /// Callee-saved (class,id) registers actually assigned, for the frame layer.
-  auto UsedCalleeSaved() const -> const std::vector<std::pair<TargetRegClass, uint8_t>> & {
-    return used_callee_saved_;
-  }
+  auto UsedCalleeSaved() const -> const std::vector<std::pair<TargetRegClass, uint8_t>> & { return used_callee_saved_; }
 
  private:
   // A node in the interference graph is a physical or virtual register. Physical
@@ -57,16 +55,17 @@ class AArch64GraphColorRegAlloc {
   // --- one full allocation of a single register class, to fixpoint ---
   auto AllocateClass(TargetRegClass reg_class) -> void;
   auto BuildCFG() -> void;
-  auto Liveness() -> void;         // per-block live-in/out (backward dataflow)
-  auto Build() -> void;            // interference graph + move edges
+  auto ComputeLoopDepth() -> void;  // per-block loop-nesting depth, for spill weighting
+  auto Liveness() -> void;          // per-block live-in/out (backward dataflow)
+  auto Build() -> void;             // interference graph + move edges
   auto MakeWorklists() -> void;
   auto Simplify() -> void;
   auto Coalesce() -> void;
   auto Freeze() -> void;
   auto SelectSpill() -> void;
-  auto AssignColors() -> void;     // returns via spilled_nodes_ whether a rewrite is needed
-  auto RewriteProgram() -> void;   // materialize spills; grows the program, then reiterate
-  auto ApplyColors() -> void;      // replace vregs with their physical color, drop nop moves
+  auto AssignColors() -> void;    // returns via spilled_nodes_ whether a rewrite is needed
+  auto RewriteProgram() -> void;  // materialize spills; grows the program, then reiterate
+  auto ApplyColors() -> void;     // replace vregs with their physical color, drop nop moves
 
   // Graph helpers.
   auto AddEdge(NodeId u, NodeId v) -> void;
@@ -83,8 +82,8 @@ class AArch64GraphColorRegAlloc {
   auto FreezeMoves(NodeId u) -> void;
 
   // Node bookkeeping.
-  auto NodeOf(TargetOperand *op) -> NodeId;              // create/lookup, current class only
-  auto IsInClass(TargetOperand *op) const -> bool;       // register of the class being colored
+  auto NodeOf(TargetOperand *op) -> NodeId;         // create/lookup, current class only
+  auto IsInClass(TargetOperand *op) const -> bool;  // register of the class being colored
   auto DefsUses(TargetInst *inst, std::vector<NodeId> *defs, std::vector<NodeId> *uses) -> void;
   auto IsMove(TargetInst *inst, NodeId *dst, NodeId *src) -> bool;
   auto SpillCost(NodeId n) const -> double;
@@ -116,18 +115,18 @@ class AArch64GraphColorRegAlloc {
   // coalesced only into one of these (never into a reserved register like sp).
   std::unordered_set<int> allocatable_ids_;
 
-  std::vector<TargetOperand *> nodes_;                    // NodeId -> operand
+  std::vector<TargetOperand *> nodes_;  // NodeId -> operand
   std::unordered_map<TargetOperand *, NodeId> vreg_node_;
-  std::unordered_map<int, NodeId> phys_node_;             // (class<<8|id) -> node
+  std::unordered_map<int, NodeId> phys_node_;  // (class<<8|id) -> node
   std::vector<bool> precolored_;
-  std::vector<int> color_;                                // -1 = uncolored; else phys id
+  std::vector<int> color_;  // -1 = uncolored; else phys id
 
   std::vector<std::unordered_set<NodeId>> adj_list_;
   std::unordered_set<long long> adj_set_;
   std::vector<int> degree_;
   std::vector<NodeId> alias_;
-  std::vector<std::vector<TargetInst *>> move_list_;      // moves touching each node
-  std::vector<double> spill_weight_;                     // def+use frequency, for spill choice
+  std::vector<std::vector<TargetInst *>> move_list_;  // moves touching each node
+  std::vector<double> spill_weight_;                  // def+use frequency, for spill choice
 
   // Temps introduced by spill rewriting: never chosen as spill candidates again
   // (their live ranges are tiny), which guarantees the outer loop terminates.
@@ -150,6 +149,7 @@ class AArch64GraphColorRegAlloc {
 
   // CFG + liveness (rebuilt every Build iteration; program grows on spill).
   std::unordered_map<TargetBlock *, std::vector<TargetBlock *>> succ_;
+  std::unordered_map<TargetBlock *, int> loop_depth_;  // nesting depth per block (topology-stable)
   std::unordered_map<TargetBlock *, std::unordered_set<NodeId>> live_in_;
   std::unordered_map<TargetBlock *, std::unordered_set<NodeId>> live_out_;
 };
