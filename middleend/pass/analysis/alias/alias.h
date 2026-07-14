@@ -2,8 +2,10 @@
 #define MIDDLEEND_PASS_ANALYSIS_ALIAS_ALIAS_H
 
 #include <cstdint>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 #include "middleend/pass/analysis/analysis.h"
 
 namespace middleend::mlir {
@@ -57,22 +59,31 @@ class AliasAnalysisPass : public AnalysisPass {
   auto GetBaseObject(mlir::Value *pointer) -> MemoryObject;
   // Aliasing relationship between two pointers.
   auto Alias(mlir::Value *lhs, mlir::Value *rhs) -> AliasResult;
-  // Whether the call may modify or reference the object behind `pointer`.
+  // Whether the call may modify the object behind `pointer`.
   auto CallModRef(mlir::Operation *call, mlir::Value *pointer) -> bool;
   // Whether an object may be reached by external code (calls / other pointers).
   auto IsEscaped(const MemoryObject &object) -> bool;
 
  private:
+  struct FunctionMemorySummary {
+    std::vector<bool> parameter_may_write;
+    bool unknown_may_write{false};
+  };
+
   auto CollectParameters() -> void;
   auto ComputeEscape() -> void;
+  auto CollectInterproceduralFacts() -> void;
   auto MarkEscapeIfLocal(mlir::Value *pointer) -> void;
   auto SameObjectAlias(mlir::Value *lhs, mlir::Value *rhs) -> AliasResult;
   auto DefinitelyDistinct(const MemoryObject &lhs, const MemoryObject &rhs) -> bool;
+  auto AreProvenNoAliasParameters(mlir::Value *lhs, mlir::Value *rhs) const -> bool;
   auto GetConstantIndex(mlir::Value *value, int *out) -> bool;
 
   std::unordered_map<mlir::Value *, MemoryObject> base_cache_;
   std::unordered_set<mlir::Value *> param_values_;
   std::unordered_set<mlir::Value *> escaped_locals_;
+  std::unordered_map<mlir::Value *, std::unordered_set<mlir::Value *>> noalias_parameters_;
+  std::unordered_map<std::string, FunctionMemorySummary> function_memory_summaries_;
 };
 
 }  // namespace middleend::pass::analysis

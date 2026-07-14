@@ -35,3 +35,43 @@ generated RV64 assembly.  Speedup is `baseline / optimized`.
 The 60-case suite's small `li` count fell from 2,638 to 1,323 (49.85%).
 `26_while_test1` remained at 160 dynamic instructions, which is the expected
 neutral result for code without foldable address chains.
+
+## 2. Interprocedural no-alias and memory-write summaries
+
+### Change
+
+- Prove pointer-parameter pairs as no-alias when every reachable direct call
+  supplies distinct local/global allocations.
+- Propagate no-alias facts through wrapper functions to a fixed point without
+  allowing recursive call cycles to prove themselves.
+- Compute per-function parameter-write summaries and propagate them through the
+  call graph, allowing LICM/GVN/DSE to distinguish read-only calls and writes
+  through unrelated pointer parameters.
+- Keep library calls, global/unknown writes, and mixed aliasing call sites
+  conservative.
+
+### Validation
+
+- Compiler build: passed.
+- GNU RV64 compile/assemble validation:
+  - `testcases/riscv_finalperformance`: 60/60 passed.
+  - Existing `testcases/functional`: 99/100 passed; `64_calculator.sy` is an
+    unchanged pre-existing frontend compile failure.
+  - Both new alias-analysis regression tests: passed.
+- Spike output validation: 7/7 selected array/matrix and alias regression
+  cases passed, including a same-array counterexample that must remain MayAlias.
+- `01_mm1` differential run produced identical P1/P2 output. Its output under
+  Spike/newlib differs from the repository's expected file in both versions,
+  so this case is used only for a like-for-like instruction comparison.
+
+### Result
+
+| Scope | P1 baseline | Optimized | Reduction | Stage speedup |
+|---|---:|---:|---:|---:|
+| `01_mm1`, dynamic instructions | 49,450 | 43,030 | 12.98% | 1.149x |
+| `01_mm1`, static instructions | 400 | 391 | 2.25% | 1.023x |
+| NoAlias/write-summary regression, dynamic instructions | 59 | 41 | 30.51% | 1.439x |
+| 60 RISC-V final-performance cases, static instructions | 27,068 | 26,910 | 0.58% | 1.006x |
+
+Relative to the original compiler, the 60-case static total is now down from
+31,314 to 26,910 (14.06%, cumulative 1.164x).
