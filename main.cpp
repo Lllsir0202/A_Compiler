@@ -43,6 +43,7 @@
 #include "middleend/pass/transform/mlirtailrecursion/mlirtailrecursion.h"
 #include "middleend/pass/transform/promotion/promotion.h"
 #include "middleend/pass/transform/reassociate/reassociate.h"
+#include "middleend/pass/transform/recursivememo/recursivememo.h"
 #include "middleend/pass/transform/sccp/sccp.h"
 #include "middleend/pass/transform/simplify/simplify.h"
 #include "middleend/pass/transform/strengthreduce/strengthreduce.h"
@@ -349,6 +350,10 @@ auto main(int argc, char *argv[]) -> int {
   baseirpass_context->AddPass(unify_pass);
 
   if (optimization_level >= 1) {
+    auto recursive_memoization_pass =
+        context::PassContext::CreatePass<middleend::pass::transform::RecursiveMemoizationPass>(
+            &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(recursive_memoization_pass);
     // auto function_inline_pass = context::PassContext::CreatePass<middleend::pass::transform::FunctionInlinePass>(
     // &compiler_context, middleend::pass::PassStage::BASEIR);
     // baseirpass_context->AddPass(function_inline_pass);

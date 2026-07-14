@@ -138,7 +138,6 @@ those official cases changed from 377,993/332,570/255,265 microseconds to
 10/6/11 microseconds, while preserving output. The optimized Spike instruction
 figure is the median of five fresh compiler/run samples (258,233 in four runs;
 261,775 in one); elapsed time is the corresponding rounded median.
-
 ## 4. Integer reassociation and late dead-code cleanup
 
 ### Change
