@@ -76,6 +76,21 @@ neutral result for code without foldable address chains.
 Relative to the original compiler, the 60-case static total is now down from
 31,314 to 26,910 (14.06%, cumulative 1.164x).
 
+## Interprocedural pointer no-alias refinement
+
+The BASEIR alias analysis now uses the closed-world, direct-call nature of SysY
+programs to prove pairs of pointer parameters distinct when every call site
+passes already-distinct storage. Facts propagate through wrappers to a fixed
+point, while unseeded recursive cycles and any may-alias call site remain
+conservative.
+
+This refinement is layered on the existing SCEV-aware pointer-phi analysis and
+the richer `FunctionSideEffectPass` summaries. The older standalone
+parameter-write summary from the source change was intentionally not imported:
+the existing per-argument read/write effects and `CallCanNameObject` handling
+are both more precise and correctly model a local pointer passed to the current
+call.
+
 ## 3. Bounded memoization for safe direct recursion
 
 ### Change

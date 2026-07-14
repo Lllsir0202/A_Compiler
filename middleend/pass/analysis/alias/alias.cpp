@@ -1,14 +1,17 @@
 #include "middleend/pass/analysis/alias/alias.h"
+#include <algorithm>
 #include <stdexcept>
+#include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 #include "context/compiler_context.h"
-#include "middleend/pass/analysis/scev/scevpass.h"
-#include "middleend/pass/analysis/sideeffect/sideeffect.h"
 #include "middleend/mlir/dialect/base/copy.h"
-#include "middleend/mlir/dialect/base/phi.h"
 #include "middleend/mlir/dialect/base/funccall.h"
-#include "middleend/mlir/dialect/func/funccall.h"
 #include "middleend/mlir/dialect/base/funcdef.h"
+#include "middleend/mlir/dialect/base/phi.h"
 #include "middleend/mlir/dialect/base/unaryop.h"
+#include "middleend/mlir/dialect/func/funccall.h"
 #include "middleend/mlir/dialect/func/return.h"
 #include "middleend/mlir/dialect/var/def.h"
 #include "middleend/mlir/dialect/var/getptr.h"
@@ -19,11 +22,30 @@
 #include "middleend/mlir/utils/value/value.h"
 #include "middleend/pass/analysis/cfg/cfg.h"
 #include "middleend/pass/analysis/cfg/mlircfg.h"
+#include "middleend/pass/analysis/scev/scevpass.h"
+#include "middleend/pass/analysis/sideeffect/sideeffect.h"
 
 namespace middleend::pass::analysis {
 namespace {
 auto IsSameObject(const AliasAnalysisPass::MemoryObject &lhs, const AliasAnalysisPass::MemoryObject &rhs) -> bool {
   return lhs.kind == rhs.kind && lhs.root == rhs.root;
+}
+
+struct DirectCall {
+  std::string name;
+  std::vector<mlir::Value *> arguments;
+};
+
+auto GetDirectCall(mlir::Operation *operation, DirectCall *out) -> bool {
+  if (auto *call = mlir::DynamicOrNull<mlir::base::FuncCallOp>(operation)) {
+    *out = {call->GetName(), call->GetOperands()};
+    return true;
+  }
+  if (auto *call = mlir::DynamicOrNull<mlir::func::FuncCallOp>(operation)) {
+    *out = {call->GetName(), call->GetOperands()};
+    return true;
+  }
+  return false;
 }
 }  // namespace
 
@@ -32,8 +54,10 @@ auto AliasAnalysisPass::Run() -> void {
   base_cache_.clear();
   param_values_.clear();
   escaped_locals_.clear();
+  noalias_parameters_.clear();
   CollectParameters();
   ComputeEscape();
+  CollectInterproceduralNoAliasFacts();
   side_effect_ = compiler_context_->GetPassContext()->GetSpecPass<FunctionSideEffectPass>("FunctionSideEffectPass");
   scev_ = compiler_context_->GetPassContext()->GetSpecPass<SCEVPass>("SCEVPass");
   Validate();
@@ -94,6 +118,82 @@ auto AliasAnalysisPass::ComputeEscape() -> void {
   }
 }
 
+auto AliasAnalysisPass::CollectInterproceduralNoAliasFacts() -> void {
+  auto *cfg_pass = compiler_context_->GetPassContext()->GetSpecPass<CFGPass>("CFGPass");
+  if (cfg_pass == nullptr) {
+    throw std::logic_error("AliasAnalysisPass requires CFGPass");
+  }
+
+  std::unordered_map<std::string, mlir::base::FuncDefOp *> functions;
+  std::unordered_map<std::string, std::vector<DirectCall>> calls_by_callee;
+  for (auto *function_cfg : cfg_pass->Get()) {
+    auto *mlir_cfg = dynamic_cast<MLIRFunctionCFG *>(function_cfg);
+    if (mlir_cfg == nullptr || mlir_cfg->GetFuncOp() == nullptr) {
+      continue;
+    }
+    auto *function = mlir_cfg->GetFuncOp();
+    functions[function->GetName()] = function;
+    for (auto *cfg_node : mlir_cfg->GetNodes()) {
+      auto *mlir_node = dynamic_cast<MLIRCFGNode *>(cfg_node);
+      if (mlir_node == nullptr) {
+        continue;
+      }
+      for (auto *operation : mlir_node->GetBlock()->operations_) {
+        DirectCall call;
+        if (GetDirectCall(operation, &call)) {
+          calls_by_callee[call.name].emplace_back(std::move(call));
+        }
+      }
+    }
+  }
+
+  // SysY is a closed program with direct calls. Iterate to a fixed point so
+  // wrappers inherit facts already proved for their own parameters. A purely
+  // recursive cycle has no seed and therefore remains conservative.
+  bool changed = true;
+  while (changed) {
+    changed = false;
+    for (const auto &[name, function] : functions) {
+      const auto call_iter = calls_by_callee.find(name);
+      if (call_iter == calls_by_callee.end() || call_iter->second.empty()) {
+        continue;
+      }
+      auto parameters = function->GetArguments();
+      for (size_t lhs_index = 0; lhs_index < parameters.size(); ++lhs_index) {
+        auto *lhs = parameters[lhs_index];
+        if (lhs == nullptr || lhs->GetType() == nullptr || lhs->GetType()->GetKind() != type::TypeKind::PTR) {
+          continue;
+        }
+        for (size_t rhs_index = lhs_index + 1; rhs_index < parameters.size(); ++rhs_index) {
+          auto *rhs = parameters[rhs_index];
+          if (rhs == nullptr || rhs->GetType() == nullptr || rhs->GetType()->GetKind() != type::TypeKind::PTR ||
+              AreProvenNoAliasParameters(lhs, rhs)) {
+            continue;
+          }
+          bool every_call_is_distinct =
+              std::all_of(call_iter->second.begin(), call_iter->second.end(), [&](const DirectCall &call) {
+                if (lhs_index >= call.arguments.size() || rhs_index >= call.arguments.size()) {
+                  return false;
+                }
+                auto lhs_object = GetBaseObject(call.arguments[lhs_index]);
+                auto rhs_object = GetBaseObject(call.arguments[rhs_index]);
+                if (DefinitelyDistinct(lhs_object, rhs_object)) {
+                  return true;
+                }
+                return lhs_object.kind == ObjectKind::Param && rhs_object.kind == ObjectKind::Param &&
+                       AreProvenNoAliasParameters(lhs_object.root, rhs_object.root);
+              });
+          if (every_call_is_distinct) {
+            noalias_parameters_[lhs].insert(rhs);
+            noalias_parameters_[rhs].insert(lhs);
+            changed = true;
+          }
+        }
+      }
+    }
+  }
+}
+
 auto AliasAnalysisPass::MarkEscapeIfLocal(mlir::Value *pointer) -> void {
   if (pointer == nullptr) {
     return;
@@ -115,8 +215,8 @@ auto AliasAnalysisPass::GetBaseObject(mlir::Value *pointer) -> MemoryObject {
   return result;
 }
 
-auto AliasAnalysisPass::ResolveBaseObject(mlir::Value *pointer, std::unordered_set<mlir::Value *> &visiting)
-    -> MemoryObject {
+auto AliasAnalysisPass::ResolveBaseObject(mlir::Value *pointer,
+                                          std::unordered_set<mlir::Value *> &visiting) -> MemoryObject {
   mlir::Value *current = pointer;
   while (true) {
     if (current == nullptr) {
@@ -184,10 +284,19 @@ auto AliasAnalysisPass::Alias(mlir::Value *lhs, mlir::Value *rhs) -> AliasResult
       lhs_object.root == rhs_object.root) {
     return SameObjectAlias(lhs, rhs);
   }
+  if (lhs_object.kind == ObjectKind::Param && rhs_object.kind == ObjectKind::Param &&
+      AreProvenNoAliasParameters(lhs_object.root, rhs_object.root)) {
+    return AliasResult::NoAlias;
+  }
   if (DefinitelyDistinct(lhs_object, rhs_object)) {
     return AliasResult::NoAlias;
   }
   return AliasResult::MayAlias;
+}
+
+auto AliasAnalysisPass::AreProvenNoAliasParameters(mlir::Value *lhs, mlir::Value *rhs) const -> bool {
+  auto iter = noalias_parameters_.find(lhs);
+  return iter != noalias_parameters_.end() && iter->second.count(rhs) > 0;
 }
 
 auto AliasAnalysisPass::DefinitelyDistinct(const MemoryObject &lhs, const MemoryObject &rhs) -> bool {
@@ -263,14 +372,12 @@ auto AliasAnalysisPass::SCEVNoAlias(mlir::Value *lhs_idx, mlir::Value *rhs_idx) 
   if (lhs_scev->GetKind() == SCEVKind::AddRec && rhs_scev->GetKind() == SCEVKind::AddRec) {
     const auto *lhs_ar = static_cast<const SCEVAddRecExpr *>(lhs_scev);
     const auto *rhs_ar = static_cast<const SCEVAddRecExpr *>(rhs_scev);
-    if (lhs_ar->IsAffine() && rhs_ar->IsAffine() &&
-        lhs_ar->GetLoop() == rhs_ar->GetLoop() &&
+    if (lhs_ar->IsAffine() && rhs_ar->IsAffine() && lhs_ar->GetLoop() == rhs_ar->GetLoop() &&
         lhs_ar->GetStep() == rhs_ar->GetStep()) {
       int lhs_start = 0, rhs_start = 0;
       const auto *lhs_start_scev = lhs_ar->GetStart();
       const auto *rhs_start_scev = rhs_ar->GetStart();
-      if (lhs_start_scev->GetKind() == SCEVKind::Constant &&
-          rhs_start_scev->GetKind() == SCEVKind::Constant) {
+      if (lhs_start_scev->GetKind() == SCEVKind::Constant && rhs_start_scev->GetKind() == SCEVKind::Constant) {
         lhs_start = static_cast<const SCEVConstant *>(lhs_start_scev)->GetInt();
         rhs_start = static_cast<const SCEVConstant *>(rhs_start_scev)->GetInt();
         if (lhs_start != rhs_start) return true;
@@ -324,8 +431,10 @@ auto AliasAnalysisPass::CallModRefPrecise(mlir::Operation *call, mlir::Value *po
   // If we have inter-procedural side-effect info, use it.
   if (side_effect_ != nullptr) {
     std::string callee;
-    if (auto *bc = mlir::DynamicOrNull<mlir::base::FuncCallOp>(call)) callee = bc->GetName();
-    else if (auto *fc = mlir::DynamicOrNull<mlir::func::FuncCallOp>(call)) callee = fc->GetName();
+    if (auto *bc = mlir::DynamicOrNull<mlir::base::FuncCallOp>(call))
+      callee = bc->GetName();
+    else if (auto *fc = mlir::DynamicOrNull<mlir::func::FuncCallOp>(call))
+      callee = fc->GetName();
     if (!callee.empty() && side_effect_->HasSummary(callee)) {
       const auto &s = side_effect_->GetSummary(callee);
 
@@ -346,18 +455,15 @@ auto AliasAnalysisPass::CallModRefPrecise(mlir::Operation *call, mlir::Value *po
           // The callee reads or writes operand i.
           auto arg_object = GetBaseObject(call->operands_[i]);
           // Same object and not provably non-overlapping.
-          if (arg_object.kind != ObjectKind::Unknown && arg_object.root == object.root)
-            return true;
+          if (arg_object.kind != ObjectKind::Unknown && arg_object.root == object.root) return true;
           // Conservatively: MayAlias with an argument the callee touches.
-          if (Alias(call->operands_[i], pointer) != AliasResult::NoAlias)
-            return true;
+          if (Alias(call->operands_[i], pointer) != AliasResult::NoAlias) return true;
         }
       }
 
       // Memory-only check: no memory read or write means the call is invisible
       // to the memory system (IO-only, like putint/getint).
-      if (s.IsMemoryWriteNone() && s.IsMemoryReadNone() && arg_effects.empty())
-        return false;
+      if (s.IsMemoryWriteNone() && s.IsMemoryReadNone() && arg_effects.empty()) return false;
     }
   }
 

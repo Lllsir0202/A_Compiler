@@ -1,0 +1,25 @@
+int source[2];
+int destination[2];
+
+void bump(int values[]) {
+  values[0] = values[0] + 1;
+}
+
+int kernel(int readonly_values[], int writable_values[]) {
+  int i = 0;
+  int sum = 0;
+  while (i < 10) {
+    sum = sum + readonly_values[0];
+    bump(writable_values);
+    i = i + 1;
+  }
+  return sum + writable_values[0];
+}
+
+int main() {
+  source[0] = 3;
+  destination[0] = 5;
+  putint(kernel(source, destination));
+  putch(10);
+  return 0;
+}

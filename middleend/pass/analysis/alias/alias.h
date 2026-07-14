@@ -78,9 +78,13 @@ class AliasAnalysisPass : public AnalysisPass {
  private:
   auto CollectParameters() -> void;
   auto ComputeEscape() -> void;
+  // Closed-world direct-call proof: a pair of pointer parameters is no-alias
+  // when every call site supplies storage that is already known distinct.
+  auto CollectInterproceduralNoAliasFacts() -> void;
   auto MarkEscapeIfLocal(mlir::Value *pointer) -> void;
   auto SameObjectAlias(mlir::Value *lhs, mlir::Value *rhs) -> AliasResult;
   auto DefinitelyDistinct(const MemoryObject &lhs, const MemoryObject &rhs) -> bool;
+  auto AreProvenNoAliasParameters(mlir::Value *lhs, mlir::Value *rhs) const -> bool;
   auto GetConstantIndex(mlir::Value *value, int *out) -> bool;
   // True when SCEV can prove the two index values differ for every iteration.
   auto SCEVNoAlias(mlir::Value *lhs_idx, mlir::Value *rhs_idx) -> bool;
@@ -88,6 +92,7 @@ class AliasAnalysisPass : public AnalysisPass {
   std::unordered_map<mlir::Value *, MemoryObject> base_cache_;
   std::unordered_set<mlir::Value *> param_values_;
   std::unordered_set<mlir::Value *> escaped_locals_;
+  std::unordered_map<mlir::Value *, std::unordered_set<mlir::Value *>> noalias_parameters_;
   FunctionSideEffectPass *side_effect_{nullptr};
   SCEVPass *scev_{nullptr};
 };
