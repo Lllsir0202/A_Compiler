@@ -3,10 +3,12 @@
 #include <cstdint>
 #include <cstring>
 #include <vector>
+#include "backend/mir/inst/memory/globaldef.h"
 #include "backend/targets/riscv/frame/riscvframe.h"
 #include "backend/targets/riscv/inst/riscvinst.h"
 #include "backend/targets/riscv/isel/riscvisel.h"
 #include "backend/targets/riscv/pass/branchfold.h"
+#include "backend/targets/riscv/pass/localcse.h"
 #include "backend/targets/riscv/pass/machinedce.h"
 #include "backend/targets/riscv/pass/peephole.h"
 #include "backend/targets/riscv/printer/riscvprinter.h"
@@ -15,7 +17,6 @@
 #include "backend/targets/utils/pass/machinepassmanager.h"
 #include "backend/targets/utils/struct/targetblock.h"
 #include "backend/targets/utils/struct/targetfunction.h"
-#include "backend/mir/inst/memory/globaldef.h"
 #include "context/compiler_context.h"
 
 namespace backend::targetir::riscv {
@@ -35,6 +36,7 @@ auto RISCVBackend::Run() -> int {
   MachinePassManager machine_passes(&ctx_);
   if (opt_level_ >= 1) {
     machine_passes.AddPass(new RISCVPeephole(&ctx_));
+    machine_passes.AddPass(new RISCVLocalCSE(&ctx_));
     machine_passes.AddPass(new MachineDCE(&ctx_));
     machine_passes.AddPass(new BranchFold(&ctx_));
   }
