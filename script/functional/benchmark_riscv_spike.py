@@ -142,11 +142,17 @@ def benchmark_case(args, case_path, work_dir):
     elapsed = time.perf_counter() - started
     expected = expected_output(case_path)
     actual = normalized_output(spike_result.stdout, spike_result.returncode)
-    if expected is not None and actual != expected:
+    output_matches = expected is None or actual == expected
+    if not output_matches and not args.allow_output_mismatch:
         raise RuntimeError(
             f"output mismatch: expected {expected[:160]!r}, got {actual[:160]!r}"
         )
-    return instruction_count(spike_result.stderr, ranges), static_instruction_count(assembly_path), elapsed
+    return (
+        instruction_count(spike_result.stderr, ranges),
+        static_instruction_count(assembly_path),
+        elapsed,
+        output_matches,
+    )
 
 
 def main():
@@ -169,6 +175,11 @@ def main():
     )
     parser.add_argument("--compile-timeout", type=int, default=90)
     parser.add_argument("--run-timeout", type=int, default=120)
+    parser.add_argument(
+        "--allow-output-mismatch",
+        action="store_true",
+        help="record instruction counts but mark cases whose output differs from the .out file",
+    )
     args = parser.parse_args()
 
     args.work_dir.mkdir(parents=True, exist_ok=True)
@@ -176,9 +187,10 @@ def main():
     rows = []
     for case in collect_cases(args.inputs):
         try:
-            dynamic, static, seconds = benchmark_case(args, case, args.work_dir)
-            rows.append([str(case), "OK", str(dynamic), str(static), f"{seconds:.6f}"])
-            print(f"[OK] {case.name}: dynamic={dynamic}, static={static}, spike={seconds:.3f}s")
+            dynamic, static, seconds, output_matches = benchmark_case(args, case, args.work_dir)
+            status = "OK" if output_matches else "MISMATCH"
+            rows.append([str(case), status, str(dynamic), str(static), f"{seconds:.6f}"])
+            print(f"[{status}] {case.name}: dynamic={dynamic}, static={static}, spike={seconds:.3f}s")
         except subprocess.TimeoutExpired:
             rows.append([str(case), "TIMEOUT", "", "", ""])
             print(f"[TIMEOUT] {case.name}")
@@ -191,7 +203,7 @@ def main():
         writer.writerow(["case", "status", "dynamic_instructions", "static_instructions", "spike_seconds"])
         writer.writerows(rows)
 
-    completed = [int(row[2]) for row in rows if row[1] == "OK"]
+    completed = [int(row[2]) for row in rows if row[1] in {"OK", "MISMATCH"}]
     if completed:
         print(f"completed={len(completed)}/{len(rows)}, total_dynamic={sum(completed)}")
 
