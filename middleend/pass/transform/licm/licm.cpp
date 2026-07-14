@@ -203,12 +203,15 @@ auto LICMPass::IsHoistable(mlir::Operation *operation, analysis::Loop *loop,
 }
 
 auto LICMPass::IsSpeculatablePure(mlir::Operation *operation) -> bool {
-  // Integer arithmetic and comparisons, excluding div/mod which may trap on a zero divisor and
-  // therefore must not be executed speculatively in the preheader.
+  // Integer arithmetic and comparisons. Integer div/mod are included: unlike x86, both backend
+  // targets define division by zero (RISC-V yields all-ones / the dividend; AArch64 yields 0) and
+  // INT_MIN/-1 (wraps to INT_MIN) without trapping, so an invariant div/mod is safe to execute
+  // speculatively in the preheader even when the loop body runs zero times.
   if (Is<mlir::base::AddOp>(operation) || Is<mlir::base::SubOp>(operation) || Is<mlir::base::MulOp>(operation) ||
-      Is<mlir::base::EqualOp>(operation) || Is<mlir::base::NotEqualOp>(operation) ||
-      Is<mlir::base::LessOp>(operation) || Is<mlir::base::LessEqualOp>(operation) ||
-      Is<mlir::base::GreaterOp>(operation) || Is<mlir::base::GreaterEqualOp>(operation)) {
+      Is<mlir::base::DivOp>(operation) || Is<mlir::base::ModOp>(operation) || Is<mlir::base::EqualOp>(operation) ||
+      Is<mlir::base::NotEqualOp>(operation) || Is<mlir::base::LessOp>(operation) ||
+      Is<mlir::base::LessEqualOp>(operation) || Is<mlir::base::GreaterOp>(operation) ||
+      Is<mlir::base::GreaterEqualOp>(operation)) {
     return true;
   }
   // Floating-point arithmetic and comparisons (IEEE division does not trap).
