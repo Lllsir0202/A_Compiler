@@ -162,3 +162,45 @@ figure is the median of five fresh compiler/run samples (258,233 in four runs;
 versions, so that row is a differential instruction comparison rather than an
 output-conformance result. Relative to the original compiler, the 60-case
 static total is now down from 31,314 to 26,308 (15.99%, cumulative 1.190x).
+
+## 5. Loop-aware block placement and branch fallthrough
+
+### Change
+
+- Build greedy machine-CFG traces from the entry block, preferring the true
+  successor (normally a loop body or hot `then` path) as the next emitted block.
+- Rewrite `bcond next; j other` as `b!cond other` plus fallthrough.
+- Continue removing unconditional jumps to the immediately following block.
+- Run placement once and branch folding to a machine-pass fixpoint, preserving
+  the CFG while avoiding layout oscillation.
+
+The proposed semantic loop interchange/distribution was audited but not applied:
+the primary `01_mm1` kernel is already in cache-friendly `k-i-j` order, while a
+general interchange without array-dependence proof would be unsafe. The trace
+layout still improves loop execution by making body edges fall through.
+
+### Validation
+
+- Compiler build: passed.
+- GNU RV64 compile/assemble validation:
+  - `testcases/riscv_finalperformance`: 60/60 passed.
+  - Functional cases: 104/105 passed; only the unchanged `64_calculator.sy`
+    frontend failure remains. `82_long_func.sy` passed separately.
+- Spike output validation: 10/10 selected functional cases passed.
+- All 1,110 remaining static condition-plus-jump pairs in the 60-case suite were
+  eliminated; 231 pairs that could not use the original order became foldable
+  after trace placement.
+
+### Result
+
+| Scope | P4 baseline | Optimized | Reduction | Stage speedup |
+|---|---:|---:|---:|---:|
+| 10 validated cases, dynamic instructions | 284,223 | 275,520 | 3.06% | 1.032x |
+| `01_mm1`, differential dynamic instructions | 43,030 | 41,681 | 3.14% | 1.032x |
+| Fixed-data recursive knapsack, dynamic instructions | 258,233 | 249,616 | 3.34% | 1.035x |
+| 60 RISC-V final-performance cases, static instructions | 26,308 | 24,908 | 5.32% | 1.056x |
+
+`01_mm1` again uses identical P4/P5 output under Spike but retains the same
+pre-existing mismatch against the repository expected file. Relative to the
+original compiler, the 60-case static total is down from 31,314 to 24,908
+(20.46%, cumulative 1.257x).

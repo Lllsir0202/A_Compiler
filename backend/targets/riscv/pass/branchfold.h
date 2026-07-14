@@ -12,9 +12,11 @@ class TargetFunction;
 namespace backend::targetir::riscv {
 
 /**
- * @brief Branch folding / block layout cleanup: drop an unconditional `j` whose
- * target is the block laid out immediately after it, since control falls through
- * to it anyway. Blocks are emitted in function order, so this is always safe.
+ * @brief Branch folding / block layout cleanup.
+ *
+ * Drop an unconditional `j` to the next block. Also invert `bcond true; j false`
+ * when `true` is the next block, turning it into `b!cond false` plus fallthrough.
+ * Blocks are emitted in function order, so both rewrites preserve the CFG.
  */
 class BranchFold : public MachineFunctionPass {
  public:
