@@ -8,6 +8,7 @@
 #include "backend/targets/riscv/inst/riscvinst.h"
 #include "backend/targets/riscv/isel/riscvisel.h"
 #include "backend/targets/riscv/pass/addrfold.h"
+#include "backend/targets/riscv/pass/blocklayout.h"
 #include "backend/targets/riscv/pass/branchfold.h"
 #include "backend/targets/riscv/pass/localcse.h"
 #include "backend/targets/riscv/pass/machinedce.h"
@@ -40,6 +41,7 @@ auto RISCVBackend::Run() -> int {
     machine_passes.AddPass(new RISCVAddrFold(&ctx_));
     machine_passes.AddPass(new RISCVLocalCSE(&ctx_));
     machine_passes.AddPass(new MachineDCE(&ctx_));
+    machine_passes.AddPass(new RISCVBlockLayout(&ctx_));
     machine_passes.AddPass(new BranchFold(&ctx_));
   }
 
