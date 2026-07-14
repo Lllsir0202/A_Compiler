@@ -19,6 +19,9 @@ class TargetFunction {
   auto GetName() const -> const std::string & { return name_; }
   auto GetBlocks() const -> const std::vector<TargetBlock *> & { return blocks_; }
   auto AddBlock(TargetBlock *block) -> void { blocks_.emplace_back(block); }
+  // Replace the whole block list, used by machine passes that delete blocks (e.g.
+  // if-conversion collapsing a diamond). Removed blocks are not freed here.
+  auto SetBlocks(std::vector<TargetBlock *> blocks) -> void { blocks_ = std::move(blocks); }
 
  private:
   // Constructor with function name
