@@ -65,8 +65,8 @@ class MLIRLoopPartialUnrollPass : public TransformPass {
   mlir::utils::OperationCloner cloner_{compiler_context_};
 
   // Unroll factor and a cost cap on the widened main-loop body (K * body-op-count).
-  static constexpr int64_t kUnrollFactor = 4;
-  static constexpr size_t kMaxBodyCost = 512;
+  static constexpr int64_t kUnrollFactor = 8;
+  static constexpr size_t kMaxBodyCost = 1024;
 };
 
 }  // namespace middleend::pass::transform
