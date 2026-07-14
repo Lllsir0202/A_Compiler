@@ -23,6 +23,7 @@
 #include "middleend/pass/transform/dse/dse.h"
 #include "middleend/pass/transform/functioninline/functioninline.h"
 #include "middleend/pass/transform/gvn/gvn.h"
+#include "middleend/pass/transform/gvnpre/gvnpre.h"
 #include "middleend/pass/transform/licm/licm.h"
 #include "middleend/pass/transform/llvmtrivialblockmerge/llvmtrivialblockmerge.h"
 #include "middleend/pass/transform/loopsimplify/loopsimplify.h"
@@ -389,6 +390,12 @@ auto main(int argc, char *argv[]) -> int {
     auto trivial_block_merge_pass = context::PassContext::CreatePass<middleend::pass::transform::TrivialBlockMergePass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(trivial_block_merge_pass);
+    // Partial-redundancy elimination runs last: it inserts phis that reference values
+    // available in a predecessor, so no later loop pass may delete those values (which
+    // would orphan the phi). It recomputes its own dominator/CFG analyses.
+    auto gvnpre_pass = context::PassContext::CreatePass<middleend::pass::transform::GVNPREPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(gvnpre_pass);
   }
 
   ret = baseirpass_context->RunPasses();
