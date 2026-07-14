@@ -1,4 +1,6 @@
 #include "backend/targets/riscv/pass/peephole.h"
+#include <cstdint>
+#include <limits>
 #include <vector>
 #include "backend/targets/utils/context/targetcontext.h"
 #include "backend/targets/utils/operand/targetliteral.h"
@@ -70,6 +72,100 @@ auto RISCVPeephole::TransformInst(TargetInst *inst) -> bool {
   auto *lhs = ops[0];
   auto *rhs = ops[1];
   int c = 0;
+
+  auto constant_value = [&](TargetOperand *operand, int *value) -> bool {
+    if (operand->GetOpType() == TargetOperandType::Immediate) {
+      *value = static_cast<TargetIntLiteral *>(operand)->GetValue();
+      return true;
+    }
+    return IsConst(operand, value);
+  };
+  auto to_constant = [&](int value) {
+    ri->SetOpcode(RVOpcode::LI);
+    inst->SetOperands({ctx_->Imm(value)});
+  };
+
+  // Fold a fully constant machine expression. The middle-end unroller creates
+  // constant GEP indices as SSA values, so instruction selection otherwise
+  // emits `li index; li stride; mul/slli; add` even though the byte offset is a
+  // compile-time integer. Collapsing the chain here exposes ADDI-based address
+  // expressions to RISCVAddrFold in the next pipeline iteration.
+  int lhs_value = 0;
+  int rhs_value = 0;
+  if (constant_value(lhs, &lhs_value) && constant_value(rhs, &rhs_value)) {
+    auto as_i32 = [](uint32_t value) { return static_cast<int32_t>(value); };
+    switch (opcode) {
+      case RVOpcode::ADDW:
+        to_constant(as_i32(static_cast<uint32_t>(lhs_value) + static_cast<uint32_t>(rhs_value)));
+        return true;
+      case RVOpcode::SUBW:
+        to_constant(as_i32(static_cast<uint32_t>(lhs_value) - static_cast<uint32_t>(rhs_value)));
+        return true;
+      case RVOpcode::MULW:
+        to_constant(as_i32(static_cast<uint32_t>(lhs_value) * static_cast<uint32_t>(rhs_value)));
+        return true;
+      case RVOpcode::ADD:
+      case RVOpcode::ADDI: {
+        int64_t value = static_cast<int64_t>(lhs_value) + rhs_value;
+        if (value >= std::numeric_limits<int>::min() && value <= std::numeric_limits<int>::max()) {
+          to_constant(static_cast<int>(value));
+          return true;
+        }
+        break;
+      }
+      case RVOpcode::SUB: {
+        int64_t value = static_cast<int64_t>(lhs_value) - rhs_value;
+        if (value >= std::numeric_limits<int>::min() && value <= std::numeric_limits<int>::max()) {
+          to_constant(static_cast<int>(value));
+          return true;
+        }
+        break;
+      }
+      case RVOpcode::MUL: {
+        int64_t value = static_cast<int64_t>(lhs_value) * rhs_value;
+        if (value >= std::numeric_limits<int>::min() && value <= std::numeric_limits<int>::max()) {
+          to_constant(static_cast<int>(value));
+          return true;
+        }
+        break;
+      }
+      case RVOpcode::AND: to_constant(lhs_value & rhs_value); return true;
+      case RVOpcode::OR: to_constant(lhs_value | rhs_value); return true;
+      case RVOpcode::XOR: to_constant(lhs_value ^ rhs_value); return true;
+      case RVOpcode::SLLW:
+        to_constant(as_i32(static_cast<uint32_t>(lhs_value) << (static_cast<unsigned>(rhs_value) & 31U)));
+        return true;
+      case RVOpcode::SRLW:
+        to_constant(as_i32(static_cast<uint32_t>(lhs_value) >> (static_cast<unsigned>(rhs_value) & 31U)));
+        return true;
+      case RVOpcode::SRAW:
+        to_constant(static_cast<int32_t>(lhs_value) >> (static_cast<unsigned>(rhs_value) & 31U));
+        return true;
+      case RVOpcode::SLLI: {
+        uint64_t value = static_cast<uint64_t>(static_cast<int64_t>(lhs_value))
+                         << (static_cast<unsigned>(rhs_value) & 63U);
+        if (value <= static_cast<uint64_t>(std::numeric_limits<int>::max())) {
+          to_constant(static_cast<int>(value));
+          return true;
+        }
+        break;
+      }
+      case RVOpcode::SLLIW:
+        to_constant(as_i32(static_cast<uint32_t>(lhs_value) << (static_cast<unsigned>(rhs_value) & 31U)));
+        return true;
+      case RVOpcode::SRLIW:
+        to_constant(as_i32(static_cast<uint32_t>(lhs_value) >> (static_cast<unsigned>(rhs_value) & 31U)));
+        return true;
+      case RVOpcode::SRAIW:
+        to_constant(static_cast<int32_t>(lhs_value) >> (static_cast<unsigned>(rhs_value) & 31U));
+        return true;
+      case RVOpcode::SLT: to_constant(lhs_value < rhs_value ? 1 : 0); return true;
+      case RVOpcode::SLTU:
+        to_constant(static_cast<uint32_t>(lhs_value) < static_cast<uint32_t>(rhs_value) ? 1 : 0);
+        return true;
+      default: break;
+    }
+  }
 
   // Rewrite `inst` in place to a unary op (mv / negw / li) on `reg`.
   auto to_move = [&](TargetOperand *reg) {
