@@ -1,0 +1,17 @@
+int nonlinear(int value) {
+  int square = value * value;
+  int scaled = 3 * value;
+  return (square + scaled - 7) % 97;
+}
+
+int main() {
+  int i = 0;
+  int sum = 0;
+  while (i < 1000) {
+    sum = sum + nonlinear(i % 101);
+    i = i + 1;
+  }
+  putint(sum);
+  putch(10);
+  return 0;
+}

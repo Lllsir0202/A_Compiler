@@ -123,3 +123,42 @@ those official cases changed from 377,993/332,570/255,265 microseconds to
 10/6/11 microseconds, while preserving output. The optimized Spike instruction
 figure is the median of five fresh compiler/run samples (258,233 in four runs;
 261,775 in one); elapsed time is the corresponding rounded median.
+
+## 4. Integer reassociation and late dead-code cleanup
+
+### Change
+
+- Normalize `x - C` to the canonical wrapped-integer form `x + (-C)`.
+- Reassociate one-level integer add/multiply trees to reuse the earliest
+  dominating pair and combine adjacent constants with explicit 32-bit wrapping.
+- Factor single-use `(a*c) + (b*c)` trees into `(a+b)*c`; this targets the
+  repeated nonlinear polynomial in three final-performance programs.
+- Run a distinct post-reassociation ADCE after LICM and scalar promotion, where
+  it can finally remove expression/address nodes made dead by those late passes.
+
+### Validation
+
+- Compiler build: passed.
+- GNU RV64 compile/assemble validation:
+  - `testcases/riscv_finalperformance`: 60/60 passed.
+  - Functional cases: 104/105 passed; the only failure remains the unchanged
+    frontend failure in `64_calculator.sy`. `82_long_func.sy` passed with its
+    normal >15 second compile time.
+- Spike output validation: 10/10 selected alias, matrix, memoization,
+  out-of-range, and reassociation cases passed.
+- Native execution of the three recursive official cases still produced
+  52/117/88 after the late cleanup.
+
+### Result
+
+| Scope | P3 baseline | Optimized | Reduction | Stage speedup |
+|---|---:|---:|---:|---:|
+| Reassociation regression, dynamic instructions | 23,270 | 22,145 | 4.83% | 1.051x |
+| NoAlias/write-summary regression, dynamic instructions | 41 | 32 | 21.95% | 1.281x |
+| `2025-MGB-26`, differential dynamic instructions | 346,579 | 338,387 | 2.36% | 1.024x |
+| 60 RISC-V final-performance cases, static instructions | 27,036 | 26,308 | 2.69% | 1.028x |
+
+`2025-MGB-26` has the same pre-existing Spike/newlib output mismatch in both
+versions, so that row is a differential instruction comparison rather than an
+output-conformance result. Relative to the original compiler, the 60-case
+static total is now down from 31,314 to 26,308 (15.99%, cumulative 1.190x).

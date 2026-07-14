@@ -35,6 +35,7 @@
 #include "middleend/pass/transform/mlirtailrecursion/mlirtailrecursion.h"
 #include "middleend/pass/transform/promotion/promotion.h"
 #include "middleend/pass/transform/recursivememo/recursivememo.h"
+#include "middleend/pass/transform/reassociate/reassociate.h"
 #include "middleend/pass/transform/sccp/sccp.h"
 #include "middleend/pass/transform/simplify/simplify.h"
 #include "middleend/pass/transform/deadloopelim/deadloopelim.h"
@@ -391,6 +392,14 @@ auto main(int argc, char *argv[]) -> int {
     auto promotion_pass = context::PassContext::CreatePass<middleend::pass::transform::PromotionPass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(promotion_pass);
+
+    auto reassociate_pass = context::PassContext::CreatePass<middleend::pass::transform::ReassociatePass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(reassociate_pass);
+    auto post_reassociate_adce_pass =
+        context::PassContext::CreatePass<middleend::pass::transform::PostReassociateADCEPass>(
+            &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(post_reassociate_adce_pass);
 
     auto trivial_block_merge_pass = context::PassContext::CreatePass<middleend::pass::transform::TrivialBlockMergePass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
