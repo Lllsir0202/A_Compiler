@@ -60,8 +60,8 @@ static int optimization_level = 0;
 // Mark whether regard warnings as errors, default to false
 static bool warnings_as_errors = false;
 // Target backend: "riscv" (default, competition target) or "aarch64".
-static std::string target_arch = "riscv";  // RV default (Backend-tmp-rv branch)
 // static std::string target_arch = "aarch64";
+static std::string target_arch = "riscv";  // for benchmark at competition webset
 // Turn `x / C` and `x % C` (constant C) into a magic multiply instead of the
 // hardware divide. A win on out-of-order cores (BOOM, A72/Neoverse); `-no-magic-div`
 // disables it for A/B testing on in-order boards.
@@ -390,6 +390,18 @@ auto main(int argc, char *argv[]) -> int {
     auto trivial_block_merge_pass = context::PassContext::CreatePass<middleend::pass::transform::TrivialBlockMergePass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(trivial_block_merge_pass);
+    // Post-loop cleanup round: fold conditions the loop passes made constant (closed-form
+    // values from DeadLoopElim, zero-trip remainder loops from the partial unroller), then
+    // sweep the loops that died. Must stay before GVN-PRE (see below).
+    auto post_loop_sccp_pass = context::PassContext::CreatePass<middleend::pass::transform::PostLoopSCCPPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(post_loop_sccp_pass);
+    auto post_loop_adce_pass = context::PassContext::CreatePass<middleend::pass::transform::PostLoopADCEPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(post_loop_adce_pass);
+    auto post_loop_tbm_pass = context::PassContext::CreatePass<middleend::pass::transform::PostLoopTrivialBlockMergePass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(post_loop_tbm_pass);
     // Partial-redundancy elimination runs last: it inserts phis that reference values
     // available in a predecessor, so no later loop pass may delete those values (which
     // would orphan the phi). It recomputes its own dominator/CFG analyses.

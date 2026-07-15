@@ -1,0 +1,16 @@
+// GVN forwards the g[3] load from the store in the same iteration, and
+// promotion then sinks the store: the loop body ends with no memory access.
+//! CHECK-BLOCK-NOT: main_while_body :: var\.getval
+//! CHECK-BLOCK-NOT: main_while_body :: var\.set
+int g[10];
+int main() {
+    int n = getint();
+    int s = 0;
+    while (s < n) {
+        g[3] = s + 1;
+        s = s + g[3];
+    }
+    putint(s);
+    putint(g[3]);
+    return 0;
+}

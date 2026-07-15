@@ -1,0 +1,15 @@
+// Legality (must never trigger): the g[j] store between the two g[k] loads
+// may alias them (the input makes j == k), so the second g[k] load must not
+// CSE with the first -- both loads survive.
+//! CHECK-COUNT: 2 :: var\.getval
+int g[10];
+int main() {
+    int j = getint();
+    int k = getint();
+    int t1 = g[k];
+    g[j] = t1 + 7;
+    int t2 = g[k];
+    putint(t1);
+    putint(t2);
+    return 0;
+}

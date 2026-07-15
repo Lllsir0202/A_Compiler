@@ -1,0 +1,12 @@
+// Legality (must never trigger): each store is observed by the putarray call
+// that follows it; both stores must survive and the two printed arrays differ.
+//! CHECK-COUNT: 2 :: var\.set
+int g[2];
+int main() {
+    int x = getint();
+    g[0] = x;
+    putarray(1, g);
+    g[0] = x + 1;
+    putarray(1, g);
+    return 0;
+}

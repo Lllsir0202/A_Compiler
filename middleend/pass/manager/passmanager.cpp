@@ -1,9 +1,28 @@
 #include "middleend/pass/manager/passmanager.h"
+#include <cstdlib>
+#include <fstream>
 #include <functional>
 #include <unordered_map>
 #include "context/compiler_context.h"
 #include "middleend/pass/pass.h"
 namespace middleend::pass {
+namespace {
+// Debug aid: when AC_DUMP_AFTER_PASS=<dir> is set, the module is dumped into
+// <dir>/<seq>_<passname>.ir after every executed pass, so a malformed IR can
+// be bisected to the pass that produced it.
+auto DumpAfterPass(context::CompilerContext *compiler_context, const std::string &pass_name) -> void {
+  const char *dump_dir = std::getenv("AC_DUMP_AFTER_PASS");
+  if (dump_dir == nullptr || dump_dir[0] == '\0') {
+    return;
+  }
+  static int sequence = 0;
+  std::ofstream out(std::string(dump_dir) + "/" + std::to_string(sequence++) + "_" + pass_name + ".ir");
+  if (!out.is_open()) {
+    return;
+  }
+  compiler_context->GetIRContext()->GetMLIRContext()->GetModuleOp()->Emit(&out);
+}
+}  // namespace
 auto PassManager::AddPass(Pass *pass) -> void {
   // Map the pass name to the pass instance for future use
   // Add check to make sure the pass stage is same as the current pass type
@@ -85,6 +104,7 @@ auto PassManager::RunPasses() -> int {
   for (auto *pass : ordered_passes) {
     try {
       pass->Run();
+      DumpAfterPass(compiler_context_, pass->Name());
     } catch (const std::exception &e) {
       compiler_context_->Print(pass->Name() + ": Error occurred while running the pass: " + e.what() + "\n");
       // Free all resources allocated

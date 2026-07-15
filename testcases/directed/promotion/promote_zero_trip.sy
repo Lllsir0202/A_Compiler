@@ -1,0 +1,14 @@
+// Correctness boundary for promotion: a zero-trip loop. The exit write-back
+// must store the original g[7] value (set before the loop), not garbage.
+int g[10];
+int main() {
+    int n = getint();
+    g[7] = 42;
+    int i = 0;
+    while (i < n) {
+        g[7] = g[7] + i;
+        i = i + 1;
+    }
+    putint(g[7]);
+    return 0;
+}

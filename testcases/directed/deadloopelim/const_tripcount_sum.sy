@@ -1,0 +1,14 @@
+// A pure counted loop with a constant trip count (1000, above the full-unroll
+// limit of 64) whose only live-outs have closed forms: the loop (both the
+// unrolled main loop and the remainder) must be deleted entirely.
+//! CHECK-NOT: main_while_cond
+int main() {
+    int i = 0;
+    int s = 0;
+    while (i < 1000) {
+        s = s + i;
+        i = i + 1;
+    }
+    putint(s);
+    return 0;
+}

@@ -1,0 +1,15 @@
+// LICM should hoist the loop-invariant multiply x*y into the preheader.
+// The condition `s < n` is data-dependent, so the unroll passes stay out.
+//! CHECK-BLOCK: main_entry :: base\.mul
+//! CHECK-BLOCK-NOT: main_while_body :: base\.mul
+int main() {
+    int x = getint();
+    int y = getint();
+    int n = getint();
+    int s = 0;
+    while (s < n) {
+        s = s + x * y;
+    }
+    putint(s);
+    return 0;
+}

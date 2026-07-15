@@ -71,9 +71,113 @@ auto ADCEPass::RunOnFunction(analysis::MLIRFunctionCFG *function_cfg, analysis::
   bool changed = RewriteDeadTerminators();
   PropagateLiveness();
   changed = RemoveDeadOperations() || changed;
+  changed = RemoveUnreachableBlocks() || changed;
 
   ResetFunctionState();
   return changed;
+}
+
+// RewriteDeadTerminators branches around dead regions, so whole blocks can become unreachable.
+// They must not stay in the function: a later pass that deletes one of their referenced blocks
+// (e.g. TrivialBlockMerge folding an empty forwarding block) would leave their phis pointing at
+// freed blocks, which the LLVM lowering then chases. Reachability is recomputed over the current
+// terminators because the cached CFG is stale after the rewrite.
+auto ADCEPass::RemoveUnreachableBlocks() -> bool {
+  auto *func_op = current_function_cfg_->GetFuncOp();
+  if (func_op == nullptr) {
+    return false;
+  }
+  auto blocks = func_op->GetBlocks();
+  if (blocks.empty()) {
+    return false;
+  }
+
+  std::unordered_set<mlir::Block *> reachable;
+  std::deque<mlir::Block *> worklist;
+  reachable.insert(blocks.front());
+  worklist.emplace_back(blocks.front());
+  while (!worklist.empty()) {
+    auto *block = worklist.front();
+    worklist.pop_front();
+    auto *terminator = GetTerminator(block);
+    mlir::Block *targets[2] = {nullptr, nullptr};
+    if (auto *branch_op = mlir::DynamicOrNull<mlir::base::BrOp>(terminator)) {
+      targets[0] = branch_op->GetTarget();
+    } else if (auto *cond_branch_op = mlir::DynamicOrNull<mlir::base::CondBrOp>(terminator)) {
+      targets[0] = cond_branch_op->GetTrueTarget();
+      targets[1] = cond_branch_op->GetFalseTarget();
+    }
+    for (auto *target : targets) {
+      if (target != nullptr && reachable.insert(target).second) {
+        worklist.emplace_back(target);
+      }
+    }
+  }
+  if (reachable.size() == blocks.size()) {
+    return false;
+  }
+
+  // Detach the dying operations from their operands and mark their results deleted.
+  std::vector<mlir::Block *> remaining;
+  remaining.reserve(reachable.size());
+  for (auto *block : blocks) {
+    if (reachable.count(block) > 0) {
+      remaining.emplace_back(block);
+      continue;
+    }
+    for (auto *operation : block->operations_) {
+      RemoveOperandUses(operation);
+      for (auto *result : operation->results_) {
+        if (result != nullptr) {
+          result->ClearUses();
+          GET_PASS_CONTEXT()->InsertDeletedValue(result);
+        }
+      }
+    }
+  }
+
+  // Surviving phis must not name a removed predecessor.
+  for (auto *block : remaining) {
+    for (auto *operation : block->operations_) {
+      auto *phi_op = mlir::DynamicOrNull<mlir::base::PhiOp>(operation);
+      if (phi_op == nullptr) {
+        continue;
+      }
+      const auto &incoming_blocks = phi_op->GetIncomingBlock();
+      bool has_dead_incoming = false;
+      for (auto *incoming : incoming_blocks) {
+        if (reachable.count(incoming) == 0) {
+          has_dead_incoming = true;
+          break;
+        }
+      }
+      if (!has_dead_incoming) {
+        continue;
+      }
+      const auto &incoming_values = phi_op->GetIncomingValue();
+      for (auto *value : incoming_values) {
+        if (value != nullptr) {
+          value->RemoveUse(phi_op);
+        }
+      }
+      std::vector<mlir::Value *> kept_values;
+      std::vector<mlir::Block *> kept_blocks;
+      for (size_t index = 0; index < incoming_blocks.size(); ++index) {
+        if (reachable.count(incoming_blocks[index]) == 0) {
+          continue;
+        }
+        kept_values.emplace_back(incoming_values[index]);
+        kept_blocks.emplace_back(incoming_blocks[index]);
+        if (incoming_values[index] != nullptr) {
+          incoming_values[index]->AddUse(phi_op, kept_values.size() - 1);
+        }
+      }
+      phi_op->SetIncomings(kept_values, kept_blocks);
+    }
+  }
+
+  func_op->SetBlocks(std::move(remaining));
+  return true;
 }
 
 auto ADCEPass::CollectRootOperations() -> void {

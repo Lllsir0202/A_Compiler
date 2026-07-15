@@ -1,0 +1,18 @@
+// The two g[0] loads straddle an if whose store writes a different array (h):
+// MemorySSA walks past the no-alias clobber and the second load CSEs with the
+// first. Remaining loads: one for g[0], one for h[0] (its store is
+// conditional, so it cannot be forwarded).
+//! CHECK-COUNT: 2 :: var\.getval
+int g[10];
+int h[10];
+int main() {
+    int c = getint();
+    int t1 = g[0];
+    if (c > 0) {
+        h[0] = c;
+    }
+    int t2 = g[0];
+    putint(t1 + t2);
+    putint(h[0]);
+    return 0;
+}

@@ -1,0 +1,13 @@
+// Legality (must never trigger): the loop performs IO every iteration, so it
+// must not be deleted (trip count 100 also blocks the full unroller). All 100
+// prints must appear, in order.
+//! CHECK: main_while_cond
+int main() {
+    int i = 0;
+    while (i < 100) {
+        putint(i);
+        putch(10);
+        i = i + 1;
+    }
+    return 0;
+}

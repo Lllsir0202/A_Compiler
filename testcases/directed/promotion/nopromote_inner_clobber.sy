@@ -1,0 +1,22 @@
+// Legality (must never trigger): the inner loop stores g[j] with a runtime
+// index that may hit g[0] (the input makes j == 0), so g[0] must not be
+// promoted across the outer loop -- its load stays inside.
+//! CHECK-BLOCK-NOT: main_entry :: var\.getval
+int g[10];
+int main() {
+    int j = getint();
+    int n = getint();
+    int i = 0;
+    while (i < n) {
+        int k = 0;
+        while (k < 2) {
+            g[j] = g[j] + k;
+            k = k + 1;
+        }
+        g[0] = g[0] + i;
+        i = i + 1;
+    }
+    putint(g[0]);
+    putint(g[j]);
+    return 0;
+}

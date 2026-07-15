@@ -1,0 +1,20 @@
+// The invariant divide x/y is hoisted speculatively into the preheader.
+// The input makes the loop zero-trip AND y == 0: the hoisted divide executes
+// with a zero divisor on the target (defined, non-trapping on both RISC-V and
+// AArch64) while the reference never executes it. Outputs must still agree.
+//! CHECK: base\.div
+//! CHECK-BLOCK-NOT: main_while_body :: base\.div
+//! CHECK-BLOCK-NOT: main_while_cond :: base\.div
+int main() {
+    int x = getint();
+    int y = getint();
+    int n = getint();
+    int s = 0;
+    int i = 0;
+    while (i < n) {
+        s = s + x / y;
+        i = i + 1;
+    }
+    putint(s);
+    return 0;
+}

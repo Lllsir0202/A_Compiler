@@ -1,0 +1,13 @@
+// `<=` runtime bound: the remainder loop must run the final iteration where
+// i == n (a common off-by-one spot for the main/remainder split).
+int main() {
+    int n = getint();
+    int i = 0;
+    int s = 0;
+    while (i <= n) {
+        s = s + i;
+        i = i + 1;
+    }
+    putint(s);
+    return 0;
+}

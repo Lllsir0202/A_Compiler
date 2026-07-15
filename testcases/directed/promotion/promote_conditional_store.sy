@@ -1,0 +1,18 @@
+// Promotion with a conditional store: the preheader seed load lets paths that
+// skip the store write the original value back at the exit. The loop body
+// (including the if arms) must keep no store of g[4].
+//! CHECK-BLOCK-NOT: main_while_body :: var\.set
+//! CHECK-BLOCK-NOT: main_if :: var\.set
+int g[10];
+int main() {
+    int n = getint();
+    int i = 0;
+    while (i < n) {
+        if (i % 3 == 0) {
+            g[4] = g[4] + i;
+        }
+        i = i + 1;
+    }
+    putint(g[4]);
+    return 0;
+}

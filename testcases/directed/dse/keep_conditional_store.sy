@@ -1,0 +1,13 @@
+// Legality (must never trigger): the first store is only conditionally
+// overwritten (the input takes the else path), so it must survive.
+//! CHECK-COUNT: 2 :: var\.set
+int g[10];
+int main() {
+    int c = getint();
+    g[1] = 5;
+    if (c > 0) {
+        g[1] = 6;
+    }
+    putint(g[1]);
+    return 0;
+}

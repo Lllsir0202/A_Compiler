@@ -1,0 +1,14 @@
+// Runtime partial unroll with a non-unit step (3) and a trip count (9, from
+// n=25) that leaves a remainder after the 8-wide main loop: the remainder
+// loop must finish the leftover iterations exactly.
+int main() {
+    int n = getint();
+    int i = 0;
+    int s = 0;
+    while (i < n) {
+        s = s + i;
+        i = i + 3;
+    }
+    putint(s);
+    return 0;
+}

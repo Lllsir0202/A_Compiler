@@ -1,0 +1,14 @@
+// Correctness: g[i] written this iteration, g[i-1] read next iteration; the
+// forwarding machinery must respect the loop-carried dependence.
+int g[200];
+int main() {
+    int n = getint();
+    g[0] = 1;
+    int i = 1;
+    while (i < n) {
+        g[i] = g[i - 1] + 2;
+        i = i + 1;
+    }
+    putint(g[n - 1]);
+    return 0;
+}

@@ -44,6 +44,18 @@ class TrivialBlockMergePass : public TransformPass {
   auto RemoveMergedBlocks(mlir::base::FuncDefOp *func_op) -> void;
 };
 
+// Second TrivialBlockMerge round after the loop-cleanup pass sequence (PostLoopSCCP
+// folds constant conditions → PostLoopADCE deletes unreachable loop bodies). The
+// now-empty loop-header blocks that just branch to the exit need this to vanish.
+class PostLoopTrivialBlockMergePass : public TrivialBlockMergePass {
+ public:
+  PostLoopTrivialBlockMergePass(context::CompilerContext *compiler_context, PassStage stage)
+      : TrivialBlockMergePass(compiler_context, stage) {}
+  ~PostLoopTrivialBlockMergePass() override = default;
+
+  auto Name() const -> std::string override { return "PostLoopTrivialBlockMergePass"; }
+};
+
 }  // namespace middleend::pass::transform
 
 #endif

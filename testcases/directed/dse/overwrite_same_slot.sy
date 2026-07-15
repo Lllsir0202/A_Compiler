@@ -1,0 +1,11 @@
+// DSE: the first g[5] store is overwritten with no read in between; exactly
+// one store survives.
+//! CHECK-COUNT: 1 :: var\.set
+int g[10];
+int main() {
+    int x = getint();
+    g[5] = x;
+    g[5] = x + 1;
+    putint(g[5]);
+    return 0;
+}
