@@ -1,0 +1,19 @@
+// LICM: the invariant load g[0] must be hoisted past the putint call,
+// which only writes IO and does not touch program memory. Before L1
+// unlocks, CallModRef treated every call as clobber-all and kept the
+// load in the loop body.
+//! CHECK-BLOCK-NOT: main_while_body :: var\.getval
+int g[10];
+int main() {
+    int n = getint();
+    g[0] = 42;
+    int i = 0;
+    int s = 0;
+    while (i < n) {
+        putint(i);          // IO only, no memory write
+        s = s + g[0];       // invariant load -> must be hoisted
+        i = i + 1;
+    }
+    putint(s);
+    return 0;
+}

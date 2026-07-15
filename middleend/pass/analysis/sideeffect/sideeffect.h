@@ -50,8 +50,12 @@ struct SideEffectSummary {
   enum class ArgEffect : uint8_t { kNone, kRead, kWrite, kReadWrite };
   std::vector<ArgEffect> arg_effects;
 
+  // IO-inclusive: used by ADCE / DeadLoopElim ("observable effect?").
   bool IsReadNone() const { return !reads_all_globals && read_globals.empty() && !reads_io; }
   bool IsWriteNone() const { return !writes_all_globals && written_globals.empty() && !writes_io; }
+  // Memory-only: used by LICM / DSE / MemorySSA / GVN ("does the call touch this pointer?").
+  bool IsMemoryReadNone() const { return !reads_all_globals && read_globals.empty(); }
+  bool IsMemoryWriteNone() const { return !writes_all_globals && written_globals.empty(); }
 };
 
 class FunctionSideEffectPass : public AnalysisPass {
@@ -71,6 +75,10 @@ class FunctionSideEffectPass : public AnalysisPass {
   // Public query interface.
   auto GetSummary(const std::string &func_name) const -> const SideEffectSummary &;
   bool HasSummary(const std::string &func_name) const;
+
+  // True when the call has no observable effect (no IO, no memory writes).
+  // Only meaningful when HasSummary(callee) is true.
+  auto IsReadNoneAndIOClean(mlir::Operation *call) -> bool;
 
  private:
   auto ComputeOne(MLIRFunctionCFG *mlir_cfg) -> void;

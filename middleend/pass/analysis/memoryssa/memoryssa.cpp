@@ -38,10 +38,14 @@ auto CallMayWriteMemory(mlir::Operation *operation, AliasAnalysisPass *aa) -> bo
   if (!se->HasSummary(callee)) return true;
   const auto &s = se->GetSummary(callee);
   if (s.writes_all_globals || !s.written_globals.empty()) return true;
-  return !s.IsWriteNone();
+  return !s.IsMemoryWriteNone();
 }
 
-auto IsMemoryWrite(mlir::Operation *operation) -> bool { return IsStore(operation) || IsCall(operation); }
+auto IsMemoryWrite(mlir::Operation *operation, AliasAnalysisPass *aa) -> bool {
+  if (IsStore(operation)) return true;
+  if (IsCall(operation)) return CallMayWriteMemory(operation, aa);
+  return false;
+}
 
 auto BlockOf(CFGNode *node) -> mlir::Block * {
   auto *mlir_node = dynamic_cast<MLIRCFGNode *>(node);
@@ -124,7 +128,7 @@ auto MemorySSAPass::PlacePhis(MLIRFunctionCFG *function_cfg) -> void {
       continue;
     }
     for (auto *operation : block->operations_) {
-      if (IsMemoryWrite(operation)) {
+      if (IsMemoryWrite(operation, alias_analysis_)) {
         worklist.emplace_back(node);
         break;
       }
@@ -171,7 +175,7 @@ auto MemorySSAPass::Rename(DomTreeNode *dom_node, MemoryAccess *incoming) -> voi
       auto *use = new MemoryUse(block, operation, current);
       owned_accesses_.emplace_back(use);
       op_to_access_[operation] = use;
-    } else if (IsMemoryWrite(operation)) {
+    } else if (IsMemoryWrite(operation, alias_analysis_)) {
       auto *def = new MemoryDef(block, operation, current);
       owned_accesses_.emplace_back(def);
       op_to_access_[operation] = def;
