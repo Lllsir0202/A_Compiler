@@ -1,6 +1,7 @@
 #ifndef MIDDLEEND_PASS_TRANSFORM_REASSOCIATE_REASSOCIATE_H
 #define MIDDLEEND_PASS_TRANSFORM_REASSOCIATE_REASSOCIATE_H
 
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include "middleend/pass/transform/transform.h"

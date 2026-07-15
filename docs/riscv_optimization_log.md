@@ -209,5 +209,8 @@ original compiler, the 60-case static total is down from 31,314 to 24,908
 
 - Added the direct `<stdexcept>` dependency to `recursivememo.h`, which uses
   `std::invalid_argument` in its inline constructor.
+- Added the same direct dependency to `reassociate.h`; an audit confirmed that
+  it was the only other pass header using `std::invalid_argument` without
+  directly including `<stdexcept>`.
 - This prevents isolated or differently ordered builds from depending on a
   transitive standard-library include.
