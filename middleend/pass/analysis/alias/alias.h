@@ -13,6 +13,7 @@ class Value;
 
 namespace middleend::pass::analysis {
 class MLIRFunctionCFG;
+class FunctionSideEffectPass;
 
 enum class AliasResult : uint8_t { NoAlias, MayAlias, MustAlias };
 
@@ -59,6 +60,8 @@ class AliasAnalysisPass : public AnalysisPass {
   auto Alias(mlir::Value *lhs, mlir::Value *rhs) -> AliasResult;
   // Whether the call may modify or reference the object behind `pointer`.
   auto CallModRef(mlir::Operation *call, mlir::Value *pointer) -> bool;
+  auto CallModRefPrecise(mlir::Operation *call, mlir::Value *pointer) -> bool;
+  auto GetSideEffect() -> FunctionSideEffectPass * { return side_effect_; }
   // Whether an object may be reached by external code (calls / other pointers).
   auto IsEscaped(const MemoryObject &object) -> bool;
 
@@ -73,6 +76,7 @@ class AliasAnalysisPass : public AnalysisPass {
   std::unordered_map<mlir::Value *, MemoryObject> base_cache_;
   std::unordered_set<mlir::Value *> param_values_;
   std::unordered_set<mlir::Value *> escaped_locals_;
+  FunctionSideEffectPass *side_effect_{nullptr};
 };
 
 }  // namespace middleend::pass::analysis
