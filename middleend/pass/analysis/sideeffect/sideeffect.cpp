@@ -144,6 +144,16 @@ auto FunctionSideEffectPass::GetSummary(const std::string &func_name) const -> c
   return it != summaries_.end() ? it->second : kConservative;
 }
 
+auto FunctionSideEffectPass::IsReadNoneAndIOClean(mlir::Operation *call) -> bool {
+  std::string callee;
+  if (auto *bc = mlir::DynamicOrNull<mlir::base::FuncCallOp>(call)) callee = bc->GetName();
+  else if (auto *fc = mlir::DynamicOrNull<mlir::func::FuncCallOp>(call)) callee = fc->GetName();
+  if (callee.empty() || !HasSummary(callee)) return false;
+  const auto &s = GetSummary(callee);
+  // A call with no IO effect and no memory writes has no observable side effect.
+  return !s.reads_io && !s.writes_io && s.IsWriteNone();
+}
+
 bool FunctionSideEffectPass::HasSummary(const std::string &func_name) const {
   return summaries_.count(func_name) > 0;
 }
@@ -195,6 +205,10 @@ void FunctionSideEffectPass::ComputeOne(MLIRFunctionCFG *mlir_cfg) {
         if (root != nullptr && root->op_ != nullptr &&
             mlir::DynamicOrNull<mlir::var::GlobalVarDefOp>(root->op_) != nullptr)
           s.written_globals.insert(root);
+        // A store whose base is not rooted in any IR operation (var.def /
+        // var.globaldef) targets memory the caller owns — typically a
+        // pointer parameter. Mark conservatively.
+        if (root != nullptr && root->op_ == nullptr) s.writes_all_globals = true;
         if (pointer_params.count(store->GetNewValue()) > 0) s.saves_pointer = true;
         continue;
       }

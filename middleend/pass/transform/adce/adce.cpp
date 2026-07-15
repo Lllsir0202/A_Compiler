@@ -17,6 +17,7 @@
 #include "middleend/pass/analysis/cfg/cfg.h"
 #include "middleend/pass/analysis/cfg/mlircfg.h"
 #include "middleend/pass/analysis/domtree/domtree.h"
+#include "middleend/pass/analysis/sideeffect/sideeffect.h"
 
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()
 #define GET_PASS_CONTEXT() compiler_context_->GetPassContext()
@@ -417,6 +418,10 @@ auto ADCEPass::IsAlwaysLive(mlir::Operation *operation) -> bool {
   }
   if (mlir::DynamicOrNull<mlir::base::FuncCallOp>(operation) != nullptr ||
       mlir::DynamicOrNull<mlir::func::FuncCallOp>(operation) != nullptr) {
+    // A call whose callee is known to be read-none + IO-clean has no observable
+    // effect: it is live only when its result is used (liveness propagates backward).
+    auto *se = GET_PASS_CONTEXT()->GetSpecPass<analysis::FunctionSideEffectPass>("FunctionSideEffectPass");
+    if (se != nullptr && se->IsReadNoneAndIOClean(operation)) return false;
     return true;
   }
   if (mlir::DynamicOrNull<mlir::base::BrOp>(operation) != nullptr ||

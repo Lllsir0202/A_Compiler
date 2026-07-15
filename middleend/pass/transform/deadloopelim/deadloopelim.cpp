@@ -11,6 +11,7 @@
 #include "middleend/mlir/dialect/base/binaryop.h"
 #include "middleend/mlir/dialect/base/branch.h"
 #include "middleend/mlir/dialect/base/funccall.h"
+#include "middleend/mlir/dialect/func/funccall.h"
 #include "middleend/mlir/dialect/base/funcdef.h"
 #include "middleend/mlir/dialect/base/phi.h"
 #include "middleend/mlir/dialect/base/unaryop.h"
@@ -23,6 +24,7 @@
 #include "middleend/pass/analysis/loopinfo/loopinfo.h"
 #include "middleend/pass/analysis/scev/scev.h"
 #include "middleend/pass/analysis/scev/scevpass.h"
+#include "middleend/pass/analysis/sideeffect/sideeffect.h"
 #include "utils/type/type.h"
 #include "utils/type/type_factory.h"
 
@@ -169,19 +171,18 @@ auto DeadLoopEliminatePass::FindUniqueExit(analysis::Loop *loop, mlir::Block **e
 }
 
 auto DeadLoopEliminatePass::HasSideEffect(analysis::Loop *loop) -> bool {
+  auto *se = GET_PASS_CONTEXT()->GetSpecPass<analysis::FunctionSideEffectPass>("FunctionSideEffectPass");
   for (auto *block : loop->GetBlocks()) {
     for (auto *operation : block->operations_) {
-      // Stores mutate memory and calls may do anything observable; either makes the loop's execution
-      // matter beyond the final value of its induction variables.
-      if (mlir::DynamicOrNull<mlir::var::VarSetOp>(operation) != nullptr ||
-          mlir::DynamicOrNull<mlir::base::FuncCallOp>(operation) != nullptr) {
-        return true;
+      if (mlir::DynamicOrNull<mlir::var::VarSetOp>(operation) != nullptr) return true;
+      if (mlir::DynamicOrNull<mlir::base::FuncCallOp>(operation) != nullptr ||
+          mlir::DynamicOrNull<mlir::func::FuncCallOp>(operation) != nullptr) {
+        if (se == nullptr || !se->IsReadNoneAndIOClean(operation)) return true;
       }
     }
   }
   return false;
 }
-
 auto DeadLoopEliminatePass::TryDeleteLoop(analysis::MLIRFunctionCFG *function_cfg, mlir::base::FuncDefOp *func_op,
                                           analysis::Loop *loop) -> bool {
   auto *header = loop->GetHeader();

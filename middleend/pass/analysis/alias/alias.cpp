@@ -229,20 +229,50 @@ auto AliasAnalysisPass::IsEscaped(const MemoryObject &object) -> bool {
 
 auto AliasAnalysisPass::CallModRefPrecise(mlir::Operation *call, mlir::Value *pointer) -> bool {
   auto object = GetBaseObject(pointer);
+  // A non-escaped local is invisible to any call — cheap check first.
   if (object.kind == ObjectKind::Local && !IsEscaped(object)) return false;
+
+  // If we have inter-procedural side-effect info, use it.
   if (side_effect_ != nullptr) {
     std::string callee;
     if (auto *bc = mlir::DynamicOrNull<mlir::base::FuncCallOp>(call)) callee = bc->GetName();
     else if (auto *fc = mlir::DynamicOrNull<mlir::func::FuncCallOp>(call)) callee = fc->GetName();
     if (!callee.empty() && side_effect_->HasSummary(callee)) {
       const auto &s = side_effect_->GetSummary(callee);
-      if (s.writes_all_globals) return true;
-      if (object.kind == ObjectKind::Global && object.root != nullptr && s.written_globals.count(object.root) > 0) return true;
-      if (s.reads_all_globals) return true;
-      if (object.kind == ObjectKind::Global && object.root != nullptr && s.read_globals.count(object.root) > 0) return true;
-      if (s.IsWriteNone() && s.IsReadNone()) return false;
+
+      // Check memory-specific global effects.
+      if (s.writes_all_globals || s.reads_all_globals) return true;
+      if (object.kind == ObjectKind::Global && object.root != nullptr) {
+        if (s.written_globals.count(object.root) > 0) return true;
+        if (s.read_globals.count(object.root) > 0) return true;
+      }
+
+      // Check per-argument effects: if the callee reads or writes one of its
+      // pointer arguments and `pointer` may alias that argument, the call
+      // touches the location.
+      const auto &arg_effects = s.arg_effects;
+      if (!arg_effects.empty()) {
+        for (size_t i = 0; i < arg_effects.size() && i < call->operands_.size(); ++i) {
+          if (arg_effects[i] == SideEffectSummary::ArgEffect::kNone) continue;
+          // The callee reads or writes operand i.
+          auto arg_object = GetBaseObject(call->operands_[i]);
+          // Same object and not provably non-overlapping.
+          if (arg_object.kind != ObjectKind::Unknown && arg_object.root == object.root)
+            return true;
+          // Conservatively: MayAlias with an argument the callee touches.
+          if (Alias(call->operands_[i], pointer) != AliasResult::NoAlias)
+            return true;
+        }
+      }
+
+      // Memory-only check: no memory read or write means the call is invisible
+      // to the memory system (IO-only, like putint/getint).
+      if (s.IsMemoryWriteNone() && s.IsMemoryReadNone() && arg_effects.empty())
+        return false;
     }
   }
+
+  // Conservative: call may touch any non-local memory.
   return true;
 }
 

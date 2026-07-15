@@ -141,7 +141,7 @@ auto DSEPass::TailOverwritten(mlir::Block *block, size_t begin, mlir::Value *poi
     }
     if (IsCall(operation)) {
       // A call that may reference the location observes the stored value.
-      if (alias_analysis_->CallModRef(operation, pointer)) {
+      if (alias_analysis_->CallModRefPrecise(operation, pointer)) {
         return false;
       }
       continue;

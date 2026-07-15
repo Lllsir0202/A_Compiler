@@ -190,7 +190,7 @@ auto LICMPass::IsHoistable(mlir::Operation *operation, analysis::Loop *loop,
       return alias_analysis_->Alias(pointer, store_op->GetPtr()) == analysis::AliasResult::NoAlias;
     });
     bool no_call_modifies = std::all_of(loop_calls.begin(), loop_calls.end(), [&](mlir::Operation *call) {
-      return !alias_analysis_->CallModRef(call, pointer);
+      return !alias_analysis_->CallModRefPrecise(call, pointer);
     });
     return no_store_aliases && no_call_modifies;
   }
