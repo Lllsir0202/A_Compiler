@@ -1,0 +1,13 @@
+// Descending runtime-bound loop with step -3: main/remainder split must keep
+// the exact iteration set (25 -> 1, nine iterations, remainder not divisible).
+int main() {
+    int n = getint();
+    int i = 25;
+    int s = 0;
+    while (i > n) {
+        s = s + i;
+        i = i - 3;
+    }
+    putint(s);
+    return 0;
+}

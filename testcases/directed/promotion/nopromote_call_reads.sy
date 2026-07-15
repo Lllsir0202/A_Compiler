@@ -1,0 +1,15 @@
+// Legality (must never trigger): putarray reads g inside the loop, so the
+// g[1] store cannot be sunk out -- every iteration's call must observe the
+// fresh value. The store stays in the body; the output order proves it.
+//! CHECK-BLOCK: main_while_body :: var\.set
+int g[10];
+int main() {
+    int n = getint();
+    int i = 0;
+    while (i < n) {
+        g[1] = i;
+        putarray(2, g);
+        i = i + 1;
+    }
+    return 0;
+}

@@ -1,0 +1,22 @@
+// The load g[0] is invariant: the only store in the loop writes g[1], which
+// provably does not alias (same array, different constant index). The load
+// must leave the loop body; the g[1] store is promoted and sunk to the exits.
+//! CHECK: var\.getval
+//! CHECK-BLOCK-NOT: main_while_body :: var\.getval
+//! CHECK-BLOCK-NOT: main_while_cond :: var\.getval
+//! CHECK-BLOCK-NOT: main_while_body :: var\.set
+int g[10];
+int main() {
+    int n = getint();
+    g[0] = getint();
+    int i = 0;
+    int s = 0;
+    while (i < n) {
+        g[1] = s;
+        s = s + g[0];
+        i = i + 1;
+    }
+    putint(s);
+    putint(g[1]);
+    return 0;
+}

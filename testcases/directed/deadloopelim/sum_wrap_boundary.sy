@@ -1,0 +1,15 @@
+// Correctness boundary: sum 0..79999 wraps past INT_MAX. The wrapped 32-bit
+// loop result is -1095007296, but the closed form t*(t-1)/2 evaluated in
+// wrapped 32-bit arithmetic gives +1052476352 (2S mod 2^32 loses bit 31 on
+// the division). Whether the loop is deleted or kept, the output must match
+// the reference; deleting it with the naive closed form is a miscompile.
+int main() {
+    int i = 0;
+    int s = 0;
+    while (i < 80000) {
+        s = s + i;
+        i = i + 1;
+    }
+    putint(s);
+    return 0;
+}

@@ -1,0 +1,12 @@
+// `>=` with step -1 down to a runtime bound, trip count not divisible by 8.
+int main() {
+    int n = getint();
+    int i = 100;
+    int s = 0;
+    while (i >= n) {
+        s = s + i;
+        i = i - 1;
+    }
+    putint(s);
+    return 0;
+}

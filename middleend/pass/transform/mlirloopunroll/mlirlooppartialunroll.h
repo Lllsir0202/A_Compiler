@@ -53,6 +53,9 @@ class MLIRLoopPartialUnrollPass : public TransformPass {
   auto Run() -> void override;
   auto Name() const -> std::string override { return "MLIRLoopPartialUnrollPass"; }
 
+  // Unroll factor of the widened main loop.
+  static constexpr int64_t kUnrollFactor = 8;
+
  private:
   auto RunOnFunction(mlir::func::FuncDefOp *func_op) -> bool;
   auto CollectWhileLoops(mlir::Block *block,
@@ -64,8 +67,7 @@ class MLIRLoopPartialUnrollPass : public TransformPass {
 
   mlir::utils::OperationCloner cloner_{compiler_context_};
 
-  // Unroll factor and a cost cap on the widened main-loop body (K * body-op-count).
-  static constexpr int64_t kUnrollFactor = 8;
+  // Cost cap on the widened main-loop body (kUnrollFactor * body-op-count).
   static constexpr size_t kMaxBodyCost = 1024;
 };
 

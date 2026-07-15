@@ -93,6 +93,20 @@ class SCCPPass : public TransformPass {
   std::deque<mlir::Operation *> ssa_worklist_;
 };
 
+// Second SCCP round after the loop passes: DeadLoopElim materializes closed-form constants and
+// the partial unroller's remainder loops often become zero-trip once the main loop's exit values
+// are constant, but the first SCCP ran long before any loop pass. This round folds those
+// now-constant conditions so the following ADCE can drop the dead loops.
+class PostLoopSCCPPass : public SCCPPass {
+ public:
+  PostLoopSCCPPass(context::CompilerContext *compiler_context, PassStage stage) : SCCPPass(compiler_context, stage) {
+    AddDependency("TrivialBlockMergePass");
+  }
+  ~PostLoopSCCPPass() override = default;
+
+  auto Name() const -> std::string override { return "PostLoopSCCPPass"; }
+};
+
 }  // namespace middleend::pass::transform
 
 #endif

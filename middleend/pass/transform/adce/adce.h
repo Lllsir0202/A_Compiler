@@ -44,6 +44,7 @@ class ADCEPass : public TransformPass {
   auto IsControlDependent(analysis::CFGNode *branch_node, analysis::CFGNode *live_node) -> bool;
   auto RewriteDeadTerminators() -> bool;
   auto RemoveDeadOperations() -> bool;
+  auto RemoveUnreachableBlocks() -> bool;
   auto GetTerminator(mlir::Block *block) -> mlir::Operation *;
   auto GetBlockOfOperation(mlir::Operation *operation) -> mlir::Block *;
   auto FindNearestLivePostDominator(analysis::CFGNode *cfg_node) -> mlir::Block *;
@@ -81,6 +82,19 @@ class PostDSEADCEPass : public ADCEPass {
   ~PostDSEADCEPass() override = default;
 
   auto Name() const -> std::string override { return "PostDSEADCEPass"; }
+};
+
+// Sweeps the loops that PostLoopSCCP just proved dead (zero-trip remainders, constant-folded
+// guards): the folded branches leave unreachable loop bodies that ADCE's unreachable-block
+// removal deletes.
+class PostLoopADCEPass : public ADCEPass {
+ public:
+  PostLoopADCEPass(context::CompilerContext *compiler_context, PassStage stage) : ADCEPass(compiler_context, stage) {
+    AddDependency("PostLoopSCCPPass");
+  }
+  ~PostLoopADCEPass() override = default;
+
+  auto Name() const -> std::string override { return "PostLoopADCEPass"; }
 };
 
 }  // namespace middleend::pass::transform

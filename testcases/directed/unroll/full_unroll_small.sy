@@ -1,0 +1,14 @@
+// A constant-trip-count loop (10 <= 64) is fully unrolled: no loop blocks
+// survive to the BASEIR dump.
+//! CHECK-NOT: main_while
+int main() {
+    int i = 0;
+    int s = 0;
+    int x = getint();
+    while (i < 10) {
+        s = s + x;
+        i = i + 1;
+    }
+    putint(s);
+    return 0;
+}

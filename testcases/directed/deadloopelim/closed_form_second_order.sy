@@ -1,0 +1,18 @@
+// Higher-order recurrence in a counted loop: s accumulates i, t accumulates s.
+// When d = step and N = trip, s = d*0 + d*1 + ... + d*(N-1) = d*N*(N-1)/2,
+// t = sum of s.  The partial unroller may split this into a main + remainder
+// loop pair, which prevents DLE from deleting everything, but the output
+// must still match the reference closed form (verified by the golden .out).
+int main() {
+    int i = 0;
+    int s = 0;
+    int t = 0;
+    while (i < 70) {
+        s = s + i;
+        t = t + s;
+        i = i + 7;
+    }
+    putint(t);
+    putint(s);
+    return 0;
+}

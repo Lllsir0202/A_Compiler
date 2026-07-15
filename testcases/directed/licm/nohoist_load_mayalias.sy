@@ -1,0 +1,20 @@
+// Legality (must never trigger): g[k] may alias the g[j] store (j, k are
+// runtime values, and the input makes them equal), so the g[k] load must not
+// be hoisted and g[j] must not be promoted. Nothing memory-related may reach
+// the preheader. The data-dependent condition keeps the unrollers out.
+//! CHECK-BLOCK-NOT: main_entry :: var\.getval
+int g[10];
+int main() {
+    int j = getint();
+    int k = getint();
+    int n = getint();
+    g[j] = getint();
+    int s = 0;
+    while (s < n) {
+        g[j] = g[j] + 1;
+        s = s + g[k];
+    }
+    putint(s);
+    putint(g[j]);
+    return 0;
+}

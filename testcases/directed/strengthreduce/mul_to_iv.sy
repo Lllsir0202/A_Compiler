@@ -1,0 +1,15 @@
+// Strength reduction: i*12 evolves as {0,+,12}; the multiply is replaced by
+// an additive induction variable, so no multiply survives in any loop body
+// (the partial unroller may have made 8 copies -- all must be reduced).
+//! CHECK-BLOCK-NOT: main_while_body1 :: base\.mul
+int main() {
+    int n = getint();
+    int i = 0;
+    int s = 0;
+    while (i < n) {
+        s = s + i * 12;
+        i = i + 1;
+    }
+    putint(s);
+    return 0;
+}

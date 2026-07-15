@@ -390,6 +390,18 @@ auto main(int argc, char *argv[]) -> int {
     auto trivial_block_merge_pass = context::PassContext::CreatePass<middleend::pass::transform::TrivialBlockMergePass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(trivial_block_merge_pass);
+    // Post-loop cleanup round: fold conditions the loop passes made constant (closed-form
+    // values from DeadLoopElim, zero-trip remainder loops from the partial unroller), then
+    // sweep the loops that died. Must stay before GVN-PRE (see below).
+    auto post_loop_sccp_pass = context::PassContext::CreatePass<middleend::pass::transform::PostLoopSCCPPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(post_loop_sccp_pass);
+    auto post_loop_adce_pass = context::PassContext::CreatePass<middleend::pass::transform::PostLoopADCEPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(post_loop_adce_pass);
+    auto post_loop_tbm_pass = context::PassContext::CreatePass<middleend::pass::transform::PostLoopTrivialBlockMergePass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(post_loop_tbm_pass);
     // Partial-redundancy elimination runs last: it inserts phis that reference values
     // available in a predecessor, so no later loop pass may delete those values (which
     // would orphan the phi). It recomputes its own dominator/CFG analyses.
