@@ -1,8 +1,10 @@
 #include "middleend/pass/analysis/alias/alias.h"
 #include <stdexcept>
 #include "context/compiler_context.h"
+#include "middleend/pass/analysis/sideeffect/sideeffect.h"
 #include "middleend/mlir/dialect/base/copy.h"
 #include "middleend/mlir/dialect/base/funccall.h"
+#include "middleend/mlir/dialect/func/funccall.h"
 #include "middleend/mlir/dialect/base/funcdef.h"
 #include "middleend/mlir/dialect/base/unaryop.h"
 #include "middleend/mlir/dialect/func/funccall.h"
@@ -31,6 +33,7 @@ auto AliasAnalysisPass::Run() -> void {
   escaped_locals_.clear();
   CollectParameters();
   ComputeEscape();
+  side_effect_ = compiler_context_->GetPassContext()->GetSpecPass<FunctionSideEffectPass>("FunctionSideEffectPass");
   Validate();
 }
 
@@ -222,6 +225,25 @@ auto AliasAnalysisPass::CallModRef(mlir::Operation *call, mlir::Value *pointer) 
 
 auto AliasAnalysisPass::IsEscaped(const MemoryObject &object) -> bool {
   return object.kind == ObjectKind::Local && escaped_locals_.count(object.root) > 0;
+}
+
+auto AliasAnalysisPass::CallModRefPrecise(mlir::Operation *call, mlir::Value *pointer) -> bool {
+  auto object = GetBaseObject(pointer);
+  if (object.kind == ObjectKind::Local && !IsEscaped(object)) return false;
+  if (side_effect_ != nullptr) {
+    std::string callee;
+    if (auto *bc = mlir::DynamicOrNull<mlir::base::FuncCallOp>(call)) callee = bc->GetName();
+    else if (auto *fc = mlir::DynamicOrNull<mlir::func::FuncCallOp>(call)) callee = fc->GetName();
+    if (!callee.empty() && side_effect_->HasSummary(callee)) {
+      const auto &s = side_effect_->GetSummary(callee);
+      if (s.writes_all_globals) return true;
+      if (object.kind == ObjectKind::Global && object.root != nullptr && s.written_globals.count(object.root) > 0) return true;
+      if (s.reads_all_globals) return true;
+      if (object.kind == ObjectKind::Global && object.root != nullptr && s.read_globals.count(object.root) > 0) return true;
+      if (s.IsWriteNone() && s.IsReadNone()) return false;
+    }
+  }
+  return true;
 }
 
 }  // namespace middleend::pass::analysis

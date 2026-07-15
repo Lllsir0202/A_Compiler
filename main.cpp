@@ -14,6 +14,7 @@
 #include "middleend/mlir/lower/lower.h"
 #include "middleend/mlir/verifer/verifer.h"
 #include "middleend/pass/analysis/alias/alias.h"
+#include "middleend/pass/analysis/sideeffect/sideeffect.h"
 #include "middleend/pass/analysis/cfg/mlircfg.h"
 #include "middleend/pass/analysis/domtree/domtree.h"
 #include "middleend/pass/analysis/loopinfo/loopinfo.h"
@@ -352,6 +353,9 @@ auto main(int argc, char *argv[]) -> int {
     auto alias_analysis_pass = context::PassContext::CreatePass<middleend::pass::analysis::AliasAnalysisPass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(alias_analysis_pass);
+    auto side_effect_pass = context::PassContext::CreatePass<middleend::pass::analysis::FunctionSideEffectPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(side_effect_pass);
     auto memory_ssa_pass = context::PassContext::CreatePass<middleend::pass::analysis::MemorySSAPass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(memory_ssa_pass);

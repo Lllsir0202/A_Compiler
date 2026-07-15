@@ -9,6 +9,7 @@
 #include "middleend/mlir/utils/struct/block.h"
 #include "middleend/mlir/utils/value/value.h"
 #include "middleend/pass/analysis/alias/alias.h"
+#include "middleend/pass/analysis/sideeffect/sideeffect.h"
 #include "middleend/pass/analysis/cfg/cfg.h"
 #include "middleend/pass/analysis/cfg/mlircfg.h"
 #include "middleend/pass/analysis/domtree/domtree.h"
@@ -27,6 +28,19 @@ auto IsCall(mlir::Operation *operation) -> bool {
 auto IsLoad(mlir::Operation *operation) -> bool {
   return mlir::DynamicOrNull<mlir::var::VarGetValOp>(operation) != nullptr;
 }
+auto CallMayWriteMemory(mlir::Operation *operation, AliasAnalysisPass *aa) -> bool {
+  auto *se = aa != nullptr ? aa->GetSideEffect() : nullptr;
+  if (se == nullptr) return true;  // conservative
+  std::string callee;
+  if (auto *bc = mlir::DynamicOrNull<mlir::base::FuncCallOp>(operation)) callee = bc->GetName();
+  else if (auto *fc = mlir::DynamicOrNull<mlir::func::FuncCallOp>(operation)) callee = fc->GetName();
+  if (callee.empty()) return true;
+  if (!se->HasSummary(callee)) return true;
+  const auto &s = se->GetSummary(callee);
+  if (s.writes_all_globals || !s.written_globals.empty()) return true;
+  return !s.IsWriteNone();
+}
+
 auto IsMemoryWrite(mlir::Operation *operation) -> bool { return IsStore(operation) || IsCall(operation); }
 
 auto BlockOf(CFGNode *node) -> mlir::Block * {
