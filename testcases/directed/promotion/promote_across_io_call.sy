@@ -1,0 +1,18 @@
+// Promotion across IO-only calls: putint writes stdout only, so
+// the g[3] promotion (load hoisted, store sunk to exits) still fires.
+// The runtime trip count prevents full unrolling, leaving a while loop.
+//! CHECK-BLOCK-NOT: main_while_body :: var\.getval
+//! CHECK-BLOCK-NOT: main_while_body :: var\.set
+//! CHECK-BLOCK: main_while_exit :: var\.set
+int g[10];
+int main() {
+    int n = getint();
+    g[3] = 0;
+    int i = 0;
+    while (i < n) {
+        g[3] = g[3] + 1;
+        putint(g[3]); putch(10);
+        i = i + 1;
+    }
+    return 0;
+}

@@ -1,0 +1,16 @@
+// Legality (must never trigger): getarray writes g in the loop,
+// so g[3] must not be promoted — the store stays in the body.
+//! CHECK-BLOCK: main_while_body :: var\.set
+int g[10];
+int main() {
+    int n = getint();
+    g[3] = 0;
+    int i = 0;
+    while (i < n) {
+        g[3] = g[3] + 1;
+        int ret = getarray(g);
+        i = i + 1;
+    }
+    putint(g[3]); putch(10);
+    return 0;
+}
