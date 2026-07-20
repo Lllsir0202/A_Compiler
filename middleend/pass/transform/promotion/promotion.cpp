@@ -218,7 +218,7 @@ auto PromotionPass::TryBuildCandidate(analysis::Loop *loop, mlir::Operation *sto
         } else if (result != analysis::AliasResult::NoAlias) {
           return false;
         }
-      } else if (IsCall(operation) && alias_analysis_->CallModRef(operation, pointer)) {
+      } else if (IsCall(operation) && alias_analysis_->CallModRefPrecise(operation, pointer)) {
         return false;
       }
     }
