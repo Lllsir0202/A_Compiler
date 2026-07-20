@@ -222,11 +222,31 @@ auto DeadLoopEliminatePass::TryDeleteLoop(analysis::MLIRFunctionCFG *function_cf
     return false;
   }
 
-  int64_t trip = scev_->GetConstantTripCount(loop);
-  if (trip < 0 || trip > INT32_MAX) {
-    return false;  // trip count must be a known, representable constant
+  // Resolve the loop's trip count. Accept both compile-time constants and symbolic
+  // (loop-invariant) expressions; only an opaque Unknown sentinel blocks the transform.
+  const analysis::SCEV *backedge = scev_->GetBackedgeTakenCount(loop);
+  if (backedge->GetKind() == analysis::SCEVKind::Unknown) {
+    return false;
   }
-  const analysis::SCEV *trip_scev = scev_->GetConstant(static_cast<int>(trip));
+  const analysis::SCEV *raw_trip = scev_->GetAddExpr({backedge, scev_->GetConstant(1)});
+  // The trip count from ComputeExitCount is clamped with SMax(0, ...) so that a negative
+  // ceil_div result means zero iterations. Since ceil_div((n+d-1)/d) >= 0 for all integer n
+  // when d > 0 (SysY integer division truncates toward zero), the SMax is a no-op.
+  // Peek through it so that CanExpand / EvaluateAtIteration see the simpler inner form.
+  const analysis::SCEV *trip_scev = raw_trip;
+  if (raw_trip->GetKind() == analysis::SCEVKind::SMax) {
+    const auto &sm_ops = static_cast<const analysis::SCEVSMaxExpr *>(raw_trip)->GetOperands();
+    if (sm_ops.size() == 2 && sm_ops[0]->GetKind() == analysis::SCEVKind::Constant) {
+      if (static_cast<const analysis::SCEVConstant *>(sm_ops[0])->IsInt() &&
+          static_cast<const analysis::SCEVConstant *>(sm_ops[0])->GetInt() == 0) {
+        trip_scev = sm_ops[1];
+      }
+    }
+  }
+  bool symbolic_trip = scev_->GetConstantTripCount(loop) < 0;
+  if (symbolic_trip && !CanExpand(trip_scev)) {
+    return false;
+  }
 
   // Every header phi that is live outside the loop must close to an expandable value. Only header
   // phis can be live-out here: values from the body/latch do not dominate the exit of a top-tested
@@ -253,6 +273,13 @@ auto DeadLoopEliminatePass::TryDeleteLoop(analysis::MLIRFunctionCFG *function_cf
     const analysis::SCEV *closed = nullptr;
     if (scev->GetKind() == analysis::SCEVKind::AddRec &&
         static_cast<const analysis::SCEVAddRecExpr *>(scev)->GetLoop() == loop) {
+      // With a symbolic trip count, only affine AddRecs are supported: the closed form
+      // start + step*trip involves no division, so it is exact under modular arithmetic.
+      // Higher-order chains (running sums) need binomial coefficients that divide by
+      // factorials, which requires a no-wrap guarantee that we do not yet track.
+      if (symbolic_trip && !static_cast<const analysis::SCEVAddRecExpr *>(scev)->IsAffine()) {
+        return false;
+      }
       closed = scev_->EvaluateAtIteration(scev, trip_scev);
     } else if (scev_->IsLoopInvariant(scev, loop)) {
       closed = scev;
