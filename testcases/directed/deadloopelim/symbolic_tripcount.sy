@@ -1,0 +1,14 @@
+// DeadLoopElim with symbolic trip count: the main loop (with partial
+// unrolling factor 8) is replaced by the closed form t = 3*8*ceil(n/8).
+// The remainder loop (n%8 iterations) stays. Verify correctness via qemu.
+int main() {
+    int n = getint();
+    int i = 0;
+    int t = 0;
+    while (i < n) {
+        t = t + 3;
+        i = i + 1;
+    }
+    putint(t); putch(10);
+    return 0;
+}
