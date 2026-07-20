@@ -56,10 +56,18 @@ class AliasAnalysisPass : public AnalysisPass {
     mlir::Value *root{nullptr};
   };
 
-  // Base object a pointer is derived from (follows getptr/copy chains, memoized).
+  // Base object a pointer is derived from (follows getptr/copy chains and pointer
+  // phis, memoized).
   auto GetBaseObject(mlir::Value *pointer) -> MemoryObject;
+  // Core resolver used by GetBaseObject; `visiting` breaks pointer-phi cycles
+  // (a strength-reduced pointer induction variable is a phi of itself).
+  auto ResolveBaseObject(mlir::Value *pointer, std::unordered_set<mlir::Value *> &visiting) -> MemoryObject;
   // Aliasing relationship between two pointers.
   auto Alias(mlir::Value *lhs, mlir::Value *rhs) -> AliasResult;
+  // Whether the callee could name `object` at all during this call. A local whose address never
+  // escapes is reachable from a callee only by being handed to *this* call as an argument;
+  // "does not escape" alone does not make it invisible to a call that receives it.
+  auto CallCanNameObject(mlir::Operation *call, const MemoryObject &object) -> bool;
   // Whether the call may modify or reference the object behind `pointer`.
   auto CallModRef(mlir::Operation *call, mlir::Value *pointer) -> bool;
   auto CallModRefPrecise(mlir::Operation *call, mlir::Value *pointer) -> bool;

@@ -4,6 +4,7 @@
 #include "middleend/pass/analysis/scev/scevpass.h"
 #include "middleend/pass/analysis/sideeffect/sideeffect.h"
 #include "middleend/mlir/dialect/base/copy.h"
+#include "middleend/mlir/dialect/base/phi.h"
 #include "middleend/mlir/dialect/base/funccall.h"
 #include "middleend/mlir/dialect/func/funccall.h"
 #include "middleend/mlir/dialect/base/funcdef.h"
@@ -108,19 +109,23 @@ auto AliasAnalysisPass::GetBaseObject(mlir::Value *pointer) -> MemoryObject {
   if (cached != base_cache_.end()) {
     return cached->second;
   }
+  std::unordered_set<mlir::Value *> visiting;
+  MemoryObject result = ResolveBaseObject(pointer, visiting);
+  base_cache_[pointer] = result;
+  return result;
+}
 
+auto AliasAnalysisPass::ResolveBaseObject(mlir::Value *pointer, std::unordered_set<mlir::Value *> &visiting)
+    -> MemoryObject {
   mlir::Value *current = pointer;
-  MemoryObject result;
   while (true) {
     if (current == nullptr) {
-      result = {ObjectKind::Unknown, nullptr};
-      break;
+      return {ObjectKind::Unknown, nullptr};
     }
     auto *op = current->op_;
     if (op == nullptr) {
-      result = param_values_.count(current) > 0 ? MemoryObject{ObjectKind::Param, current}
-                                                : MemoryObject{ObjectKind::Unknown, current};
-      break;
+      return param_values_.count(current) > 0 ? MemoryObject{ObjectKind::Param, current}
+                                              : MemoryObject{ObjectKind::Unknown, current};
     }
     if (auto *getptr_op = mlir::DynamicOrNull<mlir::var::VarGetPtrOp>(op)) {
       current = getptr_op->GetPtr();
@@ -131,18 +136,39 @@ auto AliasAnalysisPass::GetBaseObject(mlir::Value *pointer) -> MemoryObject {
       continue;
     }
     if (mlir::DynamicOrNull<mlir::var::VarDefOp>(op) != nullptr) {
-      result = {ObjectKind::Local, current};
-      break;
+      return {ObjectKind::Local, current};
     }
     if (mlir::DynamicOrNull<mlir::var::GlobalVarDefOp>(op) != nullptr) {
-      result = {ObjectKind::Global, current};
-      break;
+      return {ObjectKind::Global, current};
     }
-    result = {ObjectKind::Unknown, current};
-    break;
+    // A pointer phi (e.g. a strength-reduced pointer induction variable) derives
+    // from all of its incoming pointers. If every incoming that is not a cycle
+    // back into this phi resolves to the same object, that is the base object;
+    // otherwise it is genuinely unknown. Without this, such a phi would look like
+    // an Unknown pointer and be wrongly declared distinct from a non-escaped local
+    // it actually indexes into (see DefinitelyDistinct).
+    if (auto *phi = mlir::DynamicOrNull<mlir::base::PhiOp>(op)) {
+      if (!visiting.insert(current).second) {
+        return {ObjectKind::Unknown, current};  // cycle back to a phi already on the stack
+      }
+      MemoryObject common{ObjectKind::Unknown, nullptr};
+      bool have_common = false;
+      for (auto *incoming : phi->GetIncomingValue()) {
+        MemoryObject object = ResolveBaseObject(incoming, visiting);
+        if (object.kind == ObjectKind::Unknown && object.root != nullptr && visiting.count(object.root) > 0) {
+          continue;  // incoming folds back into a phi being resolved: not a fresh object
+        }
+        if (!have_common) {
+          common = object;
+          have_common = true;
+        } else if (!IsSameObject(common, object)) {
+          return {ObjectKind::Unknown, current};
+        }
+      }
+      return have_common ? common : MemoryObject{ObjectKind::Unknown, current};
+    }
+    return {ObjectKind::Unknown, current};
   }
-  base_cache_[pointer] = result;
-  return result;
 }
 
 auto AliasAnalysisPass::Alias(mlir::Value *lhs, mlir::Value *rhs) -> AliasResult {
@@ -264,12 +290,26 @@ auto AliasAnalysisPass::SCEVNoAlias(mlir::Value *lhs_idx, mlir::Value *rhs_idx) 
   return false;
 }
 
+auto AliasAnalysisPass::CallCanNameObject(mlir::Operation *call, const MemoryObject &object) -> bool {
+  if (object.kind != ObjectKind::Local || IsEscaped(object)) {
+    return true;  // globals, params and escaped locals are reachable by other means
+  }
+  // Not escaped: the callee can only reach it through an argument of this call. SysY callees
+  // cannot store the pointer (that is what makes it non-escaped), but they can freely read and
+  // write through an argument for the duration of the call.
+  for (auto *operand : call->operands_) {
+    auto arg_object = GetBaseObject(operand);
+    if (arg_object.kind != ObjectKind::Unknown && arg_object.root == object.root) {
+      return true;
+    }
+  }
+  return false;
+}
+
 auto AliasAnalysisPass::CallModRef(mlir::Operation *call, mlir::Value *pointer) -> bool {
-  (void)call;
   auto object = GetBaseObject(pointer);
-  // A call may touch everything except a local whose address never escapes the function.
-  bool is_non_escaped_local = object.kind == ObjectKind::Local && !IsEscaped(object);
-  return !is_non_escaped_local;
+  // A call may touch everything except an object it cannot even name.
+  return CallCanNameObject(call, object);
 }
 
 auto AliasAnalysisPass::IsEscaped(const MemoryObject &object) -> bool {
@@ -278,8 +318,8 @@ auto AliasAnalysisPass::IsEscaped(const MemoryObject &object) -> bool {
 
 auto AliasAnalysisPass::CallModRefPrecise(mlir::Operation *call, mlir::Value *pointer) -> bool {
   auto object = GetBaseObject(pointer);
-  // A non-escaped local is invisible to any call — cheap check first.
-  if (object.kind == ObjectKind::Local && !IsEscaped(object)) return false;
+  // Cheap check first: a call that cannot even name the object cannot touch it.
+  if (!CallCanNameObject(call, object)) return false;
 
   // If we have inter-procedural side-effect info, use it.
   if (side_effect_ != nullptr) {

@@ -15,6 +15,7 @@
 #include "middleend/mlir/dialect/func/funccall.h"
 #include "middleend/mlir/dialect/func/funcdef.h"
 #include "middleend/mlir/dialect/var/getptr.h"
+#include "middleend/mlir/dialect/var/getvalue.h"
 #include "middleend/mlir/dialect/var/globaldef.h"
 #include "middleend/mlir/dialect/var/set.h"
 #include "middleend/mlir/utils/operation/operation.h"
@@ -210,6 +211,22 @@ void FunctionSideEffectPass::ComputeOne(MLIRFunctionCFG *mlir_cfg) {
         // pointer parameter. Mark conservatively.
         if (root != nullptr && root->op_ == nullptr) s.writes_all_globals = true;
         if (pointer_params.count(store->GetNewValue()) > 0) s.saves_pointer = true;
+        continue;
+      }
+
+      // --- load -----------------------------------------------------------
+      // Symmetric to the store case. Without this a function that only *reads*
+      // through a pointer parameter reports IsMemoryReadNone(), and callers then
+      // treat the call as invisible to memory -- letting Promotion keep the
+      // location in a register while the callee still reads it from memory.
+      if (auto *load = mlir::DynamicOrNull<mlir::var::VarGetValOp>(op)) {
+        auto *root = RootPointer(load->GetPtr());
+        if (root != nullptr && root->op_ != nullptr &&
+            mlir::DynamicOrNull<mlir::var::GlobalVarDefOp>(root->op_) != nullptr)
+          s.read_globals.insert(root);
+        // Not rooted in this function's IR: memory the caller owns (a pointer
+        // parameter). Mark conservatively, as the store path does.
+        if (root != nullptr && root->op_ == nullptr) s.reads_all_globals = true;
         continue;
       }
 

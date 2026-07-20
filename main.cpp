@@ -27,6 +27,7 @@
 #include "middleend/pass/transform/gvnpre/gvnpre.h"
 #include "middleend/pass/transform/licm/licm.h"
 #include "middleend/pass/transform/llvmtrivialblockmerge/llvmtrivialblockmerge.h"
+#include "middleend/pass/transform/looprotate/looprotate.h"
 #include "middleend/pass/transform/loopsimplify/loopsimplify.h"
 #include "middleend/pass/transform/mlirdce/mlirdce.h"
 #include "middleend/pass/transform/mlirfunctioninline/mlirfunctioninline.h"
@@ -381,6 +382,15 @@ auto main(int argc, char *argv[]) -> int {
         context::PassContext::CreatePass<middleend::pass::transform::DeadLoopEliminatePass>(
             &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(dead_loop_eliminate_pass);
+    // Loop rotation (LLVM-style): rotate the surviving loops into guarded do-while
+    // form. It runs after DeadLoopElim (which wants top-tested loops, and would
+    // otherwise delete these) and before StrengthReduce / LICM / Promotion, whose
+    // SCEV-driven and hoisting logic now handles the rotated IV (SCEV looks through
+    // the trivial latch phi rotation leaves behind). It rebuilds a dedicated
+    // preheader itself so LoopSimplify's re-run is a no-op.
+    auto loop_rotate_pass = context::PassContext::CreatePass<middleend::pass::transform::LoopRotatePass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(loop_rotate_pass);
     auto strength_reduce_pass = context::PassContext::CreatePass<middleend::pass::transform::StrengthReducePass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(strength_reduce_pass);
