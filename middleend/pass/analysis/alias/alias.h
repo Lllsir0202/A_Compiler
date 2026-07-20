@@ -14,6 +14,7 @@ class Value;
 namespace middleend::pass::analysis {
 class MLIRFunctionCFG;
 class FunctionSideEffectPass;
+class SCEVPass;
 
 enum class AliasResult : uint8_t { NoAlias, MayAlias, MustAlias };
 
@@ -35,6 +36,7 @@ class AliasAnalysisPass : public AnalysisPass {
   explicit AliasAnalysisPass(context::CompilerContext *compiler_context, PassStage stage)
       : AnalysisPass(compiler_context, stage) {
     AddDependency("CFGPass");
+    AddDependency("SCEVPass");
   }
   ~AliasAnalysisPass() override = default;
 
@@ -72,11 +74,14 @@ class AliasAnalysisPass : public AnalysisPass {
   auto SameObjectAlias(mlir::Value *lhs, mlir::Value *rhs) -> AliasResult;
   auto DefinitelyDistinct(const MemoryObject &lhs, const MemoryObject &rhs) -> bool;
   auto GetConstantIndex(mlir::Value *value, int *out) -> bool;
+  // True when SCEV can prove the two index values differ for every iteration.
+  auto SCEVNoAlias(mlir::Value *lhs_idx, mlir::Value *rhs_idx) -> bool;
 
   std::unordered_map<mlir::Value *, MemoryObject> base_cache_;
   std::unordered_set<mlir::Value *> param_values_;
   std::unordered_set<mlir::Value *> escaped_locals_;
   FunctionSideEffectPass *side_effect_{nullptr};
+  SCEVPass *scev_{nullptr};
 };
 
 }  // namespace middleend::pass::analysis
