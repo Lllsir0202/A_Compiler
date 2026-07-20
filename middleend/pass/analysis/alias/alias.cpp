@@ -1,13 +1,13 @@
 #include "middleend/pass/analysis/alias/alias.h"
 #include <stdexcept>
 #include "context/compiler_context.h"
+#include "middleend/pass/analysis/scev/scevpass.h"
 #include "middleend/pass/analysis/sideeffect/sideeffect.h"
 #include "middleend/mlir/dialect/base/copy.h"
 #include "middleend/mlir/dialect/base/funccall.h"
 #include "middleend/mlir/dialect/func/funccall.h"
 #include "middleend/mlir/dialect/base/funcdef.h"
 #include "middleend/mlir/dialect/base/unaryop.h"
-#include "middleend/mlir/dialect/func/funccall.h"
 #include "middleend/mlir/dialect/func/return.h"
 #include "middleend/mlir/dialect/var/def.h"
 #include "middleend/mlir/dialect/var/getptr.h"
@@ -34,6 +34,7 @@ auto AliasAnalysisPass::Run() -> void {
   CollectParameters();
   ComputeEscape();
   side_effect_ = compiler_context_->GetPassContext()->GetSpecPass<FunctionSideEffectPass>("FunctionSideEffectPass");
+  scev_ = compiler_context_->GetPassContext()->GetSpecPass<SCEVPass>("SCEVPass");
   Validate();
 }
 
@@ -200,6 +201,10 @@ auto AliasAnalysisPass::SameObjectAlias(mlir::Value *lhs, mlir::Value *rhs) -> A
         lhs_constant != rhs_constant) {
       return AliasResult::NoAlias;
     }
+    // Try SCEV: if the indices are provably different for every iteration, NoAlias.
+    if (scev_ != nullptr && SCEVNoAlias(lhs_indices[i], rhs_indices[i])) {
+      return AliasResult::NoAlias;
+    }
   }
   return all_equal ? AliasResult::MustAlias : AliasResult::MayAlias;
 }
@@ -212,6 +217,50 @@ auto AliasAnalysisPass::GetConstantIndex(mlir::Value *value, int *out) -> bool {
     *out = const_int_op->GetValue();
     return true;
   }
+  return false;
+}
+
+auto AliasAnalysisPass::SCEVNoAlias(mlir::Value *lhs_idx, mlir::Value *rhs_idx) -> bool {
+  if (scev_ == nullptr || lhs_idx == nullptr || rhs_idx == nullptr) return false;
+
+  const SCEV *lhs_scev = scev_->GetSCEV(lhs_idx);
+  const SCEV *rhs_scev = scev_->GetSCEV(rhs_idx);
+
+  // Same SCEV means the indices are identical for every iteration → MustAlias, not NoAlias.
+  if (lhs_scev == rhs_scev) return false;
+
+  // Case 1: Both are affine AddRecs on the same loop with the same step.
+  //   lhs = {c1,+,s}, rhs = {c2,+,s} on the same loop
+  //   The difference is the constant (c1-c2), independent of iteration.
+  //   Under modular arithmetic: c1+i*s ≡ c2+i*s (mod 2^32) iff c1 ≡ c2.
+  //   So if c1 != c2, they never alias — no no-wrap assumption needed.
+  if (lhs_scev->GetKind() == SCEVKind::AddRec && rhs_scev->GetKind() == SCEVKind::AddRec) {
+    const auto *lhs_ar = static_cast<const SCEVAddRecExpr *>(lhs_scev);
+    const auto *rhs_ar = static_cast<const SCEVAddRecExpr *>(rhs_scev);
+    if (lhs_ar->IsAffine() && rhs_ar->IsAffine() &&
+        lhs_ar->GetLoop() == rhs_ar->GetLoop() &&
+        lhs_ar->GetStep() == rhs_ar->GetStep()) {
+      int lhs_start = 0, rhs_start = 0;
+      const auto *lhs_start_scev = lhs_ar->GetStart();
+      const auto *rhs_start_scev = rhs_ar->GetStart();
+      if (lhs_start_scev->GetKind() == SCEVKind::Constant &&
+          rhs_start_scev->GetKind() == SCEVKind::Constant) {
+        lhs_start = static_cast<const SCEVConstant *>(lhs_start_scev)->GetInt();
+        rhs_start = static_cast<const SCEVConstant *>(rhs_start_scev)->GetInt();
+        if (lhs_start != rhs_start) return true;
+      }
+    }
+  }
+
+  // Case 2: The difference lhs - rhs is a compile-time non-zero constant.
+  //   This handles AddRec vs Constant, AddRec vs AddRec with different steps,
+  //   and any other pair where SCEV can fold the difference to a constant.
+  const SCEV *diff = scev_->GetMinusSCEV(lhs_scev, rhs_scev);
+  if (diff->GetKind() == SCEVKind::Constant) {
+    const auto *diff_c = static_cast<const SCEVConstant *>(diff);
+    if (diff_c->IsInt() && diff_c->GetInt() != 0) return true;
+  }
+
   return false;
 }
 

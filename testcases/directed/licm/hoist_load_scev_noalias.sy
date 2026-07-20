@@ -1,0 +1,18 @@
+// SCEV alias: store to a[i] and load from a[i+1] are provably
+// different ({0,+,1} vs {1,+,1} same step, different constant starts).
+int a[100];
+int main() {
+    int i = 0;
+    while (i < 99) {
+        a[i] = i;
+        i = i + 1;
+    }
+    i = 0;
+    while (i + 1 < 100) {
+        a[i] = a[i + 1] + 1;
+        i = i + 1;
+    }
+    putint(a[0]); putch(10);
+    putint(a[50]); putch(10);
+    return 0;
+}

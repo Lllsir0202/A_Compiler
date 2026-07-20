@@ -293,9 +293,25 @@ auto SCEVPass::GetAddExpr(std::vector<const SCEV *> operands) -> const SCEV * {
     }
   }
 
+  // Recurrences that collapsed to a non-AddRec (e.g., {c,+,s} + {-c,+,-s} → 0) are moved to others.
+  {
+    std::vector<const SCEV *> kept;
+    for (auto *candidate : merged_recurrences) {
+      if (candidate->GetKind() == SCEVKind::AddRec) {
+        kept.emplace_back(candidate);
+      } else if (candidate->GetKind() == SCEVKind::Constant &&
+                 static_cast<const SCEVConstant *>(candidate)->IsInt()) {
+        constant_sum += static_cast<const SCEVConstant *>(candidate)->GetInt();
+      } else {
+        others.emplace_back(candidate);
+      }
+    }
+    merged_recurrences = std::move(kept);
+  }
+
   // If exactly one recurrence remains and every other term is invariant in its loop, fold the
   // invariant part into the recurrence's start: {a0,+,...} + c = {a0+c,+,...}.
-  if (merged_recurrences.size() == 1) {
+  if (merged_recurrences.size() == 1 && merged_recurrences[0]->GetKind() == SCEVKind::AddRec) {
     const auto *add_rec = static_cast<const SCEVAddRecExpr *>(merged_recurrences[0]);
     bool others_invariant = std::all_of(others.begin(), others.end(),
                                         [&](const SCEV *term) { return IsLoopInvariant(term, add_rec->GetLoop()); });
