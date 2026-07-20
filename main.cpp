@@ -21,6 +21,7 @@
 #include "middleend/pass/analysis/memoryssa/memoryssa.h"
 #include "middleend/pass/analysis/scev/scevpass.h"
 #include "middleend/pass/transform/adce/adce.h"
+#include "middleend/pass/transform/canonicalization/phi.h"
 #include "middleend/pass/transform/dse/dse.h"
 #include "middleend/pass/transform/functioninline/functioninline.h"
 #include "middleend/pass/transform/gvn/gvn.h"
@@ -400,6 +401,13 @@ auto main(int argc, char *argv[]) -> int {
     auto promotion_pass = context::PassContext::CreatePass<middleend::pass::transform::PromotionPass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(promotion_pass);
+    // The loop passes are done with LCSSA now, so collapse the exit phis it left behind (and any
+    // other phi whose incomings all agree, e.g. from loop rotation). LLVM does the same: LCSSA is
+    // maintained across the loop pipeline and cleaned up after it.
+    auto post_loop_phi_canonicalization_pass =
+        context::PassContext::CreatePass<middleend::pass::transform::PhiCanonicalizationPass>(
+            &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(post_loop_phi_canonicalization_pass);
 
     auto trivial_block_merge_pass = context::PassContext::CreatePass<middleend::pass::transform::TrivialBlockMergePass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
