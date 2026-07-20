@@ -2,11 +2,13 @@
 #define MIDDLEEND_PASS_TRANSFORM_LOOPSIMPLIFY_LOOPSIMPLIFY_H
 
 #include <stdexcept>
+#include <unordered_map>
 #include <vector>
 #include "middleend/pass/transform/transform.h"
 
 namespace middleend::mlir {
 class Block;
+class Operation;
 }  // namespace middleend::mlir
 
 namespace middleend::mlir::base {
@@ -32,6 +34,13 @@ namespace middleend::pass::transform {
  * outside predecessor that also branches elsewhere, a fresh preheader is inserted: the outside
  * edges are redirected through it and the header's phi incomings from those edges are merged into
  * a phi in the new block, preserving SSA.
+ *
+ * It also puts single-exit loops into **LCSSA form**: a value defined inside the loop and used
+ * after it is routed through a phi in the loop's exit block. Consumers then see every loop-carried
+ * result at one well-known place instead of reaching into the loop body, which is what lets
+ * DeadLoopElim reason about live-outs without matching on the loop's shape, and what keeps loop
+ * rotation's SSA repair a plain two-way merge. Exit blocks are already dedicated in practice (the
+ * structured SysY lowering emits one per loop), so no exit splitting is needed here.
  */
 class LoopSimplifyPass : public TransformPass {
  public:
@@ -56,6 +65,12 @@ class LoopSimplifyPass : public TransformPass {
   auto InsertPreheader(mlir::base::FuncDefOp *func_op, analysis::Loop *loop,
                        const std::vector<mlir::Block *> &outside) -> void;
   auto RedirectTerminator(mlir::Block *block, mlir::Block *from, mlir::Block *to) -> void;
+  // Route every in-loop definition that is used after the loop through an exit-block phi.
+  auto FormLCSSA(mlir::base::FuncDefOp *func_op, analysis::Loop *loop) -> bool;
+
+  // Block each operation lives in, rebuilt per function; used to classify a use as in- or
+  // out-of-loop. Kept up to date for the phis FormLCSSA inserts.
+  std::unordered_map<mlir::Operation *, mlir::Block *> op_block_;
 };
 
 }  // namespace middleend::pass::transform

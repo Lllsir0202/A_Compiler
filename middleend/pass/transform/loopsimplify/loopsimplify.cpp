@@ -1,6 +1,8 @@
 #include "middleend/pass/transform/loopsimplify/loopsimplify.h"
+#include <algorithm>
 #include <stdexcept>
 #include <string>
+#include <unordered_set>
 #include <vector>
 #include "context/compiler_context.h"
 #include "middleend/mlir/dialect/base/branch.h"
@@ -22,6 +24,17 @@ int preheader_counter = 0;
 
 auto Terminator(mlir::Block *block) -> mlir::Operation * {
   return block->operations_.empty() ? nullptr : block->operations_.back();
+}
+
+auto Successors(mlir::Block *block) -> std::vector<mlir::Block *> {
+  auto *terminator = Terminator(block);
+  if (auto *br = mlir::DynamicOrNull<mlir::base::BrOp>(terminator)) {
+    return {br->GetTarget()};
+  }
+  if (auto *cond_br = mlir::DynamicOrNull<mlir::base::CondBrOp>(terminator)) {
+    return {cond_br->GetTrueTarget(), cond_br->GetFalseTarget()};
+  }
+  return {};
 }
 
 auto TargetsHeader(mlir::Block *block, mlir::Block *header) -> bool {
@@ -51,8 +64,22 @@ auto LoopSimplifyPass::Run() -> void {
       throw std::logic_error("LoopSimplifyPass only supports MLIRFunctionCFG");
     }
     auto *func_op = mlir_function_cfg->GetFuncOp();
-    for (auto *loop : loop_info->GetLoops(function_cfg)) {
+    const auto &loops = loop_info->GetLoops(function_cfg);
+    for (auto *loop : loops) {
       changed = EnsurePreheader(func_op, loop) || changed;
+    }
+    // LCSSA needs to know which block each operation lives in; rebuild after the preheader
+    // insertions above so the map covers any block they added.
+    op_block_.clear();
+    for (auto *block : func_op->GetBlocks()) {
+      for (auto *operation : block->operations_) {
+        op_block_[operation] = block;
+      }
+    }
+    // Innermost-first, so an inner loop's live-outs are already routed through its own exit phi
+    // before the enclosing loop looks at them.
+    for (auto it = loops.rbegin(); it != loops.rend(); ++it) {
+      changed = FormLCSSA(func_op, *it) || changed;
     }
   }
 
@@ -179,6 +206,99 @@ auto LoopSimplifyPass::InsertPreheader(mlir::base::FuncDefOp *func_op, analysis:
     reordered.emplace_back(block);
   }
   func_op->SetBlocks(std::move(reordered));
+}
+
+auto LoopSimplifyPass::FormLCSSA(mlir::base::FuncDefOp *func_op, analysis::Loop *loop) -> bool {
+  // Exit block and the in-loop edges reaching it, read from the live terminators.
+  mlir::Block *exit = nullptr;
+  std::vector<mlir::Block *> exiting;
+  for (auto *block : func_op->GetBlocks()) {
+    if (!loop->Contains(block)) {
+      continue;
+    }
+    for (auto *successor : Successors(block)) {
+      if (successor == nullptr || loop->Contains(successor)) {
+        continue;
+      }
+      if (exit != nullptr && exit != successor) {
+        return false;  // several distinct exits: a use would need the right one, needs dominance
+      }
+      exit = successor;
+      if (std::find(exiting.begin(), exiting.end(), block) == exiting.end()) {
+        exiting.emplace_back(block);
+      }
+    }
+  }
+  if (exit == nullptr || exiting.empty()) {
+    return false;
+  }
+
+  // Values defined in the loop, in block/operation order so the result is deterministic.
+  std::vector<mlir::Value *> defined;
+  for (auto *block : func_op->GetBlocks()) {
+    if (!loop->Contains(block)) {
+      continue;
+    }
+    for (auto *operation : block->operations_) {
+      for (auto *result : operation->results_) {
+        if (result != nullptr) {
+          defined.emplace_back(result);
+        }
+      }
+    }
+  }
+
+  // A use is outside the loop unless it sits in a loop block; a phi's use lives on its incoming
+  // edge, and an exit phi fed from an in-loop edge is already LCSSA-legal, so it stays put.
+  auto use_block = [&](mlir::Use *use) -> mlir::Block * {
+    if (auto *phi = mlir::DynamicOrNull<mlir::base::PhiOp>(use->operation_)) {
+      return phi->GetIncomingBlock()[use->operand_index_];
+    }
+    auto iter = op_block_.find(use->operation_);
+    return iter == op_block_.end() ? nullptr : iter->second;
+  };
+
+  bool changed = false;
+  for (auto *value : defined) {
+    std::vector<mlir::Use *> outside;
+    for (auto *use : value->GetUses()) {
+      auto *block = use_block(use);
+      if (block == nullptr || loop->Contains(block)) {
+        continue;
+      }
+      outside.emplace_back(use);
+    }
+    if (outside.empty()) {
+      continue;
+    }
+
+    // One incoming per in-loop edge into the exit; `value` dominates each of them because it
+    // dominates its out-of-loop uses, which are only reachable through those edges.
+    auto *result = GET_MLIR_CONTEXT()->CreateValue();
+    result->SetType(value->GetType());
+    std::vector<mlir::Value *> values(exiting.size(), value);
+    auto *phi = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::PhiOp>(result, values, exiting);
+    exit->operations_.insert(exit->operations_.begin(), phi);
+    op_block_[phi] = exit;
+
+    // Re-home the outside uses onto the new phi, then register the phi's own operands.
+    std::vector<mlir::Use *> stay;
+    std::unordered_set<mlir::Use *> moved(outside.begin(), outside.end());
+    for (auto *use : value->GetUses()) {
+      if (moved.count(use) == 0) {
+        stay.emplace_back(use);
+        continue;
+      }
+      use->operation_->operands_[use->operand_index_] = result;
+      result->GetUses().emplace_back(use);
+    }
+    value->GetUses() = stay;
+    for (size_t i = 0; i < values.size(); ++i) {
+      value->AddUse(phi, i);
+    }
+    changed = true;
+  }
+  return changed;
 }
 
 auto LoopSimplifyPass::RedirectTerminator(mlir::Block *block, mlir::Block *from, mlir::Block *to) -> void {
