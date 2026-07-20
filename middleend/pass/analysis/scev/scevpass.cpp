@@ -692,6 +692,19 @@ auto SCEVPass::CreateSCEVForOperation(mlir::Operation *op, mlir::Value *result) 
         return add_rec;
       }
     }
+    // Look through a trivial phi whose every incoming is the same value: control-flow guarantees it
+    // is just a copy of that value. Loop rotation leaves the pre-rotation header IV as a one-input
+    // phi in the latch, with the recurrence flowing through it; seeing through keeps the induction
+    // variable analyzable exactly as in the unrotated loop (this is how SCEV stays shape-agnostic).
+    const auto &incoming = phi->GetIncomingValue();
+    if (!incoming.empty()) {
+      mlir::Value *unique = incoming.front();
+      bool all_same = std::all_of(incoming.begin(), incoming.end(),
+                                  [&](mlir::Value *value) { return value == unique; });
+      if (all_same && unique != result) {
+        return GetSCEV(unique);
+      }
+    }
     return GetUnknown(result);
   }
   return GetUnknown(result);

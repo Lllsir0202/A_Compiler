@@ -302,6 +302,10 @@ auto PromotionPass::Promote(analysis::DomTree *dom_tree, analysis::Loop *loop, c
   // Materialize: insert the seed load, build the phis, redirect loads, drop stores, add exit stores.
   preheader->operations_.insert(preheader->operations_.end() - 1, seed_load);
   promoted_pointer_->AddUse(seed_load, 0);
+  // Every operation this pass splices in must be registered: an enclosing loop is
+  // promoted after the loops nested in it, and its candidate loads/stores can be
+  // ops created here (a seed load in a preheader, a sunk store in an exit block).
+  op_to_block_[seed_load] = preheader;
 
   std::vector<std::pair<mlir::Operation *, mlir::Block *>> created_phis;
   for (auto &entry : placed_phi_) {
@@ -318,6 +322,7 @@ auto PromotionPass::Promote(analysis::DomTree *dom_tree, analysis::Loop *loop, c
       values[i]->AddUse(phi, i);
     }
     block->operations_.insert(block->operations_.begin(), phi);
+    op_to_block_[phi] = block;
     created_phis.emplace_back(phi, block);
   }
 
@@ -325,11 +330,13 @@ auto PromotionPass::Promote(analysis::DomTree *dom_tree, analysis::Loop *loop, c
     load->results_[0]->ReplaceAllUsesWith(load_reaching_[load]);
     promoted_pointer_->RemoveUse(load);
     op_to_block_[load]->RemoveOperation(load);
+    op_to_block_.erase(load);
   }
   for (auto *store : candidate.stores) {
     promoted_pointer_->RemoveUse(store);
     StoredValue(store)->RemoveUse(store);
     op_to_block_[store]->RemoveOperation(store);
+    op_to_block_.erase(store);
   }
   for (auto *exit : exit_blocks) {
     auto *value = exit_reaching_[exit];
@@ -342,6 +349,7 @@ auto PromotionPass::Promote(analysis::DomTree *dom_tree, analysis::Loop *loop, c
       ++insert_at;
     }
     exit->operations_.insert(exit->operations_.begin() + insert_at, store);
+    op_to_block_[store] = exit;
   }
 
   // Remove trivial phis (all incomings equal, ignoring self-references), cascading.

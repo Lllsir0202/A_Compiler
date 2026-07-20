@@ -2,7 +2,7 @@
 // register; the body keeps no memory access, each loop exit gets one store.
 //! CHECK-BLOCK-NOT: main_while_body :: var\.set
 //! CHECK-BLOCK-NOT: main_while_body :: var\.getval
-//! CHECK-BLOCK: main_while_exit :: var\.set
+//! CHECK-BLOCK: rot_loopexit|main_while_exit :: var\.set
 int g[10];
 int main() {
     int n = getint();
