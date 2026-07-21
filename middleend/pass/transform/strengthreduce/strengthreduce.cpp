@@ -2,6 +2,8 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <limits>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -34,6 +36,39 @@ auto IsZeroConstant(const analysis::SCEV *scev) -> bool {
   return scev->GetKind() == analysis::SCEVKind::Constant &&
          static_cast<const analysis::SCEVConstant *>(scev)->IsInt() &&
          static_cast<const analysis::SCEVConstant *>(scev)->GetInt() == 0;
+}
+
+// Return the byte distance traversed when one logical GEP index is incremented.
+// Array objects and array parameters have slightly different first-index rules:
+// an object access has an implicit leading zero in LLVM IR, whereas the first
+// index of a pointer parameter advances by its whole pointee type.
+auto GetIndexByteStride(type::Type *base_type, size_t index) -> std::optional<int64_t> {
+  if (base_type == nullptr) {
+    return std::nullopt;
+  }
+
+  type::Type *current = base_type;
+  if (current->GetKind() == type::TypeKind::PTR) {
+    current = static_cast<type::PtrType *>(current)->GetBaseType();
+    if (current == nullptr) {
+      return std::nullopt;
+    }
+    if (index == 0) {
+      return static_cast<int64_t>(current->GetDataSize());
+    }
+    --index;
+  }
+
+  while (true) {
+    if (current == nullptr || current->GetKind() != type::TypeKind::ARRAY) {
+      return std::nullopt;
+    }
+    current = static_cast<type::ArrayType *>(current)->GetElementType();
+    if (index == 0) {
+      return current == nullptr ? std::nullopt : std::optional<int64_t>(static_cast<int64_t>(current->GetDataSize()));
+    }
+    --index;
+  }
 }
 }  // namespace
 
@@ -228,7 +263,8 @@ auto StrengthReducePass::ReduceMul(mlir::base::MulOp *mul, analysis::Loop *loop,
       } else if (mlir::Value *offset = Expand(delta, frame.preheader)) {
         auto *derived = GET_MLIR_CONTEXT()->CreateValue();
         derived->SetType(result->GetType());
-        auto *add_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::AddOp>(derived, family->second.canonical, offset);
+        auto *add_op =
+            GET_MLIR_CONTEXT()->CreateOperation<mlir::base::AddOp>(derived, family->second.canonical, offset);
         family->second.canonical->AddUse(add_op, 0);
         offset->AddUse(add_op, 1);
         InsertAfterPhis(add_op, frame.header);
@@ -256,44 +292,71 @@ auto StrengthReducePass::ReduceMul(mlir::base::MulOp *mul, analysis::Loop *loop,
   return true;
 }
 
-auto StrengthReducePass::ReduceGetPtr(mlir::var::VarGetPtrOp *get_ptr, analysis::Loop *loop, const LoopFrame &frame)
-    -> bool {
+auto StrengthReducePass::ReduceGetPtr(mlir::var::VarGetPtrOp *get_ptr, analysis::Loop *loop,
+                                      const LoopFrame &frame) -> bool {
   auto *result = get_ptr->GetRes();
   auto *base = get_ptr->GetPtr();
   std::vector<mlir::Value *> indices = get_ptr->GetIndices();
   if (indices.empty() || result->GetType() == nullptr || result->GetType()->GetKind() != type::TypeKind::PTR) {
     return false;
   }
-  // Only reduce a full index down to a scalar element. Then the last index really is the innermost
-  // dimension, so advancing the pointer by `step` elements (getptr of `step` on an element pointer)
-  // changes the address by exactly the same amount as stepping that index. A partial index (e.g.
-  // getptr(a, i) yielding a row pointer) steps by a whole sub-array, which this rewrite would not
-  // reproduce, so it is left alone.
+  // Only reduce a full index down to a scalar element. This lets us express an
+  // advance in any source dimension as a scalar-element stride. A partial index
+  // (for example, getptr(a, i) yielding a row pointer) is left alone because its
+  // result does not provide the scalar unit used by the pointer recurrence.
   auto *pointee = static_cast<type::PtrType *>(result->GetType())->GetBaseType();
   if (pointee == nullptr ||
       (pointee->GetKind() != type::TypeKind::INT && pointee->GetKind() != type::TypeKind::FLOAT)) {
     return false;
   }
-  // The base and every index but the last must be loop-invariant, and the last index must be an
-  // affine recurrence of this loop with a compile-time-constant step.
+  // The base must be invariant. Exactly one index may vary in this loop, and it
+  // must be an affine recurrence with a compile-time-constant step. Supporting
+  // any one varying dimension (rather than only the last) is important for
+  // column walks such as a[k][j] in matrix multiplication.
   if (base->op_ != nullptr && op_to_block_.count(base->op_) > 0 && loop->Contains(op_to_block_[base->op_])) {
     return false;
   }
-  for (size_t i = 0; i + 1 < indices.size(); ++i) {
-    auto iter = op_to_block_.find(indices[i]->op_);
-    if (indices[i]->op_ != nullptr && iter != op_to_block_.end() && loop->Contains(iter->second)) {
+  size_t varying_index = indices.size();
+  const analysis::SCEVAddRecExpr *add_rec = nullptr;
+  for (size_t i = 0; i < indices.size(); ++i) {
+    const analysis::SCEV *index_scev = scev_->GetSCEV(indices[i]);
+    if (index_scev->GetKind() == analysis::SCEVKind::AddRec &&
+        static_cast<const analysis::SCEVAddRecExpr *>(index_scev)->GetLoop() == loop) {
+      if (varying_index != indices.size()) {
+        return false;
+      }
+      varying_index = i;
+      add_rec = static_cast<const analysis::SCEVAddRecExpr *>(index_scev);
+    } else if (!scev_->IsLoopInvariant(index_scev, loop)) {
       return false;
     }
   }
-  mlir::Value *last = indices.back();
-  const analysis::SCEV *scev = scev_->GetSCEV(last);
-  if (scev->GetKind() != analysis::SCEVKind::AddRec) {
+  if (add_rec == nullptr || !add_rec->IsAffine()) {
     return false;
   }
-  const auto *add_rec = static_cast<const analysis::SCEVAddRecExpr *>(scev);
-  if (add_rec->GetLoop() != loop || !add_rec->IsAffine()) {
-    return false;  // a higher-order chain has no single constant stride for a walking pointer
+  // A non-last-dimension pointer IV stays live across the loop. In an outer
+  // loop that contains subloops, or for a very high-rank access, this can keep
+  // many wide-stride pointers live at once and cause severe register spilling.
+  // The intended high-value case is a low-rank innermost column/strided walk,
+  // where the address arithmetic is on the hot path and the IV has a short live
+  // range.
+  if (varying_index + 1 != indices.size() && (!loop->GetSubLoops().empty() || indices.size() > 4)) {
+    return false;
   }
+  // Preserve the original, deliberately conservative legality rule for the
+  // ordinary last-dimension case. SCEV can prove a body-local copy invariant,
+  // but rebuilding many such leading indices in a deeply nested loop inflates
+  // live ranges and spills. The new relaxed rule is reserved for the previously
+  // unsupported non-last-dimension walk.
+  if (varying_index + 1 == indices.size()) {
+    for (size_t i = 0; i < varying_index; ++i) {
+      auto iter = op_to_block_.find(indices[i]->op_);
+      if (indices[i]->op_ != nullptr && iter != op_to_block_.end() && loop->Contains(iter->second)) {
+        return false;
+      }
+    }
+  }
+  const analysis::SCEV *scev = scev_->GetSCEV(indices[varying_index]);
   const analysis::SCEV *start = add_rec->GetStart();
   const analysis::SCEV *step = add_rec->GetStep();
   int step_value = 0;
@@ -301,23 +364,60 @@ auto StrengthReducePass::ReduceGetPtr(mlir::var::VarGetPtrOp *get_ptr, analysis:
     return false;
   }
   step_value = static_cast<const analysis::SCEVConstant *>(step)->GetInt();
-  if (ContainsAddRec(start) || !scev_->IsLoopInvariant(start, loop)) {
+  if (step_value == 0 || ContainsAddRec(start) || !scev_->IsLoopInvariant(start, loop)) {
     return false;
   }
   if (!AllUsesInLoop(result, loop)) {
     return false;
   }
 
+  auto byte_stride = GetIndexByteStride(base->GetType(), varying_index);
+  int64_t scalar_bytes = static_cast<int64_t>(pointee->GetDataSize());
+  if (!byte_stride.has_value() || scalar_bytes <= 0 || *byte_stride <= 0 || *byte_stride % scalar_bytes != 0) {
+    return false;
+  }
+  int64_t dimension_stride = *byte_stride / scalar_bytes;
+  int64_t element_step_wide = dimension_stride * static_cast<int64_t>(step_value);
+  if (dimension_stride > std::numeric_limits<int>::max() || element_step_wide < std::numeric_limits<int>::min() ||
+      element_step_wide > std::numeric_limits<int>::max()) {
+    return false;
+  }
+  int element_step = static_cast<int>(element_step_wide);
+
+  // The initial address is emitted in the preheader. Materialize every index
+  // there instead of reusing an invariant value that may have been defined in
+  // the loop body (a body-local constant is invariant but does not dominate the
+  // preheader).
+  std::vector<mlir::Value *> init_indices = indices;
+  if (varying_index + 1 == indices.size()) {
+    // Keep the established last-dimension path unchanged: the conservative
+    // checks above guarantee that every leading value is already available.
+    init_indices[varying_index] = Expand(start, frame.preheader);
+    if (init_indices[varying_index] == nullptr) {
+      return false;
+    }
+  } else {
+    for (size_t i = 0; i < indices.size(); ++i) {
+      const analysis::SCEV *initial = i == varying_index ? start : scev_->GetSCEV(indices[i]);
+      mlir::Value *materialized = Expand(initial, frame.preheader);
+      if (materialized == nullptr) {
+        return false;
+      }
+      init_indices[i] = materialized;
+    }
+  }
+
   // Addresses over the same base and leading indices that step by the same amount share one walking
   // pointer: the family key ignores the start, the member key keeps the full recurrence so identical
   // addresses (a read and a write of a[i][j]) still collapse onto one value.
-  std::string base_leading = PtrKey(base);
-  for (size_t i = 0; i + 1 < indices.size(); ++i) {
-    base_leading += ":" + PtrKey(indices[i]);
+  std::string base_leading = PtrKey(base) + "$" + std::to_string(varying_index);
+  for (size_t i = 0; i < indices.size(); ++i) {
+    if (i != varying_index) {
+      base_leading += ":" + PtrKey(indices[i]);
+    }
   }
-  std::string family_key = base_leading + "@" + std::to_string(step_value);
+  std::string family_key = base_leading + "@" + std::to_string(element_step);
   std::string member_key = base_leading + "#" + PtrKey(scev);
-  std::vector<mlir::Value *> leading(indices.begin(), indices.end() - 1);
 
   mlir::Value *pointer = nullptr;
   auto cached = pointer_members_.find(member_key);
@@ -327,11 +427,7 @@ auto StrengthReducePass::ReduceGetPtr(mlir::var::VarGetPtrOp *get_ptr, analysis:
     auto family = pointer_families_.find(family_key);
     if (family == pointer_families_.end()) {
       // First address of this family: build the canonical walking pointer at the start index.
-      mlir::Value *init_last = Expand(start, frame.preheader);
-      if (init_last == nullptr) {
-        return false;
-      }
-      pointer = EmitPointerIV(base, leading, init_last, step_value, frame, result->GetType());
+      pointer = EmitPointerIV(base, init_indices, element_step, frame, result->GetType());
       pointer_families_[family_key] = IVFamily{pointer, start};
     } else {
       // Same walk, different start: this address is canonical offset by (start - anchor) elements, one
@@ -339,20 +435,21 @@ auto StrengthReducePass::ReduceGetPtr(mlir::var::VarGetPtrOp *get_ptr, analysis:
       const analysis::SCEV *delta = scev_->GetMinusSCEV(start, family->second.anchor);
       if (IsZeroConstant(delta)) {
         pointer = family->second.canonical;
-      } else if (mlir::Value *offset = Expand(delta, frame.preheader)) {
-        auto *gep_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetPtrOp>(
-            GET_MLIR_CONTEXT(), family->second.canonical, std::vector<mlir::Value *>{offset});
-        gep_op->GetRes()->SetType(result->GetType());
-        family->second.canonical->AddUse(gep_op, 0);
-        offset->AddUse(gep_op, 1);
-        InsertAfterPhis(gep_op, frame.header);
-        pointer = gep_op->GetRes();
       } else {
-        mlir::Value *init_last = Expand(start, frame.preheader);
-        if (init_last == nullptr) {
-          return false;
+        const analysis::SCEV *element_delta =
+            scev_->GetMulExpr({delta, scev_->GetConstant(static_cast<int>(dimension_stride))});
+        mlir::Value *offset = Expand(element_delta, frame.preheader);
+        if (offset == nullptr) {
+          pointer = EmitPointerIV(base, init_indices, element_step, frame, result->GetType());
+        } else {
+          auto *gep_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetPtrOp>(
+              GET_MLIR_CONTEXT(), family->second.canonical, std::vector<mlir::Value *>{offset});
+          gep_op->GetRes()->SetType(result->GetType());
+          family->second.canonical->AddUse(gep_op, 0);
+          offset->AddUse(gep_op, 1);
+          InsertAfterPhis(gep_op, frame.header);
+          pointer = gep_op->GetRes();
         }
-        pointer = EmitPointerIV(base, leading, init_last, step_value, frame, result->GetType());
       }
     }
     pointer_members_[member_key] = pointer;
@@ -437,12 +534,10 @@ auto StrengthReducePass::EmitScalarIV(mlir::Value *init, mlir::Value *stride, co
   return phi_value;
 }
 
-auto StrengthReducePass::EmitPointerIV(mlir::Value *base, const std::vector<mlir::Value *> &leading,
-                                       mlir::Value *init_last, int step, const LoopFrame &frame, type::Type *type)
-    -> mlir::Value * {
-  // Initial pointer in the preheader: the same address with the last index at its start value.
-  std::vector<mlir::Value *> init_indices = leading;
-  init_indices.emplace_back(init_last);
+auto StrengthReducePass::EmitPointerIV(mlir::Value *base, const std::vector<mlir::Value *> &init_indices,
+                                       int element_step, const LoopFrame &frame, type::Type *type) -> mlir::Value * {
+  // Initial pointer in the preheader, with all indices already materialized at
+  // a point that dominates the loop header.
   auto *init_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetPtrOp>(GET_MLIR_CONTEXT(), base, init_indices);
   init_op->GetRes()->SetType(type);
   base->AddUse(init_op, 0);
@@ -456,7 +551,7 @@ auto StrengthReducePass::EmitPointerIV(mlir::Value *base, const std::vector<mlir
   auto *phi_value = GET_MLIR_CONTEXT()->CreateValue();
   phi_value->SetType(type);
   // Latch advance: next = &phi[step], one getptr of `step` elements on the element pointer.
-  auto *stride = MakeConstInt(step, frame.latch);
+  auto *stride = MakeConstInt(element_step, frame.latch);
   auto *next_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetPtrOp>(GET_MLIR_CONTEXT(), phi_value,
                                                                               std::vector<mlir::Value *>{stride});
   next_op->GetRes()->SetType(type);
