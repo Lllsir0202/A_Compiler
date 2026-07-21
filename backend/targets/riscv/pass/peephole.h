@@ -29,6 +29,8 @@ namespace backend::targetir::riscv {
  *     and of -1 -> move).
  *   - redundant RV64 word sign extension -> coalescible move, when the source
  *     has one definition and that instruction already sign-extends to XLEN.
+ *   - zero-valued equality-branch operands -> the architectural zero register,
+ *     exposing their now-dead `li 0` definitions to machine DCE.
  *
  * The now-dead `li` instructions are cleaned up by the dead-code pass. Nothing
  * here special-cases a test shape; every rewrite is a general algebraic identity
@@ -49,6 +51,8 @@ class RISCVPeephole : public MachineFunctionPass {
   // Whether the single instruction defining `op` already sign-extends its
   // 32-bit result to XLEN, making a following `sext.w` redundant on RV64.
   auto HasSignExtendedWordResult(TargetOperand *op) const -> bool;
+  // Replace known-zero operands of an equality branch with x0.
+  auto FoldBranchZero(TargetInst *inst) -> bool;
   // Try to rewrite one instruction; returns true if it changed.
   auto TransformInst(TargetInst *inst) -> bool;
 
