@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 #include "middleend/pass/transform/transform.h"
@@ -34,11 +35,13 @@ namespace middleend::pass::transform {
  *
  * This is intentionally placed in BASEIR, after the normal scalar/loop pipeline.  At
  * this level the function body has already been lowered to explicit calls and memory
- * operations, so the safety rule can be simple and auditable: only memoize functions
- * whose result depends solely on integer parameters (no loads, no stores, no external
- * calls, no global reads/writes).  A cache collision is handled by comparing every
- * key field before returning a cached value; a mismatch falls through to the original
- * body and overwrites that slot on return.
+ * operations, so the safety rule can stay explicit and auditable: integer functions
+ * may use scalar frame-local temporaries, call functions proven pure in the same
+ * recursive SCC / helper DAG, and read globals that are const or never written by the
+ * program.  Mutable global writes, IO, escaping pointers, array parameters, and
+ * impure calls still reject the transform.  A cache collision is handled by comparing
+ * every key field before returning a cached value; a mismatch falls through to the
+ * original body and overwrites that slot on return.
  */
 class MemoizationPass : public TransformPass {
  public:
@@ -60,6 +63,9 @@ class MemoizationPass : public TransformPass {
     std::vector<mlir::Operation *> returns;
     std::unordered_set<mlir::Value *> local_scalar_roots;
     int self_calls{0};
+    int recursive_scc_calls{0};
+    bool recursive_scc{false};
+    bool mutual_scc{false};
   };
 
   struct CacheGlobals {
@@ -74,13 +80,18 @@ class MemoizationPass : public TransformPass {
     CacheGlobals globals;
   };
 
+  void CollectModuleInfo();
+  void ComputeSCCs();
+  void ComputePureFunctions();
   auto Analyze(mlir::base::FuncDefOp *func) -> Candidate;
   auto IsCandidate(const Candidate &candidate) -> bool;
   auto IsPermittedPureOp(mlir::Operation *op, const std::string &func_name,
                          const std::unordered_set<mlir::Value *> &local_scalar_roots, int *self_calls,
-                         std::vector<mlir::Operation *> *returns) -> bool;
+                         int *recursive_scc_calls, std::vector<mlir::Operation *> *returns) -> bool;
   auto IsLocalScalarMemoryOp(mlir::Operation *op, const std::unordered_set<mlir::Value *> &local_scalar_roots) -> bool;
+  auto IsReadOnlyGlobalMemoryOp(mlir::Operation *op) -> bool;
   auto GetAccessRoot(mlir::Value *ptr) -> mlir::Value *;
+  auto IsSameRecursiveSCC(const std::string &lhs, const std::string &rhs) -> bool;
   auto ExistingGlobalNames() -> std::unordered_set<std::string>;
   auto MakeUniqueName(const std::string &base, std::unordered_set<std::string> *names) -> std::string;
   auto CreateCacheGlobals(const Candidate &candidate, std::unordered_set<std::string> *names) -> CacheGlobals;
@@ -102,6 +113,13 @@ class MemoizationPass : public TransformPass {
   void InsertGlobalsBeforeFunctions(const std::vector<CacheGlobals> &globals);
 
   std::size_t next_block_id_{970000};
+  std::unordered_map<std::string, mlir::base::FuncDefOp *> functions_;
+  std::unordered_map<std::string, std::unordered_set<std::string>> calls_;
+  std::unordered_map<std::string, int> scc_id_;
+  std::vector<std::vector<std::string>> sccs_;
+  std::unordered_set<std::string> pure_functions_;
+  std::unordered_map<mlir::Value *, mlir::var::GlobalVarDefOp *> global_roots_;
+  std::unordered_set<mlir::Value *> readonly_global_roots_;
   static constexpr int kCacheSize = 32768;
   static constexpr int kHashMul = 1315423911;
 };
