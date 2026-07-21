@@ -1,0 +1,31 @@
+int matrix[64][5];
+int row_count = 64;
+
+int weighted_columns(int data[][5], int rows) {
+  int column = 0;
+  int result = 0;
+  while (column < 5) {
+    int row = 0;
+    while (row < rows) {
+      result = result + data[row][column] * (row * 7 + column * 3 + 1);
+      row = row + 1;
+    }
+    column = column + 1;
+  }
+  return result;
+}
+
+int main() {
+  int row = 0;
+  while (row < row_count) {
+    int column = 0;
+    while (column < 5) {
+      matrix[row][column] = row * 5 + column + 1;
+      column = column + 1;
+    }
+    row = row + 1;
+  }
+  putint(weighted_columns(matrix, row_count));
+  putch(10);
+  return 0;
+}
