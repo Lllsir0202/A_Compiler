@@ -114,6 +114,28 @@ auto RISCVPeephole::HasSignExtendedWordResult(TargetOperand *op) const -> bool {
   }
 }
 
+auto RISCVPeephole::FoldBranchZero(TargetInst *inst) -> bool {
+  auto opcode = static_cast<RISCVInst *>(inst)->GetOpcode();
+  bool is_equality_branch = opcode == RVOpcode::BEQ || opcode == RVOpcode::BNE;
+  const auto &ops = inst->GetOperands();
+  if (!is_equality_branch || ops.size() != 3) {
+    return false;
+  }
+
+  auto *lhs = ops[0];
+  auto *rhs = ops[1];
+  int value = 0;
+  bool lhs_is_zero = IsConst(lhs, &value) && value == 0;
+  bool rhs_is_zero = IsConst(rhs, &value) && value == 0;
+  if (!lhs_is_zero && !rhs_is_zero) {
+    return false;
+  }
+
+  auto *zero = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, 0);
+  inst->SetOperands({lhs_is_zero ? zero : lhs, rhs_is_zero ? zero : rhs, ops[2]});
+  return true;
+}
+
 auto RISCVPeephole::TransformInst(TargetInst *inst) -> bool {
   auto *ri = static_cast<RISCVInst *>(inst);
   auto opcode = ri->GetOpcode();
@@ -122,6 +144,9 @@ auto RISCVPeephole::TransformInst(TargetInst *inst) -> bool {
     // Keep the destination SSA value but expose a coalescible copy. The graph
     // allocator removes the move when source and destination receive one color.
     ri->SetOpcode(RVOpcode::MV);
+    return true;
+  }
+  if (FoldBranchZero(inst)) {
     return true;
   }
   if (ops.size() != 2) {
