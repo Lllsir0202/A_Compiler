@@ -27,6 +27,10 @@ using middleend::mlir::Value;
 
 auto IsInt(type::Type *type) -> bool { return type != nullptr && type->GetKind() == type::TypeKind::INT; }
 
+auto IsIntOrBool(type::Type *type) -> bool {
+  return type != nullptr && (type->GetKind() == type::TypeKind::INT || type->GetKind() == type::TypeKind::BOOL);
+}
+
 auto IsIntBinaryOrCompare(Operation *op) -> bool {
   using namespace middleend::mlir::base;
   return mlir::DynamicOrNull<AddOp>(op) != nullptr || mlir::DynamicOrNull<SubOp>(op) != nullptr ||
@@ -39,11 +43,28 @@ auto IsIntBinaryOrCompare(Operation *op) -> bool {
 
 auto IsPureScalarOp(Operation *op) -> bool {
   using namespace middleend::mlir::base;
-  if (mlir::DynamicOrNull<ConstIntOp>(op) != nullptr || mlir::DynamicOrNull<CopyOp>(op) != nullptr ||
-      mlir::DynamicOrNull<PhiOp>(op) != nullptr || mlir::DynamicOrNull<NotOp>(op) != nullptr) {
+  auto scalar_typed = [&]() {
+    for (auto *operand : op->operands_) {
+      if (!IsIntOrBool(operand->GetType())) {
+        return false;
+      }
+    }
+    for (auto *result : op->results_) {
+      if (!IsIntOrBool(result->GetType())) {
+        return false;
+      }
+    }
     return true;
+  };
+
+  if (mlir::DynamicOrNull<ConstIntOp>(op) != nullptr) {
+    return scalar_typed();
   }
-  return IsIntBinaryOrCompare(op);
+  if (mlir::DynamicOrNull<CopyOp>(op) != nullptr || mlir::DynamicOrNull<PhiOp>(op) != nullptr ||
+      mlir::DynamicOrNull<NotOp>(op) != nullptr) {
+    return scalar_typed();
+  }
+  return IsIntBinaryOrCompare(op) && scalar_typed();
 }
 }  // namespace
 
@@ -99,7 +120,30 @@ auto MemoizationPass::Analyze(mlir::base::FuncDefOp *func) -> Candidate {
 
   for (auto *block : func->GetBlocks()) {
     for (auto *op : block->operations_) {
-      if (!IsPermittedPureOp(op, func->GetName(), &candidate.self_calls, &candidate.returns)) {
+      auto *def = mlir::DynamicOrNull<mlir::var::VarDefOp>(op);
+      if (def == nullptr) {
+        continue;
+      }
+      if (!def->GetDimensions().empty()) {
+        continue;
+      }
+      bool int_inits = true;
+      for (auto *init : def->GetInits()) {
+        if (init != nullptr && !IsInt(init->GetType())) {
+          int_inits = false;
+          break;
+        }
+      }
+      if (int_inits) {
+        candidate.local_scalar_roots.insert(def->GetRes());
+      }
+    }
+  }
+
+  for (auto *block : func->GetBlocks()) {
+    for (auto *op : block->operations_) {
+      if (!IsPermittedPureOp(op, func->GetName(), candidate.local_scalar_roots, &candidate.self_calls,
+                             &candidate.returns)) {
         candidate.func = nullptr;
         return candidate;
       }
@@ -132,7 +176,8 @@ auto MemoizationPass::IsCandidate(const Candidate &candidate) -> bool {
   return true;
 }
 
-auto MemoizationPass::IsPermittedPureOp(Operation *op, const std::string &func_name, int *self_calls,
+auto MemoizationPass::IsPermittedPureOp(Operation *op, const std::string &func_name,
+                                        const std::unordered_set<Value *> &local_scalar_roots, int *self_calls,
                                         std::vector<Operation *> *returns) -> bool {
   using namespace middleend::mlir;
 
@@ -164,13 +209,61 @@ auto MemoizationPass::IsPermittedPureOp(Operation *op, const std::string &func_n
     return true;
   }
 
-  if (mlir::DynamicOrNull<var::VarGetPtrOp>(op) != nullptr || mlir::DynamicOrNull<var::VarGetValOp>(op) != nullptr ||
-      mlir::DynamicOrNull<var::VarSetOp>(op) != nullptr || mlir::DynamicOrNull<var::VarDefOp>(op) != nullptr ||
-      mlir::DynamicOrNull<var::GlobalVarDefOp>(op) != nullptr) {
+  if (mlir::DynamicOrNull<var::GlobalVarDefOp>(op) != nullptr) {
     return false;
+  }
+  if (mlir::DynamicOrNull<var::VarDefOp>(op) != nullptr || mlir::DynamicOrNull<var::VarGetPtrOp>(op) != nullptr ||
+      mlir::DynamicOrNull<var::VarGetValOp>(op) != nullptr || mlir::DynamicOrNull<var::VarSetOp>(op) != nullptr) {
+    return IsLocalScalarMemoryOp(op, local_scalar_roots);
   }
 
   return IsPureScalarOp(op);
+}
+
+auto MemoizationPass::GetAccessRoot(Value *ptr) -> Value * {
+  auto *root = ptr;
+  while (root != nullptr) {
+    auto *get_ptr = mlir::DynamicOrNull<mlir::var::VarGetPtrOp>(root->op_);
+    if (get_ptr == nullptr) {
+      break;
+    }
+    root = get_ptr->GetPtr();
+  }
+  return root;
+}
+
+auto MemoizationPass::IsLocalScalarMemoryOp(Operation *op,
+                                            const std::unordered_set<Value *> &local_scalar_roots) -> bool {
+  using namespace middleend::mlir;
+
+  if (auto *def = mlir::DynamicOrNull<var::VarDefOp>(op)) {
+    if (local_scalar_roots.count(def->GetRes()) == 0 || !def->GetDimensions().empty()) {
+      return false;
+    }
+    for (auto *init : def->GetInits()) {
+      if (init != nullptr && !IsInt(init->GetType())) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  if (auto *get_ptr = mlir::DynamicOrNull<var::VarGetPtrOp>(op)) {
+    if (!get_ptr->GetIndices().empty()) {
+      return false;
+    }
+    return local_scalar_roots.count(GetAccessRoot(get_ptr->GetPtr())) > 0;
+  }
+
+  if (auto *load = mlir::DynamicOrNull<var::VarGetValOp>(op)) {
+    return IsInt(load->GetRes()->GetType()) && local_scalar_roots.count(GetAccessRoot(load->GetPtr())) > 0;
+  }
+
+  if (auto *store = mlir::DynamicOrNull<var::VarSetOp>(op)) {
+    return IsInt(store->GetNewValue()->GetType()) && local_scalar_roots.count(GetAccessRoot(store->GetPtr())) > 0;
+  }
+
+  return false;
 }
 
 auto MemoizationPass::ExistingGlobalNames() -> std::unordered_set<std::string> {
