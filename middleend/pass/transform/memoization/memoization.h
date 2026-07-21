@@ -27,6 +27,11 @@ namespace middleend::mlir::var {
 class GlobalVarDefOp;
 }  // namespace middleend::mlir::var
 
+namespace middleend::pass::analysis {
+class DomTree;
+class MLIRFunctionCFG;
+}  // namespace middleend::pass::analysis
+
 namespace middleend::pass::transform {
 
 /**
@@ -50,6 +55,8 @@ class MemoizationPass : public TransformPass {
     if (stage != PassStage::BASEIR) {
       throw std::invalid_argument("MemoizationPass only supports BASEIR stage");
     }
+    AddDependency("CFGPass");
+    AddDependency("DomTreePass");
   }
   ~MemoizationPass() override = default;
 
@@ -62,6 +69,7 @@ class MemoizationPass : public TransformPass {
     std::vector<mlir::Value *> args;
     std::vector<mlir::Operation *> returns;
     std::unordered_set<mlir::Value *> local_scalar_roots;
+    std::unordered_set<mlir::Value *> calltime_readonly_global_roots;
     int self_calls{0};
     int recursive_scc_calls{0};
     bool recursive_scc{false};
@@ -79,6 +87,11 @@ class MemoizationPass : public TransformPass {
     mlir::Value *slot_value{nullptr};
     CacheGlobals globals;
   };
+  struct MemoryEvent {
+    std::string func_name;
+    mlir::Block *block{nullptr};
+    mlir::Operation *op{nullptr};
+  };
 
   void CollectModuleInfo();
   void ComputeSCCs();
@@ -87,11 +100,16 @@ class MemoizationPass : public TransformPass {
   auto IsCandidate(const Candidate &candidate) -> bool;
   auto IsPermittedPureOp(mlir::Operation *op, const std::string &func_name,
                          const std::unordered_set<mlir::Value *> &local_scalar_roots, int *self_calls,
+                         const std::unordered_set<mlir::Value *> &calltime_readonly_global_roots,
                          int *recursive_scc_calls, std::vector<mlir::Operation *> *returns) -> bool;
   auto IsLocalScalarMemoryOp(mlir::Operation *op, const std::unordered_set<mlir::Value *> &local_scalar_roots) -> bool;
-  auto IsReadOnlyGlobalMemoryOp(mlir::Operation *op) -> bool;
+  auto IsReadOnlyGlobalMemoryOp(mlir::Operation *op,
+                                const std::unordered_set<mlir::Value *> &calltime_readonly_global_roots) -> bool;
   auto GetAccessRoot(mlir::Value *ptr) -> mlir::Value *;
   auto IsSameRecursiveSCC(const std::string &lhs, const std::string &rhs) -> bool;
+  auto GetCallTimeReadOnlyGlobalRoots(const std::string &func_name) -> std::unordered_set<mlir::Value *>;
+  auto EventDominates(const MemoryEvent &write, const MemoryEvent &call) -> bool;
+  auto OperationIndex(mlir::Block *block, mlir::Operation *op) -> int;
   auto ExistingGlobalNames() -> std::unordered_set<std::string>;
   auto MakeUniqueName(const std::string &base, std::unordered_set<std::string> *names) -> std::string;
   auto CreateCacheGlobals(const Candidate &candidate, std::unordered_set<std::string> *names) -> CacheGlobals;
@@ -120,6 +138,10 @@ class MemoizationPass : public TransformPass {
   std::unordered_set<std::string> pure_functions_;
   std::unordered_map<mlir::Value *, mlir::var::GlobalVarDefOp *> global_roots_;
   std::unordered_set<mlir::Value *> readonly_global_roots_;
+  std::unordered_map<mlir::Value *, std::vector<MemoryEvent>> global_writes_;
+  std::unordered_map<std::string, std::vector<MemoryEvent>> direct_call_sites_;
+  std::unordered_map<std::string, analysis::MLIRFunctionCFG *> cfg_by_name_;
+  std::unordered_map<std::string, analysis::DomTree *> dom_by_name_;
   static constexpr int kCacheSize = 32768;
   static constexpr int kHashMul = 1315423911;
 };
