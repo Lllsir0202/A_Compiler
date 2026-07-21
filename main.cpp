@@ -31,6 +31,7 @@
 #include "middleend/pass/transform/llvmtrivialblockmerge/llvmtrivialblockmerge.h"
 #include "middleend/pass/transform/looprotate/looprotate.h"
 #include "middleend/pass/transform/loopsimplify/loopsimplify.h"
+#include "middleend/pass/transform/memoization/memoization.h"
 #include "middleend/pass/transform/mlirdce/mlirdce.h"
 #include "middleend/pass/transform/mlirfunctioninline/mlirfunctioninline.h"
 #include "middleend/pass/transform/mlirloopunroll/mlirlooppartialunroll.h"
@@ -423,6 +424,11 @@ auto main(int argc, char *argv[]) -> int {
         context::PassContext::CreatePass<middleend::pass::transform::PostLoopTrivialBlockMergePass>(
             &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(post_loop_tbm_pass);
+    // Late memoization for pure recursive integer functions.  It deliberately runs after the
+    // ordinary scalar/loop optimizers so the cache globals/stores do not pessimize memory analyses.
+    auto memoization_pass = context::PassContext::CreatePass<middleend::pass::transform::MemoizationPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(memoization_pass);
     // Partial-redundancy elimination runs last: it inserts phis that reference values
     // available in a predecessor, so no later loop pass may delete those values (which
     // would orphan the phi). It recomputes its own dominator/CFG analyses.
