@@ -26,7 +26,7 @@ auto IsPowerOfTwo(int value, int *shift) -> bool {
 }
 }  // namespace
 
-auto RISCVPeephole::BuildConstants(TargetFunction *func) -> void {
+auto RISCVPeephole::BuildFacts(TargetFunction *func) -> void {
   def_count_.clear();
   use_count_.clear();
   li_value_.clear();
@@ -70,10 +70,66 @@ auto RISCVPeephole::IsConst(TargetOperand *op, int *value) const -> bool {
   return true;
 }
 
+auto RISCVPeephole::HasSignExtendedWordResult(TargetOperand *op) const -> bool {
+  if (op == nullptr || !op->IsVirtualReg()) {
+    return false;
+  }
+  auto count = def_count_.find(op);
+  if (count == def_count_.end() || count->second != 1) {
+    return false;
+  }
+  auto def = defining_inst_.find(op);
+  if (def == defining_inst_.end()) {
+    return false;
+  }
+
+  // Every W-form integer result, LW, and FCVT.W.S is sign-extended to XLEN by
+  // the RV64 ISA. Comparisons and boolean pseudos produce only zero or one.
+  // LI is also safe here: TargetIntLiteral is an int, so its value is already
+  // exactly the sign extension of an i32 value.
+  switch (static_cast<RISCVInst *>(def->second)->GetOpcode()) {
+    case RVOpcode::ADDW:
+    case RVOpcode::SUBW:
+    case RVOpcode::MULW:
+    case RVOpcode::DIVW:
+    case RVOpcode::REMW:
+    case RVOpcode::SLLW:
+    case RVOpcode::SRLW:
+    case RVOpcode::SRAW:
+    case RVOpcode::ADDIW:
+    case RVOpcode::SLLIW:
+    case RVOpcode::SRLIW:
+    case RVOpcode::SRAIW:
+    case RVOpcode::NEGW:
+    case RVOpcode::SEXT_W:
+    case RVOpcode::LW:
+    case RVOpcode::FCVT_W_S:
+    case RVOpcode::SLT:
+    case RVOpcode::SLTU:
+    case RVOpcode::SLTI:
+    case RVOpcode::SLTIU:
+    case RVOpcode::SEQZ:
+    case RVOpcode::SNEZ:
+    case RVOpcode::FEQ_S:
+    case RVOpcode::FLT_S:
+    case RVOpcode::FLE_S:
+    case RVOpcode::LI:
+      return true;
+    default:
+      return false;
+  }
+}
+
 auto RISCVPeephole::TransformInst(TargetInst *inst) -> bool {
   auto *ri = static_cast<RISCVInst *>(inst);
   auto opcode = ri->GetOpcode();
   const auto &ops = inst->GetOperands();
+  if (opcode == RVOpcode::SEXT_W && ops.size() == 1 && HasSignExtendedWordResult(ops[0])) {
+    // Keep the destination SSA value but expose a coalescible copy. The graph
+    // allocator removes the move when source and destination receive one color.
+    ri->SetOpcode(RVOpcode::MV);
+    return true;
+  }
   if (ops.size() != 2) {
     return false;  // only the two-register R-type forms are handled here
   }
@@ -351,7 +407,7 @@ auto RISCVPeephole::TransformInst(TargetInst *inst) -> bool {
 }
 
 auto RISCVPeephole::RunOnFunction(TargetFunction *func) -> bool {
-  BuildConstants(func);
+  BuildFacts(func);
   bool changed = false;
   for (auto *block : func->GetBlocks()) {
     for (auto *inst : block->GetInsts()) {

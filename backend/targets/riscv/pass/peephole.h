@@ -27,6 +27,8 @@ namespace backend::targetir::riscv {
  *     by 0 -> load-zero;
  *   - algebraic identities left behind by the above (add/or/xor/shift of 0 -> move,
  *     and of -1 -> move).
+ *   - redundant RV64 word sign extension -> coalescible move, when the source
+ *     has one definition and that instruction already sign-extends to XLEN.
  *
  * The now-dead `li` instructions are cleaned up by the dead-code pass. Nothing
  * here special-cases a test shape; every rewrite is a general algebraic identity
@@ -40,11 +42,13 @@ class RISCVPeephole : public MachineFunctionPass {
   auto RunOnFunction(TargetFunction *func) -> bool override;
 
  private:
-  // Rebuild the "virtual register -> constant" map (a register counts as a known
-  // constant only when it is defined exactly once, by an `li`).
-  auto BuildConstants(TargetFunction *func) -> void;
+  // Rebuild single-definition and constant facts for virtual registers.
+  auto BuildFacts(TargetFunction *func) -> void;
   // If `op` is a register holding a known constant, store it in `*value`.
   auto IsConst(TargetOperand *op, int *value) const -> bool;
+  // Whether the single instruction defining `op` already sign-extends its
+  // 32-bit result to XLEN, making a following `sext.w` redundant on RV64.
+  auto HasSignExtendedWordResult(TargetOperand *op) const -> bool;
   // Try to rewrite one instruction; returns true if it changed.
   auto TransformInst(TargetInst *inst) -> bool;
 
