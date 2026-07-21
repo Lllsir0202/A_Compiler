@@ -22,14 +22,26 @@ auto IsPowerOfTwo(int value, int *shift) -> bool {
 }
 }  // namespace
 
-auto AArch64Peephole::BuildConstants(TargetFunction *func) -> void {
+auto AArch64Peephole::BuildFacts(TargetFunction *func) -> void {
   def_count_.clear();
+  use_count_.clear();
+  defining_inst_.clear();
+  previous_inst_.clear();
   const_value_.clear();
   for (auto *block : func->GetBlocks()) {
+    TargetInst *previous = nullptr;
     for (auto *inst : block->GetInsts()) {
+      previous_inst_[inst] = previous;
+      previous = inst;
       auto *res = inst->GetResult();
       if (res != nullptr) {
         def_count_[res]++;
+        defining_inst_[res] = inst;
+      }
+      for (auto *op : inst->GetOperands()) {
+        if (op->IsVirtualReg()) {
+          use_count_[op]++;
+        }
       }
       auto *ai = static_cast<AArch64Inst *>(inst);
       auto opc = ai->GetOpcode();
@@ -60,12 +72,66 @@ auto AArch64Peephole::IsConst(TargetOperand *op, int *value) const -> bool {
   return true;
 }
 
+auto AArch64Peephole::SingleUseMultiply(TargetOperand *op) const -> TargetInst * {
+  if (op == nullptr || !op->IsVirtualReg()) {
+    return nullptr;
+  }
+  auto def_count = def_count_.find(op);
+  auto use_count = use_count_.find(op);
+  auto defining_inst = defining_inst_.find(op);
+  if (def_count == def_count_.end() || def_count->second != 1 || use_count == use_count_.end() ||
+      use_count->second != 1 || defining_inst == defining_inst_.end()) {
+    return nullptr;
+  }
+  auto *mul = static_cast<AArch64Inst *>(defining_inst->second);
+  return mul->GetOpcode() == A64Opcode::MUL && mul->GetOperands().size() == 2 ? mul : nullptr;
+}
+
+auto AArch64Peephole::FoldMultiplyAccumulate(TargetInst *inst) -> bool {
+  auto *ai = static_cast<AArch64Inst *>(inst);
+  auto opcode = ai->GetOpcode();
+  const auto &ops = inst->GetOperands();
+  if (ops.size() != 2 || (opcode != A64Opcode::ADD && opcode != A64Opcode::SUB)) {
+    return false;
+  }
+
+  TargetInst *mul = nullptr;
+  TargetOperand *addend = nullptr;
+  if (opcode == A64Opcode::ADD) {
+    mul = SingleUseMultiply(ops[0]);
+    addend = ops[1];
+    if (mul == nullptr) {
+      mul = SingleUseMultiply(ops[1]);
+      addend = ops[0];
+    }
+  } else {
+    // AArch64 msub computes Ra - Rn*Rm, so only a multiply in the subtrahend folds.
+    mul = SingleUseMultiply(ops[1]);
+    addend = ops[0];
+  }
+  if (mul == nullptr) {
+    return false;
+  }
+  auto previous = previous_inst_.find(inst);
+  if (previous == previous_inst_.end() || previous->second != mul) {
+    return false;
+  }
+
+  const auto &mul_ops = mul->GetOperands();
+  ai->SetOpcode(opcode == A64Opcode::ADD ? A64Opcode::MADD : A64Opcode::MSUB);
+  inst->SetOperands({mul_ops[0], mul_ops[1], addend});
+  return true;
+}
+
 auto AArch64Peephole::TransformInst(TargetInst *inst) -> bool {
   auto *ai = static_cast<AArch64Inst *>(inst);
   auto opcode = ai->GetOpcode();
   const auto &ops = inst->GetOperands();
   if (ops.size() != 2) {
     return false;
+  }
+  if (FoldMultiplyAccumulate(inst)) {
+    return true;
   }
   auto *lhs = ops[0];
   auto *rhs = ops[1];
@@ -150,7 +216,7 @@ auto AArch64Peephole::TransformInst(TargetInst *inst) -> bool {
 }
 
 auto AArch64Peephole::RunOnFunction(TargetFunction *func) -> bool {
-  BuildConstants(func);
+  BuildFacts(func);
   bool changed = false;
   for (auto *block : func->GetBlocks()) {
     for (auto *inst : block->GetInsts()) {
