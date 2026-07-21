@@ -1,0 +1,46 @@
+int global_index = 4;
+int add_lhs_input = 2147483647;
+int add_rhs_input = 2147483647;
+int mul_lhs_input = 65536;
+int mul_rhs_input = 65536;
+int dividend_input = -2147483647 - 1;
+
+int add_index(int values[], int lhs, int rhs) {
+  int wrapped = lhs + rhs;
+  return values[3 + wrapped];
+}
+
+int mul_index(int values[], int lhs, int rhs) {
+  int wrapped = lhs * rhs;
+  return values[5 + wrapped];
+}
+
+int divide_index(int values[], int value) {
+  int divided = value / 1073741823;
+  return values[3 + divided];
+}
+
+int main() {
+  int values[8] = {10, 20, 30, 40, 50, 60, 70, 80};
+  int add_lhs = add_lhs_input;
+  int add_rhs = add_rhs_input;
+  int mul_lhs = mul_lhs_input;
+  int mul_rhs = mul_rhs_input;
+  int dividend = dividend_input;
+  int add_result = add_index(values, add_lhs, add_rhs);
+  int mul_result = mul_index(values, mul_lhs, mul_rhs);
+  int divide_result = divide_index(values, dividend);
+  int load_result = values[global_index];
+  putint(add_result);
+  putch(32);
+  putint(mul_result);
+  putch(32);
+  putint(divide_result);
+  putch(32);
+  putint(load_result);
+  putch(10);
+  int result = add_result + mul_result + divide_result + load_result;
+  putint(result);
+  putch(10);
+  return 0;
+}
