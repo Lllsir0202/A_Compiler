@@ -299,8 +299,7 @@ auto SCEVPass::GetAddExpr(std::vector<const SCEV *> operands) -> const SCEV * {
     for (auto *candidate : merged_recurrences) {
       if (candidate->GetKind() == SCEVKind::AddRec) {
         kept.emplace_back(candidate);
-      } else if (candidate->GetKind() == SCEVKind::Constant &&
-                 static_cast<const SCEVConstant *>(candidate)->IsInt()) {
+      } else if (candidate->GetKind() == SCEVKind::Constant && static_cast<const SCEVConstant *>(candidate)->IsInt()) {
         constant_sum += static_cast<const SCEVConstant *>(candidate)->GetInt();
       } else {
         others.emplace_back(candidate);
@@ -699,8 +698,8 @@ auto SCEVPass::CreateSCEVForOperation(mlir::Operation *op, mlir::Value *result) 
     const auto &incoming = phi->GetIncomingValue();
     if (!incoming.empty()) {
       mlir::Value *unique = incoming.front();
-      bool all_same = std::all_of(incoming.begin(), incoming.end(),
-                                  [&](mlir::Value *value) { return value == unique; });
+      bool all_same =
+          std::all_of(incoming.begin(), incoming.end(), [&](mlir::Value *value) { return value == unique; });
       if (all_same && unique != result) {
         return GetSCEV(unique);
       }
@@ -837,6 +836,20 @@ auto SCEVPass::GetBackedgeTakenCount(Loop *loop) -> const SCEV * {
 }
 
 auto SCEVPass::ComputeBackedgeTakenCount(Loop *loop) -> const SCEV * {
+  // Establish the loop's recurrences before looking at its exits. Resolving a header phi seeds a
+  // self-symbol placeholder while it walks the back-edge, so whichever value is queried first wins:
+  // if an exit test reads a latch value (a bottom-tested loop, e.g. after rotation, tests the
+  // incremented IV) then that value gets memoized as a placeholder, and the header phi later reads
+  // the placeholder back and fails to form its recurrence. Asking for the header phis up front
+  // makes the result independent of which value the exit test happens to name.
+  for (auto *operation : loop->GetHeader()->operations_) {
+    auto *phi = mlir::DynamicOrNull<mlir::base::PhiOp>(operation);
+    if (phi == nullptr) {
+      break;  // phis lead the block
+    }
+    GetSCEV(phi->GetRes());
+  }
+
   // The loop's trip count is the minimum over every analyzable exit of that exit's own trip count:
   // whichever exit fires first stops the loop. The backedge is then taken (trip - 1) times.
   const SCEV *trip = nullptr;
@@ -986,15 +999,21 @@ auto SCEVPass::ComputeExitCount(Loop *loop, mlir::Block *exiting) -> const SCEV 
     return GetDivExpr(GetAddExpr({numerator, GetConstant(divisor - 1)}), GetConstant(divisor));
   };
   auto clamp = [&](const SCEV *count) -> const SCEV * { return GetSMaxExpr({GetConstant(0), count}); };
+  const SCEV *exit_count = nullptr;
   switch (predicate) {
     case Predicate::LT:
-      return step > 0 ? clamp(ceil_div(GetMinusSCEV(bound, start), step)) : nullptr;
+      exit_count = step > 0 ? clamp(ceil_div(GetMinusSCEV(bound, start), step)) : nullptr;
+      break;
     case Predicate::LE:
-      return step > 0 ? clamp(ceil_div(GetMinusSCEV(GetAddExpr({bound, GetConstant(1)}), start), step)) : nullptr;
+      exit_count = step > 0 ? clamp(ceil_div(GetMinusSCEV(GetAddExpr({bound, GetConstant(1)}), start), step)) : nullptr;
+      break;
     case Predicate::GT:
-      return step < 0 ? clamp(ceil_div(GetMinusSCEV(start, bound), -step)) : nullptr;
+      exit_count = step < 0 ? clamp(ceil_div(GetMinusSCEV(start, bound), -step)) : nullptr;
+      break;
     case Predicate::GE:
-      return step < 0 ? clamp(ceil_div(GetMinusSCEV(start, GetAddExpr({bound, GetConstant(-1)})), -step)) : nullptr;
+      exit_count =
+          step < 0 ? clamp(ceil_div(GetMinusSCEV(start, GetAddExpr({bound, GetConstant(-1)})), -step)) : nullptr;
+      break;
     case Predicate::NE: {
       // The bound is reached exactly only for a compile-time-known monotone distance; otherwise the
       // loop is not statically bounded through this exit.
@@ -1005,16 +1024,27 @@ auto SCEVPass::ComputeExitCount(Loop *loop, mlir::Block *exiting) -> const SCEV 
       }
       int64_t distance = static_cast<int64_t>(limit_value) - start_value;
       if (distance == 0) {
-        return GetConstant(0);
+        exit_count = GetConstant(0);
+        break;
       }
       if (distance % step != 0 || (distance > 0) != (step > 0)) {
         return nullptr;
       }
-      return GetConstant(static_cast<int>(distance / step));
+      exit_count = GetConstant(static_cast<int>(distance / step));
+      break;
     }
     default:
       return nullptr;
   }
+  if (exit_count == nullptr) {
+    return nullptr;
+  }
+  // For a top-tested loop, the exit test runs before the body of the iteration that would fail, so
+  // the count above is the number of header executions. For a bottom-tested loop (the shape produced
+  // by loop rotation), the exit test runs after the body: the count above is how many latch tests
+  // continue the loop, and the final failing iteration has already executed. Account for that last
+  // header execution here, keeping trip-count reasoning independent of the CFG/phi shape.
+  return exiting == loop->GetHeader() ? exit_count : GetAddExpr({exit_count, GetConstant(1)});
 }
 
 auto SCEVPass::GetConstantTripCount(Loop *loop) -> int64_t {
