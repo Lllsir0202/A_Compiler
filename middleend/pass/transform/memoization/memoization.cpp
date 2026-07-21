@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <functional>
 #include <iostream>
 #include <utility>
 #include "context/compiler_context.h"
@@ -73,11 +74,18 @@ auto MemoizationPass::Run() -> void {
     return;
   }
 
+  CollectModuleInfo();
+  ComputeSCCs();
+  ComputePureFunctions();
+
   auto *module = GET_MLIR_CONTEXT()->GetModuleOp();
   std::vector<Candidate> candidates;
   for (auto *op : module->GetBlock()->operations_) {
     auto *func = mlir::DynamicOrNull<mlir::base::FuncDefOp>(op);
     if (func == nullptr || mlir::base::IsLibraryFunction(func->GetName())) {
+      continue;
+    }
+    if (pure_functions_.count(func->GetName()) == 0) {
       continue;
     }
     auto candidate = Analyze(func);
@@ -113,10 +121,144 @@ auto MemoizationPass::Run() -> void {
   GET_PASS_CONTEXT()->InvalidateAnalysis();
 }
 
+void MemoizationPass::CollectModuleInfo() {
+  functions_.clear();
+  calls_.clear();
+  scc_id_.clear();
+  sccs_.clear();
+  pure_functions_.clear();
+  global_roots_.clear();
+  readonly_global_roots_.clear();
+
+  auto *module = GET_MLIR_CONTEXT()->GetModuleOp();
+  std::unordered_set<Value *> written_globals;
+  for (auto *op : module->GetBlock()->operations_) {
+    if (auto *global = mlir::DynamicOrNull<mlir::var::GlobalVarDefOp>(op)) {
+      global_roots_[global->GetRes()] = global;
+      if (global->IsConst()) {
+        readonly_global_roots_.insert(global->GetRes());
+      }
+      continue;
+    }
+    auto *func = mlir::DynamicOrNull<mlir::base::FuncDefOp>(op);
+    if (func == nullptr || mlir::base::IsLibraryFunction(func->GetName())) {
+      continue;
+    }
+    functions_[func->GetName()] = func;
+    calls_[func->GetName()];
+    for (auto *block : func->GetBlocks()) {
+      for (auto *inner : block->operations_) {
+        if (auto *call = mlir::DynamicOrNull<mlir::base::FuncCallOp>(inner)) {
+          calls_[func->GetName()].insert(call->GetName());
+        } else if (auto *store = mlir::DynamicOrNull<mlir::var::VarSetOp>(inner)) {
+          auto *root = GetAccessRoot(store->GetPtr());
+          if (global_roots_.count(root) > 0) {
+            written_globals.insert(root);
+          }
+        }
+      }
+    }
+  }
+
+  for (const auto &entry : global_roots_) {
+    if (written_globals.count(entry.first) == 0) {
+      readonly_global_roots_.insert(entry.first);
+    }
+  }
+}
+
+void MemoizationPass::ComputeSCCs() {
+  std::unordered_map<std::string, int> index;
+  std::unordered_map<std::string, int> lowlink;
+  std::unordered_set<std::string> on_stack;
+  std::vector<std::string> stack;
+  int next_index = 0;
+
+  std::function<void(const std::string &)> strong_connect = [&](const std::string &name) {
+    index[name] = next_index;
+    lowlink[name] = next_index;
+    ++next_index;
+    stack.emplace_back(name);
+    on_stack.insert(name);
+
+    for (const auto &callee : calls_[name]) {
+      if (functions_.count(callee) == 0) {
+        continue;
+      }
+      if (index.count(callee) == 0) {
+        strong_connect(callee);
+        lowlink[name] = std::min(lowlink[name], lowlink[callee]);
+      } else if (on_stack.count(callee) > 0) {
+        lowlink[name] = std::min(lowlink[name], index[callee]);
+      }
+    }
+
+    if (lowlink[name] == index[name]) {
+      std::vector<std::string> scc;
+      while (true) {
+        std::string member = stack.back();
+        stack.pop_back();
+        on_stack.erase(member);
+        scc_id_[member] = static_cast<int>(sccs_.size());
+        scc.emplace_back(member);
+        if (member == name) {
+          break;
+        }
+      }
+      sccs_.emplace_back(std::move(scc));
+    }
+  };
+
+  for (const auto &entry : functions_) {
+    if (index.count(entry.first) == 0) {
+      strong_connect(entry.first);
+    }
+  }
+}
+
+void MemoizationPass::ComputePureFunctions() {
+  bool changed = true;
+  while (changed) {
+    changed = false;
+    for (const auto &scc : sccs_) {
+      bool already_pure = true;
+      for (const auto &name : scc) {
+        if (pure_functions_.count(name) == 0) {
+          already_pure = false;
+          break;
+        }
+      }
+      if (already_pure) {
+        continue;
+      }
+
+      bool pure_scc = true;
+      for (const auto &name : scc) {
+        auto candidate = Analyze(functions_[name]);
+        if (candidate.func == nullptr) {
+          pure_scc = false;
+          break;
+        }
+      }
+      if (!pure_scc) {
+        continue;
+      }
+
+      for (const auto &name : scc) {
+        pure_functions_.insert(name);
+      }
+      changed = true;
+    }
+  }
+}
+
 auto MemoizationPass::Analyze(mlir::base::FuncDefOp *func) -> Candidate {
   Candidate candidate;
   candidate.func = func;
   candidate.args = func->GetArguments();
+  candidate.recursive_scc = scc_id_.count(func->GetName()) > 0 && (sccs_[scc_id_[func->GetName()]].size() > 1 ||
+                                                                   calls_[func->GetName()].count(func->GetName()) > 0);
+  candidate.mutual_scc = scc_id_.count(func->GetName()) > 0 && sccs_[scc_id_[func->GetName()]].size() > 1;
 
   for (auto *block : func->GetBlocks()) {
     for (auto *op : block->operations_) {
@@ -143,7 +285,7 @@ auto MemoizationPass::Analyze(mlir::base::FuncDefOp *func) -> Candidate {
   for (auto *block : func->GetBlocks()) {
     for (auto *op : block->operations_) {
       if (!IsPermittedPureOp(op, func->GetName(), candidate.local_scalar_roots, &candidate.self_calls,
-                             &candidate.returns)) {
+                             &candidate.recursive_scc_calls, &candidate.returns)) {
         candidate.func = nullptr;
         return candidate;
       }
@@ -170,7 +312,13 @@ auto MemoizationPass::IsCandidate(const Candidate &candidate) -> bool {
       return false;
     }
   }
-  if (candidate.self_calls < 2 || candidate.returns.empty()) {
+  if (candidate.returns.empty()) {
+    return false;
+  }
+  if (candidate.mutual_scc) {
+    return candidate.recursive_scc_calls > 0;
+  }
+  if (candidate.self_calls < 2) {
     return false;
   }
   return true;
@@ -178,7 +326,7 @@ auto MemoizationPass::IsCandidate(const Candidate &candidate) -> bool {
 
 auto MemoizationPass::IsPermittedPureOp(Operation *op, const std::string &func_name,
                                         const std::unordered_set<Value *> &local_scalar_roots, int *self_calls,
-                                        std::vector<Operation *> *returns) -> bool {
+                                        int *recursive_scc_calls, std::vector<Operation *> *returns) -> bool {
   using namespace middleend::mlir;
 
   if (mlir::DynamicOrNull<base::BrOp>(op) != nullptr || mlir::DynamicOrNull<base::CondBrOp>(op) != nullptr) {
@@ -194,9 +342,6 @@ auto MemoizationPass::IsPermittedPureOp(Operation *op, const std::string &func_n
   }
 
   if (auto *call = mlir::DynamicOrNull<base::FuncCallOp>(op)) {
-    if (call->GetName() != func_name) {
-      return false;
-    }
     for (auto *arg : call->GetOperands()) {
       if (!IsInt(arg->GetType())) {
         return false;
@@ -205,8 +350,19 @@ auto MemoizationPass::IsPermittedPureOp(Operation *op, const std::string &func_n
     if (!IsInt(call->GetRes()->GetType())) {
       return false;
     }
-    ++(*self_calls);
-    return true;
+    if (call->GetName() == func_name) {
+      ++(*self_calls);
+      ++(*recursive_scc_calls);
+      return true;
+    }
+    if (IsSameRecursiveSCC(func_name, call->GetName())) {
+      ++(*recursive_scc_calls);
+      return true;
+    }
+    if (pure_functions_.count(call->GetName()) > 0) {
+      return true;
+    }
+    return false;
   }
 
   if (mlir::DynamicOrNull<var::GlobalVarDefOp>(op) != nullptr) {
@@ -214,10 +370,18 @@ auto MemoizationPass::IsPermittedPureOp(Operation *op, const std::string &func_n
   }
   if (mlir::DynamicOrNull<var::VarDefOp>(op) != nullptr || mlir::DynamicOrNull<var::VarGetPtrOp>(op) != nullptr ||
       mlir::DynamicOrNull<var::VarGetValOp>(op) != nullptr || mlir::DynamicOrNull<var::VarSetOp>(op) != nullptr) {
-    return IsLocalScalarMemoryOp(op, local_scalar_roots);
+    return IsLocalScalarMemoryOp(op, local_scalar_roots) || IsReadOnlyGlobalMemoryOp(op);
   }
 
   return IsPureScalarOp(op);
+}
+
+auto MemoizationPass::IsSameRecursiveSCC(const std::string &lhs, const std::string &rhs) -> bool {
+  if (scc_id_.count(lhs) == 0 || scc_id_.count(rhs) == 0 || scc_id_[lhs] != scc_id_[rhs]) {
+    return false;
+  }
+  int id = scc_id_[lhs];
+  return sccs_[id].size() > 1 || calls_[lhs].count(lhs) > 0;
 }
 
 auto MemoizationPass::GetAccessRoot(Value *ptr) -> Value * {
@@ -261,6 +425,29 @@ auto MemoizationPass::IsLocalScalarMemoryOp(Operation *op,
 
   if (auto *store = mlir::DynamicOrNull<var::VarSetOp>(op)) {
     return IsInt(store->GetNewValue()->GetType()) && local_scalar_roots.count(GetAccessRoot(store->GetPtr())) > 0;
+  }
+
+  return false;
+}
+
+auto MemoizationPass::IsReadOnlyGlobalMemoryOp(Operation *op) -> bool {
+  using namespace middleend::mlir;
+
+  if (auto *get_ptr = mlir::DynamicOrNull<var::VarGetPtrOp>(op)) {
+    auto *root = GetAccessRoot(get_ptr->GetPtr());
+    if (readonly_global_roots_.count(root) == 0) {
+      return false;
+    }
+    for (auto *index : get_ptr->GetIndices()) {
+      if (!IsInt(index->GetType())) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  if (auto *load = mlir::DynamicOrNull<var::VarGetValOp>(op)) {
+    return IsInt(load->GetRes()->GetType()) && readonly_global_roots_.count(GetAccessRoot(load->GetPtr())) > 0;
   }
 
   return false;
