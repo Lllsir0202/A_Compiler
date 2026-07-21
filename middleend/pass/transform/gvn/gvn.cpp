@@ -1,4 +1,5 @@
 #include "middleend/pass/transform/gvn/gvn.h"
+#include <cstdlib>
 #include <cstring>
 #include <utility>
 #include "context/compiler_context.h"
@@ -54,6 +55,13 @@ auto GVNPass::Run() -> void {
   if (changed) {
     GET_PASS_CONTEXT()->InvalidateAnalysis();
   }
+}
+
+auto PostRotateGVNPass::Run() -> void {
+  if (std::getenv("LOOP_ROTATE") == nullptr) {
+    return;
+  }
+  GVNPass::Run();
 }
 
 auto GVNPass::RunOnFunction(analysis::MLIRFunctionCFG *function_cfg, analysis::DomTree *dom_tree) -> bool {

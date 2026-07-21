@@ -38,14 +38,13 @@ namespace middleend::pass::transform {
  * Only loops whose sole exit edge is the header test are rotated (loops with
  * `break` have several exits and are left untouched); the header must consist
  * of phis followed by pure, clonable operations. Nested loops are handled
- * innermost-first. Set LOOP_ROTATE_OFF to disable.
+ * innermost-first. Set LOOP_ROTATE=1 to enable.
  *
  * Reference: LLVM LoopRotate.
  */
 class LoopRotatePass : public TransformPass {
  public:
-  LoopRotatePass(context::CompilerContext *compiler_context, PassStage stage)
-      : TransformPass(compiler_context, stage) {
+  LoopRotatePass(context::CompilerContext *compiler_context, PassStage stage) : TransformPass(compiler_context, stage) {
     AddDependency("CFGPass");
     AddDependency("DomTreePass");
     AddDependency("LoopInfoPass");

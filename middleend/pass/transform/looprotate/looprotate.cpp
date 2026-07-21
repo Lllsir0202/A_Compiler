@@ -76,7 +76,8 @@ auto IsPureClonable(Operation *op) -> bool {
          DynamicOrNull<mlir::base::SubFOp>(op) != nullptr || DynamicOrNull<mlir::base::MulFOp>(op) != nullptr ||
          DynamicOrNull<mlir::base::DivFOp>(op) != nullptr || DynamicOrNull<mlir::base::EqualFOp>(op) != nullptr ||
          DynamicOrNull<mlir::base::NotEqualFOp>(op) != nullptr || DynamicOrNull<mlir::base::LessFOp>(op) != nullptr ||
-         DynamicOrNull<mlir::base::LessEqualFOp>(op) != nullptr || DynamicOrNull<mlir::base::GreaterFOp>(op) != nullptr ||
+         DynamicOrNull<mlir::base::LessEqualFOp>(op) != nullptr ||
+         DynamicOrNull<mlir::base::GreaterFOp>(op) != nullptr ||
          DynamicOrNull<mlir::base::GreaterEqualFOp>(op) != nullptr ||
          DynamicOrNull<mlir::var::VarGetPtrOp>(op) != nullptr;
 }
@@ -112,9 +113,9 @@ auto CloneGuardOp(context::MLIRContext *ctx, Operation *op,
   Value *rhs = op->operands_.size() > 1 ? remap(op->operands_[1]) : nullptr;
   Operation *clone = nullptr;
 
-#define ROTATE_CLONE_BINOP(TYPE)                                        \
-  if (DynamicOrNull<mlir::base::TYPE>(op) != nullptr) {                 \
-    clone = ctx->CreateOperation<mlir::base::TYPE>(res, lhs, rhs);      \
+#define ROTATE_CLONE_BINOP(TYPE)                                   \
+  if (DynamicOrNull<mlir::base::TYPE>(op) != nullptr) {            \
+    clone = ctx->CreateOperation<mlir::base::TYPE>(res, lhs, rhs); \
   }
   ROTATE_CLONE_BINOP(AddOp)
   ROTATE_CLONE_BINOP(SubOp)
@@ -152,13 +153,11 @@ auto CloneGuardOp(context::MLIRContext *ctx, Operation *op,
 }  // namespace
 
 auto LoopRotatePass::Run() -> void {
-  // Opt-in (default OFF): rotation is correct and passes the whole suite, but on
-  // this already-mature pipeline it nets roughly neutral-to-slightly-negative on
-  // dynamic instruction count. Whichever slot it takes it fights a downstream
-  // pass: placed early it defeats StrengthReduce's address-recurrence on nested
-  // array loops (e.g. sl3: 2->16 getptr/iter); placed late it defeats AArch64
-  // if-conversion. Enabling it for real needs those consumers taught to handle
-  // the rotated IV shape first, so we keep it available behind LOOP_ROTATE.
+  // Opt-in (default OFF): SCEV, DeadLoopElim and StrengthReduce now handle the rotated IV/trip-count
+  // shape, and LOOP_ROTATE=1 passes the directed and SysY functional suites. On the riscv dynamic
+  // instruction benchmark it is still neutral overall with a few stable regressions from the extra
+  // guard/control-flow structure, so keep it behind LOOP_ROTATE until the remaining profitability
+  // gaps are closed.
   if (std::getenv("LOOP_ROTATE") == nullptr) {
     return;
   }

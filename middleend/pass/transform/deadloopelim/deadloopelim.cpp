@@ -11,10 +11,10 @@
 #include "middleend/mlir/dialect/base/binaryop.h"
 #include "middleend/mlir/dialect/base/branch.h"
 #include "middleend/mlir/dialect/base/funccall.h"
-#include "middleend/mlir/dialect/func/funccall.h"
 #include "middleend/mlir/dialect/base/funcdef.h"
 #include "middleend/mlir/dialect/base/phi.h"
 #include "middleend/mlir/dialect/base/unaryop.h"
+#include "middleend/mlir/dialect/func/funccall.h"
 #include "middleend/mlir/dialect/var/set.h"
 #include "middleend/mlir/utils/operation/operation.h"
 #include "middleend/mlir/utils/struct/block.h"
@@ -124,8 +124,8 @@ auto DeadLoopEliminatePass::Run() -> void {
   }
 }
 
-auto DeadLoopEliminatePass::FindPreheader(analysis::MLIRFunctionCFG *function_cfg, analysis::Loop *loop)
-    -> mlir::Block * {
+auto DeadLoopEliminatePass::FindPreheader(analysis::MLIRFunctionCFG *function_cfg,
+                                          analysis::Loop *loop) -> mlir::Block * {
   auto *header_node = function_cfg->GetNodeByBlock(loop->GetHeader());
   if (header_node == nullptr) {
     return nullptr;
@@ -211,10 +211,12 @@ auto DeadLoopEliminatePass::TryDeleteLoop(analysis::MLIRFunctionCFG *function_cf
     }
   }
 
-  // Single-exit, top-tested: the one edge leaving the loop must start at the header.
+  // Single-exit: the one edge leaving the loop may start at the header (top-tested) or at the latch
+  // after rotation (bottom-tested). Trip-count and exit-value reasoning below comes from SCEV, so it
+  // does not depend on the concrete phi/CFG shape.
   mlir::Block *exiting = nullptr;
   mlir::Block *exit = FindUniqueExit(loop, &exiting);
-  if (exit == nullptr || exiting != header) {
+  if (exit == nullptr || exiting == nullptr) {
     return false;
   }
 
@@ -247,47 +249,52 @@ auto DeadLoopEliminatePass::TryDeleteLoop(analysis::MLIRFunctionCFG *function_cf
   if (symbolic_trip && !CanExpand(trip_scev)) {
     return false;
   }
+  const analysis::SCEV *exit_iteration_scev =
+      exiting == header ? trip_scev : scev_->GetMinusSCEV(trip_scev, scev_->GetConstant(1));
+  if (!CanExpand(exit_iteration_scev)) {
+    return false;
+  }
 
-  // Every header phi that is live outside the loop must close to an expandable value. Only header
-  // phis can be live-out here: values from the body/latch do not dominate the exit of a top-tested
-  // loop, so they cannot be used afterwards.
+  // Every value defined in the loop and live outside it must close to an expandable value. In LCSSA
+  // form those live-outs normally appear as exit phis. For top-tested loops the value on the exit
+  // edge is evaluated at `trip`; for rotated bottom-tested loops it is evaluated at `trip - 1`,
+  // because the exiting latch runs after the last body execution.
   std::vector<std::pair<mlir::Value *, const analysis::SCEV *>> to_close;
-  for (auto *operation : header->operations_) {
-    auto *phi = mlir::DynamicOrNull<mlir::base::PhiOp>(operation);
-    if (phi == nullptr) {
-      continue;
-    }
-    mlir::Value *result = phi->GetRes();
-    bool live_out = false;
-    for (auto *use : result->GetUses()) {
-      auto iter = op_to_block_.find(use->operation_);
-      if (iter == op_to_block_.end() || !loop->Contains(iter->second)) {
-        live_out = true;
-        break;
+  for (auto *block : loop->GetBlocks()) {
+    for (auto *operation : block->operations_) {
+      for (auto *result : operation->results_) {
+        bool live_out = false;
+        for (auto *use : result->GetUses()) {
+          auto iter = op_to_block_.find(use->operation_);
+          if (iter == op_to_block_.end() || !loop->Contains(iter->second)) {
+            live_out = true;
+            break;
+          }
+        }
+        if (!live_out) {
+          continue;
+        }
+        const analysis::SCEV *scev = scev_->GetSCEV(result);
+        const analysis::SCEV *closed = nullptr;
+        if (scev->GetKind() == analysis::SCEVKind::AddRec &&
+            static_cast<const analysis::SCEVAddRecExpr *>(scev)->GetLoop() == loop) {
+          // With a symbolic trip count, only affine AddRecs are supported: the closed form
+          // start + step*iteration involves no division, so it is exact under modular arithmetic.
+          // Higher-order chains (running sums) need binomial coefficients that divide by
+          // factorials, which requires a no-wrap guarantee that we do not yet track.
+          if (symbolic_trip && !static_cast<const analysis::SCEVAddRecExpr *>(scev)->IsAffine()) {
+            return false;
+          }
+          closed = scev_->EvaluateAtIteration(scev, exit_iteration_scev);
+        } else if (scev_->IsLoopInvariant(scev, loop)) {
+          closed = scev;
+        }
+        if (closed == nullptr || !CanExpand(closed)) {
+          return false;  // cannot express this live-out in closed form: leave the loop alone
+        }
+        to_close.emplace_back(result, closed);
       }
     }
-    if (!live_out) {
-      continue;
-    }
-    const analysis::SCEV *scev = scev_->GetSCEV(result);
-    const analysis::SCEV *closed = nullptr;
-    if (scev->GetKind() == analysis::SCEVKind::AddRec &&
-        static_cast<const analysis::SCEVAddRecExpr *>(scev)->GetLoop() == loop) {
-      // With a symbolic trip count, only affine AddRecs are supported: the closed form
-      // start + step*trip involves no division, so it is exact under modular arithmetic.
-      // Higher-order chains (running sums) need binomial coefficients that divide by
-      // factorials, which requires a no-wrap guarantee that we do not yet track.
-      if (symbolic_trip && !static_cast<const analysis::SCEVAddRecExpr *>(scev)->IsAffine()) {
-        return false;
-      }
-      closed = scev_->EvaluateAtIteration(scev, trip_scev);
-    } else if (scev_->IsLoopInvariant(scev, loop)) {
-      closed = scev;
-    }
-    if (closed == nullptr || !CanExpand(closed)) {
-      return false;  // cannot express this live-out in closed form: leave the loop alone
-    }
-    to_close.emplace_back(result, closed);
   }
 
   // ---- Everything is legal; commit the transform. ----------------------------------------------
@@ -311,7 +318,7 @@ auto DeadLoopEliminatePass::TryDeleteLoop(analysis::MLIRFunctionCFG *function_cf
     const auto &incoming_values = phi->GetIncomingValue();
     const auto &incoming_blocks = phi->GetIncomingBlock();
     for (size_t index = 0; index < incoming_blocks.size(); ++index) {
-      if (incoming_blocks[index] == header) {
+      if (incoming_blocks[index] == exiting) {
         phi->UpdateIncoming(index, incoming_values[index], preheader);
       }
     }

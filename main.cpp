@@ -14,14 +14,15 @@
 #include "middleend/mlir/lower/lower.h"
 #include "middleend/mlir/verifer/verifer.h"
 #include "middleend/pass/analysis/alias/alias.h"
-#include "middleend/pass/analysis/sideeffect/sideeffect.h"
 #include "middleend/pass/analysis/cfg/mlircfg.h"
 #include "middleend/pass/analysis/domtree/domtree.h"
 #include "middleend/pass/analysis/loopinfo/loopinfo.h"
 #include "middleend/pass/analysis/memoryssa/memoryssa.h"
 #include "middleend/pass/analysis/scev/scevpass.h"
+#include "middleend/pass/analysis/sideeffect/sideeffect.h"
 #include "middleend/pass/transform/adce/adce.h"
 #include "middleend/pass/transform/canonicalization/phi.h"
+#include "middleend/pass/transform/deadloopelim/deadloopelim.h"
 #include "middleend/pass/transform/dse/dse.h"
 #include "middleend/pass/transform/functioninline/functioninline.h"
 #include "middleend/pass/transform/gvn/gvn.h"
@@ -39,14 +40,13 @@
 #include "middleend/pass/transform/promotion/promotion.h"
 #include "middleend/pass/transform/sccp/sccp.h"
 #include "middleend/pass/transform/simplify/simplify.h"
-#include "middleend/pass/transform/deadloopelim/deadloopelim.h"
 #include "middleend/pass/transform/strengthreduce/strengthreduce.h"
 #include "middleend/pass/transform/trivialblockmerge/trivialblockmerge.h"
 #include "middleend/pass/transform/unify/unify.h"
+#include "stages/asm/asm_stage.h"
 #include "stages/ast/ast_stage.h"
 #include "stages/lexer/lexer_stage.h"
 #include "stages/llvm/llvm_stage.h"
-#include "stages/asm/asm_stage.h"
 #include "stages/mir/mir_stage.h"
 #include "stages/mlir/mlir_stage.h"
 #include "stages/parser/parser_stage.h"
@@ -376,22 +376,20 @@ auto main(int argc, char *argv[]) -> int {
     auto loop_simplify_pass = context::PassContext::CreatePass<middleend::pass::transform::LoopSimplifyPass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(loop_simplify_pass);
-    auto scev_pass = context::PassContext::CreatePass<middleend::pass::analysis::SCEVPass>(
-        &compiler_context, middleend::pass::PassStage::BASEIR);
-    baseirpass_context->AddPass(scev_pass);
-    auto dead_loop_eliminate_pass =
-        context::PassContext::CreatePass<middleend::pass::transform::DeadLoopEliminatePass>(
-            &compiler_context, middleend::pass::PassStage::BASEIR);
-    baseirpass_context->AddPass(dead_loop_eliminate_pass);
-    // Loop rotation (LLVM-style): rotate the surviving loops into guarded do-while
-    // form. It runs after DeadLoopElim (which wants top-tested loops, and would
-    // otherwise delete these) and before StrengthReduce / LICM / Promotion, whose
-    // SCEV-driven and hoisting logic now handles the rotated IV (SCEV looks through
-    // the trivial latch phi rotation leaves behind). It rebuilds a dedicated
-    // preheader itself so LoopSimplify's re-run is a no-op.
+    // LLVM-style loop pipeline when LOOP_ROTATE is enabled: canonicalize, rotate, clean up
+    // guard/header duplicates, then run the SCEV-driven loop consumers on the rotated shape.
     auto loop_rotate_pass = context::PassContext::CreatePass<middleend::pass::transform::LoopRotatePass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(loop_rotate_pass);
+    auto post_rotate_gvn_pass = context::PassContext::CreatePass<middleend::pass::transform::PostRotateGVNPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(post_rotate_gvn_pass);
+    auto scev_pass = context::PassContext::CreatePass<middleend::pass::analysis::SCEVPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(scev_pass);
+    auto dead_loop_eliminate_pass = context::PassContext::CreatePass<middleend::pass::transform::DeadLoopEliminatePass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(dead_loop_eliminate_pass);
     auto strength_reduce_pass = context::PassContext::CreatePass<middleend::pass::transform::StrengthReducePass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(strength_reduce_pass);
@@ -421,8 +419,9 @@ auto main(int argc, char *argv[]) -> int {
     auto post_loop_adce_pass = context::PassContext::CreatePass<middleend::pass::transform::PostLoopADCEPass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(post_loop_adce_pass);
-    auto post_loop_tbm_pass = context::PassContext::CreatePass<middleend::pass::transform::PostLoopTrivialBlockMergePass>(
-        &compiler_context, middleend::pass::PassStage::BASEIR);
+    auto post_loop_tbm_pass =
+        context::PassContext::CreatePass<middleend::pass::transform::PostLoopTrivialBlockMergePass>(
+            &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(post_loop_tbm_pass);
     // Partial-redundancy elimination runs last: it inserts phis that reference values
     // available in a predecessor, so no later loop pass may delete those values (which
@@ -493,8 +492,8 @@ auto main(int argc, char *argv[]) -> int {
   // RISC-V (the competition target); -aarch64 selects the ARMv8-A backend.
   bool want_asm = (stage == "S" || stage == "s");
   if (target_arch == "aarch64") {
-    auto aarch64_backend = std::make_unique<backend::targetir::aarch64::AArch64Backend>(
-        &compiler_context, optimization_level, magic_div);
+    auto aarch64_backend =
+        std::make_unique<backend::targetir::aarch64::AArch64Backend>(&compiler_context, optimization_level, magic_div);
     ret = aarch64_backend->Run();
     if (ret != 0) {
       return 1;
@@ -505,8 +504,8 @@ auto main(int argc, char *argv[]) -> int {
     return ret;
   }
 
-  auto riscv_backend = std::make_unique<backend::targetir::riscv::RISCVBackend>(
-      &compiler_context, optimization_level, magic_div);
+  auto riscv_backend =
+      std::make_unique<backend::targetir::riscv::RISCVBackend>(&compiler_context, optimization_level, magic_div);
   ret = riscv_backend->Run();
   if (ret != 0) {
     return 1;

@@ -131,6 +131,13 @@ class GVNPass : public TransformPass {
   bool changed_{false};
 };
 
+class PostRotateGVNPass : public GVNPass {
+ public:
+  PostRotateGVNPass(context::CompilerContext *compiler_context, PassStage stage) : GVNPass(compiler_context, stage) {}
+  auto Run() -> void override;
+  auto Name() const -> std::string override { return "PostRotateGVNPass"; }
+};
+
 }  // namespace middleend::pass::transform
 
 #endif
