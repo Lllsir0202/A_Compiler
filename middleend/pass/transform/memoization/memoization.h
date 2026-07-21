@@ -58,6 +58,7 @@ class MemoizationPass : public TransformPass {
     mlir::base::FuncDefOp *func{nullptr};
     std::vector<mlir::Value *> args;
     std::vector<mlir::Operation *> returns;
+    std::unordered_set<mlir::Value *> local_scalar_roots;
     int self_calls{0};
   };
 
@@ -75,8 +76,11 @@ class MemoizationPass : public TransformPass {
 
   auto Analyze(mlir::base::FuncDefOp *func) -> Candidate;
   auto IsCandidate(const Candidate &candidate) -> bool;
-  auto IsPermittedPureOp(mlir::Operation *op, const std::string &func_name, int *self_calls,
+  auto IsPermittedPureOp(mlir::Operation *op, const std::string &func_name,
+                         const std::unordered_set<mlir::Value *> &local_scalar_roots, int *self_calls,
                          std::vector<mlir::Operation *> *returns) -> bool;
+  auto IsLocalScalarMemoryOp(mlir::Operation *op, const std::unordered_set<mlir::Value *> &local_scalar_roots) -> bool;
+  auto GetAccessRoot(mlir::Value *ptr) -> mlir::Value *;
   auto ExistingGlobalNames() -> std::unordered_set<std::string>;
   auto MakeUniqueName(const std::string &base, std::unordered_set<std::string> *names) -> std::string;
   auto CreateCacheGlobals(const Candidate &candidate, std::unordered_set<std::string> *names) -> CacheGlobals;
