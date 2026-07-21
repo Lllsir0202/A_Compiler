@@ -1,0 +1,31 @@
+int zero_value = 0;
+int negative_value = -7;
+int positive_value = 9;
+
+int main() {
+  int zero = zero_value;
+  int negative = negative_value;
+  int positive = positive_value;
+  int result = 0;
+  if (zero == 0) {
+    result = result + 1;
+  }
+  if (0 != positive) {
+    result = result + 2;
+  }
+  if (negative < 0) {
+    result = result + 4;
+  }
+  if (0 < positive) {
+    result = result + 8;
+  }
+  if (positive >= 0) {
+    result = result + 16;
+  }
+  if (0 >= zero) {
+    result = result + 32;
+  }
+  putint(result);
+  putch(10);
+  return 0;
+}
