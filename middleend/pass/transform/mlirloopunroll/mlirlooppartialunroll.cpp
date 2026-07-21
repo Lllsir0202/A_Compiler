@@ -218,13 +218,18 @@ auto MLIRLoopPartialUnrollPass::TryJamDotProductLoop(mlir::Block *block, mlir::s
   }
 
   pattern.reduction_iv_ = loopiv::Recognize(pattern.reduction_loop_);
-  if (!pattern.reduction_iv_.valid_ || pattern.reduction_iv_.index_ != 0 ||
+  if (!pattern.reduction_iv_.valid_ || pattern.reduction_iv_.index_ >= 2 ||
       pattern.reduction_iv_.kind_ != loopiv::CmpKind::kLT ||
       pattern.reduction_iv_.step_kind_ != loopiv::StepKind::kAdd || pattern.reduction_iv_.step_ != 1 ||
       pattern.reduction_loop_->GetResultsSize() != 2 || !IsConstInt(pattern.reduction_iv_.init_, 0) ||
       !SameValue(pattern.reduction_iv_.bound_, pattern.column_iv_.bound_)) {
     return false;
   }
+  // Loop-carried variables originate in an unordered symbol map, so the frontend may represent
+  // the same reduction as either (k, sum) or (sum, k).  Follow the induction recognizer's index
+  // instead of making the optimization depend on that incidental order.
+  const size_t reduction_index = pattern.reduction_iv_.index_;
+  const size_t sum_index = 1 - reduction_index;
   auto *reduction_cond_block = pattern.reduction_loop_->GetCondRegion()->blocks_[0];
   auto *reduction_body_block = pattern.reduction_loop_->GetBodyRegion()->blocks_[0];
   if (reduction_cond_block->arguments_.size() != 2 || reduction_body_block->arguments_.size() != 2) {
@@ -240,17 +245,17 @@ auto MLIRLoopPartialUnrollPass::TryJamDotProductLoop(mlir::Block *block, mlir::s
   if (reduction_inits.size() != 2) {
     return false;
   }
-  pattern.reduction_init_ = TraceCopies(reduction_inits[0]);
-  pattern.sum_init_ = TraceCopies(reduction_inits[1]);
+  pattern.reduction_init_ = TraceCopies(reduction_inits[reduction_index]);
+  pattern.sum_init_ = TraceCopies(reduction_inits[sum_index]);
   if (!IsConstInt(pattern.reduction_init_, 0) || !IsConstInt(pattern.sum_init_, 0) ||
       loopiv::IsDefinedInLoop(pattern.reduction_init_, while_op) ||
       loopiv::IsDefinedInLoop(pattern.sum_init_, while_op)) {
     return false;
   }
-  auto *reduction_arg = reduction_cond_block->arguments_[0];
-  auto *sum_arg = reduction_cond_block->arguments_[1];
-  pattern.reduction_step_ =
-      FindAddStep(pattern.reduction_yield_->GetOperands()[0], reduction_arg, &pattern.reduction_arg_is_lhs_);
+  auto *reduction_arg = reduction_cond_block->arguments_[reduction_index];
+  auto *sum_arg = reduction_cond_block->arguments_[sum_index];
+  pattern.reduction_step_ = FindAddStep(pattern.reduction_yield_->GetOperands()[reduction_index], reduction_arg,
+                                        &pattern.reduction_arg_is_lhs_);
   if (pattern.reduction_step_ == nullptr || !IsConstInt(pattern.reduction_step_, 1) ||
       loopiv::IsDefinedInLoop(pattern.reduction_step_, while_op)) {
     return false;
@@ -280,7 +285,7 @@ auto MLIRLoopPartialUnrollPass::TryJamDotProductLoop(mlir::Block *block, mlir::s
     return false;
   }
 
-  auto *sum_next = TraceCopies(pattern.reduction_yield_->GetOperands()[1]);
+  auto *sum_next = TraceCopies(pattern.reduction_yield_->GetOperands()[sum_index]);
   pattern.sum_add_ = sum_next == nullptr ? nullptr : mlir::DynamicOrNull<mlir::arithm::AddOp>(sum_next->op_);
   if (pattern.sum_add_ == nullptr) {
     return false;
@@ -350,7 +355,7 @@ auto MLIRLoopPartialUnrollPass::TryJamDotProductLoop(mlir::Block *block, mlir::s
   } else {
     return false;
   }
-  if (!SameValue(pattern.output_store_->GetNewValue(), pattern.reduction_loop_->GetResultByIndex(1))) {
+  if (!SameValue(pattern.output_store_->GetNewValue(), pattern.reduction_loop_->GetResultByIndex(sum_index))) {
     return false;
   }
 
@@ -478,9 +483,9 @@ auto MLIRLoopPartialUnrollPass::TryJamDotProductLoop(mlir::Block *block, mlir::s
   jam_body_region->AddBlock(jam_body_block);
   auto *jam_loop = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::WhileOp>(GET_MLIR_CONTEXT(), kJamFactor + 1,
                                                                            jam_cond_region, jam_body_region);
-  jam_loop->GetResultByIndex(0)->SetType(pattern.reduction_loop_->GetResultByIndex(0)->GetType());
+  jam_loop->GetResultByIndex(0)->SetType(pattern.reduction_loop_->GetResultByIndex(reduction_index)->GetType());
   for (int64_t lane = 0; lane < kJamFactor; ++lane) {
-    jam_loop->GetResultByIndex(lane + 1)->SetType(pattern.reduction_loop_->GetResultByIndex(1)->GetType());
+    jam_loop->GetResultByIndex(lane + 1)->SetType(pattern.reduction_loop_->GetResultByIndex(sum_index)->GetType());
   }
   main_body_block->AddOperation(jam_loop);
 
