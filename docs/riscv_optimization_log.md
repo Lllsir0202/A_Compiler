@@ -257,3 +257,49 @@ the two increases were two instructions each. The high-rank stress case stayed
 effectively neutral at 9,989,494 versus 9,989,493 dynamic instructions, showing
 that the cost model avoids the register-pressure regression found during
 development.
+
+## 7. Four-column unroll-and-jam for in-place matrix products
+
+### Change
+
+- Recognize the strict `A[i][j] = sum_k C[i][k] * A[k][j]` structured-loop
+  shape with two distinct global two-dimensional arrays, unit induction steps,
+  a single zero-initialized reduction, and no additional memory effects.
+- Split the column loop into a four-column main loop plus the original scalar
+  remainder. The jammed reduction loads `C[i][k]` once and updates four sums
+  from the contiguous `A[k][j..j+3]` row segment.
+- Keep the four reduction chains independent so the existing eight-way inner
+  partial unroller exposes instruction-level parallelism without changing each
+  column's arithmetic order.
+- Test the main-loop boundary as `j + 3 < bound`; this avoids the signed
+  underflow hazard of computing `bound - 3` for a runtime bound.
+- Require distinct global-array definitions instead of accepting pointer
+  parameters, so possible caller-side aliasing cannot invalidate the schedule.
+
+### Validation
+
+- Incremental compiler build and MLIR verification: passed.
+- Functional plus hidden-functional plus final-performance compile/assemble on
+  both RISC-V and AArch64: 206/207 passed; the only failure on each target is
+  the unchanged frontend failure in `64_calculator.sy`.
+- Native host execution: 146/147 functional plus hidden-functional cases
+  passed with exact output; only `64_calculator.sy` failed to compile.
+- The dedicated runtime-bound regression exercises both a four-column group
+  and the scalar remainder; optimized RISC-V, unoptimized RISC-V, and optimized
+  native execution produced identical output.
+- Only the three `many_mat_cal` programs among the 60 final-performance cases
+  receive the large transformed kernel; no unrelated matrix kernel matched.
+
+### Result
+
+| Scope | Baseline | Optimized | Reduction | Instruction speedup |
+|---|---:|---:|---:|---:|
+| Runtime-bound in-place dot-product regression, dynamic instructions | 3,050 | 2,178 | 28.59% | 1.400x |
+| Same regression, static instructions | 229 | 489 | -113.54% | 0.468x |
+| Each `many_mat_cal` program, static instructions | 550 | 798 | -45.09% | 0.689x |
+
+The static increase is deliberate: four accumulator chains and their
+eight-iteration widened reduction trade code size for row-contiguous cache-line
+use. The submitted wall-clock measurements are therefore the decisive metric
+for this stage; the local instruction regression confirms reduced loop/address
+overhead but does not model the judge's cache timing.

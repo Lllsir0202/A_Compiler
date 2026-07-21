@@ -58,6 +58,8 @@ class MLIRLoopPartialUnrollPass : public TransformPass {
 
  private:
   auto RunOnFunction(mlir::func::FuncDefOp *func_op) -> bool;
+  auto JamDotProductLoops(mlir::func::FuncDefOp *func_op) -> bool;
+  auto TryJamDotProductLoop(mlir::Block *block, mlir::scf::WhileOp *while_op) -> bool;
   auto CollectWhileLoops(mlir::Block *block,
                          std::vector<std::pair<mlir::Block *, mlir::scf::WhileOp *>> *loops) -> void;
   auto CanPartialUnroll(mlir::scf::WhileOp *while_op, loopiv::Induction *iv) -> bool;
@@ -68,6 +70,7 @@ class MLIRLoopPartialUnrollPass : public TransformPass {
   mlir::utils::OperationCloner cloner_{compiler_context_};
 
   // Cost cap on the widened main-loop body (kUnrollFactor * body-op-count).
+  static constexpr int64_t kJamFactor = 4;
   static constexpr size_t kMaxBodyCost = 1024;
 };
 
