@@ -55,17 +55,20 @@ class MLIRLoopPartialUnrollPass : public TransformPass {
 
  private:
   auto RunOnFunction(mlir::func::FuncDefOp *func_op) -> bool;
-  auto CollectWhileLoops(mlir::Block *block,
-                         std::vector<std::pair<mlir::Block *, mlir::scf::WhileOp *>> *loops) -> void;
+  auto JamDotProductLoops(mlir::func::FuncDefOp *func_op) -> bool;
+  auto TryJamDotProductLoop(mlir::Block *block, mlir::scf::WhileOp *while_op) -> bool;
+  auto CollectWhileLoops(mlir::Block *block, std::vector<std::pair<mlir::Block *, mlir::scf::WhileOp *>> *loops)
+      -> void;
   auto CanPartialUnroll(mlir::scf::WhileOp *while_op, loopiv::Induction *iv) -> bool;
   auto PartialUnroll(mlir::Block *block, mlir::scf::WhileOp *while_op, const loopiv::Induction &iv) -> void;
-  auto MakeComparison(loopiv::CmpKind kind, mlir::Value *lhs, mlir::Value *rhs,
-                      mlir::Value *result_type_source) -> mlir::Operation *;
+  auto MakeComparison(loopiv::CmpKind kind, mlir::Value *lhs, mlir::Value *rhs, mlir::Value *result_type_source)
+      -> mlir::Operation *;
 
   mlir::utils::OperationCloner cloner_{compiler_context_};
 
   // Unroll factor and a cost cap on the widened main-loop body (K * body-op-count).
   static constexpr int64_t kUnrollFactor = 8;
+  static constexpr int64_t kJamFactor = 4;
   static constexpr size_t kMaxBodyCost = 1024;
 };
 
