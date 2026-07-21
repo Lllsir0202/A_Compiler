@@ -92,15 +92,15 @@ class StrengthReducePass : public TransformPass {
   // Replace a loop-variant multiply (whose value is an affine recurrence of the loop) with an
   // additive induction variable, reusing one per step across recurrences that differ by an offset.
   auto ReduceMul(mlir::base::MulOp *mul, analysis::Loop *loop, const LoopFrame &frame) -> bool;
-  // Replace a `getptr` whose last index is an affine recurrence of the loop (earlier indices
-  // invariant) with a pointer induction variable, reusing one per (base, leading indices, step).
+  // Replace a scalar-element `getptr` with exactly one affine varying index by
+  // a pointer induction variable, reusing one per (base, invariant indices,
+  // dimension, step).
   auto ReduceGetPtr(mlir::var::VarGetPtrOp *get_ptr, analysis::Loop *loop, const LoopFrame &frame) -> bool;
 
   // Build the canonical additive / walking-pointer induction variable: preheader init, header phi,
   // latch step. Returns the phi value.
-  auto EmitScalarIV(mlir::Value *init, mlir::Value *stride, const LoopFrame &frame, type::Type *type)
-      -> mlir::Value *;
-  auto EmitPointerIV(mlir::Value *base, const std::vector<mlir::Value *> &leading, mlir::Value *init_last, int step,
+  auto EmitScalarIV(mlir::Value *init, mlir::Value *stride, const LoopFrame &frame, type::Type *type) -> mlir::Value *;
+  auto EmitPointerIV(mlir::Value *base, const std::vector<mlir::Value *> &init_indices, int element_step,
                      const LoopFrame &frame, type::Type *type) -> mlir::Value *;
 
   // Materialize a SCEV as a value inserted before the terminator of `at`; returns nullptr if the

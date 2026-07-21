@@ -214,3 +214,46 @@ original compiler, the 60-case static total is down from 31,314 to 24,908
   directly including `<stdexcept>`.
 - This prevents isolated or differently ordered builds from depending on a
   transitive standard-library include.
+
+## 6. Multidimensional pointer induction variables
+
+### Change
+
+- Generalize getptr strength reduction from an affine last index to exactly one
+  affine index in any dimension of a scalar-element access.
+- Derive the scalar-element stride from recursive array types, accounting for
+  the different first-index semantics of array objects and array parameters.
+- Scale both the loop step and unrolled-family offsets by that dimension stride,
+  turning accesses such as `a[k][j]` into a walking pointer plus fixed offsets.
+- Restrict non-last-dimension reduction to innermost accesses of rank four or
+  less. This avoids keeping many wide-stride pointers live across subloops and
+  prevents register-spill regressions on pathological high-rank arrays.
+
+### Validation
+
+- Clean incremental compiler build: passed.
+- Compile and GNU-assemble all 60 RISC-V final-performance programs: 60/60
+  passed.
+- Compile and Clang-assemble all 60 AArch64 final-performance programs: 60/60
+  passed.
+- Functional plus hidden-functional compile/assemble on both targets: 145/146
+  passed; the only failure on each remains the pre-existing frontend failure in
+  `64_calculator.sy`.
+- Spike output validation passed for matrix add/subtract/multiply/transpose,
+  the 19-dimensional array stress case, and a dedicated runtime-bounded column
+  walk.
+
+### Result
+
+| Scope | Baseline | Optimized | Reduction | Speedup |
+|---|---:|---:|---:|---:|
+| Runtime-bounded 2D column walk, dynamic instructions | 4,514 | 3,439 | 23.81% | 1.313x |
+| `many_mat_cal` hot unrolled reduction group, instructions | 67 | 51 | 23.88% | 1.314x |
+| `matmul1`, static instructions | 555 | 490 | 11.71% | 1.133x |
+| 60 RISC-V final-performance cases, static instructions | 24,925 | 24,550 | 1.50% | 1.015x |
+
+Sixteen of the 18 statically changed final-performance programs became smaller;
+the two increases were two instructions each. The high-rank stress case stayed
+effectively neutral at 9,989,494 versus 9,989,493 dynamic instructions, showing
+that the cost model avoids the register-pressure regression found during
+development.
