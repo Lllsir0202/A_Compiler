@@ -9,6 +9,7 @@
 #include "middleend/mlir/dialect/base/copy.h"
 #include "middleend/mlir/dialect/base/funccall.h"
 #include "middleend/mlir/dialect/base/funcdef.h"
+#include "middleend/mlir/dialect/base/phi.h"
 #include "middleend/mlir/dialect/base/unaryop.h"
 #include "middleend/mlir/dialect/func/funccall.h"
 #include "middleend/mlir/dialect/func/return.h"
@@ -173,8 +174,8 @@ auto AliasAnalysisPass::CollectInterproceduralFacts() -> void {
               AreProvenNoAliasParameters(lhs_parameter, rhs_parameter)) {
             continue;
           }
-          bool every_call_is_distinct = std::all_of(
-              call_iter->second.begin(), call_iter->second.end(), [&](const DirectCall &call) {
+          bool every_call_is_distinct =
+              std::all_of(call_iter->second.begin(), call_iter->second.end(), [&](const DirectCall &call) {
                 if (lhs_index >= call.arguments.size() || rhs_index >= call.arguments.size()) {
                   return false;
                 }
@@ -331,11 +332,74 @@ auto AliasAnalysisPass::GetBaseObject(mlir::Value *pointer) -> MemoryObject {
       result = {ObjectKind::Global, current};
       break;
     }
+    if (auto *phi_op = mlir::DynamicOrNull<mlir::base::PhiOp>(op)) {
+      // A phi resolves to a definite object only if every incoming value derives from the same
+      // one. A loop-carried address phi (e.g. an induction of a[i][j]'s address) references itself
+      // through a getptr chain on the back-edge; those self-referential operands carry no new
+      // information, so skip them and require the remaining operands to agree. This keeps a store
+      // through such a phi anchored to its real array, unblocking invariant-load hoisting.
+      result = ResolvePhiBaseObject(phi_op, current);
+      break;
+    }
     result = {ObjectKind::Unknown, current};
     break;
   }
   base_cache_[pointer] = result;
   return result;
+}
+
+auto AliasAnalysisPass::ResolvePhiBaseObject(mlir::base::PhiOp *phi, mlir::Value *phi_value) -> MemoryObject {
+  // Guard against the cycle a loop-carried phi forms with itself: mark the phi's result as
+  // in-progress so a recursive query returning to it is treated as "no new information" rather
+  // than recursing forever.
+  if (!phi_resolution_stack_.insert(phi_value).second) {
+    return {ObjectKind::Unknown, phi_value};
+  }
+
+  bool has_definite = false;
+  MemoryObject agreed;
+  for (auto *incoming : phi->GetIncomingValue()) {
+    // Operands that cycle back to this phi (directly, or through a getptr chain on the back-edge)
+    // carry no new information about the object; skip them and let the entry operands decide.
+    if (DerivesFromPhi(incoming, phi_value)) {
+      continue;
+    }
+    auto object = GetBaseObject(incoming);
+    if (!has_definite) {
+      agreed = object;
+      has_definite = true;
+    } else if (agreed.kind != object.kind || agreed.root != object.root) {
+      agreed = {ObjectKind::Unknown, nullptr};
+      break;
+    }
+  }
+
+  phi_resolution_stack_.erase(phi_value);
+  if (!has_definite || agreed.kind == ObjectKind::Unknown) {
+    return {ObjectKind::Unknown, phi_value};
+  }
+  return agreed;
+}
+
+auto AliasAnalysisPass::DerivesFromPhi(mlir::Value *value, mlir::Value *phi_value) -> bool {
+  // Walk the getptr/copy chain feeding `value`; report whether it originates at `phi_value`.
+  mlir::Value *current = value;
+  while (current != nullptr && current->op_ != nullptr) {
+    if (current == phi_value) {
+      return true;
+    }
+    auto *op = current->op_;
+    if (auto *getptr_op = mlir::DynamicOrNull<mlir::var::VarGetPtrOp>(op)) {
+      current = getptr_op->GetPtr();
+      continue;
+    }
+    if (auto *copy_op = mlir::DynamicOrNull<mlir::base::CopyOp>(op)) {
+      current = copy_op->GetSrc();
+      continue;
+    }
+    break;
+  }
+  return current == phi_value;
 }
 
 auto AliasAnalysisPass::Alias(mlir::Value *lhs, mlir::Value *rhs) -> AliasResult {

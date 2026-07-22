@@ -11,6 +11,9 @@
 namespace middleend::mlir {
 class Operation;
 class Value;
+namespace base {
+class PhiOp;
+}  // namespace base
 }  // namespace middleend::mlir
 
 namespace middleend::pass::analysis {
@@ -78,8 +81,14 @@ class AliasAnalysisPass : public AnalysisPass {
   auto DefinitelyDistinct(const MemoryObject &lhs, const MemoryObject &rhs) -> bool;
   auto AreProvenNoAliasParameters(mlir::Value *lhs, mlir::Value *rhs) const -> bool;
   auto GetConstantIndex(mlir::Value *value, int *out) -> bool;
+  // Base object of a phi: the common object of its incoming values, ignoring back-edge operands
+  // that cycle back to the phi. Unknown if they disagree or none is definite.
+  auto ResolvePhiBaseObject(mlir::base::PhiOp *phi, mlir::Value *phi_value) -> MemoryObject;
+  // Whether `value`'s getptr/copy chain originates at `phi_value` (a self-referential operand).
+  auto DerivesFromPhi(mlir::Value *value, mlir::Value *phi_value) -> bool;
 
   std::unordered_map<mlir::Value *, MemoryObject> base_cache_;
+  std::unordered_set<mlir::Value *> phi_resolution_stack_;
   std::unordered_set<mlir::Value *> param_values_;
   std::unordered_set<mlir::Value *> escaped_locals_;
   std::unordered_map<mlir::Value *, std::unordered_set<mlir::Value *>> noalias_parameters_;
