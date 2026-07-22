@@ -44,6 +44,26 @@ class RVLAInst : public TargetInst {
   friend class targetir::InstFactory;
 };
 
+class RVSEQZInst : public TargetInst {
+ public:
+  auto Emit(std::ofstream *out) -> void override;
+
+ private:
+  RVSEQZInst() = default;
+  static auto Create(TargetOperand *rd, TargetOperand *rs) -> RVSEQZInst *;
+  friend class targetir::InstFactory;
+};
+
+class RVSNEZInst : public TargetInst {
+ public:
+  auto Emit(std::ofstream *out) -> void override;
+
+ private:
+  RVSNEZInst() = default;
+  static auto Create(TargetOperand *rd, TargetOperand *rs) -> RVSNEZInst *;
+  friend class targetir::InstFactory;
+};
+
 }  // namespace backend::targetir::rv64
 
 #endif

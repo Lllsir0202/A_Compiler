@@ -41,25 +41,6 @@ auto RVSLEInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2
   return inst;
 }
 
-auto RVSEQInst::Emit(std::ofstream *out) -> void {
-  *out << "    seq ";
-  result_->Emit(out);
-  *out << ", ";
-  operands_[0]->Emit(out);
-  *out << ", ";
-  operands_[1]->Emit(out);
-  *out << '\n';
-}
-
-auto RVSEQInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVSEQInst * {
-  auto *inst = new RVSEQInst();
-  inst->operands_.reserve(2);
-  inst->AddOperand(rs1);
-  inst->AddOperand(rs2);
-  inst->SetResult(rd);
-  return inst;
-}
-
 auto RVSLTIInst::Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *imm) -> RVSLTIInst * {
   auto *inst = new RVSLTIInst();
   inst->operands_.reserve(2);

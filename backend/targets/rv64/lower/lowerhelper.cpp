@@ -16,6 +16,7 @@
 #include "backend/targets/utils/operand/targetoperand.h"
 #include "backend/targets/utils/operand/targetreg.h"
 #include "context/compiler_context.h"
+#include "mir/inst/cmp/cmp.h"
 
 #define GET_BACKEND_TARGET() compiler_context_->GetBackendContext()
 namespace backend::targetir::rv64 {
@@ -682,127 +683,230 @@ auto LowerHelper::LowerDivF(backend::inst::DivFInst *inst) -> void {
 }
 
 auto LowerHelper::LowerICmp(backend::inst::ICmpInst *inst) -> void {
-  auto lhs = inst->GetOperands()[0];
-  auto rhs = inst->GetOperands()[1];
-  auto dst = inst->GetResult();
+  /**
+   * @brief For Icmp instruction, since for rv64, we only have:
+   * slt, sle, seq, so we should first transform the predicate into one of these three.
+   */
+  auto lhs = inst->GetLHS();
+  auto rhs = inst->GetRHS();
+  auto predicate = inst->GetPredicate();
 
-  auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
-  GET_BACKEND_TARGET()->MapOperand(dst, target_result);
-
-  if (!lhs->IsLiteral() && rhs->IsLiteral()) {
-    auto target_lhs = GET_BACKEND_TARGET()->GetMappedOperand(lhs);
-    if (target_lhs == nullptr) {
-      compiler_context_->ReportError("LHS integer compare operand is not mapped to a target operand");
+  // If both operands are literals, we should have done constant folding,
+  // so just report an error
+  if (lhs->IsLiteral() && rhs->IsLiteral()) {
+    compiler_context_->ReportError("Both operands are literals, should have been constant folded");
+    return;
+  }
+  // If predicate is GT or GE, we can transform it into L* predicate by swapping the operands
+  if (predicate == backend::inst::CmpPredicate::GT || predicate == backend::inst::CmpPredicate::GE) {
+    std::swap(lhs, rhs);
+    // if predicate is GT, after swapping, it becomes LT.
+    predicate = (predicate == backend::inst::CmpPredicate::GT) ? backend::inst::CmpPredicate::LT
+                                                               : backend::inst::CmpPredicate::LE;
+  }
+  // 1. Handle LT and LE predicates, if rhs is a literal, we might be able to use an immediate instruction(slti).
+  if (predicate == backend::inst::CmpPredicate::LT) {
+    // If predicate is LT
+    if (rhs->IsLiteral()) {
+      auto literal_value = static_cast<utils::IntLiteral *>(rhs)->GetValue();
+      // If the literal is in 12-bit signed range, we can use an immediate instruction(slti)
+      if (Is12BitSignedInteger(literal_value)) {
+        // Create a target result virtual register
+        auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+        GET_BACKEND_TARGET()->MapOperand(inst->GetResult(), target_result);
+        auto target_lhs = GET_BACKEND_TARGET()->GetMappedOperand(lhs);
+        if (target_lhs == nullptr) {
+          compiler_context_->ReportError("LHS operand is not mapped to a target operand");
+          return;
+        }
+        // Create a slti instruction to compare the two operands
+        auto target_literal = GET_BACKEND_TARGET()->CreateIntLiteral(literal_value);
+        auto slti_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSLTIInst>(target_result, target_lhs, target_literal);
+        GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(slti_inst);
+        return;
+      }
+      // Otherwise, we need to materialize the literal into a register and use the normal slt instruction
+      auto target_lhs = GET_BACKEND_TARGET()->GetMappedOperand(lhs);
+      auto target_rhs = MaterializeLiteral(compiler_context_, literal_value);
+      if (target_lhs == nullptr || target_rhs == nullptr) {
+        compiler_context_->ReportError("One of the operands is not mapped to a target operand");
+        return;
+      }
+      // Create a target result virtual register
+      auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+      GET_BACKEND_TARGET()->MapOperand(inst->GetResult(), target_result);
+      // Create a slt instruction to compare the two operands
+      auto slt_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSLTInst>(target_result, target_lhs, target_rhs);
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(slt_inst);
       return;
     }
-
-    auto rhs_value = static_cast<utils::IntLiteral *>(rhs)->GetValue();
-    switch (inst->GetPredicate()) {
-      case backend::inst::CmpPredicate::LT:
-        if (Is12BitSignedInteger(rhs_value)) {
-          auto target_imm = GET_BACKEND_TARGET()->CreateIntLiteral(rhs_value);
-          auto cmp_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSLTIInst>(target_result, target_lhs, target_imm);
-          GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(cmp_inst);
-          return;
-        }
-        break;
-      case backend::inst::CmpPredicate::LE:
-        if (rhs_value < 2047 && Is12BitSignedInteger(rhs_value + 1)) {
-          auto target_imm = GET_BACKEND_TARGET()->CreateIntLiteral(rhs_value + 1);
-          auto cmp_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSLTIInst>(target_result, target_lhs, target_imm);
-          GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(cmp_inst);
-          return;
-        }
-        break;
-      default:
-        break;
+    // Create a SLT instruction to compare the two operands
+    auto target_lhs = lhs->IsLiteral()
+                          ? MaterializeLiteral(compiler_context_, static_cast<utils::IntLiteral *>(lhs)->GetValue())
+                          : GET_BACKEND_TARGET()->GetMappedOperand(lhs);
+    auto target_rhs = GET_BACKEND_TARGET()->GetMappedOperand(rhs);
+    if (target_lhs == nullptr || target_rhs == nullptr) {
+      compiler_context_->ReportError("One of the operands is not mapped to a target operand");
+      return;
     }
+    // Create a target result virtual register
+    auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+    GET_BACKEND_TARGET()->MapOperand(inst->GetResult(), target_result);
+    // Create a slt instruction to compare the two operands
+    auto slt_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSLTInst>(target_result, target_lhs, target_rhs);
+    GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(slt_inst);
+    return;
   }
+  // 2. Handle SLE predicate
+  if (predicate == backend::inst::CmpPredicate::LE) {
+    // Perform the same logic as LT, but the SLE will be like:
+    // lhs <= rhs => !(lhs > rhs) => !(rhs < lhs) --after rename--> !(lhs < rhs)
+    std::swap(lhs, rhs);
+    // Create the result register for (lhs < rhs)
+    auto tmp_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+    if (rhs->IsLiteral()) {
+      // Check if the literal is in 12-bit signed range, we can use an immediate instruction(slti)
+      auto literal_value = static_cast<utils::IntLiteral *>(rhs)->GetValue();
+      if (Is12BitSignedInteger(literal_value)) {
+        auto target_lhs = GET_BACKEND_TARGET()->GetMappedOperand(lhs);
+        if (target_lhs == nullptr) {
+          compiler_context_->ReportError("LHS operand is not mapped to a target operand");
+          return;
+        }
+        // Create a slti instruction to compare the two operands
+        auto target_literal = GET_BACKEND_TARGET()->CreateIntLiteral(literal_value);
+        auto slti_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSLTIInst>(tmp_result, target_lhs, target_literal);
+        GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(slti_inst);
+      } else {
+        // Otherwise, we need to materialize the literal into a register and use the normal slt instruction
+        auto target_lhs = lhs->IsLiteral()
+                              ? MaterializeLiteral(compiler_context_, static_cast<utils::IntLiteral *>(lhs)->GetValue())
+                              : GET_BACKEND_TARGET()->GetMappedOperand(lhs);
+        auto target_rhs = MaterializeLiteral(compiler_context_, literal_value);
+        if (target_lhs == nullptr || target_rhs == nullptr) {
+          compiler_context_->ReportError("One of the operands is not mapped to a target operand");
+          return;
+        }
+        // Create a slt instruction to compare the two operands
+        auto slt_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSLTInst>(tmp_result, target_lhs, target_rhs);
+        GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(slt_inst);
+      }
+    } else {
+      // Otherwise, we need to use the normal slt instruction
+      auto target_lhs = lhs->IsLiteral()
+                            ? MaterializeLiteral(compiler_context_, static_cast<utils::IntLiteral *>(lhs)->GetValue())
+                            : GET_BACKEND_TARGET()->GetMappedOperand(lhs);
+      auto target_rhs = GET_BACKEND_TARGET()->GetMappedOperand(rhs);
+      if (target_lhs == nullptr || target_rhs == nullptr) {
+        compiler_context_->ReportError("One of the operands is not mapped to a target operand");
+        return;
+      }
+      // Create a slt instruction to compare the two operands
+      auto slt_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSLTInst>(tmp_result, target_lhs, target_rhs);
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(slt_inst);
+    }
+    // Then we need to negate the result of the comparison to get the final result
+    auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+    GET_BACKEND_TARGET()->MapOperand(inst->GetResult(), target_result);
 
-  auto target_lhs = lhs->IsLiteral()
-                        ? MaterializeLiteral(compiler_context_, static_cast<utils::IntLiteral *>(lhs)->GetValue())
-                        : GET_BACKEND_TARGET()->GetMappedOperand(lhs);
-  auto target_rhs = rhs->IsLiteral()
-                        ? MaterializeLiteral(compiler_context_, static_cast<utils::IntLiteral *>(rhs)->GetValue())
-                        : GET_BACKEND_TARGET()->GetMappedOperand(rhs);
-  if (target_lhs == nullptr || target_rhs == nullptr) {
-    compiler_context_->ReportError("One of the integer compare operands is not mapped to a target operand");
+    // Create a not instruction(xori rd, rs, -1)
+    auto not_inst = GET_BACKEND_TARGET()->CreateInstruction<RVXORIInst>(target_result, tmp_result,
+                                                                        GET_BACKEND_TARGET()->CreateIntLiteral(-1));
+    GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(not_inst);
+    return;
+  }
+  // 3. Handle EQ and NE predicates
+  if (predicate == backend::inst::CmpPredicate::EQ || predicate == backend::inst::CmpPredicate::NE) {
+    // For EQ and NE, we can use xor instruction to compare them.
+    // The order does not matter, since xor is commutative.
+    // First check whether one of the operands is a literal,
+    // if so, we can use an immediate instruction to optimize.
+    if (lhs->IsLiteral() && rhs->IsLiteral()) {
+      compiler_context_->ReportError("Both operands are literals, should have been constant folded");
+      return;
+    }
+    if (lhs->IsLiteral() || rhs->IsLiteral()) {
+      // If so, get the literal
+      auto literal_operand = lhs->IsLiteral() ? lhs : rhs;
+      auto non_literal_operand = lhs->IsLiteral() ? rhs : lhs;
+      auto literal_value = static_cast<utils::IntLiteral *>(literal_operand)->GetValue();
+      // If the literal is in 12-bit signed range, we can use an immediate instruction(xori)
+      if (Is12BitSignedInteger(literal_value)) {
+        // Use addi instruction to compare the two operands
+        auto target_non_literal = GET_BACKEND_TARGET()->GetMappedOperand(non_literal_operand);
+        if (target_non_literal == nullptr) {
+          compiler_context_->ReportError("Non-literal operand is not mapped to a target operand");
+          return;
+        }
+        auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+        GET_BACKEND_TARGET()->MapOperand(inst->GetResult(), target_result);
+        auto target_literal = GET_BACKEND_TARGET()->CreateIntLiteral(literal_value);
+        auto addi_inst =
+            GET_BACKEND_TARGET()->CreateInstruction<RVADDIInst>(target_result, target_non_literal, target_literal);
+        GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(addi_inst);
+        // Then check seqz or snez
+        if (predicate == inst::CmpPredicate::EQ) {
+          auto seqz_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSEQZInst>(target_result, target_result);
+          GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(seqz_inst);
+        } else {
+          auto snez_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSNEZInst>(target_result, target_result);
+          GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(snez_inst);
+        }
+        // Done
+        return;
+      }
+      // Otherwise, we need to materialize the literal into a register and use the normal xor instruction
+      auto target_non_literal = GET_BACKEND_TARGET()->GetMappedOperand(non_literal_operand);
+      auto target_literal = MaterializeLiteral(compiler_context_, literal_value);
+      if (target_non_literal == nullptr || target_literal == nullptr) {
+        compiler_context_->ReportError("One of the operands is not mapped to a target operand");
+        return;
+      }
+      // Then use xor instruction to compare the two operands
+      auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+      GET_BACKEND_TARGET()->MapOperand(inst->GetResult(), target_result);
+      auto xor_inst =
+          GET_BACKEND_TARGET()->CreateInstruction<RVXORInst>(target_result, target_non_literal, target_literal);
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(xor_inst);
+      // Then check seqz or snez
+      if (predicate == inst::CmpPredicate::EQ) {
+        auto seqz_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSEQZInst>(target_result, target_result);
+        GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(seqz_inst);
+      } else {
+        auto snez_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSNEZInst>(target_result, target_result);
+        GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(snez_inst);
+      }
+      return;
+    }
+    // Otherwise, use xor instruction
+    auto target_lhs = GET_BACKEND_TARGET()->GetMappedOperand(lhs);
+    auto target_rhs = GET_BACKEND_TARGET()->GetMappedOperand(rhs);
+    if (target_lhs == nullptr || target_rhs == nullptr) {
+      compiler_context_->ReportError("One of the operands is not mapped to a target operand");
+      return;
+    }
+    auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+    GET_BACKEND_TARGET()->MapOperand(inst->GetResult(), target_result);
+    auto xor_inst = GET_BACKEND_TARGET()->CreateInstruction<RVXORInst>(target_result, target_lhs, target_rhs);
+    GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(xor_inst);
+    // Then check seqz or snez
+    if (predicate == inst::CmpPredicate::EQ) {
+      auto seqz_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSEQZInst>(target_result, target_result);
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(seqz_inst);
+    } else {
+      auto snez_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSNEZInst>(target_result, target_result);
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(snez_inst);
+    }
     return;
   }
 
-  switch (inst->GetPredicate()) {
-    case backend::inst::CmpPredicate::EQ: {
-      auto cmp_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSEQInst>(target_result, target_lhs, target_rhs);
-      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(cmp_inst);
-      return;
-    }
-    case backend::inst::CmpPredicate::LT: {
-      auto cmp_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSLTInst>(target_result, target_lhs, target_rhs);
-      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(cmp_inst);
-      return;
-    }
-    case backend::inst::CmpPredicate::LE: {
-      auto cmp_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSLEInst>(target_result, target_lhs, target_rhs);
-      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(cmp_inst);
-      return;
-    }
-    case backend::inst::CmpPredicate::GT: {
-      auto cmp_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSLTInst>(target_result, target_rhs, target_lhs);
-      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(cmp_inst);
-      return;
-    }
-    case backend::inst::CmpPredicate::GE: {
-      auto cmp_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSLEInst>(target_result, target_rhs, target_lhs);
-      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(cmp_inst);
-      return;
-    }
-    case backend::inst::CmpPredicate::NE:
-      compiler_context_->ReportError("ICmp predicate lowering is not implemented yet");
-      return;
-  }
+  // Should not reach here, since we have handled all the predicates
+  compiler_context_->ReportError("Unhandled ICmp predicate");
 }
 auto LowerHelper::LowerFCmp(backend::inst::FCmpInst *inst) -> void {
-  auto lhs = inst->GetOperands()[0];
-  auto rhs = inst->GetOperands()[1];
-  auto dst = inst->GetResult();
-
-  auto target_lhs = lhs->IsLiteral()
-                        ? MaterializeLiteral(compiler_context_, static_cast<utils::FloatLiteral *>(lhs)->GetValue())
-                        : GET_BACKEND_TARGET()->GetMappedOperand(lhs);
-  auto target_rhs = rhs->IsLiteral()
-                        ? MaterializeLiteral(compiler_context_, static_cast<utils::FloatLiteral *>(rhs)->GetValue())
-                        : GET_BACKEND_TARGET()->GetMappedOperand(rhs);
-  if (target_lhs == nullptr || target_rhs == nullptr) {
-    compiler_context_->ReportError("One of the float compare operands is not mapped to a target operand");
-    return;
-  }
-
-  auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
-  GET_BACKEND_TARGET()->MapOperand(dst, target_result);
-
-  switch (inst->GetPredicate()) {
-    case backend::inst::CmpPredicate::EQ: {
-      auto cmp_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFEQSInst>(target_result, target_lhs, target_rhs);
-      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(cmp_inst);
-      return;
-    }
-    case backend::inst::CmpPredicate::LT: {
-      auto cmp_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFLTSInst>(target_result, target_lhs, target_rhs);
-      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(cmp_inst);
-      return;
-    }
-    case backend::inst::CmpPredicate::LE: {
-      auto cmp_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFLESInst>(target_result, target_lhs, target_rhs);
-      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(cmp_inst);
-      return;
-    }
-    case backend::inst::CmpPredicate::NE:
-    case backend::inst::CmpPredicate::GT:
-    case backend::inst::CmpPredicate::GE:
-      compiler_context_->ReportError("FCmp predicate lowering is not implemented yet");
-      return;
-  }
+  
 }
+
 auto LowerHelper::LowerXor(backend::inst::XorInst *inst) -> void {
   auto lhs = inst->GetOperands()[0];
   auto rhs = inst->GetOperands()[1];

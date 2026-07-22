@@ -10,7 +10,7 @@ namespace backend::targetir {
  * @brief Used as an entry in the literal pool,
  * which contains the literal value and its offset in the literal pool.
  * @note The offset might be able to be used to do sdata optimization
- **/
+ */
 class TargetFloatLiteralPoolEntry {
  public:
   TargetFloatLiteralPoolEntry(float value, size_t offset, size_t index)

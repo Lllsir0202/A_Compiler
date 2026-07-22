@@ -25,16 +25,6 @@ class RVSLEInst : public TargetInst {
   friend class targetir::InstFactory;
 };
 
-class RVSEQInst : public TargetInst {
- public:
-  auto Emit(std::ofstream *out) -> void override;
-
- private:
-  RVSEQInst() = default;
-  static auto Create(TargetOperand *rd, TargetOperand *rs1, TargetOperand *rs2) -> RVSEQInst *;
-  friend class targetir::InstFactory;
-};
-
 // Immediate Comparsion Instructions
 class RVSLTIInst : public TargetInst {
  public:

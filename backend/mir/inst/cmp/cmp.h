@@ -19,6 +19,8 @@ auto CmpPredicateFromLLVM(middleend::llvm::inst::CmpPredicate llvm_pred) -> CmpP
 class ICmpInst : public Instruction {
  public:
   auto Verify(context::CompilerContext *context) const -> bool override;
+  auto GetLHS() const -> utils::Operand * { return operands_[0]; }
+  auto GetRHS() const -> utils::Operand * { return operands_[1]; }
   auto GetPredicate() const -> CmpPredicate { return predicate_; }
   auto Emit(std::ofstream *out) const -> void override;
 
@@ -33,6 +35,8 @@ class ICmpInst : public Instruction {
 class FCmpInst : public Instruction {
  public:
   auto Verify(context::CompilerContext *context) const -> bool override;
+  auto GetLHS() const -> utils::Operand * { return operands_[0]; }
+  auto GetRHS() const -> utils::Operand * { return operands_[1]; }
   auto GetPredicate() const -> CmpPredicate { return predicate_; }
   auto Emit(std::ofstream *out) const -> void override;
 

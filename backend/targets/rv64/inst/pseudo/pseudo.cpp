@@ -66,4 +66,36 @@ auto RVLAInst::Create(TargetOperand *rd, TargetOperand *symbol) -> RVLAInst * {
   return inst;
 }
 
+auto RVSEQZInst::Emit(std::ofstream *out) -> void {
+  *out << "    seqz ";
+  result_->Emit(out);
+  *out << ", ";
+  operands_[0]->Emit(out);
+  *out << '\n';
+}
+
+auto RVSEQZInst::Create(TargetOperand *rd, TargetOperand *rs) -> RVSEQZInst * {
+  auto inst = new RVSEQZInst();
+  inst->operands_.reserve(1);
+  inst->AddOperand(rs);
+  inst->SetResult(rd);
+  return inst;
+}
+
+auto RVSNEZInst::Emit(std::ofstream *out) -> void {
+  *out << "    snez ";
+  result_->Emit(out);
+  *out << ", ";
+  operands_[0]->Emit(out);
+  *out << '\n';
+}
+
+auto RVSNEZInst::Create(TargetOperand *rd, TargetOperand *rs) -> RVSNEZInst * {
+  auto inst = new RVSNEZInst();
+  inst->operands_.reserve(1);
+  inst->AddOperand(rs);
+  inst->SetResult(rd);
+  return inst;
+}
+
 }  // namespace backend::targetir::rv64
