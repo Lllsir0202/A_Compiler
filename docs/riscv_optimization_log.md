@@ -363,3 +363,73 @@ preserving the `h-11`/`h-2` wins. This is the well-known trade-off of running
 LICM before register allocation on a small register file: loop-body savings and
 allocation cost are close in magnitude, and the pass is tuned to stay net
 positive rather than to win every case.
+
+## 9. Deterministic code generation
+
+### Change
+
+- Compiling the same source twice produced different assembly. Several passes
+  iterated pointer-keyed hash containers whose order varies with ASLR, then
+  created IR operations, SCEV nodes, or chose register-coalescing order from that
+  iteration -- so value numbers and physical-register names permuted run to run.
+  This is not itself a speed optimization, but it is a prerequisite for one: the
+  static- and dynamic-instruction measurements this log depends on were not
+  reproducible before it (one function swung by ~40 instructions between runs),
+  and a competition judge could receive different, possibly worse, codegen than
+  was measured locally.
+- Fixed every source, from front to back of the pipeline:
+  - `scf.while` loop-carried variables and `scf.if` merged variables are ordered
+    by the stable `VarEntry` symbol id instead of `var_map` pointer-hash order.
+  - SCEV commutative-operand canonicalization sorts by a new stable
+    creation-order id (`SCEV::GetOrder`) rather than raw pointer address.
+  - `Loop::GetBlocks()` returns loop-body blocks in stable block-id order (the
+    hash set remains available as `GetBlockSet()` for O(1) membership), which
+    fixes the strength-reduction, SCEV, and LICM consumers at the source.
+  - Scalar promotion places and materializes phis in block-id order.
+  - The RISC-V move-coalescing worklist is ordered by a stable per-move sequence
+    key instead of popping an `unordered_set<TargetInst *>` by pointer hash.
+
+### Validation
+
+- Incremental compiler build: passed.
+- All 59 `riscv_performance` cases compile byte-identically across two runs
+  (previously most varied; one function differed by ~40 instructions).
+- Spike output validation: the four exact-output cases (`h-2-01/02/03`,
+  `sort_search`) still match their expected output; the mismatch/timeout profile
+  of the suite is unchanged from before, i.e. no new failures.
+
+### Result
+
+Reproducible builds. As a side effect of the more stable move-coalescing order,
+some functions coalesce slightly more copies, but the intent of this change is
+correctness/reproducibility rather than a measured speedup.
+
+## 10. Shared base register for large-frame callee-saved runs
+
+### Change
+
+- When a frame exceeds the signed 12-bit load/store immediate range, each
+  callee-saved save/restore emitted `li; add; sd/ld` -- three instructions -- to
+  recompute the same sp-relative slot address. The contiguous callee-saved run
+  now materializes one shared base (`t3 = sp + base_offset`) and addresses every
+  slot as a small offset from it, turning `3*N` instructions into `2 + N`. Small
+  frames keep the direct sp-relative per-slot form. `ra`/`fp` saves are separate
+  slots and unchanged.
+
+### Validation
+
+- Incremental compiler build: passed.
+- Compile plus GNU-assemble of all 59 `riscv_performance` cases: passed.
+- Spike output validation: the `h-2-*` cases (the large-frame programs this
+  targets) still produce correct output.
+
+### Result
+
+| Scope | Baseline | Optimized | Reduction |
+|---|---:|---:|---:|
+| `h-2-01` / `h-2-02`, static instructions | 264 | 240 | 9.1% |
+| `h-2-03`, static instructions | 266 | 242 | 9.0% |
+
+The win is a static-size reduction in the prologue/epilogue of large-frame
+functions; the dynamic effect is proportional to how often such a function is
+entered.
