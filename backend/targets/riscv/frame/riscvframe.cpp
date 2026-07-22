@@ -67,24 +67,26 @@ auto RISCVFrame::MakeSetFp(int frame) -> std::vector<TargetInst *> {
   return seq;
 }
 
+auto RISCVFrame::EmitAccess(std::vector<TargetInst *> *out, RVOpcode op, TargetOperand *reg, TargetOperand *base,
+                            int offset) -> void {
+  bool is_load = op == RVOpcode::LD || op == RVOpcode::LW || op == RVOpcode::FLW;
+  auto *inst = ctx_->CreateInst<RISCVInst>(op);
+  if (is_load) {  // load: rd, imm(base)
+    inst->SetResult(reg);
+    inst->AddOperand(base);
+    inst->AddOperand(ctx_->Imm(offset));
+  } else {  // store: reg, imm(base)
+    inst->AddOperand(reg);
+    inst->AddOperand(base);
+    inst->AddOperand(ctx_->Imm(offset));
+  }
+  out->push_back(inst);
+}
+
 auto RISCVFrame::EmitStackAccess(std::vector<TargetInst *> *out, RVOpcode op, TargetOperand *reg, int offset) -> void {
   auto *sp = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, SP);
-  bool is_load = op == RVOpcode::LD || op == RVOpcode::LW || op == RVOpcode::FLW;
-  auto build = [&](TargetOperand *base, int imm) {
-    auto *inst = ctx_->CreateInst<RISCVInst>(op);
-    if (is_load) {  // load: rd, imm(base)
-      inst->SetResult(reg);
-      inst->AddOperand(base);
-      inst->AddOperand(ctx_->Imm(imm));
-    } else {  // store: reg, imm(base)
-      inst->AddOperand(reg);
-      inst->AddOperand(base);
-      inst->AddOperand(ctx_->Imm(imm));
-    }
-    out->push_back(inst);
-  };
   if (offset >= -2048 && offset <= IMM_MAX) {
-    build(sp, offset);
+    EmitAccess(out, op, reg, sp, offset);
     return;
   }
   auto *addr = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, T3);
@@ -97,7 +99,55 @@ auto RISCVFrame::EmitStackAccess(std::vector<TargetInst *> *out, RVOpcode op, Ta
   add->AddOperand(sp);
   add->AddOperand(addr);
   out->push_back(add);
-  build(addr, 0);
+  EmitAccess(out, op, reg, addr, 0);
+}
+
+// Save (or restore) the contiguous run of callee-saved registers, whose slots
+// sit at `base_offset + i*8` off sp. When the whole run is immediate-addressable
+// from sp, each register is a single sp-relative access. Otherwise a scratch
+// base (t3 = sp + base_offset) is materialized once and every slot reuses it
+// with a small offset, turning 3 instructions per slot into 2 + N for the run.
+// The store/load opcode is chosen per slot from its register class, so int (SD)
+// and float (FSW) saves can share the same base.
+auto RISCVFrame::EmitCalleeSavedRun(std::vector<TargetInst *> *out,
+                                    const std::vector<std::pair<TargetRegClass, uint8_t>> &regs,
+                                    const std::function<TargetOperand *(TargetRegClass, uint8_t)> &make_reg,
+                                    int base_offset, bool restore) -> void {
+  if (regs.empty()) {
+    return;
+  }
+  auto op_for = [&](TargetRegClass cls) {
+    if (cls == TargetRegClass::Float) {
+      return restore ? RVOpcode::FLW : RVOpcode::FSW;
+    }
+    return restore ? RVOpcode::LD : RVOpcode::SD;
+  };
+  auto *sp = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, SP);
+  int last_offset = base_offset + static_cast<int>((regs.size() - 1) * 8);
+  // Whole run addressable directly from sp: keep the simple per-slot form.
+  if (base_offset >= -2048 && last_offset <= IMM_MAX) {
+    for (size_t i = 0; i < regs.size(); ++i) {
+      auto [cls, id] = regs[i];
+      EmitAccess(out, op_for(cls), make_reg(cls, id), sp, base_offset + static_cast<int>(i * 8));
+    }
+    return;
+  }
+  // Materialize a shared base once (t3 = sp + base_offset); t3 is reserved
+  // scratch and never a callee-saved register, so reusing it here is safe.
+  auto *base = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, T3);
+  auto *li = ctx_->CreateInst<RISCVInst>(RVOpcode::LI);
+  li->SetResult(base);
+  li->AddOperand(ctx_->Imm(base_offset));
+  out->push_back(li);
+  auto *add = ctx_->CreateInst<RISCVInst>(RVOpcode::ADD);
+  add->SetResult(base);
+  add->AddOperand(sp);
+  add->AddOperand(base);
+  out->push_back(add);
+  for (size_t i = 0; i < regs.size(); ++i) {
+    auto [cls, id] = regs[i];
+    EmitAccess(out, op_for(cls), make_reg(cls, id), base, static_cast<int>(i * 8));
+  }
 }
 
 auto RISCVFrame::Finalize(TargetFunction *func, size_t locals_bytes, size_t spill_slots,
@@ -119,8 +169,7 @@ auto RISCVFrame::Finalize(TargetFunction *func, size_t locals_bytes, size_t spil
         has_call = true;
       }
       auto is_fp = [](TargetOperand *op) {
-        return op != nullptr && op->IsPhysicalReg() &&
-               static_cast<TargetPhysicalReg *>(op)->GetID() == FP;
+        return op != nullptr && op->IsPhysicalReg() && static_cast<TargetPhysicalReg *>(op)->GetID() == FP;
       };
       if (is_fp(inst->GetResult())) {
         uses_fp = true;
@@ -147,9 +196,6 @@ auto RISCVFrame::Finalize(TargetFunction *func, size_t locals_bytes, size_t spil
   auto *ra = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, RA);
   auto *fp = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, FP);
 
-  // Store (prologue) / load (epilogue) opcode for a callee-saved register.
-  auto save_op = [](TargetRegClass cls) { return cls == TargetRegClass::Float ? RVOpcode::FSW : RVOpcode::SD; };
-  auto restore_op = [](TargetRegClass cls) { return cls == TargetRegClass::Float ? RVOpcode::FLW : RVOpcode::LD; };
   auto cs_reg = [&](TargetRegClass cls, uint8_t id) {
     return ctx_->PhysReg(cls, cls == TargetRegClass::Float ? TargetRegSize::DWord : TargetRegSize::QWord, id);
   };
@@ -170,10 +216,9 @@ auto RISCVFrame::Finalize(TargetFunction *func, size_t locals_bytes, size_t spil
       prologue.push_back(add);
     }
   }
-  for (size_t i = 0; i < callee_saved.size(); ++i) {
-    auto [cls, id] = callee_saved[i];
-    EmitStackAccess(&prologue, save_op(cls), cs_reg(cls, id), static_cast<int>(cs_base + i * 8));
-  }
+  // The callee-saved slots are contiguous, so save them as one run: a large
+  // frame then materializes the slot base once instead of once per register.
+  EmitCalleeSavedRun(&prologue, callee_saved, cs_reg, static_cast<int>(cs_base), /*restore=*/false);
 
   auto *entry = blocks.front();
   std::vector<TargetInst *> new_entry = prologue;
@@ -191,10 +236,7 @@ auto RISCVFrame::Finalize(TargetFunction *func, size_t locals_bytes, size_t spil
         rewritten.push_back(inst);
         continue;
       }
-      for (size_t i = 0; i < callee_saved.size(); ++i) {
-        auto [cls, id] = callee_saved[i];
-        EmitStackAccess(&rewritten, restore_op(cls), cs_reg(cls, id), static_cast<int>(cs_base + i * 8));
-      }
+      EmitCalleeSavedRun(&rewritten, callee_saved, cs_reg, static_cast<int>(cs_base), /*restore=*/true);
       if (save_ra) {
         EmitStackAccess(&rewritten, RVOpcode::LD, ra, ra_off);
       }

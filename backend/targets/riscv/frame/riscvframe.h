@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <utility>
 #include <vector>
 #include "backend/targets/riscv/inst/riscvinst.h"
@@ -42,8 +43,17 @@ class RISCVFrame {
  private:
   auto MakeAddSp(int delta) -> std::vector<TargetInst *>;  // sp += delta (imm-legalized)
   auto MakeSetFp(int frame) -> std::vector<TargetInst *>;  // fp = sp + frame (imm-legalized)
+  // Append a single `op reg, offset(base)` (load or store) to `out`.
+  auto EmitAccess(std::vector<TargetInst *> *out, RVOpcode op, TargetOperand *reg, TargetOperand *base, int offset)
+      -> void;
   // Append a legalized `op reg, offset(sp)` (SD store or LD load) to `out`.
   auto EmitStackAccess(std::vector<TargetInst *> *out, RVOpcode op, TargetOperand *reg, int offset) -> void;
+  // Save (restore=false) or restore (restore=true) a contiguous run of
+  // callee-saved registers at `base_offset + i*8` off sp, sharing one base
+  // register when the offsets exceed the load/store immediate range.
+  auto EmitCalleeSavedRun(std::vector<TargetInst *> *out, const std::vector<std::pair<TargetRegClass, uint8_t>> &regs,
+                          const std::function<TargetOperand *(TargetRegClass, uint8_t)> &make_reg, int base_offset,
+                          bool restore) -> void;
 
   TargetContext *ctx_;
 };
