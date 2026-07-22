@@ -307,7 +307,10 @@ auto PromotionPass::Promote(analysis::DomTree *dom_tree, analysis::Loop *loop, c
   }
 
   // Materialize: insert the seed load, build the phis, redirect loads, drop stores, add exit stores.
+  // Every op inserted below is also registered in op_to_block_ (and every removed op erased) so a
+  // later loop's candidate can still map any op it collects to its block.
   preheader->operations_.insert(preheader->operations_.end() - 1, seed_load);
+  op_to_block_[seed_load] = preheader;
   promoted_pointer_->AddUse(seed_load, 0);
 
   std::vector<std::pair<mlir::Operation *, mlir::Block *>> created_phis;
@@ -330,6 +333,7 @@ auto PromotionPass::Promote(analysis::DomTree *dom_tree, analysis::Loop *loop, c
       values[i]->AddUse(phi, i);
     }
     block->operations_.insert(block->operations_.begin(), phi);
+    op_to_block_[phi] = block;
     created_phis.emplace_back(phi, block);
   }
 
@@ -337,11 +341,13 @@ auto PromotionPass::Promote(analysis::DomTree *dom_tree, analysis::Loop *loop, c
     load->results_[0]->ReplaceAllUsesWith(load_reaching_[load]);
     promoted_pointer_->RemoveUse(load);
     op_to_block_[load]->RemoveOperation(load);
+    op_to_block_.erase(load);
   }
   for (auto *store : candidate.stores) {
     promoted_pointer_->RemoveUse(store);
     StoredValue(store)->RemoveUse(store);
     op_to_block_[store]->RemoveOperation(store);
+    op_to_block_.erase(store);
   }
   for (auto *exit : exit_blocks) {
     auto *value = exit_reaching_[exit];
@@ -354,6 +360,7 @@ auto PromotionPass::Promote(analysis::DomTree *dom_tree, analysis::Loop *loop, c
       ++insert_at;
     }
     exit->operations_.insert(exit->operations_.begin() + insert_at, store);
+    op_to_block_[store] = exit;
   }
 
   // Remove trivial phis (all incomings equal, ignoring self-references), cascading.
@@ -387,6 +394,7 @@ auto PromotionPass::Promote(analysis::DomTree *dom_tree, analysis::Loop *loop, c
         value->RemoveUse(phi);
       }
       entry.second->RemoveOperation(phi);
+      op_to_block_.erase(entry.first);
       removed.insert(entry.first);
       changed = true;
     }
@@ -396,6 +404,7 @@ auto PromotionPass::Promote(analysis::DomTree *dom_tree, analysis::Loop *loop, c
   if (seed_load->GetRes()->GetUses().empty()) {
     promoted_pointer_->RemoveUse(seed_load);
     preheader->RemoveOperation(seed_load);
+    op_to_block_.erase(seed_load);
   }
 }
 

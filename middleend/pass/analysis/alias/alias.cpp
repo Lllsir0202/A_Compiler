@@ -378,6 +378,10 @@ auto AliasAnalysisPass::ResolvePhiBaseObject(mlir::base::PhiOp *phi, mlir::Value
   if (!has_definite || agreed.kind == ObjectKind::Unknown) {
     return {ObjectKind::Unknown, phi_value};
   }
+  // The object is proven, but its concrete address is path-dependent: flag it so aliasing never
+  // upgrades to MustAlias through a phi (which would let a promotion/forwarding pass treat two
+  // path-dependent pointers as one location).
+  agreed.via_phi = true;
   return agreed;
 }
 
@@ -413,7 +417,13 @@ auto AliasAnalysisPass::Alias(mlir::Value *lhs, mlir::Value *rhs) -> AliasResult
   auto rhs_object = GetBaseObject(rhs);
   if (lhs_object.kind != ObjectKind::Unknown && lhs_object.kind == rhs_object.kind &&
       lhs_object.root == rhs_object.root) {
-    return SameObjectAlias(lhs, rhs);
+    auto result = SameObjectAlias(lhs, rhs);
+    // A phi-derived pointer's concrete address is path-dependent, so it can never be proven to be
+    // the identical location as another pointer; cap the result at MayAlias in that case.
+    if (result == AliasResult::MustAlias && (lhs_object.via_phi || rhs_object.via_phi)) {
+      return AliasResult::MayAlias;
+    }
+    return result;
   }
   if (lhs_object.kind == ObjectKind::Param && rhs_object.kind == ObjectKind::Param &&
       AreProvenNoAliasParameters(lhs_object.root, rhs_object.root)) {

@@ -56,6 +56,10 @@ class AliasAnalysisPass : public AnalysisPass {
   struct MemoryObject {
     ObjectKind kind{ObjectKind::Unknown};
     mlir::Value *root{nullptr};
+    // True when resolution passed through a phi: the object identity is sound for proving
+    // distinctness (NoAlias) but its concrete address is path-dependent, so two such pointers
+    // can never be proven to be the *same* location (no MustAlias).
+    bool via_phi{false};
   };
 
   // Base object a pointer is derived from (follows getptr/copy chains, memoized).
