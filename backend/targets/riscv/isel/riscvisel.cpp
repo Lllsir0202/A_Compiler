@@ -180,34 +180,90 @@ auto RISCVISel::SelectFunction(backend::utils::Function *mir_func) -> TargetFunc
 
 auto RISCVISel::SelectInst(backend::inst::Instruction *inst) -> void {
   switch (inst->GetOpKind()) {
-    case OpKind::Add: SelectBinary(inst, RVOpcode::ADDW); break;
-    case OpKind::Sub: SelectBinary(inst, RVOpcode::SUBW); break;
-    case OpKind::Mul: SelectBinary(inst, RVOpcode::MULW); break;
-    case OpKind::Div: SelectDiv(inst); break;
-    case OpKind::Mod: SelectMod(inst); break;
-    case OpKind::And: SelectBinary(inst, RVOpcode::AND); break;
-    case OpKind::Or: SelectBinary(inst, RVOpcode::OR); break;
-    case OpKind::Xor: SelectBinary(inst, RVOpcode::XOR); break;
-    case OpKind::Shl: SelectBinary(inst, RVOpcode::SLLW); break;
-    case OpKind::LShr: SelectBinary(inst, RVOpcode::SRLW); break;
-    case OpKind::AShr: SelectBinary(inst, RVOpcode::SRAW); break;
-    case OpKind::AddF: SelectBinary(inst, RVOpcode::FADD_S); break;
-    case OpKind::SubF: SelectBinary(inst, RVOpcode::FSUB_S); break;
-    case OpKind::MulF: SelectBinary(inst, RVOpcode::FMUL_S); break;
-    case OpKind::DivF: SelectBinary(inst, RVOpcode::FDIV_S); break;
-    case OpKind::FCmp: SelectFCmp(inst); break;
-    case OpKind::Int2Float: SelectConvert(inst, RVOpcode::FCVT_S_W); break;
-    case OpKind::Float2Int: SelectConvert(inst, RVOpcode::FCVT_W_S); break;
-    case OpKind::Bool2Float: SelectConvert(inst, RVOpcode::FCVT_S_W); break;
-    case OpKind::ICmp: SelectICmp(inst); break;
-    case OpKind::CondBr: SelectCondBr(inst); break;
-    case OpKind::Br: SelectBr(inst); break;
-    case OpKind::Ret: SelectRet(inst); break;
-    case OpKind::Copy: SelectCopy(inst); break;
-    case OpKind::Zext: SelectCopy(inst); break;  // i1 -> i32 is a value-preserving move
-    case OpKind::Call: SelectCall(inst); break;
-    case OpKind::Load: SelectLoad(inst); break;
-    case OpKind::Store: SelectStore(inst); break;
+    case OpKind::Add:
+      SelectBinary(inst, RVOpcode::ADDW);
+      break;
+    case OpKind::Sub:
+      SelectBinary(inst, RVOpcode::SUBW);
+      break;
+    case OpKind::Mul:
+      SelectBinary(inst, RVOpcode::MULW);
+      break;
+    case OpKind::Div:
+      SelectDiv(inst);
+      break;
+    case OpKind::Mod:
+      SelectMod(inst);
+      break;
+    case OpKind::And:
+      SelectBinary(inst, RVOpcode::AND);
+      break;
+    case OpKind::Or:
+      SelectBinary(inst, RVOpcode::OR);
+      break;
+    case OpKind::Xor:
+      SelectBinary(inst, RVOpcode::XOR);
+      break;
+    case OpKind::Shl:
+      SelectBinary(inst, RVOpcode::SLLW);
+      break;
+    case OpKind::LShr:
+      SelectBinary(inst, RVOpcode::SRLW);
+      break;
+    case OpKind::AShr:
+      SelectBinary(inst, RVOpcode::SRAW);
+      break;
+    case OpKind::AddF:
+      SelectBinary(inst, RVOpcode::FADD_S);
+      break;
+    case OpKind::SubF:
+      SelectBinary(inst, RVOpcode::FSUB_S);
+      break;
+    case OpKind::MulF:
+      SelectBinary(inst, RVOpcode::FMUL_S);
+      break;
+    case OpKind::DivF:
+      SelectBinary(inst, RVOpcode::FDIV_S);
+      break;
+    case OpKind::FCmp:
+      SelectFCmp(inst);
+      break;
+    case OpKind::Int2Float:
+      SelectConvert(inst, RVOpcode::FCVT_S_W);
+      break;
+    case OpKind::Float2Int:
+      SelectConvert(inst, RVOpcode::FCVT_W_S);
+      break;
+    case OpKind::Bool2Float:
+      SelectConvert(inst, RVOpcode::FCVT_S_W);
+      break;
+    case OpKind::ICmp:
+      SelectICmp(inst);
+      break;
+    case OpKind::CondBr:
+      SelectCondBr(inst);
+      break;
+    case OpKind::Br:
+      SelectBr(inst);
+      break;
+    case OpKind::Ret:
+      SelectRet(inst);
+      break;
+    case OpKind::Copy:
+      SelectCopy(inst);
+      break;
+    case OpKind::Zext:
+      SelectCopy(inst);
+      break;  // i1 -> i32 is a value-preserving move
+    case OpKind::Call:
+      SelectCall(inst);
+      break;
+    case OpKind::Load:
+      SelectLoad(inst);
+      break;
+    case OpKind::Store:
+      SelectStore(inst);
+      break;
     default:
       Comment("TODO select opkind " + std::to_string(static_cast<int>(inst->GetOpKind())));
       break;
@@ -267,9 +323,9 @@ auto RISCVISel::EmitConstDivide(TargetOperand *numer, int divisor) -> TargetOper
   if (divisor > 0 && (ad & (ad - 1)) == 0) {
     int k = __builtin_ctz(ad);
     auto *sign = new_reg();
-    Emit(RVOpcode::SRAIW, sign, {numer, ctx_->Imm(31)});        // 0 or -1
+    Emit(RVOpcode::SRAIW, sign, {numer, ctx_->Imm(31)});  // 0 or -1
     auto *bias = new_reg();
-    Emit(RVOpcode::SRLIW, bias, {sign, ctx_->Imm(32 - k)});     // 0 or (2^k - 1)
+    Emit(RVOpcode::SRLIW, bias, {sign, ctx_->Imm(32 - k)});  // 0 or (2^k - 1)
     auto *adj = new_reg();
     Emit(RVOpcode::ADDW, adj, {numer, bias});
     auto *quot = new_reg();
@@ -319,16 +375,24 @@ auto RISCVISel::SelectICmp(backend::inst::Instruction *inst) -> void {
   auto *res = GetOrCreateVReg(inst->GetResult());
   using backend::inst::CmpPredicate;
   switch (pred) {
-    case CmpPredicate::LT: Emit(RVOpcode::SLT, res, {lhs, rhs}); break;
-    case CmpPredicate::GT: Emit(RVOpcode::SLT, res, {rhs, lhs}); break;
-    case CmpPredicate::GE:
+    case CmpPredicate::LT:
       Emit(RVOpcode::SLT, res, {lhs, rhs});
-      Emit(RVOpcode::XORI, res, {res, ctx_->Imm(1)});
       break;
-    case CmpPredicate::LE:
+    case CmpPredicate::GT:
       Emit(RVOpcode::SLT, res, {rhs, lhs});
-      Emit(RVOpcode::XORI, res, {res, ctx_->Imm(1)});
       break;
+    case CmpPredicate::GE: {
+      auto *less = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::DWord);
+      Emit(RVOpcode::SLT, less, {lhs, rhs});
+      Emit(RVOpcode::XORI, res, {less, ctx_->Imm(1)});
+      break;
+    }
+    case CmpPredicate::LE: {
+      auto *greater = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::DWord);
+      Emit(RVOpcode::SLT, greater, {rhs, lhs});
+      Emit(RVOpcode::XORI, res, {greater, ctx_->Imm(1)});
+      break;
+    }
     case CmpPredicate::EQ: {
       auto *diff = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::DWord);
       Emit(RVOpcode::SUBW, diff, {lhs, rhs});
@@ -351,15 +415,25 @@ auto RISCVISel::SelectFCmp(backend::inst::Instruction *inst) -> void {
   auto *res = GetOrCreateVReg(inst->GetResult());  // 0/1 in a GPR
   using backend::inst::CmpPredicate;
   switch (pred) {
-    case CmpPredicate::EQ: Emit(RVOpcode::FEQ_S, res, {lhs, rhs}); break;
+    case CmpPredicate::EQ:
+      Emit(RVOpcode::FEQ_S, res, {lhs, rhs});
+      break;
     case CmpPredicate::NE:
       Emit(RVOpcode::FEQ_S, res, {lhs, rhs});
       Emit(RVOpcode::XORI, res, {res, ctx_->Imm(1)});
       break;
-    case CmpPredicate::LT: Emit(RVOpcode::FLT_S, res, {lhs, rhs}); break;
-    case CmpPredicate::LE: Emit(RVOpcode::FLE_S, res, {lhs, rhs}); break;
-    case CmpPredicate::GT: Emit(RVOpcode::FLT_S, res, {rhs, lhs}); break;
-    case CmpPredicate::GE: Emit(RVOpcode::FLE_S, res, {rhs, lhs}); break;
+    case CmpPredicate::LT:
+      Emit(RVOpcode::FLT_S, res, {lhs, rhs});
+      break;
+    case CmpPredicate::LE:
+      Emit(RVOpcode::FLE_S, res, {lhs, rhs});
+      break;
+    case CmpPredicate::GT:
+      Emit(RVOpcode::FLT_S, res, {rhs, lhs});
+      break;
+    case CmpPredicate::GE:
+      Emit(RVOpcode::FLE_S, res, {rhs, lhs});
+      break;
   }
 }
 
@@ -382,12 +456,24 @@ auto RISCVISel::SelectCondBr(backend::inst::Instruction *inst) -> void {
     auto *true_label = LabelForBlock(true_id);
     using backend::inst::CmpPredicate;
     switch (pred) {
-      case CmpPredicate::EQ: Emit(RVOpcode::BEQ, nullptr, {lhs, rhs, true_label}); break;
-      case CmpPredicate::NE: Emit(RVOpcode::BNE, nullptr, {lhs, rhs, true_label}); break;
-      case CmpPredicate::LT: Emit(RVOpcode::BLT, nullptr, {lhs, rhs, true_label}); break;
-      case CmpPredicate::GE: Emit(RVOpcode::BGE, nullptr, {lhs, rhs, true_label}); break;
-      case CmpPredicate::GT: Emit(RVOpcode::BLT, nullptr, {rhs, lhs, true_label}); break;
-      case CmpPredicate::LE: Emit(RVOpcode::BGE, nullptr, {rhs, lhs, true_label}); break;
+      case CmpPredicate::EQ:
+        Emit(RVOpcode::BEQ, nullptr, {lhs, rhs, true_label});
+        break;
+      case CmpPredicate::NE:
+        Emit(RVOpcode::BNE, nullptr, {lhs, rhs, true_label});
+        break;
+      case CmpPredicate::LT:
+        Emit(RVOpcode::BLT, nullptr, {lhs, rhs, true_label});
+        break;
+      case CmpPredicate::GE:
+        Emit(RVOpcode::BGE, nullptr, {lhs, rhs, true_label});
+        break;
+      case CmpPredicate::GT:
+        Emit(RVOpcode::BLT, nullptr, {rhs, lhs, true_label});
+        break;
+      case CmpPredicate::LE:
+        Emit(RVOpcode::BGE, nullptr, {rhs, lhs, true_label});
+        break;
     }
   } else {
     auto *creg = GetReg(cond);
@@ -592,9 +678,7 @@ auto RISCVISel::EmitBaseStore(RVOpcode opcode, TargetOperand *value, uint8_t bas
 auto RISCVISel::SelectLoad(backend::inst::Instruction *inst) -> void {
   auto *addr = LowerAddress(inst->GetOperands()[0]);
   auto *res = GetOrCreateVReg(inst->GetResult());
-  auto opcode = inst->GetResult()->IsFloat() ? RVOpcode::FLW
-                : inst->GetResult()->IsPtr()  ? RVOpcode::LD
-                                              : RVOpcode::LW;
+  auto opcode = inst->GetResult()->IsFloat() ? RVOpcode::FLW : inst->GetResult()->IsPtr() ? RVOpcode::LD : RVOpcode::LW;
   Emit(opcode, res, {addr, ctx_->Imm(0)});
 }
 
