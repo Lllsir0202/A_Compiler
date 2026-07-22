@@ -54,8 +54,8 @@ auto MLIRTailRecursionEliminatePass::RunOnFunction(mlir::func::FuncDefOp *func_o
   return RewriteTailRecursion(func_op, pattern);
 }
 
-auto MLIRTailRecursionEliminatePass::MatchTailRecursion(mlir::func::FuncDefOp *func_op,
-                                                        TailRecursionPattern *pattern) -> bool {
+auto MLIRTailRecursionEliminatePass::MatchTailRecursion(mlir::func::FuncDefOp *func_op, TailRecursionPattern *pattern)
+    -> bool {
   auto *block = func_op->GetEntryBlock();
   if (block->operations_.size() < 2) {
     return false;

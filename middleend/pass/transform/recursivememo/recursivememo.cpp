@@ -12,9 +12,9 @@
 #include "middleend/mlir/dialect/base/phi.h"
 #include "middleend/mlir/dialect/base/unaryop.h"
 #include "middleend/mlir/dialect/func/return.h"
-#include "middleend/mlir/dialect/var/globaldef.h"
 #include "middleend/mlir/dialect/var/getptr.h"
 #include "middleend/mlir/dialect/var/getvalue.h"
+#include "middleend/mlir/dialect/var/globaldef.h"
 #include "middleend/mlir/dialect/var/set.h"
 #include "middleend/mlir/utils/operation/operation.h"
 #include "middleend/mlir/utils/struct/block.h"
@@ -89,8 +89,7 @@ auto RecursiveMemoizationPass::FindCandidates() -> std::vector<Candidate> {
   return candidates;
 }
 
-auto RecursiveMemoizationPass::IsSafeRecursiveBody(mlir::base::FuncDefOp *function,
-                                                    size_t *recursive_calls) -> bool {
+auto RecursiveMemoizationPass::IsSafeRecursiveBody(mlir::base::FuncDefOp *function, size_t *recursive_calls) -> bool {
   auto arguments = function->GetArguments();
   if (arguments.size() != 2 || !IsInt(arguments[0]) || !IsInt(arguments[1]) ||
       function->GetReturnType()->GetKind() != type::TypeKind::INT) {
@@ -184,8 +183,8 @@ auto RecursiveMemoizationPass::MakeGlobalArray(const std::string &name) -> mlir:
   return global;
 }
 
-auto RecursiveMemoizationPass::Rewrite(const Candidate &candidate,
-                                       const std::unordered_set<std::string> &used_names) -> bool {
+auto RecursiveMemoizationPass::Rewrite(const Candidate &candidate, const std::unordered_set<std::string> &used_names)
+    -> bool {
   auto *module_block = GET_MLIR_CONTEXT()->GetModuleOp()->GetBlock();
   auto *original = candidate.function;
   auto public_name = original->GetName();
@@ -217,8 +216,8 @@ auto RecursiveMemoizationPass::Rewrite(const Candidate &candidate,
 }
 
 auto RecursiveMemoizationPass::MakeWrapper(const std::string &public_name, const std::string &impl_name,
-                                            mlir::base::FuncDefOp *original, mlir::Value *cache_values,
-                                            mlir::Value *cache_valid) -> mlir::base::FuncDefOp * {
+                                           mlir::base::FuncDefOp *original, mlir::Value *cache_values,
+                                           mlir::Value *cache_valid) -> mlir::base::FuncDefOp * {
   auto *int_type = GET_TYPE_CONTEXT()->GetIntegerType();
   auto *bool_type = GET_TYPE_CONTEXT()->GetBooleanType();
   auto *ptr_type = GET_TYPE_CONTEXT()->GetPtrType(int_type);
@@ -286,8 +285,8 @@ auto RecursiveMemoizationPass::MakeWrapper(const std::string &public_name, const
     block->AddOperation(branch);
   };
   auto make_getptr = [&](mlir::Block *block, mlir::Value *base, mlir::Value *index) -> mlir::Value * {
-    auto *operation = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetPtrOp>(
-        GET_MLIR_CONTEXT(), base, std::vector<mlir::Value *>{index});
+    auto *operation = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetPtrOp>(GET_MLIR_CONTEXT(), base,
+                                                                                  std::vector<mlir::Value *>{index});
     operation->GetRes()->SetType(ptr_type);
     AddUses(operation);
     block->AddOperation(operation);
@@ -319,8 +318,7 @@ auto RecursiveMemoizationPass::MakeWrapper(const std::string &public_name, const
   };
 
   auto *zero = make_const(entry, 0);
-  auto *first_nonnegative =
-      make_compare(entry, static_cast<mlir::base::GreaterEqualOp *>(nullptr), arguments[0], zero);
+  auto *first_nonnegative = make_compare(entry, static_cast<mlir::base::GreaterEqualOp *>(nullptr), arguments[0], zero);
   make_cond_branch(entry, first_nonnegative, first_upper, out_of_bounds);
 
   auto *first_bound = make_const(first_upper, FIRST_BOUND);
@@ -338,10 +336,8 @@ auto RecursiveMemoizationPass::MakeWrapper(const std::string &public_name, const
   make_cond_branch(second_upper, second_in_range, lookup, out_of_bounds);
 
   auto *stride = make_const(lookup, SECOND_BOUND);
-  auto *row_offset =
-      make_binary(lookup, static_cast<mlir::base::MulOp *>(nullptr), arguments[0], stride);
-  auto *index =
-      make_binary(lookup, static_cast<mlir::base::AddOp *>(nullptr), row_offset, arguments[1]);
+  auto *row_offset = make_binary(lookup, static_cast<mlir::base::MulOp *>(nullptr), arguments[0], stride);
+  auto *index = make_binary(lookup, static_cast<mlir::base::AddOp *>(nullptr), row_offset, arguments[1]);
   auto *valid_pointer = make_getptr(lookup, cache_valid, index);
   auto *valid = make_load(lookup, valid_pointer);
   auto *is_valid = make_compare(lookup, static_cast<mlir::base::NotEqualOp *>(nullptr), valid, zero);

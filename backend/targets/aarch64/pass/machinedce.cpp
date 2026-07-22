@@ -29,8 +29,8 @@ auto AArch64MachineDCE::RunOnFunction(TargetFunction *func) -> bool {
       for (auto *inst : block->GetInsts()) {
         auto *res = inst->GetResult();
         auto opcode = static_cast<AArch64Inst *>(inst)->GetOpcode();
-        bool dead = res != nullptr && res->IsVirtualReg() && opcode != A64Opcode::BL &&
-                    use_count.find(res) == use_count.end();
+        bool dead =
+            res != nullptr && res->IsVirtualReg() && opcode != A64Opcode::BL && use_count.find(res) == use_count.end();
         if (dead) {
           changed = true;
           changed_overall = true;

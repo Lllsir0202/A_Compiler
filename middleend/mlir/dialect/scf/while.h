@@ -70,8 +70,8 @@ class WhileOp : public SCFOps {
 
  private:
   WhileOp() : SCFOps("while") {};
-  auto SetUp(context::MLIRContext *context, size_t num_results, mlir::Region *cond_region,
-             mlir::Region *body_region) -> void {
+  auto SetUp(context::MLIRContext *context, size_t num_results, mlir::Region *cond_region, mlir::Region *body_region)
+      -> void {
     regions_.emplace_back(cond_region);
     regions_.emplace_back(body_region);
     results_.reserve(num_results);

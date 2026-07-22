@@ -24,9 +24,7 @@ namespace {
 struct PairKey {
   mlir::Value *first{nullptr};
   mlir::Value *second{nullptr};
-  auto operator==(const PairKey &other) const -> bool {
-    return first == other.first && second == other.second;
-  }
+  auto operator==(const PairKey &other) const -> bool { return first == other.first && second == other.second; }
 };
 
 struct PairKeyHash {
@@ -61,13 +59,9 @@ auto ConstantInt(mlir::Value *value, int *result) -> bool {
   return true;
 }
 
-auto IsAdd(mlir::Operation *operation) -> bool {
-  return mlir::DynamicOrNull<mlir::base::AddOp>(operation) != nullptr;
-}
+auto IsAdd(mlir::Operation *operation) -> bool { return mlir::DynamicOrNull<mlir::base::AddOp>(operation) != nullptr; }
 
-auto IsMul(mlir::Operation *operation) -> bool {
-  return mlir::DynamicOrNull<mlir::base::MulOp>(operation) != nullptr;
-}
+auto IsMul(mlir::Operation *operation) -> bool { return mlir::DynamicOrNull<mlir::base::MulOp>(operation) != nullptr; }
 
 auto WrapAdd(int lhs, int rhs) -> int {
   return static_cast<int32_t>(static_cast<uint32_t>(lhs) + static_cast<uint32_t>(rhs));
@@ -148,15 +142,11 @@ auto ReassociatePass::RunOnBlock(mlir::Block *block) -> bool {
     // single-use temporaries. Integer arithmetic is modulo 2^32, so the
     // distributive rewrite preserves the target's ADDW/MULW semantics.
     if (auto *add = mlir::DynamicOrNull<mlir::base::AddOp>(operation)) {
-      auto *lhs_mul = add->GetLHS()->op_ == nullptr
-                          ? nullptr
-                          : mlir::DynamicOrNull<mlir::base::MulOp>(add->GetLHS()->op_);
-      auto *rhs_mul = add->GetRHS()->op_ == nullptr
-                          ? nullptr
-                          : mlir::DynamicOrNull<mlir::base::MulOp>(add->GetRHS()->op_);
-      auto only_used_by_add = [&](mlir::Value *value) {
-        return use_count_[value] == 1;
-      };
+      auto *lhs_mul =
+          add->GetLHS()->op_ == nullptr ? nullptr : mlir::DynamicOrNull<mlir::base::MulOp>(add->GetLHS()->op_);
+      auto *rhs_mul =
+          add->GetRHS()->op_ == nullptr ? nullptr : mlir::DynamicOrNull<mlir::base::MulOp>(add->GetRHS()->op_);
+      auto only_used_by_add = [&](mlir::Value *value) { return use_count_[value] == 1; };
       if (lhs_mul != nullptr && rhs_mul != nullptr && seen.count(lhs_mul) > 0 && seen.count(rhs_mul) > 0 &&
           only_used_by_add(add->GetLHS()) && only_used_by_add(add->GetRHS())) {
         mlir::Value *common = nullptr;
@@ -206,8 +196,8 @@ auto ReassociatePass::RunOnBlock(mlir::Block *block) -> bool {
         constant_value->SetType(sub->GetRHS()->GetType());
         auto *constant = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::ConstIntOp>(constant_value, WrapSub(0, rhs));
         rewritten.emplace_back(constant);
-        auto *replacement = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::AddOp>(
-            sub->GetRes(), sub->GetLHS(), constant_value);
+        auto *replacement =
+            GET_MLIR_CONTEXT()->CreateOperation<mlir::base::AddOp>(sub->GetRes(), sub->GetLHS(), constant_value);
         sub->GetLHS()->RemoveUse(sub);
         sub->GetRHS()->RemoveUse(sub);
         sub->GetLHS()->AddUse(replacement, 0);
@@ -260,8 +250,8 @@ auto ReassociatePass::RunOnBlock(mlir::Block *block) -> bool {
         while (remaining == first || remaining == second) {
           ++remaining;
         }
-        int combined = is_add ? WrapAdd(constants[first], constants[second])
-                              : WrapMul(constants[first], constants[second]);
+        int combined =
+            is_add ? WrapAdd(constants[first], constants[second]) : WrapMul(constants[first], constants[second]);
         auto *constant_value = GET_MLIR_CONTEXT()->CreateValue();
         constant_value->SetType(terms[first]->GetType());
         auto *constant = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::ConstIntOp>(constant_value, combined);

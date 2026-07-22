@@ -31,8 +31,8 @@ auto StoreInst::Verify(context::CompilerContext *context) const -> bool {
   return true;
 }
 
-auto StoreInst::Create([[maybe_unused]] context::LLVMIRContext *context, utils::Operand *value,
-                       utils::Operand *ptr) -> StoreInst * {
+auto StoreInst::Create([[maybe_unused]] context::LLVMIRContext *context, utils::Operand *value, utils::Operand *ptr)
+    -> StoreInst * {
   // Create a new store instruction
   auto *inst = new StoreInst();
   inst->AddOperand(value);

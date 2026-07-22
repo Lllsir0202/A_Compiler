@@ -214,8 +214,8 @@ auto GVNPREPass::TryPRE(mlir::Block *merge, analysis::MLIRFunctionCFG *function_
       translated[pi] = tops;
       Expr kp = make_key(op, tops);
       auto it = avail_out_[pred].find(kp);
-      bool usable_leader = it != avail_out_[pred].end() && BlockOf(it->second) != merge &&
-                           dead_values_.count(it->second) == 0;
+      bool usable_leader =
+          it != avail_out_[pred].end() && BlockOf(it->second) != merge && dead_values_.count(it->second) == 0;
       if (usable_leader) {
         // A leader defined in `merge` itself (reachable because merge dominates a latch
         // predecessor) cannot feed a phi at the top of merge, and a leader whose op this
@@ -368,18 +368,18 @@ auto GVNPREPass::IsCommutative(mlir::Operation *operation) -> bool {
 auto GVNPREPass::MakeOp(mlir::Operation *sample, mlir::Value *res, const std::vector<mlir::Value *> &operands)
     -> mlir::Operation * {
   auto *ctx = GET_MLIR_CONTEXT();
-#define PRE_BINARY(T)                                        \
-  if (Is<mlir::base::T>(sample)) {                           \
-    if (operands.size() != 2) {                              \
-      return nullptr;                                        \
-    }                                                        \
+#define PRE_BINARY(T)                                                          \
+  if (Is<mlir::base::T>(sample)) {                                             \
+    if (operands.size() != 2) {                                                \
+      return nullptr;                                                          \
+    }                                                                          \
     return ctx->CreateOperation<mlir::base::T>(res, operands[0], operands[1]); \
   }
-#define PRE_UNARY(T)                                         \
-  if (Is<mlir::base::T>(sample)) {                           \
-    if (operands.size() != 1) {                              \
-      return nullptr;                                        \
-    }                                                        \
+#define PRE_UNARY(T)                                              \
+  if (Is<mlir::base::T>(sample)) {                                \
+    if (operands.size() != 1) {                                   \
+      return nullptr;                                             \
+    }                                                             \
     return ctx->CreateOperation<mlir::base::T>(res, operands[0]); \
   }
   PRE_BINARY(AddOp)

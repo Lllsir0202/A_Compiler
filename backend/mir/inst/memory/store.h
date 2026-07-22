@@ -10,8 +10,8 @@ class StoreInst : public Instruction {
 
  private:
   explicit StoreInst() : Instruction(OpKind::Store) {}
-  static auto Create(context::MIRContext *context, utils::Operand *value_operand,
-                     utils::Operand *ptr_operand) -> StoreInst *;
+  static auto Create(context::MIRContext *context, utils::Operand *value_operand, utils::Operand *ptr_operand)
+      -> StoreInst *;
   friend class utils::factory::InstFactory;
 };
 

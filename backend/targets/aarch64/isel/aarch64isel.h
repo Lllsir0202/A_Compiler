@@ -70,8 +70,8 @@ class AArch64ISel {
   auto LabelForBlock(size_t block_id) -> TargetLabel *;
 
   auto Emit(A64Opcode opcode, TargetOperand *result, const std::vector<TargetOperand *> &operands) -> AArch64Inst *;
-  auto EmitCond(A64Opcode opcode, TargetOperand *result, A64Cond cond,
-                const std::vector<TargetOperand *> &operands) -> AArch64Inst *;
+  auto EmitCond(A64Opcode opcode, TargetOperand *result, A64Cond cond, const std::vector<TargetOperand *> &operands)
+      -> AArch64Inst *;
   auto Comment(const std::string &text) -> void;
 
   // Materialize a 32-bit constant into `dst` via movz / movn / movk.

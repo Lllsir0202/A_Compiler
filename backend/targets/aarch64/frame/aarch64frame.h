@@ -30,8 +30,8 @@ class AArch64Frame {
                 const std::vector<std::pair<TargetRegClass, uint8_t>> &callee_saved) -> void;
 
  private:
-  auto MakeAddSp(int delta) -> std::vector<TargetInst *>;   // sp += delta (imm-legalized)
-  auto MakeSetFp(int frame) -> std::vector<TargetInst *>;   // x29 = sp + frame
+  auto MakeAddSp(int delta) -> std::vector<TargetInst *>;  // sp += delta (imm-legalized)
+  auto MakeSetFp(int frame) -> std::vector<TargetInst *>;  // x29 = sp + frame
   auto EmitStackAccess(std::vector<TargetInst *> *out, A64Opcode op, TargetOperand *reg, int offset) -> void;
   auto MatOffset(std::vector<TargetInst *> *out, int offset) -> TargetOperand *;  // -> x16 = sp + offset
 

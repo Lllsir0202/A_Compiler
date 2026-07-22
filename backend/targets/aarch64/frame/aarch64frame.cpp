@@ -143,8 +143,7 @@ auto AArch64Frame::Finalize(TargetFunction *func, size_t locals_bytes, size_t sp
         has_call = true;
       }
       auto is_fp = [](TargetOperand *op) {
-        return op != nullptr && op->IsPhysicalReg() &&
-               static_cast<TargetPhysicalReg *>(op)->GetID() == FP;
+        return op != nullptr && op->IsPhysicalReg() && static_cast<TargetPhysicalReg *>(op)->GetID() == FP;
       };
       if (is_fp(inst->GetResult())) {
         uses_fp = true;
@@ -172,9 +171,7 @@ auto AArch64Frame::Finalize(TargetFunction *func, size_t locals_bytes, size_t sp
   // Callee-saved registers are saved at 64-bit width (x-view for GPR, d-view for
   // FPR: only d8..d15 are callee-saved, and the single-precision value lives in
   // the low half).
-  auto cs_reg = [&](TargetRegClass cls, uint8_t id) {
-    return ctx_->PhysReg(cls, TargetRegSize::QWord, id);
-  };
+  auto cs_reg = [&](TargetRegClass cls, uint8_t id) { return ctx_->PhysReg(cls, TargetRegSize::QWord, id); };
 
   // Registers preserved on the stack, in ascending slot order: callee-saved, then
   // the (optional) saved fp and lr. Adjacent same-class slots fuse into stp/ldp.

@@ -58,9 +58,8 @@ class RecursiveMemoizationPass : public TransformPass {
   auto Rewrite(const Candidate &candidate, const std::unordered_set<std::string> &used_names) -> bool;
   auto UniqueName(const std::string &base, const std::unordered_set<std::string> &used_names) const -> std::string;
   auto MakeGlobalArray(const std::string &name) -> mlir::var::GlobalVarDefOp *;
-  auto MakeWrapper(const std::string &public_name, const std::string &impl_name,
-                   mlir::base::FuncDefOp *original, mlir::Value *cache_values,
-                   mlir::Value *cache_valid) -> mlir::base::FuncDefOp *;
+  auto MakeWrapper(const std::string &public_name, const std::string &impl_name, mlir::base::FuncDefOp *original,
+                   mlir::Value *cache_values, mlir::Value *cache_valid) -> mlir::base::FuncDefOp *;
   auto NameBlock(mlir::Block *block, const std::string &name) -> void;
 };
 

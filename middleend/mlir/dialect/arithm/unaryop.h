@@ -11,7 +11,7 @@ namespace middleend::mlir::arithm {
 #include "middleend/mlir/dialect/arithm/unaryop.def"
 
 DEFINE_UNARY_OP(Neg, neg)
-DEFINE_UNARY_OP(Not, not )
+DEFINE_UNARY_OP(Not, not)
 
 /**
  * @brief Represents a constant operation in the MLIR,

@@ -110,8 +110,8 @@ class MemorySSAPass : public AnalysisPass {
   auto ComputeDominanceFrontier(MLIRFunctionCFG *function_cfg, DomTree *dom_tree) -> void;
   auto PlacePhis(MLIRFunctionCFG *function_cfg) -> void;
   auto Rename(DomTreeNode *dom_node, MemoryAccess *incoming) -> void;
-  auto WalkClobber(MemoryAccess *access, mlir::Value *pointer,
-                   std::unordered_set<MemoryAccess *> *visited) -> MemoryAccess *;
+  auto WalkClobber(MemoryAccess *access, mlir::Value *pointer, std::unordered_set<MemoryAccess *> *visited)
+      -> MemoryAccess *;
   auto DefClobbers(MemoryDef *def, mlir::Value *pointer) -> bool;
   auto Idom(DomTree *dom_tree, CFGNode *node) -> CFGNode *;
   auto ClearState() -> void;

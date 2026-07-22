@@ -197,8 +197,8 @@ auto MemorySSAPass::GetClobberingAccess(mlir::Operation *load) -> MemoryAccess *
   return WalkClobber(static_cast<MemoryUse *>(access)->GetDefiningAccess(), load_op->GetPtr(), &visited);
 }
 
-auto MemorySSAPass::WalkClobber(MemoryAccess *access, mlir::Value *pointer,
-                                std::unordered_set<MemoryAccess *> *visited) -> MemoryAccess * {
+auto MemorySSAPass::WalkClobber(MemoryAccess *access, mlir::Value *pointer, std::unordered_set<MemoryAccess *> *visited)
+    -> MemoryAccess * {
   while (access != nullptr) {
     if (access->GetKind() == MemoryAccess::Kind::Def) {
       auto *def = static_cast<MemoryDef *>(access);

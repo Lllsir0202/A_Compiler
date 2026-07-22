@@ -53,8 +53,8 @@ class LoopSimplifyPass : public TransformPass {
   auto EnsurePreheader(mlir::base::FuncDefOp *func_op, analysis::Loop *loop) -> bool;
   auto OutsidePredecessors(mlir::base::FuncDefOp *func_op, analysis::Loop *loop) -> std::vector<mlir::Block *>;
   auto HasDedicatedPreheader(const std::vector<mlir::Block *> &outside, mlir::Block *header) -> bool;
-  auto InsertPreheader(mlir::base::FuncDefOp *func_op, analysis::Loop *loop,
-                       const std::vector<mlir::Block *> &outside) -> void;
+  auto InsertPreheader(mlir::base::FuncDefOp *func_op, analysis::Loop *loop, const std::vector<mlir::Block *> &outside)
+      -> void;
   auto RedirectTerminator(mlir::Block *block, mlir::Block *from, mlir::Block *to) -> void;
 };
 

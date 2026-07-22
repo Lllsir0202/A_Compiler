@@ -39,9 +39,10 @@ class LLVMIRTrivialBlockMergePass : public TransformPass {
       const std::unordered_map<llvm::utils::BasicBlock *, std::unordered_set<llvm::utils::BasicBlock *>> &predecessors)
       -> bool;
   auto IsMergeableBlock(llvm::utils::Function *function, llvm::utils::BasicBlock *block) -> bool;
-  auto CanMergeBlock(llvm::utils::Function *function, llvm::utils::BasicBlock *block,
-                     const std::unordered_map<llvm::utils::BasicBlock *, std::unordered_set<llvm::utils::BasicBlock *>>
-                         &predecessors) -> bool;
+  auto CanMergeBlock(
+      llvm::utils::Function *function, llvm::utils::BasicBlock *block,
+      const std::unordered_map<llvm::utils::BasicBlock *, std::unordered_set<llvm::utils::BasicBlock *>> &predecessors)
+      -> bool;
   auto HasPhi(llvm::utils::BasicBlock *block) -> bool;
   auto HasPhiIncomingFrom(llvm::utils::BasicBlock *block, llvm::utils::BasicBlock *incoming_block) -> bool;
   auto RewriteBranchTarget(llvm::inst::Instruction *instruction, llvm::utils::BasicBlock *old_target,

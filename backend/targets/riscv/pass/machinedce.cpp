@@ -32,8 +32,8 @@ auto MachineDCE::RunOnFunction(TargetFunction *func) -> bool {
         auto opcode = static_cast<RISCVInst *>(inst)->GetOpcode();
         // Removable iff it defines an otherwise-unused virtual register and has no
         // side effect (a call may set a0 but must be kept for its effects).
-        bool dead = res != nullptr && res->IsVirtualReg() && opcode != RVOpcode::CALL &&
-                    use_count.find(res) == use_count.end();
+        bool dead =
+            res != nullptr && res->IsVirtualReg() && opcode != RVOpcode::CALL && use_count.find(res) == use_count.end();
         if (dead) {
           changed = true;
           changed_overall = true;

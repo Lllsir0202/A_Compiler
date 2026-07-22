@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstring>
 #include <vector>
+#include "backend/mir/inst/memory/globaldef.h"
 #include "backend/targets/aarch64/frame/aarch64frame.h"
 #include "backend/targets/aarch64/isel/aarch64isel.h"
 #include "backend/targets/aarch64/pass/addrfold.h"
@@ -17,7 +18,6 @@
 #include "backend/targets/utils/pass/machinepassmanager.h"
 #include "backend/targets/utils/struct/targetblock.h"
 #include "backend/targets/utils/struct/targetfunction.h"
-#include "backend/mir/inst/memory/globaldef.h"
 #include "context/compiler_context.h"
 
 namespace backend::targetir::aarch64 {

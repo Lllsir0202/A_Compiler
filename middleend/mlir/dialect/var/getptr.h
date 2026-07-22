@@ -8,8 +8,8 @@ namespace middleend::mlir::var {
 
 class VarGetPtrOp : public VarOps {
  public:
-  static auto Create(context::MLIRContext *context, mlir::Value *ptr,
-                     std::vector<mlir::Value *> indices = {}) -> VarGetPtrOp * {
+  static auto Create(context::MLIRContext *context, mlir::Value *ptr, std::vector<mlir::Value *> indices = {})
+      -> VarGetPtrOp * {
     auto op = new VarGetPtrOp();
     op->SetUp(context, ptr, std::move(indices));
     return op;

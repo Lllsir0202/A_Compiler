@@ -19,24 +19,75 @@ namespace backend::targetir::aarch64 {
  * the low 32 bits of each v register).
  */
 enum class GPR : uint8_t {
-  X0 = 0, X1, X2, X3, X4, X5, X6, X7,      // arg / return (caller-saved)
-  X8,                                      // indirect result location (caller-saved)
-  X9, X10, X11, X12, X13, X14, X15,        // temporaries (caller-saved)
-  X16, X17,                                // IP0/IP1 (caller-saved; reserved: veneers + spill scratch)
-  X18,                                     // platform register (reserved)
-  X19, X20, X21, X22, X23, X24, X25, X26, X27, X28,  // callee-saved
-  X29,                                     // fp (frame pointer, callee-saved, reserved)
-  X30,                                     // lr (link register, reserved)
-  Sp = 31,                                 // stack pointer
+  X0 = 0,
+  X1,
+  X2,
+  X3,
+  X4,
+  X5,
+  X6,
+  X7,  // arg / return (caller-saved)
+  X8,  // indirect result location (caller-saved)
+  X9,
+  X10,
+  X11,
+  X12,
+  X13,
+  X14,
+  X15,  // temporaries (caller-saved)
+  X16,
+  X17,  // IP0/IP1 (caller-saved; reserved: veneers + spill scratch)
+  X18,  // platform register (reserved)
+  X19,
+  X20,
+  X21,
+  X22,
+  X23,
+  X24,
+  X25,
+  X26,
+  X27,
+  X28,      // callee-saved
+  X29,      // fp (frame pointer, callee-saved, reserved)
+  X30,      // lr (link register, reserved)
+  Sp = 31,  // stack pointer
   Fp = 29,
   Lr = 30,
 };
 
 enum class FPR : uint8_t {
-  V0 = 0, V1, V2, V3, V4, V5, V6, V7,      // arg / return (caller-saved)
-  V8, V9, V10, V11, V12, V13, V14, V15,    // callee-saved (only low 64 bits d8..d15)
-  V16, V17, V18, V19, V20, V21, V22, V23,  // caller-saved
-  V24, V25, V26, V27, V28, V29, V30, V31,
+  V0 = 0,
+  V1,
+  V2,
+  V3,
+  V4,
+  V5,
+  V6,
+  V7,  // arg / return (caller-saved)
+  V8,
+  V9,
+  V10,
+  V11,
+  V12,
+  V13,
+  V14,
+  V15,  // callee-saved (only low 64 bits d8..d15)
+  V16,
+  V17,
+  V18,
+  V19,
+  V20,
+  V21,
+  V22,
+  V23,  // caller-saved
+  V24,
+  V25,
+  V26,
+  V27,
+  V28,
+  V29,
+  V30,
+  V31,
 };
 
 // Integer argument / return registers (x0..x7 / w0..w7).
@@ -55,10 +106,9 @@ inline constexpr std::array<GPR, 26> ALLOCATABLE_GPR = {
 
 /// Allocatable FPRs (all of v0..v31).
 inline constexpr std::array<FPR, 32> ALLOCATABLE_FPR = {
-    FPR::V0,  FPR::V1,  FPR::V2,  FPR::V3,  FPR::V4,  FPR::V5,  FPR::V6,  FPR::V7,
-    FPR::V8,  FPR::V9,  FPR::V10, FPR::V11, FPR::V12, FPR::V13, FPR::V14, FPR::V15,
-    FPR::V16, FPR::V17, FPR::V18, FPR::V19, FPR::V20, FPR::V21, FPR::V22, FPR::V23,
-    FPR::V24, FPR::V25, FPR::V26, FPR::V27, FPR::V28, FPR::V29, FPR::V30, FPR::V31};
+    FPR::V0,  FPR::V1,  FPR::V2,  FPR::V3,  FPR::V4,  FPR::V5,  FPR::V6,  FPR::V7,  FPR::V8,  FPR::V9,  FPR::V10,
+    FPR::V11, FPR::V12, FPR::V13, FPR::V14, FPR::V15, FPR::V16, FPR::V17, FPR::V18, FPR::V19, FPR::V20, FPR::V21,
+    FPR::V22, FPR::V23, FPR::V24, FPR::V25, FPR::V26, FPR::V27, FPR::V28, FPR::V29, FPR::V30, FPR::V31};
 
 /// True if a GPR id is caller-saved (x0..x18 and lr) and so clobbered across a call.
 inline auto IsGPRCallerSaved(uint8_t id) -> bool {

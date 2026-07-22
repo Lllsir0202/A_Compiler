@@ -203,8 +203,7 @@ auto AArch64Peephole::TransformInst(TargetInst *inst) -> bool {
     case A64Opcode::LSL_I:
     case A64Opcode::LSR_I:
     case A64Opcode::ASR_I: {
-      if (rhs->GetOpType() == TargetOperandType::Immediate &&
-          static_cast<TargetIntLiteral *>(rhs)->GetValue() == 0) {
+      if (rhs->GetOpType() == TargetOperandType::Immediate && static_cast<TargetIntLiteral *>(rhs)->GetValue() == 0) {
         to_move(lhs);
         return true;
       }

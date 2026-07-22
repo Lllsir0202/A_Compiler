@@ -98,8 +98,8 @@ class MLIRVisitor : public IRVisitor {
    * variable, if true: need to insert var.set; otherwise, just need to map the varentry to the value
    * @return the value of the lval expression, which can be either the pointer or the value of the variable
    */
-  inline auto HandleLValExpr(frontend::ast::LValExprNode *lval_expr, bool get_ptr,
-                             bool &is_array_or_global) -> mlir::Value *;
+  inline auto HandleLValExpr(frontend::ast::LValExprNode *lval_expr, bool get_ptr, bool &is_array_or_global)
+      -> mlir::Value *;
 
   inline auto MapLValExprToValue(frontend::ast::LValExprNode *lval_expr, mlir::Value *value) -> void;
   utils::flatten::FlattenHelper flatten_helper_;

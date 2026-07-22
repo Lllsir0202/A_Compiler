@@ -104,8 +104,8 @@ auto TrivialBlockMergePass::IsMergeableBlock(mlir::base::FuncDefOp *func_op, mli
 }
 
 auto TrivialBlockMergePass::CanMergeBlock(
-    mlir::Block *block,
-    const std::unordered_map<mlir::Block *, std::unordered_set<mlir::Block *>> &predecessors) -> bool {
+    mlir::Block *block, const std::unordered_map<mlir::Block *, std::unordered_set<mlir::Block *>> &predecessors)
+    -> bool {
   auto *br_op = mlir::DynamicOrNull<mlir::base::BrOp>(block->operations_.front());
   auto *target = br_op->GetTarget();
   if (!HasPhi(target)) {
@@ -173,8 +173,8 @@ auto TrivialBlockMergePass::RewriteBranchTarget(mlir::Operation *operation, mlir
   return false;
 }
 
-auto TrivialBlockMergePass::RewritePhiIncoming(mlir::Block *target, mlir::Block *old_block,
-                                               mlir::Block *new_block) -> void {
+auto TrivialBlockMergePass::RewritePhiIncoming(mlir::Block *target, mlir::Block *old_block, mlir::Block *new_block)
+    -> void {
   for (auto *operation : target->operations_) {
     auto *phi_op = mlir::DynamicOrNull<mlir::base::PhiOp>(operation);
     if (phi_op == nullptr) {

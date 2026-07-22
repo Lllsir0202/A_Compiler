@@ -142,8 +142,8 @@ auto LLVMIRTrivialBlockMergePass::TryMergeEntryBlock(
   return true;
 }
 
-auto LLVMIRTrivialBlockMergePass::IsMergeableBlock(llvm::utils::Function *function,
-                                                   llvm::utils::BasicBlock *block) -> bool {
+auto LLVMIRTrivialBlockMergePass::IsMergeableBlock(llvm::utils::Function *function, llvm::utils::BasicBlock *block)
+    -> bool {
   if (block == nullptr || block == function->GetEntryBlock()) {
     return false;
   }
@@ -275,8 +275,8 @@ auto LLVMIRTrivialBlockMergePass::RewriteSuccessorPhiIncoming(llvm::utils::Funct
   }
 }
 
-auto LLVMIRTrivialBlockMergePass::RemoveBlock(llvm::utils::Function *function,
-                                              llvm::utils::BasicBlock *block_to_remove) -> void {
+auto LLVMIRTrivialBlockMergePass::RemoveBlock(llvm::utils::Function *function, llvm::utils::BasicBlock *block_to_remove)
+    -> void {
   std::vector<llvm::utils::BasicBlock *> new_blocks;
   for (auto *block : function->GetBasicBlocks()) {
     if (block != block_to_remove) {
@@ -298,8 +298,8 @@ auto LLVMIRTrivialBlockMergePass::RemoveMergedBlocks(llvm::utils::Function *func
   function->SetBasicBlocks(std::move(new_blocks));
 }
 
-auto LLVMIRTrivialBlockMergePass::GetBlockByID(llvm::utils::Function *function,
-                                               size_t block_id) -> llvm::utils::BasicBlock * {
+auto LLVMIRTrivialBlockMergePass::GetBlockByID(llvm::utils::Function *function, size_t block_id)
+    -> llvm::utils::BasicBlock * {
   for (auto *block : function->GetBasicBlocks()) {
     if (block->GetID() == block_id) {
       return block;

@@ -20,6 +20,7 @@
 #include "middleend/pass/analysis/memoryssa/memoryssa.h"
 #include "middleend/pass/analysis/scev/scevpass.h"
 #include "middleend/pass/transform/adce/adce.h"
+#include "middleend/pass/transform/deadloopelim/deadloopelim.h"
 #include "middleend/pass/transform/dse/dse.h"
 #include "middleend/pass/transform/functioninline/functioninline.h"
 #include "middleend/pass/transform/gvn/gvn.h"
@@ -34,18 +35,17 @@
 #include "middleend/pass/transform/mlirreturncanonicalize/mlirreturncanonicalize.h"
 #include "middleend/pass/transform/mlirtailrecursion/mlirtailrecursion.h"
 #include "middleend/pass/transform/promotion/promotion.h"
-#include "middleend/pass/transform/recursivememo/recursivememo.h"
 #include "middleend/pass/transform/reassociate/reassociate.h"
+#include "middleend/pass/transform/recursivememo/recursivememo.h"
 #include "middleend/pass/transform/sccp/sccp.h"
 #include "middleend/pass/transform/simplify/simplify.h"
-#include "middleend/pass/transform/deadloopelim/deadloopelim.h"
 #include "middleend/pass/transform/strengthreduce/strengthreduce.h"
 #include "middleend/pass/transform/trivialblockmerge/trivialblockmerge.h"
 #include "middleend/pass/transform/unify/unify.h"
+#include "stages/asm/asm_stage.h"
 #include "stages/ast/ast_stage.h"
 #include "stages/lexer/lexer_stage.h"
 #include "stages/llvm/llvm_stage.h"
-#include "stages/asm/asm_stage.h"
 #include "stages/mir/mir_stage.h"
 #include "stages/mlir/mlir_stage.h"
 #include "stages/parser/parser_stage.h"
@@ -379,9 +379,8 @@ auto main(int argc, char *argv[]) -> int {
     auto scev_pass = context::PassContext::CreatePass<middleend::pass::analysis::SCEVPass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(scev_pass);
-    auto dead_loop_eliminate_pass =
-        context::PassContext::CreatePass<middleend::pass::transform::DeadLoopEliminatePass>(
-            &compiler_context, middleend::pass::PassStage::BASEIR);
+    auto dead_loop_eliminate_pass = context::PassContext::CreatePass<middleend::pass::transform::DeadLoopEliminatePass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(dead_loop_eliminate_pass);
     auto strength_reduce_pass = context::PassContext::CreatePass<middleend::pass::transform::StrengthReducePass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
@@ -473,8 +472,8 @@ auto main(int argc, char *argv[]) -> int {
   // RISC-V (the competition target); -aarch64 selects the ARMv8-A backend.
   bool want_asm = (stage == "S" || stage == "s");
   if (target_arch == "aarch64") {
-    auto aarch64_backend = std::make_unique<backend::targetir::aarch64::AArch64Backend>(
-        &compiler_context, optimization_level, magic_div);
+    auto aarch64_backend =
+        std::make_unique<backend::targetir::aarch64::AArch64Backend>(&compiler_context, optimization_level, magic_div);
     ret = aarch64_backend->Run();
     if (ret != 0) {
       return 1;
@@ -485,8 +484,8 @@ auto main(int argc, char *argv[]) -> int {
     return ret;
   }
 
-  auto riscv_backend = std::make_unique<backend::targetir::riscv::RISCVBackend>(
-      &compiler_context, optimization_level, magic_div);
+  auto riscv_backend =
+      std::make_unique<backend::targetir::riscv::RISCVBackend>(&compiler_context, optimization_level, magic_div);
   ret = riscv_backend->Run();
   if (ret != 0) {
     return 1;

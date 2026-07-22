@@ -16,8 +16,8 @@ auto ICmpInst::Verify(context::CompilerContext *context) const -> bool {
   return true;
 }
 
-auto ICmpInst::Create(context::MIRContext *context, utils::Operand *lhs, utils::Operand *rhs,
-                      CmpPredicate predicate) -> ICmpInst * {
+auto ICmpInst::Create(context::MIRContext *context, utils::Operand *lhs, utils::Operand *rhs, CmpPredicate predicate)
+    -> ICmpInst * {
   auto *inst = new ICmpInst(predicate);
   inst->AddOperand(lhs);
   inst->AddOperand(rhs);
@@ -52,8 +52,8 @@ auto FCmpInst::Verify(context::CompilerContext *context) const -> bool {
   return true;
 }
 
-auto FCmpInst::Create(context::MIRContext *context, utils::Operand *lhs, utils::Operand *rhs,
-                      CmpPredicate predicate) -> FCmpInst * {
+auto FCmpInst::Create(context::MIRContext *context, utils::Operand *lhs, utils::Operand *rhs, CmpPredicate predicate)
+    -> FCmpInst * {
   auto *inst = new FCmpInst(predicate);
   inst->AddOperand(lhs);
   inst->AddOperand(rhs);

@@ -85,8 +85,8 @@ auto AArch64GraphColorRegAlloc::NodeOf(TargetOperand *op) -> NodeId {
   return node;
 }
 
-auto AArch64GraphColorRegAlloc::DefsUses(TargetInst *inst, std::vector<NodeId> *defs,
-                                         std::vector<NodeId> *uses) -> void {
+auto AArch64GraphColorRegAlloc::DefsUses(TargetInst *inst, std::vector<NodeId> *defs, std::vector<NodeId> *uses)
+    -> void {
   defs->clear();
   uses->clear();
   auto *ri = static_cast<AArch64Inst *>(inst);

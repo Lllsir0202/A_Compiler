@@ -95,8 +95,8 @@ auto GVNPass::ProcessDomNode(analysis::DomTreeNode *dom_node) -> void {
   }
 }
 
-auto GVNPass::ProcessBlock(mlir::Block *block, std::vector<Expr> *scalar_scope,
-                           std::vector<LoadKey> *load_scope) -> void {
+auto GVNPass::ProcessBlock(mlir::Block *block, std::vector<Expr> *scalar_scope, std::vector<LoadKey> *load_scope)
+    -> void {
   std::vector<mlir::Operation *> kept_operations;
   kept_operations.reserve(block->operations_.size());
 

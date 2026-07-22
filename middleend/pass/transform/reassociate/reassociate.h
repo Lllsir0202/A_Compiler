@@ -9,7 +9,7 @@
 namespace middleend::mlir {
 class Block;
 class Value;
-}
+}  // namespace middleend::mlir
 
 namespace middleend::pass::transform {
 

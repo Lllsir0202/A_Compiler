@@ -67,8 +67,8 @@ auto MLIRReturnCanonicalizePass::RunOnFunction(mlir::func::FuncDefOp *func_op) -
   }
 }
 
-auto MLIRReturnCanonicalizePass::IsSimpleEarlyReturnThen(mlir::scf::IfOp *if_op,
-                                                         mlir::func::ReturnOp **return_op) -> bool {
+auto MLIRReturnCanonicalizePass::IsSimpleEarlyReturnThen(mlir::scf::IfOp *if_op, mlir::func::ReturnOp **return_op)
+    -> bool {
   auto *then_region = if_op->GetThenRegion();
   auto *else_region = if_op->GetElseRegion();
   if (then_region == nullptr || else_region == nullptr || then_region->blocks_.size() != 1 ||

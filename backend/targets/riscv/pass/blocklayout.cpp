@@ -10,8 +10,8 @@
 namespace backend::targetir::riscv {
 namespace {
 auto IsConditional(RVOpcode opcode) -> bool {
-  return opcode == RVOpcode::BEQ || opcode == RVOpcode::BNE || opcode == RVOpcode::BLT ||
-         opcode == RVOpcode::BGE || opcode == RVOpcode::BLTU || opcode == RVOpcode::BGEU;
+  return opcode == RVOpcode::BEQ || opcode == RVOpcode::BNE || opcode == RVOpcode::BLT || opcode == RVOpcode::BGE ||
+         opcode == RVOpcode::BLTU || opcode == RVOpcode::BGEU;
 }
 
 auto LabelTarget(TargetInst *instruction) -> std::string {

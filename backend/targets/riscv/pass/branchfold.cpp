@@ -9,13 +9,26 @@ namespace backend::targetir::riscv {
 namespace {
 auto InverseBranch(RVOpcode opcode, RVOpcode *inverse) -> bool {
   switch (opcode) {
-    case RVOpcode::BEQ: *inverse = RVOpcode::BNE; return true;
-    case RVOpcode::BNE: *inverse = RVOpcode::BEQ; return true;
-    case RVOpcode::BLT: *inverse = RVOpcode::BGE; return true;
-    case RVOpcode::BGE: *inverse = RVOpcode::BLT; return true;
-    case RVOpcode::BLTU: *inverse = RVOpcode::BGEU; return true;
-    case RVOpcode::BGEU: *inverse = RVOpcode::BLTU; return true;
-    default: return false;
+    case RVOpcode::BEQ:
+      *inverse = RVOpcode::BNE;
+      return true;
+    case RVOpcode::BNE:
+      *inverse = RVOpcode::BEQ;
+      return true;
+    case RVOpcode::BLT:
+      *inverse = RVOpcode::BGE;
+      return true;
+    case RVOpcode::BGE:
+      *inverse = RVOpcode::BLT;
+      return true;
+    case RVOpcode::BLTU:
+      *inverse = RVOpcode::BGEU;
+      return true;
+    case RVOpcode::BGEU:
+      *inverse = RVOpcode::BLTU;
+      return true;
+    default:
+      return false;
   }
 }
 }  // namespace
@@ -40,9 +53,8 @@ auto BranchFold::RunOnFunction(TargetFunction *func) -> bool {
       RVOpcode inverse = RVOpcode::BEQ;
       const auto &branch_ops = branch->GetOperands();
       const auto &jump_ops = jump->GetOperands();
-      if (jump->GetOpcode() == RVOpcode::J && InverseBranch(branch->GetOpcode(), &inverse) &&
-          branch_ops.size() == 3 && jump_ops.size() == 1 &&
-          branch_ops[2]->GetOpType() == TargetOperandType::Label &&
+      if (jump->GetOpcode() == RVOpcode::J && InverseBranch(branch->GetOpcode(), &inverse) && branch_ops.size() == 3 &&
+          jump_ops.size() == 1 && branch_ops[2]->GetOpType() == TargetOperandType::Label &&
           jump_ops[0]->GetOpType() == TargetOperandType::Label &&
           static_cast<TargetLabel *>(branch_ops[2])->GetName() == blocks[i + 1]->GetLabel()) {
         branch->SetOpcode(inverse);

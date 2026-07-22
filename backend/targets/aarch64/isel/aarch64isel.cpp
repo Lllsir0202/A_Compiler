@@ -52,12 +52,18 @@ auto VRegSize(TargetOperand *op) -> TargetRegSize {
 auto CondFor(backend::inst::CmpPredicate pred) -> A64Cond {
   using P = backend::inst::CmpPredicate;
   switch (pred) {
-    case P::EQ: return A64Cond::EQ;
-    case P::NE: return A64Cond::NE;
-    case P::LT: return A64Cond::LT;
-    case P::GT: return A64Cond::GT;
-    case P::GE: return A64Cond::GE;
-    case P::LE: return A64Cond::LE;
+    case P::EQ:
+      return A64Cond::EQ;
+    case P::NE:
+      return A64Cond::NE;
+    case P::LT:
+      return A64Cond::LT;
+    case P::GT:
+      return A64Cond::GT;
+    case P::GE:
+      return A64Cond::GE;
+    case P::LE:
+      return A64Cond::LE;
   }
   return A64Cond::EQ;
 }
@@ -178,34 +184,90 @@ auto AArch64ISel::SelectFunction(backend::utils::Function *mir_func) -> TargetFu
 
 auto AArch64ISel::SelectInst(backend::inst::Instruction *inst) -> void {
   switch (inst->GetOpKind()) {
-    case OpKind::Add: SelectBinary(inst, A64Opcode::ADD); break;
-    case OpKind::Sub: SelectBinary(inst, A64Opcode::SUB); break;
-    case OpKind::Mul: SelectBinary(inst, A64Opcode::MUL); break;
-    case OpKind::Div: SelectDiv(inst); break;
-    case OpKind::Mod: SelectMod(inst); break;
-    case OpKind::And: SelectBinary(inst, A64Opcode::AND); break;
-    case OpKind::Or: SelectBinary(inst, A64Opcode::ORR); break;
-    case OpKind::Xor: SelectBinary(inst, A64Opcode::EOR); break;
-    case OpKind::Shl: SelectBinary(inst, A64Opcode::LSLV); break;
-    case OpKind::LShr: SelectBinary(inst, A64Opcode::LSRV); break;
-    case OpKind::AShr: SelectBinary(inst, A64Opcode::ASRV); break;
-    case OpKind::AddF: SelectBinary(inst, A64Opcode::FADD); break;
-    case OpKind::SubF: SelectBinary(inst, A64Opcode::FSUB); break;
-    case OpKind::MulF: SelectBinary(inst, A64Opcode::FMUL); break;
-    case OpKind::DivF: SelectBinary(inst, A64Opcode::FDIV); break;
-    case OpKind::FCmp: SelectFCmp(inst); break;
-    case OpKind::Int2Float: SelectConvert(inst, A64Opcode::SCVTF); break;
-    case OpKind::Float2Int: SelectConvert(inst, A64Opcode::FCVTZS); break;
-    case OpKind::Bool2Float: SelectConvert(inst, A64Opcode::SCVTF); break;
-    case OpKind::ICmp: SelectICmp(inst); break;
-    case OpKind::CondBr: SelectCondBr(inst); break;
-    case OpKind::Br: SelectBr(inst); break;
-    case OpKind::Ret: SelectRet(inst); break;
-    case OpKind::Copy: SelectCopy(inst); break;
-    case OpKind::Zext: SelectCopy(inst); break;
-    case OpKind::Call: SelectCall(inst); break;
-    case OpKind::Load: SelectLoad(inst); break;
-    case OpKind::Store: SelectStore(inst); break;
+    case OpKind::Add:
+      SelectBinary(inst, A64Opcode::ADD);
+      break;
+    case OpKind::Sub:
+      SelectBinary(inst, A64Opcode::SUB);
+      break;
+    case OpKind::Mul:
+      SelectBinary(inst, A64Opcode::MUL);
+      break;
+    case OpKind::Div:
+      SelectDiv(inst);
+      break;
+    case OpKind::Mod:
+      SelectMod(inst);
+      break;
+    case OpKind::And:
+      SelectBinary(inst, A64Opcode::AND);
+      break;
+    case OpKind::Or:
+      SelectBinary(inst, A64Opcode::ORR);
+      break;
+    case OpKind::Xor:
+      SelectBinary(inst, A64Opcode::EOR);
+      break;
+    case OpKind::Shl:
+      SelectBinary(inst, A64Opcode::LSLV);
+      break;
+    case OpKind::LShr:
+      SelectBinary(inst, A64Opcode::LSRV);
+      break;
+    case OpKind::AShr:
+      SelectBinary(inst, A64Opcode::ASRV);
+      break;
+    case OpKind::AddF:
+      SelectBinary(inst, A64Opcode::FADD);
+      break;
+    case OpKind::SubF:
+      SelectBinary(inst, A64Opcode::FSUB);
+      break;
+    case OpKind::MulF:
+      SelectBinary(inst, A64Opcode::FMUL);
+      break;
+    case OpKind::DivF:
+      SelectBinary(inst, A64Opcode::FDIV);
+      break;
+    case OpKind::FCmp:
+      SelectFCmp(inst);
+      break;
+    case OpKind::Int2Float:
+      SelectConvert(inst, A64Opcode::SCVTF);
+      break;
+    case OpKind::Float2Int:
+      SelectConvert(inst, A64Opcode::FCVTZS);
+      break;
+    case OpKind::Bool2Float:
+      SelectConvert(inst, A64Opcode::SCVTF);
+      break;
+    case OpKind::ICmp:
+      SelectICmp(inst);
+      break;
+    case OpKind::CondBr:
+      SelectCondBr(inst);
+      break;
+    case OpKind::Br:
+      SelectBr(inst);
+      break;
+    case OpKind::Ret:
+      SelectRet(inst);
+      break;
+    case OpKind::Copy:
+      SelectCopy(inst);
+      break;
+    case OpKind::Zext:
+      SelectCopy(inst);
+      break;
+    case OpKind::Call:
+      SelectCall(inst);
+      break;
+    case OpKind::Load:
+      SelectLoad(inst);
+      break;
+    case OpKind::Store:
+      SelectStore(inst);
+      break;
     default:
       Comment("TODO select opkind " + std::to_string(static_cast<int>(inst->GetOpKind())));
       break;
@@ -267,9 +329,9 @@ auto AArch64ISel::EmitConstDivide(TargetOperand *numer, int divisor) -> TargetOp
     // q = (n + (n >> 31 logical-masked to 2^k-1 when negative)) >> k.
     int k = __builtin_ctz(ad);
     auto *sign = new_reg();
-    Emit(A64Opcode::ASR_I, sign, {numer, ctx_->Imm(31)});        // 0 or -1
+    Emit(A64Opcode::ASR_I, sign, {numer, ctx_->Imm(31)});  // 0 or -1
     auto *bias = new_reg();
-    Emit(A64Opcode::LSR_I, bias, {sign, ctx_->Imm(32 - k)});     // 0 or (2^k - 1)
+    Emit(A64Opcode::LSR_I, bias, {sign, ctx_->Imm(32 - k)});  // 0 or (2^k - 1)
     auto *adj = new_reg();
     Emit(A64Opcode::ADD, adj, {numer, bias});
     auto *quot = new_reg();
@@ -281,7 +343,7 @@ auto AArch64ISel::EmitConstDivide(TargetOperand *numer, int divisor) -> TargetOp
   auto *magic = new_reg();
   EmitMovImm(magic, m.magic_);
   auto *q = new_reg();
-  Emit(A64Opcode::SMULH, q, {numer, magic});                    // high 32 of n * magic
+  Emit(A64Opcode::SMULH, q, {numer, magic});  // high 32 of n * magic
   if (divisor > 0 && m.magic_ < 0) {
     auto *t = new_reg();
     Emit(A64Opcode::ADD, t, {q, numer});

@@ -56,8 +56,8 @@ class PhiOp : public BaseOps {
 
  private:
   PhiOp() : BaseOps("phi") {}
-  auto SetUp(mlir::Value *result, const std::vector<mlir::Value *> &values,
-             const std::vector<mlir::Block *> &blocks) -> void {
+  auto SetUp(mlir::Value *result, const std::vector<mlir::Value *> &values, const std::vector<mlir::Block *> &blocks)
+      -> void {
     results_.reserve(1);
     results_.emplace_back(result);
     result->op_ = this;

@@ -17,8 +17,8 @@ namespace utils::flatten {
  * so over here, we will just get the first scalar initializer in the initial_list,
  * no matter how deep the initial_list is.
  */
-auto FlattenHelper::CastInitializer(frontend::ast::Initializer *init_node,
-                                    LeafHandle function_pointer) -> initializer::InitializerPtr {
+auto FlattenHelper::CastInitializer(frontend::ast::Initializer *init_node, LeafHandle function_pointer)
+    -> initializer::InitializerPtr {
   while (init_node != nullptr && !init_node->IsScalar()) {
     // since the init_node is NOT scalar, it must be an init list
     auto init_list = static_cast<frontend::ast::InitListNode *>(init_node);

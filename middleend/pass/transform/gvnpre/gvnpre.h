@@ -93,9 +93,11 @@ class GVNPREPass : public TransformPass {
   auto ComputeKey(mlir::Operation *operation, Expr *key) -> bool;
   auto IsPurePRE(mlir::Operation *operation) -> bool;
   auto IsCommutative(mlir::Operation *operation) -> bool;
-  auto MakeOp(mlir::Operation *sample, mlir::Value *res, const std::vector<mlir::Value *> &operands) -> mlir::Operation *;
+  auto MakeOp(mlir::Operation *sample, mlir::Value *res, const std::vector<mlir::Value *> &operands)
+      -> mlir::Operation *;
   // Value defined by `value` is available at the end of block `where` (its def dominates `where`).
-  auto AvailableAt(mlir::Value *value, mlir::Block *where, analysis::MLIRFunctionCFG *cfg, analysis::DomTree *dom) -> bool;
+  auto AvailableAt(mlir::Value *value, mlir::Block *where, analysis::MLIRFunctionCFG *cfg, analysis::DomTree *dom)
+      -> bool;
   auto BlockOf(mlir::Value *value) -> mlir::Block *;
 
   std::unordered_map<mlir::Operation *, mlir::Block *> op_to_block_;

@@ -78,9 +78,9 @@ struct Diamond {
   TargetBlock *t_;
   TargetBlock *f_;
   A64Cond cond_;
-  TargetInst *branch_to_m_;               // reused `b M` terminator
-  std::vector<TargetInst *> hoist_;       // pure ops of both arms, in order
-  std::vector<TargetOperand *> outs_;     // merged phi vregs
+  TargetInst *branch_to_m_;            // reused `b M` terminator
+  std::vector<TargetInst *> hoist_;    // pure ops of both arms, in order
+  std::vector<TargetOperand *> outs_;  // merged phi vregs
   std::vector<TargetOperand *> src_true_;
   std::vector<TargetOperand *> src_false_;
 };
@@ -200,7 +200,8 @@ auto AArch64IfConvert::RunOnFunction(TargetFunction *func) -> bool {
     auto *prev = static_cast<AArch64Inst *>(insts[insts.size() - 2]);
     auto *prev2 = static_cast<AArch64Inst *>(insts[insts.size() - 3]);
     // Shape: [... cmp][b.<cc> T][b F]
-    if (last->GetOpcode() != A64Opcode::B || prev->GetOpcode() != A64Opcode::B_COND || !IsFlagSetter(prev2->GetOpcode())) {
+    if (last->GetOpcode() != A64Opcode::B || prev->GetOpcode() != A64Opcode::B_COND ||
+        !IsFlagSetter(prev2->GetOpcode())) {
       continue;
     }
     auto t_it = by_label.find(BranchTargetLabel(prev));
