@@ -336,7 +336,7 @@ auto GraphColorRegAlloc::Build() -> void {
         if (msrc != mdst) {
           move_list_[msrc].push_back(inst);
         }
-        worklist_moves_.insert(inst);
+        AddWorklistMove(inst);
       }
       for (auto d : defs) {
         live.insert(d);
@@ -366,10 +366,31 @@ auto GraphColorRegAlloc::Adjacent(NodeId n) -> std::vector<NodeId> {
   return out;
 }
 
+// Add a move to the coalescing worklist with a fresh monotonic sequence key.
+// All call sites run in deterministic order (block/instruction walk, or the
+// deterministic node worklists), so the assigned order is reproducible.
+auto GraphColorRegAlloc::AddWorklistMove(TargetInst *move) -> void {
+  if (move_seq_.count(move) != 0) {
+    return;  // already queued
+  }
+  size_t seq = next_move_seq_++;
+  move_seq_[move] = seq;
+  worklist_moves_[seq] = move;
+}
+
+auto GraphColorRegAlloc::RemoveWorklistMove(TargetInst *move) -> void {
+  auto it = move_seq_.find(move);
+  if (it == move_seq_.end()) {
+    return;
+  }
+  worklist_moves_.erase(it->second);
+  move_seq_.erase(it);
+}
+
 auto GraphColorRegAlloc::NodeMoves(NodeId n) -> std::vector<TargetInst *> {
   std::vector<TargetInst *> out;
   for (auto *m : move_list_[n]) {
-    if (active_moves_.count(m) != 0 || worklist_moves_.count(m) != 0) {
+    if (active_moves_.count(m) != 0 || move_seq_.count(m) != 0) {
       out.push_back(m);
     }
   }
@@ -398,7 +419,7 @@ auto GraphColorRegAlloc::EnableMoves(const std::vector<NodeId> &nodes) -> void {
     for (auto *m : NodeMoves(n)) {
       if (active_moves_.count(m) != 0) {
         active_moves_.erase(m);
-        worklist_moves_.insert(m);
+        AddWorklistMove(m);
       }
     }
   }
@@ -484,8 +505,11 @@ auto GraphColorRegAlloc::Combine(NodeId u, NodeId v) -> void {
 }
 
 auto GraphColorRegAlloc::Coalesce() -> void {
-  auto *m = *worklist_moves_.begin();
-  worklist_moves_.erase(worklist_moves_.begin());
+  // Pop the lowest-sequence move: deterministic across runs (see header note).
+  auto it = worklist_moves_.begin();
+  auto *m = it->second;
+  move_seq_.erase(m);
+  worklist_moves_.erase(it);
   NodeId x = 0;
   NodeId y = 0;
   IsMove(m, &x, &y);
@@ -547,7 +571,7 @@ auto GraphColorRegAlloc::FreezeMoves(NodeId u) -> void {
       v = GetAlias(y);
     }
     active_moves_.erase(m);
-    worklist_moves_.erase(m);
+    RemoveWorklistMove(m);
     frozen_moves_.insert(m);
     if (!precolored_[v] && NodeMoves(v).empty() && degree_[v] < num_colors_) {
       freeze_worklist_.erase(v);
@@ -778,6 +802,8 @@ auto GraphColorRegAlloc::AllocateClass(TargetRegClass reg_class) -> void {
     select_stack_.clear();
     select_set_.clear();
     worklist_moves_.clear();
+    move_seq_.clear();
+    next_move_seq_ = 0;
     active_moves_.clear();
     frozen_moves_.clear();
     constrained_moves_.clear();

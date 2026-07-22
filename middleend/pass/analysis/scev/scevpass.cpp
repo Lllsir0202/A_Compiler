@@ -42,6 +42,14 @@ auto StripCopy(mlir::Value *value) -> mlir::Value * {
 
 auto PtrKey(const void *pointer) -> std::string { return std::to_string(reinterpret_cast<uintptr_t>(pointer)); }
 
+// Order two SCEV nodes by their stable creation-order id. Used to canonicalize
+// commutative operand lists deterministically; sorting by raw pointer address
+// (the default for `const SCEV *`) varies run to run under ASLR and made the
+// interned operand order -- and hence all downstream IR -- nondeterministic.
+// Distinct interned nodes have distinct ids, so this keeps identical pointers
+// adjacent for a following std::unique just as a pointer sort would.
+auto ByStableOrder(const SCEV *lhs, const SCEV *rhs) -> bool { return lhs->GetOrder() < rhs->GetOrder(); }
+
 auto ToString(const SCEV *scev) -> std::string {
   switch (scev->GetKind()) {
     case SCEVKind::Constant: {
@@ -201,6 +209,7 @@ auto SCEVPass::Unique(SCEV *candidate) -> const SCEV * {
     delete candidate;
     return iter->second;
   }
+  candidate->SetOrder(owned_scevs_.size());  // stable creation-order id for deterministic sorting
   unique_map_[key] = candidate;
   owned_scevs_.emplace_back(candidate);
   return candidate;
@@ -335,7 +344,7 @@ auto SCEVPass::GetAddExpr(std::vector<const SCEV *> operands) -> const SCEV * {
   if (result.size() == 1) {
     return result[0];
   }
-  std::sort(result.begin(), result.end());
+  std::sort(result.begin(), result.end(), ByStableOrder);
   return Unique(new SCEVAddExpr(SCEVKind::Add, IntType(), std::move(result)));
 }
 
@@ -407,7 +416,7 @@ auto SCEVPass::GetMulExpr(std::vector<const SCEV *> operands) -> const SCEV * {
   if (result.size() == 1) {
     return result[0];
   }
-  std::sort(result.begin(), result.end());
+  std::sort(result.begin(), result.end(), ByStableOrder);
   return Unique(new SCEVMulExpr(SCEVKind::Mul, IntType(), std::move(result)));
 }
 
@@ -467,7 +476,7 @@ auto SCEVPass::GetSMaxExpr(std::vector<const SCEV *> operands) -> const SCEV * {
       others.emplace_back(operand);
     }
   }
-  std::sort(others.begin(), others.end());
+  std::sort(others.begin(), others.end(), ByStableOrder);
   others.erase(std::unique(others.begin(), others.end()), others.end());
   if (has_constant) {
     others.emplace_back(GetConstant(constant_max));
@@ -478,7 +487,7 @@ auto SCEVPass::GetSMaxExpr(std::vector<const SCEV *> operands) -> const SCEV * {
   if (others.size() == 1) {
     return others[0];
   }
-  std::sort(others.begin(), others.end());
+  std::sort(others.begin(), others.end(), ByStableOrder);
   return Unique(new SCEVSMaxExpr(SCEVKind::SMax, IntType(), std::move(others)));
 }
 
@@ -504,7 +513,7 @@ auto SCEVPass::GetUMinExpr(std::vector<const SCEV *> operands) -> const SCEV * {
       others.emplace_back(operand);
     }
   }
-  std::sort(others.begin(), others.end());
+  std::sort(others.begin(), others.end(), ByStableOrder);
   others.erase(std::unique(others.begin(), others.end()), others.end());
   if (has_constant) {
     others.emplace_back(GetConstant(static_cast<int>(constant_min)));
@@ -515,7 +524,7 @@ auto SCEVPass::GetUMinExpr(std::vector<const SCEV *> operands) -> const SCEV * {
   if (others.size() == 1) {
     return others[0];
   }
-  std::sort(others.begin(), others.end());
+  std::sort(others.begin(), others.end(), ByStableOrder);
   return Unique(new SCEVUMinExpr(SCEVKind::UMin, IntType(), std::move(others)));
 }
 
