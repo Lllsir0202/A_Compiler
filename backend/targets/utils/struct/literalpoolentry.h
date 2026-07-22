@@ -15,6 +15,7 @@ class TargetFloatLiteralPoolEntry {
  public:
   TargetFloatLiteralPoolEntry(float value, size_t offset, size_t index)
       : value_(value), offset_(offset), index_(index) {}
+  TargetFloatLiteralPoolEntry() = default;
   auto operator<(const TargetFloatLiteralPoolEntry &other) -> bool { return index_ < other.index_; }
 
   auto GetOffset() const -> size_t { return offset_; }

@@ -838,12 +838,23 @@ auto LowerHelper::LowerICmp(backend::inst::ICmpInst *inst) -> void {
           compiler_context_->ReportError("Non-literal operand is not mapped to a target operand");
           return;
         }
-        auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
-        GET_BACKEND_TARGET()->MapOperand(inst->GetResult(), target_result);
-        auto target_literal = GET_BACKEND_TARGET()->CreateIntLiteral(literal_value);
-        auto addi_inst =
-            GET_BACKEND_TARGET()->CreateInstruction<RVADDIInst>(target_result, target_non_literal, target_literal);
-        GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(addi_inst);
+        TargetVirtualReg *target_result = nullptr;
+        if (literal_value == 0) {
+          // If the literal is zero, we can just map the result to the non-literal operand
+          if (!target_non_literal->IsVirtualReg()) {
+            compiler_context_->ReportError("Non-literal operand is not a virtual register");
+            return;
+          }
+          target_result = static_cast<TargetVirtualReg *>(target_non_literal);
+          GET_BACKEND_TARGET()->MapOperand(inst->GetResult(), target_non_literal);
+        } else {
+          target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+          GET_BACKEND_TARGET()->MapOperand(inst->GetResult(), target_result);
+          auto target_literal = GET_BACKEND_TARGET()->CreateIntLiteral(literal_value);
+          auto addi_inst =
+              GET_BACKEND_TARGET()->CreateInstruction<RVADDIInst>(target_result, target_non_literal, target_literal);
+          GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(addi_inst);
+        }
         // Then check seqz or snez
         if (predicate == inst::CmpPredicate::EQ) {
           auto seqz_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSEQZInst>(target_result, target_result);
@@ -903,9 +914,8 @@ auto LowerHelper::LowerICmp(backend::inst::ICmpInst *inst) -> void {
   // Should not reach here, since we have handled all the predicates
   compiler_context_->ReportError("Unhandled ICmp predicate");
 }
-auto LowerHelper::LowerFCmp(backend::inst::FCmpInst *inst) -> void {
-  
-}
+
+auto LowerHelper::LowerFCmp([[maybe_unused]] backend::inst::FCmpInst *inst) -> void {}
 
 auto LowerHelper::LowerXor(backend::inst::XorInst *inst) -> void {
   auto lhs = inst->GetOperands()[0];
@@ -1040,6 +1050,7 @@ auto LowerHelper::LowerCondBr(backend::inst::BrCondInst *inst) -> void {
   auto br_false_inst = GET_BACKEND_TARGET()->CreateInstruction<RVJMPInst>(target_false_label_operand);
   GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(br_false_inst);
 }
+
 auto LowerHelper::LowerRet(backend::inst::RetInst *inst) -> void {
   if (auto return_value = inst->GetReturnValue()) {
     // If has a return value, we need to move it to the return register
@@ -1064,7 +1075,7 @@ auto LowerHelper::LowerRet(backend::inst::RetInst *inst) -> void {
       compiler_context_->ReportError("Return value is not mapped to a target operand");
       return;
     }
-    if (is_float_return || IsFloatTargetOperand(target_return_value)) {
+    if (is_float_return) {
       auto target_return_register = rv64_getter_.GetFloatReturnValueReg(GET_BACKEND_TARGET(), TargetRegSize::DWord);
       auto mv_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFMVInst>(target_return_register, target_return_value);
       GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(mv_inst);

@@ -503,7 +503,8 @@ void SemanticAnalyser::Visit(LValExprNode *LVal) {
     }
     // The result type will be a pointer type of the element type
     result_type = compiler_context_->GetTypeContext()->GetPtrType(element_type);
-  } else if (!def_dims.empty() && LVal->indices_.size() > def_dims.size()) {
+  } else if ((def_dims.empty() && !LVal->indices_.empty()) ||
+             (!def_dims.empty() && LVal->indices_.size() > def_dims.size())) {
     compiler_context_->ReportError(LVal, "too many indices for array variable (" + LVal->ident_ + ")");
     return;
   }
