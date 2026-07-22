@@ -22,6 +22,38 @@ auto EdgeKey(int u, int v) -> long long {
   }
   return (static_cast<long long>(u) << 32) | static_cast<unsigned>(v);
 }
+
+auto SamePhysicalReg(TargetOperand *lhs, TargetOperand *rhs) -> bool {
+  if (lhs == nullptr || rhs == nullptr || !lhs->IsPhysicalReg() || !rhs->IsPhysicalReg()) {
+    return false;
+  }
+  auto *lhs_reg = static_cast<TargetPhysicalReg *>(lhs);
+  auto *rhs_reg = static_cast<TargetPhysicalReg *>(rhs);
+  return lhs_reg->GetRegClass() == rhs_reg->GetRegClass() && lhs_reg->GetID() == rhs_reg->GetID();
+}
+
+// After coloring, `mv dst, src; mv src, dst` has a redundant second copy: the
+// first instruction already established that both registers contain `src`.
+// Exclude writes to x0 because they do not establish that equality.
+auto IsRedundantInverseMove(TargetInst *first, TargetInst *second) -> bool {
+  auto *first_rv = static_cast<RISCVInst *>(first);
+  auto *second_rv = static_cast<RISCVInst *>(second);
+  if (first_rv->GetOpcode() != RVOpcode::MV || second_rv->GetOpcode() != RVOpcode::MV) {
+    return false;
+  }
+  const auto &first_ops = first->GetOperands();
+  const auto &second_ops = second->GetOperands();
+  auto *first_dst = first->GetResult();
+  if (first_dst == nullptr || !first_dst->IsPhysicalReg() || first_ops.size() != 1 || second_ops.size() != 1) {
+    return false;
+  }
+  auto *first_dst_reg = static_cast<TargetPhysicalReg *>(first_dst);
+  if (first_dst_reg->GetRegClass() != TargetRegClass::General ||
+      first_dst_reg->GetID() == static_cast<uint8_t>(GPR::Zero)) {
+    return false;
+  }
+  return SamePhysicalReg(first_dst, second_ops[0]) && SamePhysicalReg(first_ops[0], second->GetResult());
+}
 }  // namespace
 
 auto GraphColorRegAlloc::Run(TargetFunction *func, size_t spill_base) -> size_t {
@@ -630,8 +662,8 @@ auto GraphColorRegAlloc::EmitReload(std::vector<TargetInst *> *out, TargetOperan
   out->push_back(ld);
 }
 
-auto GraphColorRegAlloc::EmitSpill(std::vector<TargetInst *> *out, TargetOperand *vreg, TargetOperand *src,
-                                   size_t slot) -> void {
+auto GraphColorRegAlloc::EmitSpill(std::vector<TargetInst *> *out, TargetOperand *vreg, TargetOperand *src, size_t slot)
+    -> void {
   auto *v = static_cast<TargetVirtualReg *>(vreg);
   RVOpcode op = v->GetRegClass() == TargetRegClass::Float ? RVOpcode::FSW
                 : v->GetRegSize() == TargetRegSize::QWord ? RVOpcode::SD
@@ -832,6 +864,9 @@ auto GraphColorRegAlloc::ApplyColors() -> void {
             continue;  // omit the nop move
           }
         }
+      }
+      if (!kept.empty() && IsRedundantInverseMove(kept.back(), inst)) {
+        continue;
       }
       kept.push_back(inst);
     }
