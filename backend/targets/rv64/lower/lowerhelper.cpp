@@ -583,8 +583,12 @@ auto LowerHelper::LowerAddF(backend::inst::AddFInst *inst) -> void {
     return;
   }
 
-  auto target_lhs = GetFloatOperand(compiler_context_, lhs);
-  auto target_rhs = GetFloatOperand(compiler_context_, rhs);
+  auto target_lhs = lhs->IsLiteral()
+                        ? MaterializeLiteral(compiler_context_, static_cast<utils::FloatLiteral *>(lhs)->GetValue())
+                        : GET_BACKEND_TARGET()->GetMappedOperand(lhs);
+  auto target_rhs = rhs->IsLiteral()
+                        ? MaterializeLiteral(compiler_context_, static_cast<utils::FloatLiteral *>(rhs)->GetValue())
+                        : GET_BACKEND_TARGET()->GetMappedOperand(rhs);
   if (target_lhs == nullptr || target_rhs == nullptr) {
     compiler_context_->ReportError("One of the float operands is not mapped to a target operand");
     return;
@@ -606,8 +610,12 @@ auto LowerHelper::LowerSubF(backend::inst::SubFInst *inst) -> void {
     return;
   }
 
-  auto target_lhs = GetFloatOperand(compiler_context_, lhs);
-  auto target_rhs = GetFloatOperand(compiler_context_, rhs);
+  auto target_lhs = lhs->IsLiteral()
+                        ? MaterializeLiteral(compiler_context_, static_cast<utils::FloatLiteral *>(lhs)->GetValue())
+                        : GET_BACKEND_TARGET()->GetMappedOperand(lhs);
+  auto target_rhs = rhs->IsLiteral()
+                        ? MaterializeLiteral(compiler_context_, static_cast<utils::FloatLiteral *>(rhs)->GetValue())
+                        : GET_BACKEND_TARGET()->GetMappedOperand(rhs);
   if (target_lhs == nullptr || target_rhs == nullptr) {
     compiler_context_->ReportError("One of the float operands is not mapped to a target operand");
     return;
@@ -629,8 +637,12 @@ auto LowerHelper::LowerMulF(backend::inst::MulFInst *inst) -> void {
     return;
   }
 
-  auto target_lhs = GetFloatOperand(compiler_context_, lhs);
-  auto target_rhs = GetFloatOperand(compiler_context_, rhs);
+  auto target_lhs = lhs->IsLiteral()
+                        ? MaterializeLiteral(compiler_context_, static_cast<utils::FloatLiteral *>(lhs)->GetValue())
+                        : GET_BACKEND_TARGET()->GetMappedOperand(lhs);
+  auto target_rhs = rhs->IsLiteral()
+                        ? MaterializeLiteral(compiler_context_, static_cast<utils::FloatLiteral *>(rhs)->GetValue())
+                        : GET_BACKEND_TARGET()->GetMappedOperand(rhs);
   if (target_lhs == nullptr || target_rhs == nullptr) {
     compiler_context_->ReportError("One of the float operands is not mapped to a target operand");
     return;
@@ -652,8 +664,12 @@ auto LowerHelper::LowerDivF(backend::inst::DivFInst *inst) -> void {
     return;
   }
 
-  auto target_lhs = GetFloatOperand(compiler_context_, lhs);
-  auto target_rhs = GetFloatOperand(compiler_context_, rhs);
+  auto target_lhs = lhs->IsLiteral()
+                        ? MaterializeLiteral(compiler_context_, static_cast<utils::FloatLiteral *>(lhs)->GetValue())
+                        : GET_BACKEND_TARGET()->GetMappedOperand(lhs);
+  auto target_rhs = rhs->IsLiteral()
+                        ? MaterializeLiteral(compiler_context_, static_cast<utils::FloatLiteral *>(rhs)->GetValue())
+                        : GET_BACKEND_TARGET()->GetMappedOperand(rhs);
   if (target_lhs == nullptr || target_rhs == nullptr) {
     compiler_context_->ReportError("One of the float operands is not mapped to a target operand");
     return;
@@ -750,8 +766,12 @@ auto LowerHelper::LowerFCmp(backend::inst::FCmpInst *inst) -> void {
   auto rhs = inst->GetOperands()[1];
   auto dst = inst->GetResult();
 
-  auto target_lhs = GetFloatOperand(compiler_context_, lhs);
-  auto target_rhs = GetFloatOperand(compiler_context_, rhs);
+  auto target_lhs = lhs->IsLiteral()
+                        ? MaterializeLiteral(compiler_context_, static_cast<utils::FloatLiteral *>(lhs)->GetValue())
+                        : GET_BACKEND_TARGET()->GetMappedOperand(lhs);
+  auto target_rhs = rhs->IsLiteral()
+                        ? MaterializeLiteral(compiler_context_, static_cast<utils::FloatLiteral *>(rhs)->GetValue())
+                        : GET_BACKEND_TARGET()->GetMappedOperand(rhs);
   if (target_lhs == nullptr || target_rhs == nullptr) {
     compiler_context_->ReportError("One of the float compare operands is not mapped to a target operand");
     return;
@@ -928,7 +948,7 @@ auto LowerHelper::LowerRet(backend::inst::RetInst *inst) -> void {
       } else if (auto bool_literal = dynamic_cast<utils::BoolLiteral *>(return_value)) {
         target_return_value = MaterializeLiteral(compiler_context_, bool_literal->GetValue() ? 1 : 0);
       } else if (auto float_literal = dynamic_cast<utils::FloatLiteral *>(return_value)) {
-        target_return_value = MaterializeFloatLiteral(compiler_context_, float_literal->GetValue());
+        target_return_value = MaterializeLiteral(compiler_context_, float_literal->GetValue());
         is_float_return = true;
       } else {
         compiler_context_->ReportError("Return value is an unsupported literal");
@@ -1009,7 +1029,9 @@ auto LowerHelper::LowerFloat2Int(backend::inst::Float2IntInst *inst) -> void {
   auto src = inst->GetOperands()[0];
   auto dst = inst->GetResult();
 
-  auto target_src = GetFloatOperand(compiler_context_, src);
+  auto target_src = src->IsLiteral()
+                        ? MaterializeLiteral(compiler_context_, static_cast<utils::FloatLiteral *>(src)->GetValue())
+                        : GET_BACKEND_TARGET()->GetMappedOperand(src);
   if (target_src == nullptr) {
     compiler_context_->ReportError("Float2Int source operand is not mapped to a target operand");
     return;
@@ -1055,7 +1077,7 @@ auto LowerHelper::LowerCopy(backend::inst::CopyInst *inst) -> void {
     } else if (auto bool_literal = dynamic_cast<utils::BoolLiteral *>(src)) {
       target_src = MaterializeLiteral(compiler_context_, bool_literal->GetValue() ? 1 : 0);
     } else if (auto float_literal = dynamic_cast<utils::FloatLiteral *>(src)) {
-      target_src = MaterializeFloatLiteral(compiler_context_, float_literal->GetValue());
+      target_src = MaterializeLiteral(compiler_context_, float_literal->GetValue());
     } else {
       compiler_context_->ReportError("Copy source is an unsupported literal");
       return;
