@@ -76,6 +76,7 @@ inline auto MaterializeLiteral(context::CompilerContext *compiler_context,
   auto symbol_operand =
       compiler_context->GetBackendContext()->CreateSymbolOperand<RV64Symbol>(literal_pool_entry->GetName());
   // Create a 'la' instruction to load the address of the literal pool
+  //(LAINST: quick search for future reference)
   auto la_inst = compiler_context->GetBackendContext()->CreateInstruction<RVLAInst>(tmp_reg, symbol_operand);
   compiler_context->GetBackendContext()->GetCurrentBlock()->AddInst(la_inst);
   // Create a 'flw' instruction to load the float literal value from the literal pool
