@@ -288,10 +288,56 @@ auto RISCVISel::SelectDiv(backend::inst::Instruction *inst) -> void {
   SelectBinary(inst, RVOpcode::DIVW);
 }
 
+// True when the only consumer of `mod_result` is an `x == 0` / `x != 0` comparison. The zero
+// test cares only whether the remainder is zero, not its value, which lets `x % 2^k` collapse to
+// a single mask (see SelectMod).
+auto RISCVISel::ModResultOnlyTestedAgainstZero(backend::utils::Operand *mod_result) const -> bool {
+  if (mod_result == nullptr || use_count_.count(mod_result) == 0 || use_count_.at(mod_result) != 1) {
+    return false;
+  }
+  auto user_iter = one_user_.find(mod_result);
+  if (user_iter == one_user_.end() || user_iter->second->GetOpKind() != OpKind::ICmp) {
+    return false;
+  }
+  auto *cmp = static_cast<backend::inst::ICmpInst *>(user_iter->second);
+  auto pred = cmp->GetPredicate();
+  if (pred != backend::inst::CmpPredicate::EQ && pred != backend::inst::CmpPredicate::NE) {
+    return false;
+  }
+  // The remainder must be compared against a literal zero; the other operand is the mod result.
+  for (auto *op : cmp->GetOperands()) {
+    if (op == mod_result) {
+      continue;
+    }
+    auto *lit = dynamic_cast<backend::utils::IntLiteral *>(op);
+    if (lit == nullptr || lit->GetValue() != 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
 auto RISCVISel::SelectMod(backend::inst::Instruction *inst) -> void {
   auto *numer = GetReg(inst->GetOperands()[0]);
   auto *lit = dynamic_cast<backend::utils::IntLiteral *>(inst->GetOperands()[1]);
   if (lit != nullptr) {
+    // `x % 2^k == 0` iff the low k bits are zero, regardless of sign. When the remainder is only
+    // tested against zero, mask the low bits instead of the full signed-remainder sequence: the
+    // AND is zero on exactly the same inputs, so the consuming compare is unaffected.
+    int divisor = lit->GetValue();
+    unsigned ad = divisor < 0 ? 0U - static_cast<unsigned>(divisor) : static_cast<unsigned>(divisor);
+    if (divisor != 0 && (ad & (ad - 1)) == 0 && ModResultOnlyTestedAgainstZero(inst->GetResult())) {
+      int mask = static_cast<int>(ad - 1);
+      auto *result = GetOrCreateVReg(inst->GetResult());
+      if (mask <= 2047) {  // fits ANDI's 12-bit signed immediate
+        Emit(RVOpcode::ANDI, result, {numer, ctx_->Imm(mask)});
+      } else {
+        auto *mask_reg = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::DWord);
+        Emit(RVOpcode::LI, mask_reg, {ctx_->Imm(mask)});
+        Emit(RVOpcode::AND, result, {numer, mask_reg});
+      }
+      return;
+    }
     if (auto *q = EmitConstDivide(numer, lit->GetValue())) {
       // r = n - q * d.
       auto *d = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::DWord);

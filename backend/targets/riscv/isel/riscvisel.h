@@ -59,6 +59,7 @@ class RISCVISel {
   // returning the quotient register, or nullptr if unsupported (magic disabled,
   // |d| < 2, d == INT_MIN) so the caller falls back to `divw`/`remw`.
   auto EmitConstDivide(TargetOperand *numer, int divisor) -> TargetOperand *;
+  auto ModResultOnlyTestedAgainstZero(backend::utils::Operand *mod_result) const -> bool;
   auto SelectICmp(backend::inst::Instruction *inst) -> void;
   auto SelectFCmp(backend::inst::Instruction *inst) -> void;
   auto SelectConvert(backend::inst::Instruction *inst, RVOpcode opcode) -> void;
