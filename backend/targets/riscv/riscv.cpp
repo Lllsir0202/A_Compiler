@@ -12,6 +12,7 @@
 #include "backend/targets/riscv/pass/branchfold.h"
 #include "backend/targets/riscv/pass/localcse.h"
 #include "backend/targets/riscv/pass/machinedce.h"
+#include "backend/targets/riscv/pass/machinelicm.h"
 #include "backend/targets/riscv/pass/peephole.h"
 #include "backend/targets/riscv/printer/riscvprinter.h"
 #include "backend/targets/riscv/regalloc/graphcoloralloc.h"
@@ -40,6 +41,7 @@ auto RISCVBackend::Run() -> int {
     machine_passes.AddPass(new RISCVPeephole(&ctx_));
     machine_passes.AddPass(new RISCVAddrFold(&ctx_));
     machine_passes.AddPass(new RISCVLocalCSE(&ctx_));
+    machine_passes.AddPass(new MachineLICM(&ctx_));
     machine_passes.AddPass(new MachineDCE(&ctx_));
     machine_passes.AddPass(new RISCVBlockLayout(&ctx_));
     machine_passes.AddPass(new BranchFold(&ctx_));

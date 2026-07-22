@@ -318,3 +318,63 @@ eight-iteration widened reduction trade code size for row-contiguous cache-line
 use. The submitted wall-clock measurements are therefore the decisive metric
 for this stage; the local instruction regression confirms reduced loop/address
 overhead but does not model the judge's cache timing.
+
+## 8. Register-pressure-aware machine LICM
+
+### Change
+
+- Add a RISC-V machine-level loop-invariant code motion pass
+  (`backend/targets/riscv/pass/machinelicm.{h,cpp}`), scheduled after local CSE
+  and before machine DCE. It targets invariant code the middle-end LICM cannot
+  see because it is created during instruction selection: the `slli`/`add`
+  address chains for multidimensional array walks and materialized loop-bound
+  constants.
+- Build the pass's own CFG, dominator sets, and natural-loop detection from the
+  pre-register-allocation block list (the backend does not populate CFG edges at
+  this stage). Hoist only into a unique out-of-loop preheader that dominates the
+  header, inserting before that block's terminator.
+- Restrict hoisting to pure, cheap, single-definition opcodes whose operands are
+  all loop-invariant (or already hoisted). Exclude `divw`/`remw`: trap-free on
+  RISC-V but too expensive to speculate into a loop that may run zero times.
+- Make hoisting register-pressure aware, which is the decisive design point.
+  Multi-input arithmetic can let its now-loop-dead source operands be freed, so
+  it is hoisted freely. A trivially rematerializable `li`/`la` frees no operand
+  and adds one value live across the whole loop, so it is gated by two limits,
+  the smaller winning per register class: a budget derived from the loop's
+  estimated peak live-set versus the 25-GPR / 32-FPR file, and a small absolute
+  cap. The cap is charged cumulatively against rematerializable values already
+  in the preheader, so the pass manager's fixpoint re-runs cannot defeat it by
+  hoisting a fresh batch each iteration.
+
+### Validation
+
+- Incremental compiler build: passed.
+- Compile plus GNU-assemble of all 59 `riscv_performance` cases: 59/59 passed.
+- Compile of the functional and hidden-functional suites: 151/152 passed; the
+  only failure is the pre-existing frontend failure in `64_calculator.sy`, which
+  fails identically on the pass-disabled baseline.
+- Differential dynamic-instruction count under Spike, pass-enabled versus an
+  otherwise identical pass-disabled build, across the 59-case performance suite.
+  All four exact-output (`OK`) cases stayed `OK`; no status regressed.
+
+### Result
+
+| Scope | Baseline | Optimized | Reduction | Instruction speedup |
+|---|---:|---:|---:|---:|
+| Performance suite, total dynamic instructions | 7,081,046,428 | 7,050,083,785 | 0.44% | 1.0044x |
+| `h-11-*` convolution/pooling kernels (each) | ~5.58M / 39.5M | ~4.32M / 30.5M | ~22.6% | ~1.29x |
+| `h-2-*` kernels (each) | 284.6M / 279.3M / 409.8M | 278.4M / 273.1M / 400.8M | ~2.2% | ~1.022x |
+
+The net gain is modest and concentrated in a few hot loops (the `h-11` and `h-2`
+families dominate the reduction), with `if-combine` and `h-5` contributing
+smaller wins. It is not a uniform improvement: `h-4-02` (+19%) and `transpose2`
+(+5%) still regress from second-order register-allocation effects the pressure
+estimate does not fully model, and several tiny-trip-count cases (`matmul*`,
+`gameoflife-*`, `sl*`) show small static-overhead regressions where the
+preheader setup is not amortized. The pressure model was added after measuring
+that a pressure-blind version regressed `h-4-02` by +80% (+4.2M instructions)
+via hot-loop spills; gating rematerializable hoists cut that to +19% while
+preserving the `h-11`/`h-2` wins. This is the well-known trade-off of running
+LICM before register allocation on a small register file: loop-body savings and
+allocation cost are close in magnitude, and the pass is tuned to stay net
+positive rather than to win every case.
