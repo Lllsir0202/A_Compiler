@@ -3,6 +3,7 @@
  * which will be used to traverse the AST and generate the MLIR IR.
  */
 #include "middleend/builder/mlir/mlirvisitor.h"
+#include <algorithm>
 #include <cstddef>
 #include <memory>
 #include <string>
@@ -778,6 +779,19 @@ void MLIRVisitor::Visit(frontend::ast::IfStmtNode *if_stmt) {
   // We will save the current variable map before visiting the if statement,
   // and restore it after visiting the if statement(then), and do the same if there is else statement
   auto var_map = GET_MLIR_CONTEXT()->GetResourceContext()->GetVarMap();
+  // `var_map` is keyed by VarEntry pointers, so iterating it directly yields an
+  // ASLR-dependent order. That order would become the branch's yielded-variable
+  // (and hence phi) order, making the emitted IR and all downstream value/register
+  // names differ run to run. Iterate a copy sorted by the stable declaration-time
+  // symbol id instead, so the merge order is reproducible.
+  std::vector<symboltable::VarEntry *> ordered_vars;
+  ordered_vars.reserve(var_map.size());
+  for (const auto &[entry, value] : var_map) {
+    ordered_vars.emplace_back(entry);
+  }
+  std::sort(
+      ordered_vars.begin(), ordered_vars.end(),
+      [](const symboltable::VarEntry *a, const symboltable::VarEntry *b) { return a->symbol_id_ < b->symbol_id_; });
   // Restore the top region and block
   auto current_region = GET_MLIR_CONTEXT()->GetCurrentRegion();
   auto current_block = GET_MLIR_CONTEXT()->GetInsertPoint();
@@ -812,7 +826,8 @@ void MLIRVisitor::Visit(frontend::ast::IfStmtNode *if_stmt) {
     // and the value of these variables in the else block
     // should be the same as the original value
     // before visiting the then statement
-    for (const auto [entry, value] : var_map) {
+    for (auto *entry : ordered_vars) {
+      auto value = var_map[entry];
       auto then_value = then_var_map[entry];
       // Collect all variables which are changed in the branch
       if (then_value != value) {
@@ -862,7 +877,8 @@ void MLIRVisitor::Visit(frontend::ast::IfStmtNode *if_stmt) {
     std::vector<mlir::Value *> then_yield_values;
     std::vector<mlir::Value *> else_yield_values;
     // Collect all variables which are changed in the branch
-    for (const auto [entry, value] : var_map) {
+    for (auto *entry : ordered_vars) {
+      auto value = var_map[entry];
       auto then_value = then_var_map[entry];
       auto else_value = else_var_map[entry];
       if (then_value != else_value) {
@@ -1030,6 +1046,15 @@ void MLIRVisitor::Visit(frontend::ast::WhileStmtNode *while_stmt) {
       iter_args.emplace_back(entry);
     }
   }
+  // `var_map` is keyed by VarEntry pointers, so iterating it yields an
+  // ASLR-dependent order. That order becomes the loop-carried variable order of
+  // the scf.while (and its phi nodes after lowering), which otherwise makes the
+  // whole IR -- and every value number and register name downstream -- differ
+  // run to run. Sort by the stable declaration-time symbol id for reproducible
+  // output.
+  std::sort(iter_args.begin(), iter_args.end(), [](const symboltable::VarEntry *a, const symboltable::VarEntry *b) {
+    return a->symbol_id_ < b->symbol_id_;
+  });
 
   // Create the yield operation in the body block
   std::vector<mlir::Value *> yield_values;

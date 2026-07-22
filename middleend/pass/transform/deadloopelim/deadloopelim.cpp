@@ -294,7 +294,7 @@ auto DeadLoopEliminatePass::TryDeleteLoop(analysis::MLIRFunctionCFG *function_cf
 
   // 4. Detach every loop operation from the values it used, then drop the loop blocks. Clearing the
   //    use-lists keeps them consistent for the analyses rebuilt after this pass.
-  const std::unordered_set<mlir::Block *> &loop_blocks = loop->GetBlocks();  // returned by reference
+  const std::unordered_set<mlir::Block *> &loop_blocks = loop->GetBlockSet();  // for O(1) membership below
   for (auto *block : loop_blocks) {
     for (auto *operation : block->operations_) {
       for (auto *operand : operation->operands_) {

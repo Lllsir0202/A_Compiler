@@ -25,17 +25,32 @@ class MLIRFunctionCFG;
  */
 class Loop {
  public:
-  explicit Loop(mlir::Block *header) : header_(header) { blocks_.insert(header); }
+  explicit Loop(mlir::Block *header) : header_(header) {
+    blocks_.insert(header);
+    ordered_blocks_.emplace_back(header);
+  }
 
   auto GetHeader() const -> mlir::Block * { return header_; }
-  auto GetBlocks() const -> const std::unordered_set<mlir::Block *> & { return blocks_; }
+  // Body blocks in a deterministic order (sorted by stable block id). Iterating
+  // the raw hash set instead exposes ASLR-dependent pointer order, which leaks
+  // into the order downstream passes create SCEVs and base-dialect ops, making
+  // the whole IR nondeterministic. Membership goes through `Contains`, so the
+  // set is kept private for O(1) lookup while iteration uses this vector.
+  auto GetBlocks() const -> const std::vector<mlir::Block *> & { return ordered_blocks_; }
+  auto GetBlockSet() const -> const std::unordered_set<mlir::Block *> & { return blocks_; }
   auto Contains(mlir::Block *block) const -> bool { return blocks_.count(block) > 0; }
   auto GetLatches() const -> const std::vector<mlir::Block *> & { return latches_; }
   auto GetParent() const -> Loop * { return parent_; }
   auto GetSubLoops() const -> const std::vector<Loop *> & { return sub_loops_; }
   auto GetDepth() const -> int { return depth_; }
 
-  auto AddBlock(mlir::Block *block) -> void { blocks_.insert(block); }
+  auto AddBlock(mlir::Block *block) -> void {
+    if (blocks_.insert(block).second) {
+      ordered_blocks_.emplace_back(block);
+    }
+  }
+  // Sort the body blocks into a stable order once the loop is fully built.
+  auto SortBlocks() -> void;
   auto AddLatch(mlir::Block *block) -> void { latches_.emplace_back(block); }
   auto SetParent(Loop *parent) -> void { parent_ = parent; }
   auto AddSubLoop(Loop *loop) -> void { sub_loops_.emplace_back(loop); }
@@ -44,6 +59,7 @@ class Loop {
  private:
   mlir::Block *header_;
   std::unordered_set<mlir::Block *> blocks_;
+  std::vector<mlir::Block *> ordered_blocks_;  // same members as blocks_, kept in stable id order
   std::vector<mlir::Block *> latches_;
   Loop *parent_{nullptr};
   std::vector<Loop *> sub_loops_;

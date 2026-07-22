@@ -271,8 +271,15 @@ auto PromotionPass::Promote(analysis::DomTree *dom_tree, analysis::Loop *loop, c
 
   auto *value_type = candidate.sample_value->GetType();
 
+  // `region_` is a pointer-keyed hash set, so iterating it directly creates phi
+  // values (and later phi ops) in an ASLR-dependent order that renumbers the whole
+  // IR. Walk the region in stable block-id order instead.
+  std::vector<mlir::Block *> ordered_region(region_.begin(), region_.end());
+  std::sort(ordered_region.begin(), ordered_region.end(),
+            [](const mlir::Block *a, const mlir::Block *b) { return a->block_id_ < b->block_id_; });
+
   // Place a phi at every region block (except the preheader entry) that merges control flow.
-  for (auto *block : region_) {
+  for (auto *block : ordered_region) {
     if (block == preheader) {
       continue;
     }
@@ -304,8 +311,13 @@ auto PromotionPass::Promote(analysis::DomTree *dom_tree, analysis::Loop *loop, c
   promoted_pointer_->AddUse(seed_load, 0);
 
   std::vector<std::pair<mlir::Operation *, mlir::Block *>> created_phis;
-  for (auto &entry : placed_phi_) {
-    auto *block = entry.first;
+  // Iterate in stable block-id order (placed_phi_ is a pointer-keyed map) so phi
+  // ops are created deterministically.
+  for (auto *block : ordered_region) {
+    auto entry = placed_phi_.find(block);
+    if (entry == placed_phi_.end()) {
+      continue;
+    }
     auto &incomings = phi_incomings_[block];
     std::vector<mlir::Value *> values;
     std::vector<mlir::Block *> blocks;
@@ -313,7 +325,7 @@ auto PromotionPass::Promote(analysis::DomTree *dom_tree, analysis::Loop *loop, c
       blocks.emplace_back(incoming.first);
       values.emplace_back(incoming.second);
     }
-    auto *phi = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::PhiOp>(entry.second, values, blocks);
+    auto *phi = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::PhiOp>(entry->second, values, blocks);
     for (size_t i = 0; i < values.size(); ++i) {
       values[i]->AddUse(phi, i);
     }

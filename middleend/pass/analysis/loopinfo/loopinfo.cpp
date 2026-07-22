@@ -67,6 +67,11 @@ auto LoopInfoPass::RunOnFunction(MLIRFunctionCFG *function_cfg, DomTree *dom_tre
     }
   }
 
+  // Put each loop body into a deterministic order before any consumer iterates it.
+  for (auto *loop : loops) {
+    loop->SortBlocks();
+  }
+
   ComputeNesting(loops);
   function_loops_[function_cfg] = loops;
 
@@ -103,6 +108,11 @@ auto LoopInfoPass::BuildLoopBody(Loop *loop, MLIRFunctionCFG *function_cfg, mlir
       }
     }
   }
+}
+
+auto Loop::SortBlocks() -> void {
+  std::sort(ordered_blocks_.begin(), ordered_blocks_.end(),
+            [](const mlir::Block *a, const mlir::Block *b) { return a->block_id_ < b->block_id_; });
 }
 
 auto LoopInfoPass::ComputeNesting(const std::vector<Loop *> &loops) -> void {

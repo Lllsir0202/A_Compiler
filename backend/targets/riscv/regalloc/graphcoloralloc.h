@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -70,6 +71,9 @@ class GraphColorRegAlloc {
   // Graph helpers.
   auto AddEdge(NodeId u, NodeId v) -> void;
   auto Adjacent(NodeId n) -> std::vector<NodeId>;
+  // Enqueue/dequeue a coalescing move on the deterministically-ordered worklist.
+  auto AddWorklistMove(TargetInst *move) -> void;
+  auto RemoveWorklistMove(TargetInst *move) -> void;
   auto NodeMoves(NodeId n) -> std::vector<TargetInst *>;
   auto MoveRelated(NodeId n) -> bool;
   auto DecrementDegree(NodeId n) -> void;
@@ -141,7 +145,15 @@ class GraphColorRegAlloc {
   std::vector<NodeId> select_stack_;
   std::unordered_set<NodeId> select_set_;
 
-  std::unordered_set<TargetInst *> worklist_moves_;
+  // Move-coalescing worklist. Kept ordered by a stable per-move sequence number
+  // (assigned in deterministic block/instruction walk order) rather than as a
+  // pointer-keyed hash set: iterating an unordered_set<TargetInst *> by begin()
+  // exposes ASLR-dependent pointer-hash order, which made coalescing decisions --
+  // and hence the number of surviving `mv` copies -- vary run to run. `move_seq_`
+  // maps a move back to its sequence key for O(1) membership and erase.
+  std::map<size_t, TargetInst *> worklist_moves_;
+  std::unordered_map<TargetInst *, size_t> move_seq_;
+  size_t next_move_seq_ = 0;
   std::unordered_set<TargetInst *> active_moves_;
   std::unordered_set<TargetInst *> frozen_moves_;
   std::unordered_set<TargetInst *> constrained_moves_;

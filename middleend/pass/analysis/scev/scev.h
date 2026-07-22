@@ -30,11 +30,18 @@ class SCEV {
   virtual ~SCEV() = default;
   auto GetKind() const -> SCEVKind { return kind_; }
   auto GetType() const -> type::Type * { return type_; }
+  // Stable creation-order id, assigned by SCEVPass when the node is interned.
+  // Commutative-operand canonicalization sorts by this instead of by pointer
+  // address so the analysis -- and everything downstream of it -- is
+  // reproducible across runs (heap addresses vary under ASLR).
+  auto GetOrder() const -> size_t { return order_; }
+  auto SetOrder(size_t order) -> void { order_ = order; }
 
  protected:
   SCEV(SCEVKind kind, type::Type *type) : kind_(kind), type_(type) {}
   SCEVKind kind_;
   type::Type *type_;
+  size_t order_ = 0;
 };
 
 /**
@@ -142,8 +149,7 @@ class SCEVDivExpr : public SCEV {
 
  private:
   friend class SCEVPass;
-  SCEVDivExpr(const SCEV *lhs, const SCEV *rhs, type::Type *type)
-      : SCEV(SCEVKind::Div, type), lhs_(lhs), rhs_(rhs) {}
+  SCEVDivExpr(const SCEV *lhs, const SCEV *rhs, type::Type *type) : SCEV(SCEVKind::Div, type), lhs_(lhs), rhs_(rhs) {}
   const SCEV *lhs_;
   const SCEV *rhs_;
 };
