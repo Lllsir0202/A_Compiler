@@ -9,18 +9,6 @@
 #include "backend/targets/utils/struct/targetfunction.h"
 #include "backend/targets/utils/struct/targetglobalobject.h"
 namespace backend::targetir {
-class TargetFloatLiteralPoolEntry {
- public:
-  TargetFloatLiteralPoolEntry(std::string label, std::uint32_t bits) : label_(std::move(label)), bits_(bits) {}
-
-  auto GetLabel() const -> const std::string & { return label_; }
-  auto GetBits() const -> std::uint32_t { return bits_; }
-
- private:
-  std::string label_;
-  std::uint32_t bits_;
-};
-
 class TargetModule {
  public:
   // Destructor: delete all functions
@@ -33,9 +21,6 @@ class TargetModule {
   auto AddLibraryFunction(const std::string &lib_func_name) -> void { library_functions_.emplace_back(lib_func_name); }
   auto GetLibraryFunctions() const -> const std::vector<std::string> & { return library_functions_; }
 
-  auto GetOrCreateFloatLiteralLabel(float value) -> std::string;
-  auto GetFloatLiteralPool() const -> const std::vector<TargetFloatLiteralPoolEntry> & { return float_literal_pool_; }
-
   auto Reset() -> void {
     for (auto *func : functions_) {
       delete func;
@@ -46,8 +31,6 @@ class TargetModule {
     }
     global_objects_.clear();
     library_functions_.clear();
-    float_literal_pool_.clear();
-    float_literal_pool_index_.clear();
   }
 
  private:
@@ -63,10 +46,6 @@ class TargetModule {
   // Record a list of library functions
   // Need to record the name of the library function
   std::vector<std::string> library_functions_;
-
-  // Literal pool, which will be used to store the literal values in the module
-  std::vector<TargetFloatLiteralPoolEntry> float_literal_pool_;
-  std::unordered_map<std::uint32_t, size_t> float_literal_pool_index_;
 };
 
 }  // namespace backend::targetir

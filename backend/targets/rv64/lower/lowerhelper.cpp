@@ -19,41 +19,6 @@
 
 #define GET_BACKEND_TARGET() compiler_context_->GetBackendContext()
 namespace backend::targetir::rv64 {
-namespace {
-auto MaterializeFloatLiteral(context::CompilerContext *compiler_context, float value) -> TargetOperand * {
-  auto *backend_context = compiler_context->GetBackendContext();
-  auto label = backend_context->GetModule()->GetOrCreateFloatLiteralLabel(value);
-
-  auto *addr_reg = backend_context->CreateVirtualRegister(TargetRegSize::QWord, TargetRegClass::General);
-  auto *symbol = backend_context->CreateSymbolOperand<RV64Symbol>(label, RV64SymbolModifier::None);
-  auto *la_inst = backend_context->CreateInstruction<RVLAInst>(addr_reg, symbol);
-  backend_context->GetCurrentBlock()->AddInst(la_inst);
-
-  auto *float_reg = backend_context->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::Float);
-  auto *zero_offset = backend_context->CreateIntLiteral(0);
-  auto *load_inst = backend_context->CreateInstruction<RVFLWInst>(float_reg, zero_offset, addr_reg);
-  backend_context->GetCurrentBlock()->AddInst(load_inst);
-  return float_reg;
-}
-
-auto GetFloatOperand(context::CompilerContext *compiler_context, backend::utils::Operand *operand) -> TargetOperand * {
-  if (auto *literal = dynamic_cast<backend::utils::FloatLiteral *>(operand)) {
-    return MaterializeFloatLiteral(compiler_context, literal->GetValue());
-  }
-  return compiler_context->GetBackendContext()->GetMappedOperand(operand);
-}
-
-auto IsFloatTargetOperand(TargetOperand *operand) -> bool {
-  if (auto *vreg = dynamic_cast<TargetVirtualReg *>(operand)) {
-    return vreg->GetRegClass() == TargetRegClass::Float;
-  }
-  if (auto *preg = dynamic_cast<TargetPhysicalReg *>(operand)) {
-    return preg->GetRegClass() == TargetRegClass::Float;
-  }
-  return false;
-}
-}  // namespace
-
 /**
  * @note Need to map all literal operands which type is int and value is zero
  * to a special zero register, which is x0 in RV64.

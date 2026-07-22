@@ -20,7 +20,7 @@ class RV64Symbol : public TargetSymbol {
   auto Emit(std::ofstream *out) -> void override;
 
  private:
-  explicit RV64Symbol(std::string name, RV64SymbolModifier modifier)
+  explicit RV64Symbol(std::string name, RV64SymbolModifier modifier = RV64SymbolModifier::None)
       : TargetSymbol(std::move(name)), modifier_(modifier) {}
   RV64SymbolModifier modifier_;
   friend class OperandFactory;
