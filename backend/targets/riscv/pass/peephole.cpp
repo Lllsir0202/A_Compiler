@@ -31,8 +31,14 @@ auto RISCVPeephole::BuildFacts(TargetFunction *func) -> void {
   use_count_.clear();
   li_value_.clear();
   defining_inst_.clear();
+  inst_block_.clear();
+  inst_index_.clear();
   for (auto *block : func->GetBlocks()) {
-    for (auto *inst : block->GetInsts()) {
+    const auto &insts = block->GetInsts();
+    for (size_t i = 0; i < insts.size(); ++i) {
+      auto *inst = insts[i];
+      inst_block_[inst] = block;
+      inst_index_[inst] = i;
       auto *res = inst->GetResult();
       if (res != nullptr) {
         def_count_[res]++;
@@ -120,6 +126,52 @@ auto RISCVPeephole::HasSignExtendedWordResult(TargetOperand *op) const -> bool {
   }
 }
 
+// Whether every register operand in `ops` still holds, at `use`, the value it
+// had at `def`. Single-def operands are stable everywhere. A multiply-defined
+// operand is stable only when `def` and `use` sit in the same block and no
+// instruction strictly between them writes that operand. If `def` and `use` are
+// in different blocks a multiply-defined operand cannot be proven stable, so we
+// conservatively reject.
+auto RISCVPeephole::OperandsStableBetween(TargetInst *def, TargetInst *use,
+                                          const std::vector<TargetOperand *> &ops) const -> bool {
+  bool all_single_def = true;
+  for (auto *op : ops) {
+    if (op != nullptr && op->IsVirtualReg()) {
+      auto count = def_count_.find(op);
+      if (count == def_count_.end() || count->second != 1) {
+        all_single_def = false;
+        break;
+      }
+    }
+  }
+  if (all_single_def) {
+    return true;
+  }
+  auto db = inst_block_.find(def);
+  auto ub = inst_block_.find(use);
+  if (db == inst_block_.end() || ub == inst_block_.end() || db->second != ub->second) {
+    return false;  // different (or unknown) blocks: cannot prove stability
+  }
+  size_t di = inst_index_.at(def);
+  size_t ui = inst_index_.at(use);
+  if (di >= ui) {
+    return false;  // def must precede use in the block
+  }
+  const auto &insts = db->second->GetInsts();
+  for (size_t i = di + 1; i < ui; ++i) {
+    auto *res = insts[i]->GetResult();
+    if (res == nullptr || !res->IsVirtualReg()) {
+      continue;
+    }
+    for (auto *op : ops) {
+      if (op == res) {
+        return false;  // an operand is redefined between the compare and the branch
+      }
+    }
+  }
+  return true;
+}
+
 auto RISCVPeephole::FoldBranchZero(TargetInst *inst) -> bool {
   auto opcode = static_cast<RISCVInst *>(inst)->GetOpcode();
   bool is_equality_branch = opcode == RVOpcode::BEQ || opcode == RVOpcode::BNE;
@@ -142,6 +194,131 @@ auto RISCVPeephole::FoldBranchZero(TargetInst *inst) -> bool {
   return true;
 }
 
+auto RISCVPeephole::FoldCompareBranch(TargetInst *inst) -> bool {
+  auto branch_opcode = static_cast<RISCVInst *>(inst)->GetOpcode();
+  if (branch_opcode != RVOpcode::BEQ && branch_opcode != RVOpcode::BNE) {
+    return false;
+  }
+  const auto &branch_ops = inst->GetOperands();
+  if (branch_ops.size() != 3) {
+    return false;
+  }
+
+  auto is_zero = [](TargetOperand *operand) {
+    if (operand == nullptr || !operand->IsPhysicalReg()) {
+      return false;
+    }
+    auto *reg = static_cast<TargetPhysicalReg *>(operand);
+    return reg->GetRegClass() == TargetRegClass::General && reg->GetID() == 0;
+  };
+  bool lhs_zero = is_zero(branch_ops[0]);
+  bool rhs_zero = is_zero(branch_ops[1]);
+  if (lhs_zero == rhs_zero) {
+    return false;
+  }
+
+  auto unique_def = [&](TargetOperand *operand) -> TargetInst * {
+    if (operand == nullptr || !operand->IsVirtualReg()) {
+      return nullptr;
+    }
+    auto count = def_count_.find(operand);
+    auto defining = defining_inst_.find(operand);
+    if (count == def_count_.end() || count->second != 1 || defining == defining_inst_.end()) {
+      return nullptr;
+    }
+    return defining->second;
+  };
+
+  TargetOperand *condition = lhs_zero ? branch_ops[1] : branch_ops[0];
+  bool branch_on_true = branch_opcode == RVOpcode::BNE;
+  auto *def = unique_def(condition);
+  if (def == nullptr) {
+    return false;
+  }
+
+  auto chase_moves = [&]() {
+    for (int depth = 0; depth < 8; ++depth) {
+      auto *move = static_cast<RISCVInst *>(def);
+      const auto &move_ops = def->GetOperands();
+      if (move->GetOpcode() != RVOpcode::MV || move_ops.size() != 1) {
+        return true;
+      }
+      condition = move_ops[0];
+      def = unique_def(condition);
+      if (def == nullptr) {
+        return false;
+      }
+    }
+    return false;
+  };
+  if (!chase_moves()) {
+    return false;
+  }
+
+  // GE/LE comparisons are represented as `slt` followed by XOR 1. Keep the
+  // inversion in the branch predicate and let machine DCE remove both boolean
+  // materialization instructions after all uses have been rewritten.
+  auto *def_rv = static_cast<RISCVInst *>(def);
+  const auto &def_ops = def->GetOperands();
+  if (def_rv->GetOpcode() == RVOpcode::XORI && def_ops.size() == 2 &&
+      def_ops[1]->GetOpType() == TargetOperandType::Immediate &&
+      static_cast<TargetIntLiteral *>(def_ops[1])->GetValue() == 1) {
+    condition = def_ops[0];
+    branch_on_true = !branch_on_true;
+    def = unique_def(condition);
+    if (def == nullptr || !chase_moves()) {
+      return false;
+    }
+    def_rv = static_cast<RISCVInst *>(def);
+  }
+
+  const auto &compare_ops = def->GetOperands();
+  // The comparison's register operands are moved into the branch. Backend vregs
+  // are not SSA, so this is only sound if those operands still hold the value
+  // they had at the comparison. A single-def operand is always stable; a
+  // multiply-defined one is safe only when no redefinition sits between the
+  // comparison and the branch. Both instructions live in the same block here
+  // (the comparison is `inst`'s in-block predecessor via def-use), so a linear
+  // scan of that window is sufficient and precise.
+  if (!OperandsStableBetween(def, inst, compare_ops)) {
+    return false;
+  }
+  auto set_branch = [&](RVOpcode opcode, TargetOperand *lhs, TargetOperand *rhs) {
+    static_cast<RISCVInst *>(inst)->SetOpcode(opcode);
+    inst->SetOperands({lhs, rhs, branch_ops[2]});
+  };
+  switch (def_rv->GetOpcode()) {
+    case RVOpcode::SLT:
+      if (compare_ops.size() != 2) return false;
+      set_branch(branch_on_true ? RVOpcode::BLT : RVOpcode::BGE, compare_ops[0], compare_ops[1]);
+      return true;
+    case RVOpcode::SLTU:
+      if (compare_ops.size() != 2) return false;
+      set_branch(branch_on_true ? RVOpcode::BLTU : RVOpcode::BGEU, compare_ops[0], compare_ops[1]);
+      return true;
+    case RVOpcode::SLTI:
+      if (compare_ops.size() != 2 || compare_ops[1]->GetOpType() != TargetOperandType::Immediate ||
+          static_cast<TargetIntLiteral *>(compare_ops[1])->GetValue() != 0) {
+        return false;
+      }
+      set_branch(branch_on_true ? RVOpcode::BLT : RVOpcode::BGE, compare_ops[0],
+                 ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, 0));
+      return true;
+    case RVOpcode::SEQZ:
+      if (compare_ops.size() != 1) return false;
+      set_branch(branch_on_true ? RVOpcode::BEQ : RVOpcode::BNE, compare_ops[0],
+                 ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, 0));
+      return true;
+    case RVOpcode::SNEZ:
+      if (compare_ops.size() != 1) return false;
+      set_branch(branch_on_true ? RVOpcode::BNE : RVOpcode::BEQ, compare_ops[0],
+                 ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, 0));
+      return true;
+    default:
+      return false;
+  }
+}
+
 auto RISCVPeephole::TransformInst(TargetInst *inst) -> bool {
   auto *ri = static_cast<RISCVInst *>(inst);
   auto opcode = ri->GetOpcode();
@@ -152,7 +329,11 @@ auto RISCVPeephole::TransformInst(TargetInst *inst) -> bool {
     ri->SetOpcode(RVOpcode::MV);
     return true;
   }
-  if (FoldBranchZero(inst)) {
+  bool branch_changed = FoldBranchZero(inst);
+  if (FoldCompareBranch(inst)) {
+    return true;
+  }
+  if (branch_changed) {
     return true;
   }
   if (ops.size() != 2) {
@@ -243,9 +424,15 @@ auto RISCVPeephole::TransformInst(TargetInst *inst) -> bool {
         }
         break;
       }
-      case RVOpcode::AND: to_constant(lhs_value & rhs_value); return true;
-      case RVOpcode::OR: to_constant(lhs_value | rhs_value); return true;
-      case RVOpcode::XOR: to_constant(lhs_value ^ rhs_value); return true;
+      case RVOpcode::AND:
+        to_constant(lhs_value & rhs_value);
+        return true;
+      case RVOpcode::OR:
+        to_constant(lhs_value | rhs_value);
+        return true;
+      case RVOpcode::XOR:
+        to_constant(lhs_value ^ rhs_value);
+        return true;
       case RVOpcode::SLLW:
         to_constant(as_i32(static_cast<uint32_t>(lhs_value) << (static_cast<unsigned>(rhs_value) & 31U)));
         return true;
@@ -273,11 +460,14 @@ auto RISCVPeephole::TransformInst(TargetInst *inst) -> bool {
       case RVOpcode::SRAIW:
         to_constant(static_cast<int32_t>(lhs_value) >> (static_cast<unsigned>(rhs_value) & 31U));
         return true;
-      case RVOpcode::SLT: to_constant(lhs_value < rhs_value ? 1 : 0); return true;
+      case RVOpcode::SLT:
+        to_constant(lhs_value < rhs_value ? 1 : 0);
+        return true;
       case RVOpcode::SLTU:
         to_constant(static_cast<uint32_t>(lhs_value) < static_cast<uint32_t>(rhs_value) ? 1 : 0);
         return true;
-      default: break;
+      default:
+        break;
     }
   }
 
@@ -411,16 +601,14 @@ auto RISCVPeephole::TransformInst(TargetInst *inst) -> bool {
     case RVOpcode::SLLIW:
     case RVOpcode::SRLIW:
     case RVOpcode::SRAIW: {
-      if (rhs->GetOpType() == TargetOperandType::Immediate &&
-          static_cast<TargetIntLiteral *>(rhs)->GetValue() == 0) {
+      if (rhs->GetOpType() == TargetOperandType::Immediate && static_cast<TargetIntLiteral *>(rhs)->GetValue() == 0) {
         to_move(lhs);
         return true;
       }
       return false;
     }
     case RVOpcode::ANDI: {
-      if (rhs->GetOpType() == TargetOperandType::Immediate &&
-          static_cast<TargetIntLiteral *>(rhs)->GetValue() == -1) {
+      if (rhs->GetOpType() == TargetOperandType::Immediate && static_cast<TargetIntLiteral *>(rhs)->GetValue() == -1) {
         to_move(lhs);  // AND with all-ones is the identity
         return true;
       }
