@@ -177,6 +177,10 @@ class BackendContext {
     }
     return nullptr;
   }
+  auto GetVregToPregMap()
+      -> const std::unordered_map<backend::targetir::TargetVirtualReg *, backend::targetir::PhysicalReg *> & {
+    return vreg_to_preg_map_;
+  }
 
   auto IsMapped(backend::targetir::TargetVirtualReg *vreg) -> bool { return vreg_to_preg_map_.count(vreg) > 0; }
 
