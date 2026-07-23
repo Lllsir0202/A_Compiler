@@ -7,16 +7,11 @@
 #include "backend/mir/inst/cast/cast.h"
 #include "backend/mir/inst/cmp/cmp.h"
 #include "backend/mir/inst/func/call.h"
-#include "backend/mir/inst/func/funcdeclare.h"
-#include "backend/mir/inst/func/funcdef.h"
 #include "backend/mir/inst/inst.h"
-#include "backend/mir/inst/memory/globaldef.h"
 #include "backend/mir/inst/memory/load.h"
 #include "backend/mir/inst/memory/store.h"
 #include "backend/mir/inst/pseudo/copy.h"
-#include "backend/mir/inst/pseudo/phi.h"
 #include "backend/targets/rv64/getter/getter.h"
-#include "backend/targets/utils/operand/targetoperand.h"
 namespace backend::targetir::rv64 {
 class LowerHelper {
  public:
@@ -46,7 +41,6 @@ class LowerHelper {
 
   auto LowerLoad(backend::inst::LoadInst *inst) -> void;
   auto LowerStore(backend::inst::StoreInst *inst) -> void;
-  auto LowerGlobalDef(backend::inst::GlobalDefInst *inst) -> void;
 
   auto LowerBr(backend::inst::BrInst *inst) -> void;
   auto LowerCondBr(backend::inst::BrCondInst *inst) -> void;

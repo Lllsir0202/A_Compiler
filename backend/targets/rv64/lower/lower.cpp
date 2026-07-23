@@ -1,8 +1,10 @@
 #include "backend/targets/rv64/lower/lower.h"
 
+#include <cstdint>
 #include <exception>
 #include <string>
 
+#include "backend/mir/inst/func/funcdef.h"
 #include "backend/mir/inst/memory/globaldef.h"
 #include "backend/mir/utils/struct/block.h"
 #include "backend/mir/utils/struct/function.h"
@@ -11,7 +13,6 @@
 #include "context/backend_context.h"
 #include "context/compiler_context.h"
 #include "context/mir_context.h"
-#include "mir/inst/cast/cast.h"
 #include "mir/utils/operand/memoryoperand.h"
 #include "mir/utils/operand/regoperand.h"
 
@@ -60,41 +61,57 @@ auto RV64Lower::Lower() -> int {
         return -1;
       }
 
+      // Create the frame object according to the frame objects in the MIR function
+      target_function->ReserveFrameObject(mir_function->GetFrameInfosSize());
+
+      uint8_t int_param_count = 0;
+      uint8_t float_param_count = 0;
       for (const auto &param : func_def->GetArguments()) {
         // All params should be a virtual register
         if (!param->IsRegister()) {
           compiler_context_->ReportError("Function parameter is not a register: " + std::to_string(param->GetIndex()));
           return -1;
         }
+        // If the parameter is an integer and no more than 8
         if (param->IsInt()) {
-          // If the parameter is an integer
-          auto target_param =
-              GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
-          GET_BACKEND_TARGET()->MapOperand(param, target_param);
+          if (int_param_count > 8) {
+            // alloca a frame object for this parameter
+            auto *frame_object =
+                backend_context->AddFrameObject(param->GetType()->GetDataSize(), param->GetType()->GetAlign());
+            auto *frame_operand = backend_context->CreateFrameOperand(frame_object->GetID());
+            backend_context->MapOperand(param, frame_operand);
+          } else {
+            // No more than 8, just create a virtual register
+            auto *target_param = backend_context->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+            backend_context->MapOperand(param, target_param);
+          }
+          int_param_count++;
         }
         if (param->IsFloat()) {
-          auto target_param =
-              GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
-          GET_BACKEND_TARGET()->MapOperand(param, target_param);
-        }
-        if (param->IsPtr()) {
-          if (GET_BACKEND_TARGET()->GetMemSize() == utils::MemSize::Bit64) {
-            auto target_param =
-                GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::QWord, TargetRegClass::General);
-            GET_BACKEND_TARGET()->MapOperand(param, target_param);
+          if (float_param_count > 8) {
+            // alloca a frame object for this parameter
+            auto *frame_object =
+                backend_context->AddFrameObject(param->GetType()->GetDataSize(), param->GetType()->GetAlign());
+            auto *frame_operand = backend_context->CreateFrameOperand(frame_object->GetID());
+            backend_context->MapOperand(param, frame_operand);
           } else {
-            auto target_param =
-                GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
-            GET_BACKEND_TARGET()->MapOperand(param, target_param);
+            // No more than 8, just create a virtual register
+            auto *target_param = backend_context->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::Float);
+            backend_context->MapOperand(param, target_param);
           }
+          float_param_count++;
         }
       }
 
-      // Create the frame object according to the frame objects in the MIR function
-      target_function->ReserveFrameObject(mir_function->GetFrameInfosSize());
-      for (const auto *frame_info : mir_function->GetFrameInfos()) {
-        backend_context->AddFrameObject(frame_info->GetSize(), frame_info->GetAlign());
+      // If the parameter count exceeds the limit, we need to set local offset
+      if (int_param_count > 8) {
+        target_function->IncreaseOffsetOfLocalFrameObject(int_param_count - 8);
       }
+      if (float_param_count > 8) {
+        target_function->IncreaseOffsetOfLocalFrameObject(float_param_count - 8);
+      }
+
+      // Current slot id equals to : offset_of_local_frame_object_ + frame_info->GetSlotID()
 
       for (auto *mir_block : mir_function->GetBlocks()) {
         auto *target_block = backend_context->CreateBlock(mir_block->GetId());

@@ -1042,7 +1042,9 @@ auto LowerHelper::LowerXor(backend::inst::XorInst *inst) -> void {
   GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(xor_inst);
 }
 
-auto LowerHelper::LowerLoad([[maybe_unused]] backend::inst::LoadInst *inst) -> void {}
+auto LowerHelper::LowerLoad(backend::inst::LoadInst *inst) -> void {
+  //
+}
 auto LowerHelper::LowerStore([[maybe_unused]] backend::inst::StoreInst *inst) -> void {}
 
 auto LowerHelper::LowerBr(backend::inst::BrInst *inst) -> void {

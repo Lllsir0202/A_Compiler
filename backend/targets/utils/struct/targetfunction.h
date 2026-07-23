@@ -107,6 +107,10 @@ class TargetFunction {
 
   auto GetFloatLiteralPoolSize() const -> size_t { return float_literal_pool_.size(); }
 
+  auto GetOffsetOfLocalFrameObject() const -> size_t { return offset_of_local_frame_object_; }
+  auto SetOffsetOfLocalFrameObject(size_t offset) -> void { offset_of_local_frame_object_ = offset; }
+  auto IncreaseOffsetOfLocalFrameObject(size_t offset) -> void { offset_of_local_frame_object_ += offset; }
+
  private:
   // Constructor with function name
   explicit TargetFunction(std::string name) : name_(std::move(name)) {}
@@ -119,6 +123,26 @@ class TargetFunction {
   // Function name
   std::string name_;
 
+  // Record the frameobject which has import the parameter
+
+  /**
+   * @brief The offset of the local frame object, used in lowering.
+   * Stack frame layout:
+   * High address
+   * |---------------------|
+   * |  Return address     |
+   * |---------------------|
+   * |  Saved registers    |
+   * |---------------------|
+   * |  Local frame object |
+   * |---------------------|
+   * |  Parameter frame    |
+   * |  object             |
+   * |---------------------|
+   * Low address
+   */
+  size_t offset_of_local_frame_object_ = 0;
+
   // Record all virtual registers in this function, which will be used for register allocation.
   // Note that the index of the virtual register in this vector is its id.
   std::vector<TargetVirtualReg *> virtual_registers_;
@@ -130,8 +154,8 @@ class TargetFunction {
   // Record float literal pool, which will be used to store the float literal values
   std::unordered_map<float, TargetFloatLiteralPoolEntry> float_literal_pool_;
 
-  // Record the frequently used float literal values, which will be used to decide whether to use li instruction or load
-  // from literal pool.
+  // Record the frequently used float literal values, which will be used to decide whether to use li instruction or
+  // load from literal pool.
   std::unordered_set<float> frequently_used_float_literals_;
 
   // Record whether a literal value is frequently used,
