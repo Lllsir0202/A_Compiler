@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <stdexcept>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include "middleend/pass/transform/transform.h"
 
@@ -51,6 +52,8 @@ class MLIRLoopFusionPass : public TransformPass {
   };
 
   auto RunOnFunction(mlir::func::FuncDefOp *func_op) -> bool;
+  auto CollectInterproceduralNoAliasFacts() -> void;
+  auto AreProvenNoAliasParameters(mlir::Value *lhs, mlir::Value *rhs) const -> bool;
   auto FuseInBlock(mlir::Block *block) -> bool;
   auto CanFuse(mlir::scf::WhileOp *first, mlir::scf::WhileOp *second) -> bool;
   auto DependencesAllowFusion(mlir::scf::WhileOp *first, mlir::scf::WhileOp *second,
@@ -64,6 +67,7 @@ class MLIRLoopFusionPass : public TransformPass {
   size_t shape_rejects_{0};
   size_t scalar_rejects_{0};
   size_t memory_rejects_{0};
+  std::unordered_map<mlir::Value *, std::unordered_set<mlir::Value *>> noalias_parameters_;
 };
 
 }  // namespace middleend::pass::transform
