@@ -29,6 +29,7 @@
 #include "middleend/mlir/utils/struct/block.h"
 #include "middleend/mlir/utils/struct/region.h"
 #include "middleend/mlir/utils/value/value.h"
+#include "middleend/pass/analysis/mlirmemoryeffects/mlirmemoryeffects.h"
 #include "middleend/pass/transform/mlirloopunroll/inductionvariable.h"
 
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()
@@ -221,6 +222,10 @@ auto StructurallyEqual(mlir::Value *lhs, mlir::Value *rhs,
   if (lhs == rhs || SameConstant(lhs, rhs)) {
     return true;
   }
+  if ((lhs != nullptr && mlir::DynamicOrNull<mlir::arithm::ConstOp>(lhs->op_) != nullptr) ||
+      (rhs != nullptr && mlir::DynamicOrNull<mlir::arithm::ConstOp>(rhs->op_) != nullptr)) {
+    return false;
+  }
   if ((lhs != nullptr && (mlir::DynamicOrNull<mlir::var::VarDefOp>(lhs->op_) != nullptr ||
                           mlir::DynamicOrNull<mlir::var::GlobalVarDefOp>(lhs->op_) != nullptr)) ||
       (rhs != nullptr && (mlir::DynamicOrNull<mlir::var::VarDefOp>(rhs->op_) != nullptr ||
@@ -385,6 +390,12 @@ auto GetLoopParts(mlir::scf::WhileOp *loop, mlir::Block **condition_block, mlir:
 }  // namespace
 
 auto MLIRLoopFusionPass::Run() -> void {
+  PreRun();
+  memory_effects_ =
+      compiler_context_->GetPassContext()->GetSpecPass<analysis::MLIRMemoryEffectAnalysis>("MLIRMemoryEffectAnalysis");
+  if (memory_effects_ == nullptr) {
+    throw std::logic_error("MLIRLoopFusionPass requires MLIRMemoryEffectAnalysis");
+  }
   fused_loops_ = 0;
   candidates_ = 0;
   domain_rejects_ = 0;
@@ -544,10 +555,17 @@ auto MLIRLoopFusionPass::CanFuse(mlir::scf::WhileOp *first, mlir::scf::WhileOp *
   auto first_iv = loopiv::Recognize(first);
   auto second_iv = loopiv::Recognize(second);
   const std::unordered_map<mlir::Value *, mlir::Value *> no_substitutions;
-  if (!first_iv.valid_ || !second_iv.valid_ || first_iv.kind_ != second_iv.kind_ ||
-      first_iv.step_kind_ != second_iv.step_kind_ || first_iv.step_ != second_iv.step_ ||
-      !StructurallyEqual(first_iv.init_, second_iv.init_, no_substitutions) ||
-      !StructurallyEqual(first_iv.bound_, second_iv.bound_, no_substitutions) ||
+  bool aligned_induction_values = first_iv.valid_ && second_iv.valid_ && first_iv.kind_ == second_iv.kind_ &&
+                                  first_iv.step_kind_ == second_iv.step_kind_ && first_iv.step_ == second_iv.step_ &&
+                                  StructurallyEqual(first_iv.init_, second_iv.init_, no_substitutions) &&
+                                  StructurallyEqual(first_iv.bound_, second_iv.bound_, no_substitutions);
+  bool equal_constant_trip_count = false;
+  if (first_iv.valid_ && second_iv.valid_ && !aligned_induction_values) {
+    int64_t first_trip_count = loopiv::ConstantTripCount(first_iv, INT32_MAX);
+    int64_t second_trip_count = loopiv::ConstantTripCount(second_iv, INT32_MAX);
+    equal_constant_trip_count = first_trip_count >= 0 && first_trip_count == second_trip_count;
+  }
+  if (!first_iv.valid_ || !second_iv.valid_ || (!aligned_induction_values && !equal_constant_trip_count) ||
       loopiv::IsDefinedInLoop(first_iv.bound_, first) || loopiv::IsDefinedInLoop(second_iv.bound_, second)) {
     ++domain_rejects_;
     return false;
@@ -591,9 +609,11 @@ auto MLIRLoopFusionPass::CanFuse(mlir::scf::WhileOp *first, mlir::scf::WhileOp *
     ++shape_rejects_;
     return false;
   }
-  argument_map[second_condition_block->arguments_[second_iv.index_]] =
-      first_condition_block->arguments_[first_iv.index_];
-  if (!DependencesAllowFusion(first, second, argument_map)) {
+  if (aligned_induction_values) {
+    argument_map[second_condition_block->arguments_[second_iv.index_]] =
+        first_condition_block->arguments_[first_iv.index_];
+  }
+  if (!DependencesAllowFusion(first, second, argument_map, aligned_induction_values)) {
     ++memory_rejects_;
     return false;
   }
@@ -606,9 +626,10 @@ auto MLIRLoopFusionPass::CollectMemoryAccesses(mlir::Operation *operation,
     accesses->push_back({load->GetPtr(), false});
   } else if (auto *store = mlir::DynamicOrNull<mlir::var::VarSetOp>(operation)) {
     accesses->push_back({store->GetPtr(), true});
-  } else if (mlir::DynamicOrNull<mlir::func::FuncCallOp>(operation) != nullptr ||
-             mlir::DynamicOrNull<mlir::scf::WhileOp>(operation) != nullptr) {
-    return false;
+  } else if (auto *call = mlir::DynamicOrNull<mlir::func::FuncCallOp>(operation)) {
+    if (!memory_effects_->IsReadNoneAndIOClean(call)) {
+      return false;
+    }
   }
   for (auto *region : operation->regions_) {
     for (auto *block : region->blocks_) {
@@ -623,8 +644,8 @@ auto MLIRLoopFusionPass::CollectMemoryAccesses(mlir::Operation *operation,
 }
 
 auto MLIRLoopFusionPass::DependencesAllowFusion(mlir::scf::WhileOp *first, mlir::scf::WhileOp *second,
-                                                const std::unordered_map<mlir::Value *, mlir::Value *> &argument_map)
-    -> bool {
+                                                const std::unordered_map<mlir::Value *, mlir::Value *> &argument_map,
+                                                bool aligned_induction_values) -> bool {
   auto first_iv = loopiv::Recognize(first);
   auto second_iv = loopiv::Recognize(second);
   auto *first_body = first->GetBodyRegion()->blocks_[0];
@@ -657,6 +678,9 @@ auto MLIRLoopFusionPass::DependencesAllowFusion(mlir::scf::WhileOp *first, mlir:
         continue;
       }
       if (lhs_root.value == nullptr || lhs_root.value != rhs_root.value) {
+        return false;
+      }
+      if (!aligned_induction_values) {
         return false;
       }
       if (StructurallyEqual(lhs.pointer, rhs.pointer, argument_map) &&

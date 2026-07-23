@@ -8,6 +8,10 @@
 #include <vector>
 #include "middleend/pass/transform/transform.h"
 
+namespace middleend::pass::analysis {
+class MLIRMemoryEffectAnalysis;
+}
+
 namespace middleend::mlir {
 class Block;
 class Operation;
@@ -23,6 +27,7 @@ class WhileOp;
 }
 
 namespace middleend::pass::transform {
+namespace analysis = middleend::pass::analysis;
 
 /**
  * @brief Fuse adjacent structured counted loops with the same iteration domain.
@@ -39,6 +44,7 @@ class MLIRLoopFusionPass : public TransformPass {
     if (stage != PassStage::MLIR) {
       throw std::invalid_argument("MLIRLoopFusionPass only supports MLIR stage");
     }
+    AddDependency("MLIRMemoryEffectAnalysis");
   }
   ~MLIRLoopFusionPass() override = default;
 
@@ -57,7 +63,8 @@ class MLIRLoopFusionPass : public TransformPass {
   auto FuseInBlock(mlir::Block *block) -> bool;
   auto CanFuse(mlir::scf::WhileOp *first, mlir::scf::WhileOp *second) -> bool;
   auto DependencesAllowFusion(mlir::scf::WhileOp *first, mlir::scf::WhileOp *second,
-                              const std::unordered_map<mlir::Value *, mlir::Value *> &argument_map) -> bool;
+                              const std::unordered_map<mlir::Value *, mlir::Value *> &argument_map,
+                              bool aligned_induction_values) -> bool;
   auto CollectMemoryAccesses(mlir::Operation *operation, std::vector<MemoryAccess> *accesses) -> bool;
   auto Fuse(mlir::Block *block, size_t first_index, mlir::scf::WhileOp *first, mlir::scf::WhileOp *second) -> void;
 
@@ -68,6 +75,7 @@ class MLIRLoopFusionPass : public TransformPass {
   size_t scalar_rejects_{0};
   size_t memory_rejects_{0};
   std::unordered_map<mlir::Value *, std::unordered_set<mlir::Value *>> noalias_parameters_;
+  analysis::MLIRMemoryEffectAnalysis *memory_effects_{nullptr};
 };
 
 }  // namespace middleend::pass::transform

@@ -12,14 +12,18 @@
 #include "middleend/mlir/dialect/scf/if.h"
 #include "middleend/mlir/dialect/scf/while.h"
 #include "middleend/mlir/dialect/scf/yield.h"
+#include "middleend/mlir/dialect/var/getptr.h"
+#include "middleend/mlir/dialect/var/getvalue.h"
 #include "middleend/mlir/utils/clone/uselistrebuilder.h"
 #include "middleend/mlir/utils/operation/operation.h"
 #include "middleend/mlir/utils/struct/block.h"
 #include "middleend/mlir/utils/struct/region.h"
 #include "middleend/mlir/utils/value/value.h"
+#include "middleend/pass/analysis/mlirmemoryeffects/mlirmemoryeffects.h"
 #include "middleend/pass/transform/mlirloopunroll/inductionvariable.h"
 
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()
+#define GET_TYPE_CONTEXT() compiler_context_->GetTypeContext()
 
 namespace middleend::pass::transform {
 namespace {
@@ -41,8 +45,6 @@ auto IsPureInvariantOperation(mlir::Operation *operation) -> bool {
          mlir::DynamicOrNull<mlir::arithm::AddOp>(operation) != nullptr ||
          mlir::DynamicOrNull<mlir::arithm::SubOp>(operation) != nullptr ||
          mlir::DynamicOrNull<mlir::arithm::MulOp>(operation) != nullptr ||
-         mlir::DynamicOrNull<mlir::arithm::DivOp>(operation) != nullptr ||
-         mlir::DynamicOrNull<mlir::arithm::ModOp>(operation) != nullptr ||
          mlir::DynamicOrNull<mlir::arithm::EqualOp>(operation) != nullptr ||
          mlir::DynamicOrNull<mlir::arithm::NotEqualOp>(operation) != nullptr ||
          mlir::DynamicOrNull<mlir::arithm::LessOp>(operation) != nullptr ||
@@ -56,6 +58,12 @@ auto IsPureInvariantOperation(mlir::Operation *operation) -> bool {
 }  // namespace
 
 auto MLIRLoopUnswitchPass::Run() -> void {
+  PreRun();
+  memory_effects_ =
+      compiler_context_->GetPassContext()->GetSpecPass<analysis::MLIRMemoryEffectAnalysis>("MLIRMemoryEffectAnalysis");
+  if (memory_effects_ == nullptr) {
+    throw std::logic_error("MLIRLoopUnswitchPass requires MLIRMemoryEffectAnalysis");
+  }
   candidates_ = 0;
   unswitched_loops_ = 0;
   loops_seen_ = 0;
@@ -135,19 +143,72 @@ auto MLIRLoopUnswitchPass::FindCandidate(mlir::scf::WhileOp *loop, Candidate *ca
       ++body_ifs_seen_;
     }
     std::unordered_set<mlir::Value *> visiting;
-    if (if_op == nullptr || IsConstant(if_op->GetCondition()) ||
-        !CanHoistInvariantCondition(loop, if_op->GetCondition(), &visiting) ||
-        !RegionCanSpecialize(if_op->GetThenRegion(), if_op->results_.size()) ||
-        !RegionCanSpecialize(if_op->GetElseRegion(), if_op->results_.size())) {
-      if (if_op != nullptr) {
-        ++invariant_rejects_;
-      }
-      continue;
+    bool whole_candidate = if_op != nullptr && !IsConstant(if_op->GetCondition()) &&
+                           CanHoistInvariantCondition(loop, if_op->GetCondition(), &visiting) &&
+                           RegionCanSpecialize(if_op->GetThenRegion(), if_op->results_.size()) &&
+                           RegionCanSpecialize(if_op->GetElseRegion(), if_op->results_.size());
+    if (whole_candidate) {
+      candidate->body_index = index;
+      candidate->if_op = if_op;
+      candidate->condition = if_op->GetCondition();
+      candidate->partial = false;
+      return true;
     }
-    candidate->body_index = index;
-    candidate->if_op = if_op;
-    return true;
+
+    if (if_op != nullptr && !IsConstant(if_op->GetCondition())) {
+      visiting.clear();
+      mlir::Value *invariant = nullptr;
+      if (FindInvariantBoolean(loop, if_op->GetCondition(), &visiting, &invariant)) {
+        candidate->body_index = index;
+        candidate->if_op = if_op;
+        candidate->condition = invariant;
+        candidate->partial = true;
+        return true;
+      }
+      ++invariant_rejects_;
+    }
   }
+  return false;
+}
+
+auto MLIRLoopUnswitchPass::FindInvariantBoolean(mlir::scf::WhileOp *loop, mlir::Value *value,
+                                                std::unordered_set<mlir::Value *> *visiting,
+                                                mlir::Value **candidate) -> bool {
+  if (value == nullptr || value->GetType() == nullptr || !visiting->insert(value).second) {
+    return false;
+  }
+  if (value->GetType()->GetKind() == type::TypeKind::BOOL && loopiv::IsDefinedInLoop(value, loop) &&
+      !IsConstant(value)) {
+    std::unordered_set<mlir::Value *> invariance_visiting;
+    if (CanHoistInvariantCondition(loop, value, &invariance_visiting)) {
+      *candidate = value;
+      visiting->erase(value);
+      return true;
+    }
+  }
+  if (value->op_ != nullptr) {
+    for (auto *operand : value->op_->operands_) {
+      if (FindInvariantBoolean(loop, operand, visiting, candidate)) {
+        visiting->erase(value);
+        return true;
+      }
+    }
+    for (auto *region : value->op_->regions_) {
+      for (auto *block : region->blocks_) {
+        for (auto *operation : block->operations_) {
+          auto *yield = mlir::DynamicOrNull<mlir::scf::YieldOp>(operation);
+          if (yield == nullptr) continue;
+          for (auto *operand : yield->GetOperands()) {
+            if (FindInvariantBoolean(loop, operand, visiting, candidate)) {
+              visiting->erase(value);
+              return true;
+            }
+          }
+        }
+      }
+    }
+  }
+  visiting->erase(value);
   return false;
 }
 
@@ -156,8 +217,21 @@ auto MLIRLoopUnswitchPass::CanHoistInvariantCondition(mlir::scf::WhileOp *loop, 
   if (!loopiv::IsDefinedInLoop(value, loop)) {
     return true;
   }
-  if (value == nullptr || value->op_ == nullptr || !IsPureInvariantOperation(value->op_) ||
-      !visiting->insert(value).second) {
+  if (value == nullptr || value->op_ == nullptr || !visiting->insert(value).second) {
+    return false;
+  }
+  if (auto *load = mlir::DynamicOrNull<mlir::var::VarGetValOp>(value->op_)) {
+    if (!memory_effects_->IsSafeToSpeculateLoad(load->GetPtr()) ||
+        memory_effects_->LoopMayWrite(loop, load->GetPtr()) ||
+        !CanHoistInvariantCondition(loop, load->GetPtr(), visiting)) {
+      visiting->erase(value);
+      return false;
+    }
+    visiting->erase(value);
+    return true;
+  }
+  if (mlir::DynamicOrNull<mlir::var::VarGetPtrOp>(value->op_) == nullptr && !IsPureInvariantOperation(value->op_)) {
+    visiting->erase(value);
     return false;
   }
   for (auto *operand : value->op_->operands_) {
@@ -190,12 +264,14 @@ auto MLIRLoopUnswitchPass::Unswitch(mlir::func::FuncDefOp *func_op, mlir::Block 
                                     mlir::scf::WhileOp *loop, const Candidate &candidate) -> void {
   cloner_.value_map_.clear();
   std::vector<mlir::Operation *> hoisted_operations;
-  auto *hoisted_condition = HoistInvariantCondition(loop, candidate.if_op->GetCondition(), &hoisted_operations);
+  auto *hoisted_condition = HoistInvariantCondition(loop, candidate.condition, &hoisted_operations);
 
   cloner_.value_map_.clear();
   auto *true_loop = mlir::DynamicOrNull<mlir::scf::WhileOp>(cloner_.Clone(loop));
+  auto *true_specialized_condition = cloner_.RemapValue(candidate.condition);
   cloner_.value_map_.clear();
   auto *false_loop = mlir::DynamicOrNull<mlir::scf::WhileOp>(cloner_.Clone(loop));
+  auto *false_specialized_condition = cloner_.RemapValue(candidate.condition);
   if (true_loop == nullptr || false_loop == nullptr) {
     throw std::logic_error("LoopUnswitch failed to clone a while operation");
   }
@@ -225,8 +301,39 @@ auto MLIRLoopUnswitchPass::Unswitch(mlir::func::FuncDefOp *func_op, mlir::Block 
 
   // Register cloned uses before replacing the selected if results.
   mlir::utils::RebuildFunctionUses(func_op);
-  Specialize(true_loop, candidate.body_index, true);
-  Specialize(false_loop, candidate.body_index, false);
+  if (candidate.partial) {
+    auto *true_integer =
+        GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), static_cast<int>(true));
+    auto *false_integer =
+        GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), static_cast<int>(false));
+    true_integer->GetRes()->SetType(GET_TYPE_CONTEXT()->GetIntegerType());
+    false_integer->GetRes()->SetType(GET_TYPE_CONTEXT()->GetIntegerType());
+    auto *true_constant = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(
+        GET_MLIR_CONTEXT(), true_integer->GetRes(), GET_TYPE_CONTEXT()->GetIntegerType(),
+        candidate.condition->GetType());
+    auto *false_constant = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(
+        GET_MLIR_CONTEXT(), false_integer->GetRes(), GET_TYPE_CONTEXT()->GetIntegerType(),
+        candidate.condition->GetType());
+    true_constant->GetRes()->SetType(candidate.condition->GetType());
+    false_constant->GetRes()->SetType(candidate.condition->GetType());
+    auto outer_position =
+        parent->operations_.begin() + static_cast<std::ptrdiff_t>(loop_index + hoisted_operations.size());
+    parent->operations_.insert(outer_position, true_integer);
+    parent->operations_.insert(
+        parent->operations_.begin() + static_cast<std::ptrdiff_t>(loop_index + hoisted_operations.size() + 1),
+        true_constant);
+    parent->operations_.insert(
+        parent->operations_.begin() + static_cast<std::ptrdiff_t>(loop_index + hoisted_operations.size() + 2),
+        false_integer);
+    parent->operations_.insert(
+        parent->operations_.begin() + static_cast<std::ptrdiff_t>(loop_index + hoisted_operations.size() + 3),
+        false_constant);
+    true_specialized_condition->ReplaceAllUsesWith(true_constant->GetRes());
+    false_specialized_condition->ReplaceAllUsesWith(false_constant->GetRes());
+  } else {
+    Specialize(true_loop, candidate.body_index, true);
+    Specialize(false_loop, candidate.body_index, false);
+  }
 }
 
 auto MLIRLoopUnswitchPass::Specialize(mlir::scf::WhileOp *loop, size_t body_index, bool take_then) -> void {

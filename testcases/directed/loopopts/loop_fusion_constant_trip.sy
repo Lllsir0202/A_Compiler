@@ -1,0 +1,18 @@
+int first[32];
+int second[32];
+
+int main() {
+  int i = 1;
+  int j = 0;
+  while (i < 16) {
+    first[i] = i;
+    i = i + 1;
+  }
+  while (j < 15) {
+    second[j] = j + 1;
+    j = j + 1;
+  }
+  putint(first[15] + second[14]);
+  putch(10);
+  return 0;
+}

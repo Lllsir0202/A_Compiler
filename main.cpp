@@ -18,6 +18,7 @@
 #include "middleend/pass/analysis/domtree/domtree.h"
 #include "middleend/pass/analysis/loopinfo/loopinfo.h"
 #include "middleend/pass/analysis/memoryssa/memoryssa.h"
+#include "middleend/pass/analysis/mlirmemoryeffects/mlirmemoryeffects.h"
 #include "middleend/pass/analysis/scev/scevpass.h"
 #include "middleend/pass/analysis/sideeffect/sideeffect.h"
 #include "middleend/pass/transform/adce/adce.h"
@@ -296,6 +297,9 @@ auto main(int argc, char *argv[]) -> int {
     // Keep the structured loop domain and loop-carried values visible while
     // checking fusion/unswitch legality. Lowering to BASEIR happens only after
     // these transformations have repaired the structured SSA.
+    auto mlir_memory_effects = context::PassContext::CreatePass<middleend::pass::analysis::MLIRMemoryEffectAnalysis>(
+        &compiler_context, middleend::pass::PassStage::MLIR);
+    mlirpass_context->AddPass(mlir_memory_effects);
     auto mlir_loop_fusion_pass = context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopFusionPass>(
         &compiler_context, middleend::pass::PassStage::MLIR);
     mlirpass_context->AddPass(mlir_loop_fusion_pass);
