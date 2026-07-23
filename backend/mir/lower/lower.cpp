@@ -104,22 +104,27 @@ auto MIRLower::Lower() -> int {
         if (literal->IsInt32()) {
           auto int_literal =
               GET_MIR_CONTEXT()->GetIntLiteral(static_cast<middleend::llvm::utils::IntLiteral *>(literal)->GetValue());
+          int_literal->SetType(compiler_context_->GetTypeContext()->GetIntegerType());
           GET_MIR_CONTEXT()->GetLowerContext()->MapLLVMOperandToMIROperand(literal, int_literal);
         } else if (literal->IsFloat()) {
           auto float_literal = GET_MIR_CONTEXT()->GetFloatLiteral(
               static_cast<middleend::llvm::utils::FloatLiteral *>(literal)->GetValue());
+          float_literal->SetType(compiler_context_->GetTypeContext()->GetFloatType());
           GET_MIR_CONTEXT()->GetLowerContext()->MapLLVMOperandToMIROperand(literal, float_literal);
         } else if (literal->IsBool()) {
           auto bool_literal = GET_MIR_CONTEXT()->GetBoolLiteral(
               static_cast<middleend::llvm::utils::BoolLiteral *>(literal)->GetValue());
+          bool_literal->SetType(compiler_context_->GetTypeContext()->GetBooleanType());
           GET_MIR_CONTEXT()->GetLowerContext()->MapLLVMOperandToMIROperand(literal, bool_literal);
         } else if (literal->IsLong()) {
           auto long_literal = GET_MIR_CONTEXT()->GetLongLiteral(
               static_cast<middleend::llvm::utils::LongLiteral *>(literal)->GetValue());
+          long_literal->SetType(compiler_context_->GetTypeContext()->GetLongType());
           GET_MIR_CONTEXT()->GetLowerContext()->MapLLVMOperandToMIROperand(literal, long_literal);
         } else if (literal->IsChar()) {
           auto char_literal = GET_MIR_CONTEXT()->GetCharLiteral(
               static_cast<middleend::llvm::utils::CharLiteral *>(literal)->GetValue());
+          char_literal->SetType(compiler_context_->GetTypeContext()->GetCharType());
           GET_MIR_CONTEXT()->GetLowerContext()->MapLLVMOperandToMIROperand(literal, char_literal);
         }
       }

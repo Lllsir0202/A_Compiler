@@ -316,7 +316,6 @@ auto LowerHelper::LowerCallInst(middleend::llvm::inst::CallInst *call_inst) -> v
   for (size_t i = 0; i < args.size(); ++i) {
     auto arg = args[i];
     auto mir_arg = GET_LOWER_CONTEXT()->GetMIROperandFromLLVMOperand(arg);
-
     mir_arg->SetIsParameter(true);
     mir_arg->SetIndex(i);
     mir_args.emplace_back(mir_arg);
@@ -491,6 +490,7 @@ auto LowerHelper::LowerGetElementPtrInst(middleend::llvm::inst::GetElementPtrIns
       base_type = static_cast<type::PtrType *>(base_ptr_type)->GetBaseType();
     } else {
       // Should not happen, just in case.
+      throw std::runtime_error("Base pointer type is not a pointer type in getelementptr instruction.");
       base_type = base_ptr_type;
     }
 
@@ -509,6 +509,7 @@ auto LowerHelper::LowerGetElementPtrInst(middleend::llvm::inst::GetElementPtrIns
 
   // Record all the information and create the memoryoperand
   auto memory_operand = GET_RESOURCE_CONTEXT()->GetNewMemoryOperand();
+  memory_operand->SetType(gep_inst->GetResult()->GetType());
 
   // Address information will be used to get access to the element in the future.
   auto address_info = utils::AddressInfo();

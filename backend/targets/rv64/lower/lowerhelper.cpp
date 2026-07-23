@@ -1,4 +1,6 @@
 #include "backend/targets/rv64/lower/lowerhelper.h"
+#include <sys/types.h>
+#include <cstdint>
 #include <stdexcept>
 #include "backend/mir/inst/inst.h"
 #include "backend/mir/utils/operand/literaloperand.h"
@@ -1168,8 +1170,23 @@ auto LowerHelper::LowerRet(backend::inst::RetInst *inst) -> void {
 
 auto LowerHelper::LowerCall(backend::inst::CallInst *inst) -> void {
   // For call instruction, we need to load all arguments into the ABI-defined argument registers.
-  // auto args = inst->GetArguments();
-  (void)inst;
+  auto args = inst->GetArguments();
+  uint8_t int_arg_count = 0;
+  uint8_t float_arg_count = 0;
+  for (auto arg : args) {
+    if (arg->IsFloat()) {
+      float_arg_count++;
+    }
+    if (arg->IsInt()) {
+      int_arg_count++;
+    }
+    if (arg->IsPtr()) {
+      int_arg_count++;
+      printf("Pointer argument detected, treating as int argument for lowering.\n");
+    }
+  }
+  printf("Lowering call instruction: %s with %d int args and %d float args\n", inst->GetCallee().c_str(), int_arg_count,
+         float_arg_count);
 }
 
 auto LowerHelper::LowerZext(backend::inst::ZextInst *inst) -> void {

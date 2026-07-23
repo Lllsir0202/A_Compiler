@@ -13,8 +13,6 @@
 #include "context/backend_context.h"
 #include "context/compiler_context.h"
 #include "context/mir_context.h"
-#include "mir/utils/operand/memoryoperand.h"
-#include "mir/utils/operand/regoperand.h"
 #include "targets/utils/operand/targetoperand.h"
 
 namespace backend::targetir::rv64 {
@@ -81,7 +79,7 @@ auto RV64Lower::Lower() -> int {
               // alloca a frame object for this parameter
               auto *frame_object =
                   backend_context->AddFrameObject(param->GetType()->GetDataSize(), param->GetType()->GetAlign());
-              auto *frame_operand = backend_context->CreateFrameOperand(frame_object->GetID());
+              auto *frame_operand = backend_context->CreateFrameOperand(frame_object->GetID() - 1);
               backend_context->MapOperand(param, frame_operand);
             } else {
               // No more than 8, just create a virtual register
@@ -102,7 +100,7 @@ auto RV64Lower::Lower() -> int {
               // alloca a frame object for this parameter
               auto *frame_object =
                   backend_context->AddFrameObject(param->GetType()->GetDataSize(), param->GetType()->GetAlign());
-              auto *frame_operand = backend_context->CreateFrameOperand(frame_object->GetID());
+              auto *frame_operand = backend_context->CreateFrameOperand(frame_object->GetID() - 1);
               backend_context->MapOperand(param, frame_operand);
             } else {
               // No more than 8, just create a virtual register
@@ -123,7 +121,7 @@ auto RV64Lower::Lower() -> int {
               // alloca a frame object for this parameter
               auto *frame_object =
                   backend_context->AddFrameObject(param->GetType()->GetDataSize(), param->GetType()->GetAlign());
-              auto *frame_operand = backend_context->CreateFrameOperand(frame_object->GetID());
+              auto *frame_operand = backend_context->CreateFrameOperand(frame_object->GetID() - 1);
               backend_context->MapOperand(param, frame_operand);
             } else {
               // No more than 8, just create a virtual register
