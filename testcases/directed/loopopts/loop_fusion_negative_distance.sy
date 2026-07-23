@@ -1,0 +1,20 @@
+int values[16];
+
+int main() {
+  int count = getint();
+  int i = 0;
+  int j = 0;
+  int sum = 0;
+  values[0] = 5;
+  while (i < count) {
+    values[i + 1] = i + 10;
+    i = i + 1;
+  }
+  while (j < count) {
+    sum = sum + values[j];
+    j = j + 1;
+  }
+  putint(sum);
+  putch(10);
+  return 0;
+}

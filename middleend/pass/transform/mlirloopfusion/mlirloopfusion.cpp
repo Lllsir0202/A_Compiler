@@ -1,7 +1,11 @@
 #include "middleend/pass/transform/mlirloopfusion/mlirloopfusion.h"
 #include <algorithm>
+#include <cstdint>
 #include <cstdlib>
+#include <functional>
 #include <iostream>
+#include <limits>
+#include <string>
 #include <unordered_set>
 #include <utility>
 #include <variant>
@@ -37,6 +41,16 @@ enum class RootKind : uint8_t { kLocal, kGlobal, kParameter, kUnknown };
 struct PointerRoot {
   RootKind kind{RootKind::kUnknown};
   mlir::Value *value{nullptr};
+};
+
+struct DirectCall {
+  std::string name;
+  std::vector<mlir::Value *> arguments;
+};
+
+struct AffineIndex {
+  int64_t coefficient{0};
+  int64_t offset{0};
 };
 
 auto TraceCopies(mlir::Value *value) -> mlir::Value * {
@@ -93,6 +107,104 @@ auto RootsAreDistinct(const PointerRoot &lhs, const PointerRoot &rhs) -> bool {
     return true;
   }
   return lhs.kind == RootKind::kGlobal && rhs.kind == RootKind::kGlobal;
+}
+
+auto GetConstantInt(mlir::Value *value, int64_t *constant) -> bool {
+  value = TraceCopies(value);
+  auto *constant_op = value == nullptr ? nullptr : mlir::DynamicOrNull<mlir::arithm::ConstOp>(value->op_);
+  if (constant_op == nullptr || !std::holds_alternative<int>(constant_op->GetValue())) {
+    return false;
+  }
+  *constant = std::get<int>(constant_op->GetValue());
+  return true;
+}
+
+auto CheckedAffine(int64_t coefficient, int64_t offset, AffineIndex *result) -> bool {
+  result->coefficient = coefficient;
+  result->offset = offset;
+  return true;
+}
+
+auto ExtractAffineIndex(mlir::Value *value, mlir::Value *induction, AffineIndex *result, unsigned depth = 0) -> bool {
+  if (depth > 32) {
+    return false;
+  }
+  value = TraceCopies(value);
+  induction = TraceCopies(induction);
+  if (value == induction) {
+    return CheckedAffine(1, 0, result);
+  }
+  int64_t constant = 0;
+  if (GetConstantInt(value, &constant)) {
+    return CheckedAffine(0, constant, result);
+  }
+  if (value == nullptr || value->op_ == nullptr) {
+    return false;
+  }
+
+  auto combine = [&](mlir::Value *lhs_value, mlir::Value *rhs_value, bool subtract) -> bool {
+    AffineIndex lhs;
+    AffineIndex rhs;
+    if (!ExtractAffineIndex(lhs_value, induction, &lhs, depth + 1) ||
+        !ExtractAffineIndex(rhs_value, induction, &rhs, depth + 1)) {
+      return false;
+    }
+    __int128 coefficient = static_cast<__int128>(lhs.coefficient) + (subtract ? -static_cast<__int128>(rhs.coefficient)
+                                                                              : static_cast<__int128>(rhs.coefficient));
+    __int128 offset = static_cast<__int128>(lhs.offset) +
+                      (subtract ? -static_cast<__int128>(rhs.offset) : static_cast<__int128>(rhs.offset));
+    if (coefficient < INT64_MIN || coefficient > INT64_MAX || offset < INT64_MIN || offset > INT64_MAX) {
+      return false;
+    }
+    return CheckedAffine(static_cast<int64_t>(coefficient), static_cast<int64_t>(offset), result);
+  };
+
+  if (auto *add = mlir::DynamicOrNull<mlir::arithm::AddOp>(value->op_)) {
+    return combine(add->GetLHS(), add->GetRHS(), false);
+  }
+  if (auto *sub = mlir::DynamicOrNull<mlir::arithm::SubOp>(value->op_)) {
+    return combine(sub->GetLHS(), sub->GetRHS(), true);
+  }
+  if (auto *neg = mlir::DynamicOrNull<mlir::arithm::NegOp>(value->op_)) {
+    AffineIndex operand;
+    if (!ExtractAffineIndex(neg->GetOperand(), induction, &operand, depth + 1) || operand.coefficient == INT64_MIN ||
+        operand.offset == INT64_MIN) {
+      return false;
+    }
+    return CheckedAffine(-operand.coefficient, -operand.offset, result);
+  }
+  if (auto *multiply = mlir::DynamicOrNull<mlir::arithm::MulOp>(value->op_)) {
+    mlir::Value *affine_value = multiply->GetLHS();
+    mlir::Value *constant_value = multiply->GetRHS();
+    if (!GetConstantInt(constant_value, &constant)) {
+      std::swap(affine_value, constant_value);
+      if (!GetConstantInt(constant_value, &constant)) {
+        return false;
+      }
+    }
+    AffineIndex affine;
+    if (!ExtractAffineIndex(affine_value, induction, &affine, depth + 1)) {
+      return false;
+    }
+    __int128 coefficient = static_cast<__int128>(affine.coefficient) * constant;
+    __int128 offset = static_cast<__int128>(affine.offset) * constant;
+    if (coefficient < INT64_MIN || coefficient > INT64_MAX || offset < INT64_MIN || offset > INT64_MAX) {
+      return false;
+    }
+    return CheckedAffine(static_cast<int64_t>(coefficient), static_cast<int64_t>(offset), result);
+  }
+  return false;
+}
+
+auto CollectPointerIndices(mlir::Value *pointer, std::vector<mlir::Value *> *indices) -> void {
+  pointer = TraceCopies(pointer);
+  auto *get_ptr = pointer == nullptr ? nullptr : mlir::DynamicOrNull<mlir::var::VarGetPtrOp>(pointer->op_);
+  if (get_ptr == nullptr) {
+    return;
+  }
+  CollectPointerIndices(get_ptr->GetPtr(), indices);
+  auto current = get_ptr->GetIndices();
+  indices->insert(indices->end(), current.begin(), current.end());
 }
 
 auto StructurallyEqual(mlir::Value *lhs, mlir::Value *rhs,
@@ -155,6 +267,61 @@ auto HasDirectInductionIndex(mlir::Value *first_pointer, mlir::Value *second_poi
     }
   }
   return false;
+}
+
+auto AffineDependencesAllowFusion(mlir::Value *first_pointer, mlir::Value *second_pointer, mlir::Value *first_iv,
+                                  mlir::Value *second_iv,
+                                  const std::unordered_map<mlir::Value *, mlir::Value *> &argument_map) -> bool {
+  std::vector<mlir::Value *> first_indices;
+  std::vector<mlir::Value *> second_indices;
+  CollectPointerIndices(first_pointer, &first_indices);
+  CollectPointerIndices(second_pointer, &second_indices);
+  if (first_indices.empty() || first_indices.size() != second_indices.size()) {
+    return false;
+  }
+
+  bool have_distance = false;
+  int64_t common_distance = 0;
+  for (size_t index = 0; index < first_indices.size(); ++index) {
+    AffineIndex lhs;
+    AffineIndex rhs;
+    bool lhs_affine = ExtractAffineIndex(first_indices[index], first_iv, &lhs);
+    bool rhs_affine = ExtractAffineIndex(second_indices[index], second_iv, &rhs);
+    if (!lhs_affine || !rhs_affine) {
+      if (!StructurallyEqual(first_indices[index], second_indices[index], argument_map)) {
+        return false;
+      }
+      continue;
+    }
+    if (lhs.coefficient != rhs.coefficient) {
+      return false;
+    }
+    if (lhs.coefficient == 0) {
+      if (lhs.offset != rhs.offset) {
+        return true;  // This dimension is always different: the accesses never alias.
+      }
+      continue;
+    }
+    __int128 delta = static_cast<__int128>(rhs.offset) - static_cast<__int128>(lhs.offset);
+    if (delta % lhs.coefficient != 0) {
+      return true;  // No integer iteration pair can make this dimension equal.
+    }
+    __int128 wide_distance = delta / lhs.coefficient;
+    if (wide_distance < std::numeric_limits<int64_t>::min() || wide_distance > std::numeric_limits<int64_t>::max()) {
+      return false;
+    }
+    int64_t distance = static_cast<int64_t>(wide_distance);
+    if (have_distance && distance != common_distance) {
+      return true;  // Different dimensions require incompatible iteration distances.
+    }
+    common_distance = distance;
+    have_distance = true;
+  }
+
+  // A positive distance means second(j) aliases first(i) with i > j. Fusion
+  // would move second(j) before that future first(i), reversing the original
+  // all-first-before-all-second order. Zero and negative distances preserve it.
+  return have_distance && common_distance <= 0;
 }
 
 auto UsesAnyResult(mlir::Operation *operation, const std::unordered_set<mlir::Value *> &results) -> bool {
@@ -224,10 +391,12 @@ auto MLIRLoopFusionPass::Run() -> void {
   shape_rejects_ = 0;
   scalar_rejects_ = 0;
   memory_rejects_ = 0;
+  noalias_parameters_.clear();
   auto *module = GET_MLIR_CONTEXT()->GetModuleOp();
   if (module == nullptr) {
     throw std::logic_error("Module operation is not set in MLIRContext");
   }
+  CollectInterproceduralNoAliasFacts();
   for (auto *operation : module->GetBlock()->operations_) {
     auto *function = mlir::DynamicOrNull<mlir::func::FuncDefOp>(operation);
     if (function != nullptr) {
@@ -238,6 +407,82 @@ auto MLIRLoopFusionPass::Run() -> void {
     std::cerr << "LoopFusion: candidates=" << candidates_ << " fused=" << fused_loops_ << " domain=" << domain_rejects_
               << " shape=" << shape_rejects_ << " scalar=" << scalar_rejects_ << " memory=" << memory_rejects_ << '\n';
   }
+}
+
+auto MLIRLoopFusionPass::CollectInterproceduralNoAliasFacts() -> void {
+  auto *module = GET_MLIR_CONTEXT()->GetModuleOp();
+  std::unordered_map<std::string, mlir::func::FuncDefOp *> functions;
+  std::unordered_map<std::string, std::vector<DirectCall>> calls_by_callee;
+
+  std::function<void(mlir::Operation *)> collect_calls = [&](mlir::Operation *operation) {
+    if (auto *call = mlir::DynamicOrNull<mlir::func::FuncCallOp>(operation)) {
+      calls_by_callee[call->GetName()].push_back({call->GetName(), call->GetOperands()});
+    }
+    for (auto *region : operation->regions_) {
+      for (auto *block : region->blocks_) {
+        for (auto *nested : block->operations_) {
+          collect_calls(nested);
+        }
+      }
+    }
+  };
+
+  for (auto *operation : module->GetBlock()->operations_) {
+    auto *function = mlir::DynamicOrNull<mlir::func::FuncDefOp>(operation);
+    if (function == nullptr) {
+      continue;
+    }
+    functions[function->GetName()] = function;
+    collect_calls(function);
+  }
+
+  bool changed = true;
+  while (changed) {
+    changed = false;
+    for (const auto &[name, function] : functions) {
+      auto calls = calls_by_callee.find(name);
+      if (calls == calls_by_callee.end() || calls->second.empty()) {
+        continue;
+      }
+      auto parameters = function->GetArguments();
+      for (size_t lhs_index = 0; lhs_index < parameters.size(); ++lhs_index) {
+        auto *lhs = parameters[lhs_index];
+        if (lhs == nullptr || lhs->GetType() == nullptr || lhs->GetType()->GetKind() != type::TypeKind::PTR) {
+          continue;
+        }
+        for (size_t rhs_index = lhs_index + 1; rhs_index < parameters.size(); ++rhs_index) {
+          auto *rhs = parameters[rhs_index];
+          if (rhs == nullptr || rhs->GetType() == nullptr || rhs->GetType()->GetKind() != type::TypeKind::PTR ||
+              AreProvenNoAliasParameters(lhs, rhs)) {
+            continue;
+          }
+          bool every_call_is_distinct =
+              std::all_of(calls->second.begin(), calls->second.end(), [&](const DirectCall &call) {
+                if (lhs_index >= call.arguments.size() || rhs_index >= call.arguments.size()) {
+                  return false;
+                }
+                auto lhs_root = GetPointerRoot(call.arguments[lhs_index]);
+                auto rhs_root = GetPointerRoot(call.arguments[rhs_index]);
+                if (RootsAreDistinct(lhs_root, rhs_root)) {
+                  return true;
+                }
+                return lhs_root.kind == RootKind::kParameter && rhs_root.kind == RootKind::kParameter &&
+                       AreProvenNoAliasParameters(lhs_root.value, rhs_root.value);
+              });
+          if (every_call_is_distinct) {
+            noalias_parameters_[lhs].insert(rhs);
+            noalias_parameters_[rhs].insert(lhs);
+            changed = true;
+          }
+        }
+      }
+    }
+  }
+}
+
+auto MLIRLoopFusionPass::AreProvenNoAliasParameters(mlir::Value *lhs, mlir::Value *rhs) const -> bool {
+  auto iter = noalias_parameters_.find(lhs);
+  return iter != noalias_parameters_.end() && iter->second.count(rhs) > 0;
 }
 
 auto MLIRLoopFusionPass::RunOnFunction(mlir::func::FuncDefOp *func_op) -> bool {
@@ -406,12 +651,19 @@ auto MLIRLoopFusionPass::DependencesAllowFusion(mlir::scf::WhileOp *first, mlir:
       }
       auto lhs_root = GetPointerRoot(lhs.pointer);
       auto rhs_root = GetPointerRoot(rhs.pointer);
-      if (RootsAreDistinct(lhs_root, rhs_root)) {
+      if (RootsAreDistinct(lhs_root, rhs_root) ||
+          (lhs_root.kind == RootKind::kParameter && rhs_root.kind == RootKind::kParameter &&
+           AreProvenNoAliasParameters(lhs_root.value, rhs_root.value))) {
         continue;
       }
-      if (lhs_root.value == nullptr || lhs_root.value != rhs_root.value ||
-          !StructurallyEqual(lhs.pointer, rhs.pointer, argument_map) ||
-          !HasDirectInductionIndex(lhs.pointer, rhs.pointer, first_iv_arg, second_iv_arg, argument_map)) {
+      if (lhs_root.value == nullptr || lhs_root.value != rhs_root.value) {
+        return false;
+      }
+      if (StructurallyEqual(lhs.pointer, rhs.pointer, argument_map) &&
+          HasDirectInductionIndex(lhs.pointer, rhs.pointer, first_iv_arg, second_iv_arg, argument_map)) {
+        continue;
+      }
+      if (!AffineDependencesAllowFusion(lhs.pointer, rhs.pointer, first_iv_arg, second_iv_arg, argument_map)) {
         return false;
       }
     }

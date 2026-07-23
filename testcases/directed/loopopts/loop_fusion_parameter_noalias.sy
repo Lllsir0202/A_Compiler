@@ -1,0 +1,21 @@
+int first[16];
+int second[16];
+
+void fill(int lhs[], int rhs[], int count) {
+  int i = 0;
+  int j = 0;
+  while (i < count) {
+    lhs[i] = i + 1;
+    i = i + 1;
+  }
+  while (j < count) {
+    rhs[j] = j + 2;
+    j = j + 1;
+  }
+}
+
+int main() {
+  int count = getint();
+  fill(first, second, count);
+  return first[3] + second[3];
+}
