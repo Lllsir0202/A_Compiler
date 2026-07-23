@@ -34,6 +34,7 @@
 #include "middleend/pass/transform/memoization/memoization.h"
 #include "middleend/pass/transform/mlirdce/mlirdce.h"
 #include "middleend/pass/transform/mlirfunctioninline/mlirfunctioninline.h"
+#include "middleend/pass/transform/mlirloopfusion/mlirloopfusion.h"
 #include "middleend/pass/transform/mlirloopunroll/mlirlooppartialunroll.h"
 #include "middleend/pass/transform/mlirloopunroll/mlirloopunroll.h"
 #include "middleend/pass/transform/mlirreturncanonicalize/mlirreturncanonicalize.h"
@@ -291,6 +292,12 @@ auto main(int argc, char *argv[]) -> int {
         context::PassContext::CreatePass<middleend::pass::transform::MLIRDeadFunctionEliminatePass>(
             &compiler_context, middleend::pass::PassStage::MLIR);
     mlirpass_context->AddPass(mlir_dead_function_eliminate_pass);
+    // Keep the structured loop domain and loop-carried values visible while
+    // checking fusion legality. Lowering to BASEIR happens only after the
+    // transformation has repaired the structured SSA.
+    auto mlir_loop_fusion_pass = context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopFusionPass>(
+        &compiler_context, middleend::pass::PassStage::MLIR);
+    mlirpass_context->AddPass(mlir_loop_fusion_pass);
     auto mlir_loop_unroll_pass = context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopUnrollPass>(
         &compiler_context, middleend::pass::PassStage::MLIR);
     mlirpass_context->AddPass(mlir_loop_unroll_pass);
