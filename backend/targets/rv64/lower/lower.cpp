@@ -15,6 +15,7 @@
 #include "context/mir_context.h"
 #include "mir/utils/operand/memoryoperand.h"
 #include "mir/utils/operand/regoperand.h"
+#include "targets/utils/operand/targetoperand.h"
 
 namespace backend::targetir::rv64 {
 #define GET_BACKEND_TARGET() compiler_context_->GetBackendContext()
@@ -84,6 +85,12 @@ auto RV64Lower::Lower() -> int {
             // No more than 8, just create a virtual register
             auto *target_param = backend_context->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
             backend_context->MapOperand(param, target_param);
+            // Map the parameter to the physical register according to the calling convention
+            // Since a0 id is 10, register id is: 10 + int_param_count
+            auto *physical_reg =
+                backend_context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::General, 10 + int_param_count);
+            // Map the virtual register to the physical register
+            backend_context->MapVregToPreg(target_param, physical_reg);
           }
           int_param_count++;
         }
@@ -98,6 +105,12 @@ auto RV64Lower::Lower() -> int {
             // No more than 8, just create a virtual register
             auto *target_param = backend_context->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::Float);
             backend_context->MapOperand(param, target_param);
+            // Same as integer, map the virtual register to the physical register according to the calling convention
+            // Since fa0 id is 10, register id is: 10 + float_param_count
+            auto *physical_reg =
+                backend_context->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::Float, 10 + float_param_count);
+            // Map the virtual register to the physical register
+            backend_context->MapVregToPreg(target_param, physical_reg);
           }
           float_param_count++;
         }

@@ -1042,9 +1042,7 @@ auto LowerHelper::LowerXor(backend::inst::XorInst *inst) -> void {
   GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(xor_inst);
 }
 
-auto LowerHelper::LowerLoad(backend::inst::LoadInst *inst) -> void {
-  //
-}
+auto LowerHelper::LowerLoad([[maybe_unused]] backend::inst::LoadInst *inst) -> void {}
 auto LowerHelper::LowerStore([[maybe_unused]] backend::inst::StoreInst *inst) -> void {}
 
 auto LowerHelper::LowerBr(backend::inst::BrInst *inst) -> void {
@@ -1140,14 +1138,22 @@ auto LowerHelper::LowerRet(backend::inst::RetInst *inst) -> void {
       return;
     }
     if (is_float_return) {
-      auto target_return_register = rv64_getter_.GetFloatReturnValueReg(GET_BACKEND_TARGET(), TargetRegSize::DWord);
+      auto target_return_register =
+          GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::Float);
+      // fa0 -> id is 10
+      auto physical_reg = GET_BACKEND_TARGET()->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::Float, 10);
+      GET_BACKEND_TARGET()->MapVregToPreg(target_return_register, physical_reg);
       auto mv_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFMVInst>(target_return_register, target_return_value);
       GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(mv_inst);
       auto ret_inst = GET_BACKEND_TARGET()->CreateInstruction<RVRETInst>(target_return_register);
       GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(ret_inst);
       return;
     }
-    auto target_return_register = rv64_getter_.GetReturnValueReg(GET_BACKEND_TARGET(), TargetRegSize::DWord);
+    auto target_return_register =
+        GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+    // a0 -> id is 10
+    auto physical_reg = GET_BACKEND_TARGET()->GetPhysicalRegPool().GetPhysicalReg(TargetRegClass::General, 10);
+    GET_BACKEND_TARGET()->MapVregToPreg(target_return_register, physical_reg);
     auto mv_inst = GET_BACKEND_TARGET()->CreateInstruction<RVMVInst>(target_return_register, target_return_value);
     GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(mv_inst);
     auto ret_inst = GET_BACKEND_TARGET()->CreateInstruction<RVRETInst>(target_return_register);
