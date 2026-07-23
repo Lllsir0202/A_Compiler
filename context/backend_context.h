@@ -20,13 +20,15 @@
 #include "backend/targets/utils/ra/manager/ramanager.h"
 #include "backend/targets/utils/ra/method/hint/allocatorhint.h"
 #include "backend/targets/utils/struct/targetmodule.h"
+#include "mir/utils/operand/memoryoperand.h"
 
 namespace context {
 // Provide the context for the backend,
 // Include the target architecture.
 class BackendContext {
  public:
-  explicit BackendContext(const std::string &target_arch, int optimization_level);
+  explicit BackendContext(const std::string &target_arch, int optimization_level,
+                          backend::utils::MemSize mem_size = backend::utils::MemSize::UnSet);
 
   ~BackendContext();
   // Create the operands
@@ -197,6 +199,9 @@ class BackendContext {
   auto SetCurrentBlock(backend::targetir::TargetBlock *block) -> void { current_block_ = block; }
   auto GetCurrentBlock() -> backend::targetir::TargetBlock * { return current_block_; }
 
+  auto SetMemSize(backend::utils::MemSize mem_size) -> void { mem_size_ = mem_size; }
+  auto GetMemSize() -> backend::utils::MemSize { return mem_size_; }
+
  private:
   /**
    * @brief Just provide the target-free backend context here,
@@ -234,6 +239,9 @@ class BackendContext {
   backend::targetir::PhysicalRegPool physical_reg_pool_;
 
   backend::targetir::RAManager ra_manager_;
+
+  // Memsize, used to specific the target architecture memory size
+  backend::utils::MemSize mem_size_ = backend::utils::MemSize::UnSet;
 };
 
 }  // namespace context

@@ -12,6 +12,7 @@ class FuncDefInst : public Instruction {
   auto GetFuncName() const -> const std::string & { return func_name_; }
   auto GetReturnType() const -> type::Type * { return return_type_; }
   auto Emit(std::ofstream *out) const -> void override;
+  auto GetArguments() const -> const std::vector<utils::Operand *> & { return operands_; }
 
  private:
   explicit FuncDefInst(std::string func_name, type::Type *return_type)

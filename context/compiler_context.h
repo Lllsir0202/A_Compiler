@@ -10,6 +10,7 @@
 #include "context/pass_context.h"
 #include "context/symboltable_context.h"
 #include "context/type_context.h"
+#include "mir/utils/operand/memoryoperand.h"
 #include "targets/aarch64/initializer/aarch64initializer.h"
 #include "targets/rv64/initializer/rv64initializer.h"
 #include "targets/utils/manager/targetinitializer.h"
@@ -39,7 +40,7 @@ class CompilerContext {
 
     // Register the target initializer and create the backend context
     RegisterTargetInitializers();
-    backend_context_ = new BackendContext(target_arch, optimization_level);
+    backend_context_ = new BackendContext(target_arch, optimization_level, backend::utils::MemSize::Bit64);
   }
   ~CompilerContext() {
     delete type_context_;

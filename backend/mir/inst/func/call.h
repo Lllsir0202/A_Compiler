@@ -10,6 +10,7 @@ class CallInst : public Instruction {
  public:
   auto Verify(context::CompilerContext *context) const -> bool override;
   auto GetCallee() const -> const std::string & { return callee_; }
+  auto GetArguments() const -> const std::vector<utils::Operand *> & { return operands_; }
   auto GetReturnType() const -> type::Type * { return return_type_; }
   auto Emit(std::ofstream *out) const -> void override;
   auto IsCall() const -> bool override { return true; }

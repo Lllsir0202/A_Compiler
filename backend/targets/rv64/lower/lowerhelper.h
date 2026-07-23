@@ -52,8 +52,6 @@ class LowerHelper {
   auto LowerCondBr(backend::inst::BrCondInst *inst) -> void;
   auto LowerRet(backend::inst::RetInst *inst) -> void;
 
-  auto LowerFuncDef(backend::inst::FuncDefInst *inst) -> void;
-  auto LowerFuncDeclare(backend::inst::FuncDeclareInst *inst) -> void;
   auto LowerCall(backend::inst::CallInst *inst) -> void;
 
   auto LowerZext(backend::inst::ZextInst *inst) -> void;

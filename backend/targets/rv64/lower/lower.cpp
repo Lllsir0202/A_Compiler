@@ -11,9 +11,12 @@
 #include "context/backend_context.h"
 #include "context/compiler_context.h"
 #include "context/mir_context.h"
+#include "mir/inst/cast/cast.h"
+#include "mir/utils/operand/memoryoperand.h"
+#include "mir/utils/operand/regoperand.h"
 
 namespace backend::targetir::rv64 {
-
+#define GET_BACKEND_TARGET() compiler_context_->GetBackendContext()
 auto RV64Lower::Lower() -> int {
   try {
     auto *backend_context = compiler_context_->GetBackendContext();
@@ -49,6 +52,43 @@ auto RV64Lower::Lower() -> int {
       auto *target_function = backend_context->CreateFunction(mir_function->GetName());
       backend_context->SetCurrentFunction(target_function);
       backend_context->ClearBlockMap();
+
+      // Map the function parameters to the target function parameters
+      auto func_def = compiler_context_->GetMIRContext()->GetFuncDefByName(mir_function->GetName());
+      if (func_def == nullptr) {
+        compiler_context_->ReportError("Function definition not found for function: " + mir_function->GetName());
+        return -1;
+      }
+
+      for (const auto &param : func_def->GetArguments()) {
+        // All params should be a virtual register
+        if (!param->IsRegister()) {
+          compiler_context_->ReportError("Function parameter is not a register: " + std::to_string(param->GetIndex()));
+          return -1;
+        }
+        if (param->IsInt()) {
+          // If the parameter is an integer
+          auto target_param =
+              GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+          GET_BACKEND_TARGET()->MapOperand(param, target_param);
+        }
+        if (param->IsFloat()) {
+          auto target_param =
+              GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+          GET_BACKEND_TARGET()->MapOperand(param, target_param);
+        }
+        if (param->IsPtr()) {
+          if (GET_BACKEND_TARGET()->GetMemSize() == utils::MemSize::Bit64) {
+            auto target_param =
+                GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::QWord, TargetRegClass::General);
+            GET_BACKEND_TARGET()->MapOperand(param, target_param);
+          } else {
+            auto target_param =
+                GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+            GET_BACKEND_TARGET()->MapOperand(param, target_param);
+          }
+        }
+      }
 
       // Create the frame object according to the frame objects in the MIR function
       target_function->ReserveFrameObject(mir_function->GetFrameInfosSize());
@@ -87,5 +127,5 @@ auto RV64Lower::Lower() -> int {
 
   return 0;
 }
-
+#undef GET_BACKEND_TARGET
 }  // namespace backend::targetir::rv64

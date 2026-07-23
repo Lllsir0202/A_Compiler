@@ -61,7 +61,6 @@ auto LowerHelper::LowerDispatch(backend::inst::Instruction *inst) -> void {
     DISPATCH_MIR_INST(backend::inst::BrCondInst, LowerCondBr)
     DISPATCH_MIR_INST(backend::inst::RetInst, LowerRet)
 
-    DISPATCH_MIR_INST(backend::inst::FuncDefInst, LowerFuncDef)
     DISPATCH_MIR_INST(backend::inst::CallInst, LowerCall)
 
     DISPATCH_MIR_INST(backend::inst::ZextInst, LowerZext)
@@ -1159,8 +1158,11 @@ auto LowerHelper::LowerRet(backend::inst::RetInst *inst) -> void {
   GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(ret_inst);
 }
 
-auto LowerHelper::LowerFuncDef([[maybe_unused]] backend::inst::FuncDefInst *inst) -> void {}
-auto LowerHelper::LowerCall([[maybe_unused]] backend::inst::CallInst *inst) -> void {}
+auto LowerHelper::LowerCall(backend::inst::CallInst *inst) -> void {
+  // For call instruction, we need to load all arguments into the ABI-defined argument registers.
+  // auto args = inst->GetArguments();
+  (void)inst;
+}
 
 auto LowerHelper::LowerZext(backend::inst::ZextInst *inst) -> void {
   auto src = inst->GetOperands()[0];
