@@ -1,0 +1,20 @@
+int values[16];
+
+int main() {
+  int flag = getint();
+  int count = getint();
+  int i = 0;
+  int sum = 0;
+  while (i < count) {
+    if (flag != 0) {
+      values[i] = 2;
+    } else {
+      values[i] = 7;
+    }
+    sum = sum + values[i];
+    i = i + 1;
+  }
+  putint(sum);
+  putch(10);
+  return 0;
+}
