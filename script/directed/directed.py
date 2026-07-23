@@ -13,6 +13,8 @@ Directives:
   //! CHECK: <ere>                  some dump line matches <ere>
   //! CHECK-NOT: <ere>              no dump line matches <ere>
   //! CHECK-COUNT: <n> :: <ere>     exactly <n> dump lines match <ere>
+  //! CHECK-STATS: <ere>            pass statistics contain a matching line
+  //! CHECK-STATS-NOT: <ere>        pass statistics contain no matching line
   //! CHECK-BLOCK: <bere> :: <ere>  a block whose label matches <bere> has a
                                     line matching <ere>
   //! CHECK-BLOCK-NOT: <bere> :: <ere>
@@ -49,11 +51,11 @@ class Failure(Exception):
     pass
 
 
-def run(cmd, stdin_path=None, timeout=60):
+def run(cmd, stdin_path=None, timeout=60, env=None):
     stdin = open(stdin_path, "rb") if stdin_path else subprocess.DEVNULL
     try:
         return subprocess.run(cmd, stdin=stdin, stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE, timeout=timeout)
+                              stderr=subprocess.PIPE, timeout=timeout, env=env)
     finally:
         if stdin_path:
             stdin.close()
@@ -72,7 +74,7 @@ def parse_directives(sy_path):
                 if rest not in ("baseir", "llvm"):
                     raise Failure(f"line {lineno}: bad STAGE '{rest}'")
                 stage = rest
-            elif kind in ("CHECK", "CHECK-NOT"):
+            elif kind in ("CHECK", "CHECK-NOT", "CHECK-STATS", "CHECK-STATS-NOT"):
                 checks.append((kind, rest, None, lineno))
             elif kind == "CHECK-COUNT":
                 n, sep, ere = rest.partition("::")
@@ -104,7 +106,7 @@ def split_blocks(dump_lines):
     return blocks
 
 
-def apply_checks(checks, dump_lines, blocks):
+def apply_checks(checks, dump_lines, blocks, stats_lines):
     errors = []
     for kind, a, b, lineno in checks:
         if kind == "CHECK":
@@ -118,6 +120,13 @@ def apply_checks(checks, dump_lines, blocks):
             got = sum(1 for ln in dump_lines if re.search(a, ln))
             if got != b:
                 errors.append(f"line {lineno}: CHECK-COUNT '{a}' expected {b}, got {got}")
+        elif kind == "CHECK-STATS":
+            if not any(re.search(a, ln) for ln in stats_lines):
+                errors.append(f"line {lineno}: CHECK-STATS '{a}' not found in statistics")
+        elif kind == "CHECK-STATS-NOT":
+            hits = [ln.strip() for ln in stats_lines if re.search(a, ln)]
+            if hits:
+                errors.append(f"line {lineno}: CHECK-STATS-NOT '{a}' matched: {hits[0]}")
         elif kind == "CHECK-BLOCK":
             names = [n for n in blocks if re.search(a, n)]
             if not names:
@@ -171,13 +180,16 @@ def run_ir_checks(sy_path, name, stage, checks):
     if not checks:
         return []
     dump_path = os.path.join(WORK, f"{name}.{stage}")
-    res = run([COMPILER, sy_path, "-o", dump_path, f"-{stage}", "-O1"])
+    env = os.environ.copy()
+    env["LOOP_OPT_STATS"] = "1"
+    res = run([COMPILER, sy_path, "-o", dump_path, f"-{stage}", "-O1"], env=env)
     if res.returncode != 0:
         return [f"IR dump compile failed (exit {res.returncode}):\n"
                 + res.stderr.decode(errors="replace")[-500:]]
     with open(dump_path, encoding="utf-8") as f:
         dump_lines = f.read().splitlines()
-    return apply_checks(checks, dump_lines, split_blocks(dump_lines))
+    stats_lines = res.stderr.decode(errors="replace").splitlines()
+    return apply_checks(checks, dump_lines, split_blocks(dump_lines), stats_lines)
 
 
 def run_correctness(sy_path, in_path, name, golden, targets, opts):

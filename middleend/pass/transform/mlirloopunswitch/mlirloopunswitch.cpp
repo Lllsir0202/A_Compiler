@@ -1,4 +1,5 @@
 #include "middleend/pass/transform/mlirloopunswitch/mlirloopunswitch.h"
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <unordered_map>
@@ -9,6 +10,8 @@
 #include "middleend/mlir/dialect/arithm/copy.h"
 #include "middleend/mlir/dialect/arithm/unaryop.h"
 #include "middleend/mlir/dialect/func/funcdef.h"
+#include "middleend/mlir/dialect/func/return.h"
+#include "middleend/mlir/dialect/scf/condition.h"
 #include "middleend/mlir/dialect/scf/if.h"
 #include "middleend/mlir/dialect/scf/while.h"
 #include "middleend/mlir/dialect/scf/yield.h"
@@ -53,6 +56,28 @@ auto IsPureInvariantOperation(mlir::Operation *operation) -> bool {
          mlir::DynamicOrNull<mlir::arithm::GreaterEqualOp>(operation) != nullptr ||
          mlir::DynamicOrNull<mlir::arithm::NegOp>(operation) != nullptr ||
          mlir::DynamicOrNull<mlir::arithm::NotOp>(operation) != nullptr;
+}
+
+auto BodyIsCloneableForUnswitch(mlir::Operation *operation) -> bool {
+  if (mlir::DynamicOrNull<mlir::scf::WhileOp>(operation) != nullptr ||
+      mlir::DynamicOrNull<mlir::scf::ConditionOp>(operation) != nullptr ||
+      mlir::DynamicOrNull<mlir::func::ReturnOp>(operation) != nullptr ||
+      mlir::DynamicOrNull<mlir::func::FuncDefOp>(operation) != nullptr) {
+    return false;
+  }
+  for (auto *region : operation->regions_) {
+    if (region == nullptr || region->blocks_.size() != 1) return false;
+    for (auto *nested : region->blocks_[0]->operations_) {
+      if (!BodyIsCloneableForUnswitch(nested)) return false;
+    }
+  }
+  return true;
+}
+
+auto BodyIsCloneableForUnswitch(mlir::Region *region) -> bool {
+  if (region == nullptr || region->blocks_.size() != 1) return false;
+  return std::all_of(region->blocks_[0]->operations_.begin(), region->blocks_[0]->operations_.end(),
+                     [](mlir::Operation *operation) { return BodyIsCloneableForUnswitch(operation); });
 }
 
 }  // namespace
@@ -130,7 +155,7 @@ auto MLIRLoopUnswitchPass::UnswitchInBlock(mlir::func::FuncDefOp *func_op, mlir:
 
 auto MLIRLoopUnswitchPass::FindCandidate(mlir::scf::WhileOp *loop, Candidate *candidate) -> bool {
   ++loops_seen_;
-  if (!loopiv::BodyIsCloneable(loop->GetBodyRegion()) ||
+  if (!BodyIsCloneableForUnswitch(loop->GetBodyRegion()) ||
       loopiv::CountOperations(loop->GetCondRegion()) + loopiv::CountOperations(loop->GetBodyRegion()) > kMaxLoopCost ||
       loop->GetBodyRegion()->blocks_.size() != 1) {
     ++clone_or_cost_rejects_;
@@ -180,7 +205,7 @@ auto MLIRLoopUnswitchPass::FindInvariantBoolean(mlir::scf::WhileOp *loop, mlir::
   if (value->GetType()->GetKind() == type::TypeKind::BOOL && loopiv::IsDefinedInLoop(value, loop) &&
       !IsConstant(value)) {
     std::unordered_set<mlir::Value *> invariance_visiting;
-    if (CanHoistInvariantCondition(loop, value, &invariance_visiting)) {
+    if (CanHoistInvariantCondition(loop, value, &invariance_visiting, true)) {
       *candidate = value;
       visiting->erase(value);
       return true;
@@ -213,7 +238,8 @@ auto MLIRLoopUnswitchPass::FindInvariantBoolean(mlir::scf::WhileOp *loop, mlir::
 }
 
 auto MLIRLoopUnswitchPass::CanHoistInvariantCondition(mlir::scf::WhileOp *loop, mlir::Value *value,
-                                                      std::unordered_set<mlir::Value *> *visiting) -> bool {
+                                                      std::unordered_set<mlir::Value *> *visiting,
+                                                      bool conditionally_executed) -> bool {
   if (!loopiv::IsDefinedInLoop(value, loop)) {
     return true;
   }
@@ -221,9 +247,11 @@ auto MLIRLoopUnswitchPass::CanHoistInvariantCondition(mlir::scf::WhileOp *loop, 
     return false;
   }
   if (auto *load = mlir::DynamicOrNull<mlir::var::VarGetValOp>(value->op_)) {
-    if (!memory_effects_->IsSafeToSpeculateLoad(load->GetPtr()) ||
+    auto induction = loopiv::Recognize(loop);
+    bool guaranteed_execution = !conditionally_executed && loopiv::ConstantTripCount(induction, INT32_MAX) > 0;
+    if ((!memory_effects_->IsSafeToSpeculateLoad(load->GetPtr()) && !guaranteed_execution) ||
         memory_effects_->LoopMayWrite(loop, load->GetPtr()) ||
-        !CanHoistInvariantCondition(loop, load->GetPtr(), visiting)) {
+        !CanHoistInvariantCondition(loop, load->GetPtr(), visiting, conditionally_executed)) {
       visiting->erase(value);
       return false;
     }
@@ -235,7 +263,7 @@ auto MLIRLoopUnswitchPass::CanHoistInvariantCondition(mlir::scf::WhileOp *loop, 
     return false;
   }
   for (auto *operand : value->op_->operands_) {
-    if (!CanHoistInvariantCondition(loop, operand, visiting)) {
+    if (!CanHoistInvariantCondition(loop, operand, visiting, conditionally_executed)) {
       visiting->erase(value);
       return false;
     }

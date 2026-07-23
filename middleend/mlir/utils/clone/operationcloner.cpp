@@ -8,7 +8,9 @@
 #include "middleend/mlir/dialect/arithm/unaryop.h"
 #include "middleend/mlir/dialect/func/funccall.h"
 #include "middleend/mlir/dialect/func/return.h"
+#include "middleend/mlir/dialect/scf/break.h"
 #include "middleend/mlir/dialect/scf/condition.h"
+#include "middleend/mlir/dialect/scf/continue.h"
 #include "middleend/mlir/dialect/scf/if.h"
 #include "middleend/mlir/dialect/scf/while.h"
 #include "middleend/mlir/dialect/scf/yield.h"
@@ -169,6 +171,20 @@ auto OperationCloner::Clone(mlir::Operation *operation) -> mlir::Operation * {
       original_values.emplace_back(RemapValue(value));
     }
     new_op->SetLoopCarriedValues(values, original_values);
+    return new_op;
+  }
+  if (auto *break_op = mlir::DynamicOrNull<mlir::scf::BreakOp>(operation)) {
+    auto *new_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::BreakOp>(GET_MLIR_CONTEXT());
+    for (auto *operand : break_op->GetOperands()) {
+      new_op->operands_.emplace_back(RemapValue(operand));
+    }
+    return new_op;
+  }
+  if (auto *continue_op = mlir::DynamicOrNull<mlir::scf::ContinueOp>(operation)) {
+    auto *new_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::ContinueOp>(GET_MLIR_CONTEXT());
+    for (auto *operand : continue_op->GetOperands()) {
+      new_op->operands_.emplace_back(RemapValue(operand));
+    }
     return new_op;
   }
   if (auto *if_op = mlir::DynamicOrNull<mlir::scf::IfOp>(operation)) {
