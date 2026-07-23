@@ -7,6 +7,7 @@ class LoadInst : public Instruction {
  public:
   auto Verify(context::CompilerContext *context) const -> bool override;
   auto Emit(std::ofstream *out) const -> void override;
+  auto GetPtr() const -> utils::Operand * { return operands_[0]; }
 
  private:
   explicit LoadInst() : Instruction(OpKind::Load) {}

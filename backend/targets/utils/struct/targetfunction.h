@@ -41,6 +41,7 @@ class TargetFunction {
   }
   auto GetFrameObjectsSize() const -> size_t { return frame_objects_.size(); }
   auto AddFrameObject(TargetFrameObject *frame_object) -> void { frame_objects_.emplace_back(frame_object); }
+  auto ReserveFrameObject(size_t size) -> void { frame_objects_.reserve(size); }
 
   auto GetVirtualRegisters() -> std::vector<TargetVirtualReg *> & { return virtual_registers_; }
   auto AddVirtualRegister(TargetVirtualReg *virtual_register) -> void {

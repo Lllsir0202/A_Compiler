@@ -17,6 +17,7 @@
 #include "backend/targets/utils/operand/targetreg.h"
 #include "context/compiler_context.h"
 #include "mir/inst/cmp/cmp.h"
+#include "mir/utils/operand/frameoperand.h"
 
 #define GET_BACKEND_TARGET() compiler_context_->GetBackendContext()
 namespace backend::targetir::rv64 {
@@ -830,8 +831,9 @@ auto LowerHelper::LowerICmp(backend::inst::ICmpInst *inst) -> void {
       auto literal_operand = lhs->IsLiteral() ? lhs : rhs;
       auto non_literal_operand = lhs->IsLiteral() ? rhs : lhs;
       auto literal_value = static_cast<utils::IntLiteral *>(literal_operand)->GetValue();
-      // If the literal is in 12-bit signed range, we can use an immediate instruction(xori)
-      if (Is12BitSignedInteger(literal_value)) {
+      // If the negative of literal is in 12-bit signed range, we can use an immediate instruction(xori)
+      // -literal_value is used because we will use: addi rd, rs, -literal_value to compare the two operands.
+      if (Is12BitSignedInteger(-literal_value)) {
         // Use addi instruction to compare the two operands
         auto target_non_literal = GET_BACKEND_TARGET()->GetMappedOperand(non_literal_operand);
         if (target_non_literal == nullptr) {
@@ -850,7 +852,7 @@ auto LowerHelper::LowerICmp(backend::inst::ICmpInst *inst) -> void {
         } else {
           target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
           GET_BACKEND_TARGET()->MapOperand(inst->GetResult(), target_result);
-          auto target_literal = GET_BACKEND_TARGET()->CreateIntLiteral(literal_value);
+          auto target_literal = GET_BACKEND_TARGET()->CreateIntLiteral(-literal_value);
           auto addi_inst =
               GET_BACKEND_TARGET()->CreateInstruction<RVADDIInst>(target_result, target_non_literal, target_literal);
           GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(addi_inst);
@@ -868,7 +870,7 @@ auto LowerHelper::LowerICmp(backend::inst::ICmpInst *inst) -> void {
       }
       // Otherwise, we need to materialize the literal into a register and use the normal xor instruction
       auto target_non_literal = GET_BACKEND_TARGET()->GetMappedOperand(non_literal_operand);
-      auto target_literal = MaterializeLiteral(compiler_context_, literal_value);
+      auto target_literal = MaterializeLiteral(compiler_context_, -literal_value);
       if (target_non_literal == nullptr || target_literal == nullptr) {
         compiler_context_->ReportError("One of the operands is not mapped to a target operand");
         return;
@@ -915,7 +917,68 @@ auto LowerHelper::LowerICmp(backend::inst::ICmpInst *inst) -> void {
   compiler_context_->ReportError("Unhandled ICmp predicate");
 }
 
-auto LowerHelper::LowerFCmp([[maybe_unused]] backend::inst::FCmpInst *inst) -> void {}
+auto LowerHelper::LowerFCmp(backend::inst::FCmpInst *inst) -> void {
+  // For fcmp instruction, we should handle it like icmp, but no literal allowed.
+  // For GT and GE, we can swap the operands and change the predicate.
+  auto lhs = inst->GetLHS();
+  auto rhs = inst->GetRHS();
+  auto predicate = inst->GetPredicate();
+  if (lhs->IsLiteral() && rhs->IsLiteral()) {
+    compiler_context_->ReportError("FCmp operands cannot be literals");
+    return;
+  }
+  if (predicate == backend::inst::CmpPredicate::GT || predicate == backend::inst::CmpPredicate::GE) {
+    std::swap(lhs, rhs);
+    predicate = (predicate == backend::inst::CmpPredicate::GT) ? backend::inst::CmpPredicate::LT
+                                                               : backend::inst::CmpPredicate::LE;
+  }
+  // We can just load all the literals into registers
+  auto target_lhs = lhs->IsLiteral()
+                        ? MaterializeLiteral(compiler_context_, static_cast<utils::FloatLiteral *>(lhs)->GetValue())
+                        : GET_BACKEND_TARGET()->GetMappedOperand(lhs);
+  auto target_rhs = rhs->IsLiteral()
+                        ? MaterializeLiteral(compiler_context_, static_cast<utils::FloatLiteral *>(rhs)->GetValue())
+                        : GET_BACKEND_TARGET()->GetMappedOperand(rhs);
+  if (target_lhs == nullptr || target_rhs == nullptr) {
+    compiler_context_->ReportError("One of the operands is not mapped to a target operand");
+    return;
+  }
+
+  // For LT and LE, we can use the fcmp instruction directly.
+  if (predicate == backend::inst::CmpPredicate::LT) {
+    auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+    GET_BACKEND_TARGET()->MapOperand(inst->GetResult(), target_result);
+    auto fcmp_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFLTSInst>(target_result, target_lhs, target_rhs);
+    GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(fcmp_inst);
+    return;
+  }
+  if (predicate == backend::inst::CmpPredicate::LE) {
+    auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+    GET_BACKEND_TARGET()->MapOperand(inst->GetResult(), target_result);
+    auto fcmp_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFLESInst>(target_result, target_lhs, target_rhs);
+    GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(fcmp_inst);
+    return;
+  }
+  // if predicate is EQ or NE, we can use the fcmp instruction and then check the result.
+  if (predicate == backend::inst::CmpPredicate::EQ || predicate == backend::inst::CmpPredicate::NE) {
+    auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+    GET_BACKEND_TARGET()->MapOperand(inst->GetResult(), target_result);
+    auto fcmp_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFEQSInst>(target_result, target_lhs, target_rhs);
+    GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(fcmp_inst);
+    if (predicate == backend::inst::CmpPredicate::NE) {
+      // If predicate is NE, we need to negate the result.
+      auto neg_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+      auto not_inst = GET_BACKEND_TARGET()->CreateInstruction<RVXORIInst>(neg_result, target_result,
+                                                                          GET_BACKEND_TARGET()->CreateIntLiteral(-1));
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(not_inst);
+      GET_BACKEND_TARGET()->MapOperand(inst->GetResult(), neg_result);
+    }
+    return;
+  }
+
+  // Should not reach here, since we have handled all the predicates
+  compiler_context_->ReportError("Unhandled FCmp predicate");
+}
 
 auto LowerHelper::LowerXor(backend::inst::XorInst *inst) -> void {
   auto lhs = inst->GetOperands()[0];

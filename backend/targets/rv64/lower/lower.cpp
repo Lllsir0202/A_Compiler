@@ -50,6 +50,12 @@ auto RV64Lower::Lower() -> int {
       backend_context->SetCurrentFunction(target_function);
       backend_context->ClearBlockMap();
 
+      // Create the frame object according to the frame objects in the MIR function
+      target_function->ReserveFrameObject(mir_function->GetFrameInfosSize());
+      for (const auto *frame_info : mir_function->GetFrameInfos()) {
+        backend_context->AddFrameObject(frame_info->GetSize(), frame_info->GetAlign());
+      }
+
       for (auto *mir_block : mir_function->GetBlocks()) {
         auto *target_block = backend_context->CreateBlock(mir_block->GetId());
         target_block->SetFuncName(target_function->GetName());

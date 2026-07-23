@@ -34,6 +34,10 @@ class Function {
   auto GetFrameInfoById(size_t frame_id) const -> FrameInfo *;
   auto AddFrameInfo(size_t size, size_t align) -> FrameInfo *;
 
+  // Get all fame infos in this function
+  auto GetFrameInfos() const -> const std::vector<FrameInfo *> & { return frame_infos_; }
+  auto GetFrameInfosSize() const -> size_t { return frame_infos_.size(); }
+
  private:
   explicit Function(std::string func_name, type::Type *return_type)
       : func_name_(std::move(func_name)), return_type_(return_type) {}
