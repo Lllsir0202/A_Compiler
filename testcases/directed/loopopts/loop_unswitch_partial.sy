@@ -1,0 +1,20 @@
+int values[32];
+
+int main() {
+  int count = getint();
+  int enabled = getint();
+  int i = 0;
+  int sum = 0;
+  while (i < count) {
+    if (i < count / 2 && enabled != 0) {
+      values[i] = i + 3;
+    } else {
+      values[i] = i + 1;
+    }
+    sum = sum + values[i];
+    i = i + 1;
+  }
+  putint(sum);
+  putch(10);
+  return 0;
+}

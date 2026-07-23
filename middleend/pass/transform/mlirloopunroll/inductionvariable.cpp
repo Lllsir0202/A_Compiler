@@ -267,6 +267,54 @@ auto ConstantTripCount(const Induction &iv, int64_t max_trip) -> int64_t {
   if (!init_ok || !bound_ok) {
     return -1;
   }
+  if (iv.step_kind_ == StepKind::kAdd && iv.step_ != 0) {
+    __int128 count = -1;
+    __int128 wide_init = init;
+    __int128 wide_bound = bound;
+    __int128 wide_step = iv.step_;
+    switch (iv.kind_) {
+      case CmpKind::kLT:
+        if (init >= bound) return 0;
+        if (iv.step_ <= 0) return -1;
+        count = (wide_bound - wide_init + wide_step - 1) / wide_step;
+        break;
+      case CmpKind::kLE:
+        if (init > bound) return 0;
+        if (iv.step_ <= 0) return -1;
+        count = (wide_bound - wide_init) / wide_step + 1;
+        break;
+      case CmpKind::kGT:
+        if (init <= bound) return 0;
+        if (iv.step_ >= 0) return -1;
+        count = (wide_init - wide_bound + (-wide_step) - 1) / (-wide_step);
+        break;
+      case CmpKind::kGE:
+        if (init < bound) return 0;
+        if (iv.step_ >= 0) return -1;
+        count = (wide_init - wide_bound) / (-wide_step) + 1;
+        break;
+      case CmpKind::kNE: {
+        __int128 difference = wide_bound - wide_init;
+        if (difference == 0) return 0;
+        if (difference % wide_step != 0 || difference / wide_step <= 0) return -1;
+        count = difference / wide_step;
+        break;
+      }
+      case CmpKind::kEQ:
+        if (init != bound) return 0;
+        count = 1;
+        break;
+      default:
+        return -1;
+    }
+    if (count < 0 || count > max_trip) return -1;
+    // The latch update executes after the last body iteration. Proving that
+    // value stays in the signed SysY int range also proves no-wrap.
+    __int128 exit_value = wide_init + count * wide_step;
+    if (exit_value < INT32_MIN || exit_value > INT32_MAX) return -1;
+    return static_cast<int64_t>(count);
+  }
+
   int64_t value = init;
   int64_t count = 0;
   while (Evaluate(iv.kind_, value, bound)) {
@@ -275,7 +323,11 @@ auto ConstantTripCount(const Induction &iv, int64_t max_trip) -> int64_t {
       return -1;
     }
     if (iv.step_kind_ == StepKind::kAdd) {
-      value += iv.step_;
+      auto wide = static_cast<__int128>(value) + iv.step_;
+      if (wide > INT32_MAX || wide < INT32_MIN) {
+        return -1;
+      }
+      value = static_cast<int64_t>(wide);
     } else {
       auto wide = static_cast<__int128>(value) * iv.step_;
       if (wide > INT64_MAX || wide < INT64_MIN) {

@@ -1,0 +1,21 @@
+int flag;
+int values[32];
+
+int main() {
+  int count = getint();
+  flag = getint();
+  int i = 0;
+  int sum = 0;
+  while (i < count) {
+    if (flag != 0) {
+      values[i] = i + 1;
+    } else {
+      values[i] = i + 2;
+    }
+    sum = sum + values[i];
+    i = i + 1;
+  }
+  putint(sum);
+  putch(10);
+  return 0;
+}
