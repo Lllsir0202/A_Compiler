@@ -1,0 +1,22 @@
+//! CHECK-STATS: LoopUnswitch: candidates=1 unswitched=1
+
+int options[2];
+
+int main() {
+  int slot = getint();
+  options[0] = 0;
+  options[1] = 1;
+  int i = 0;
+  int sum = 0;
+  while (i < 8) {
+    if (options[slot] != 0) {
+      sum = sum + i;
+    } else {
+      sum = sum - i;
+    }
+    i = i + 1;
+  }
+  putint(sum);
+  putch(10);
+  return 0;
+}

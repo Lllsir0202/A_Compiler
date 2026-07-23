@@ -63,7 +63,8 @@ class MLIRLoopUnswitchPass : public TransformPass {
   auto UnswitchInBlock(mlir::func::FuncDefOp *func_op, mlir::Block *block) -> bool;
   auto FindCandidate(mlir::scf::WhileOp *loop, Candidate *candidate) -> bool;
   auto CanHoistInvariantCondition(mlir::scf::WhileOp *loop, mlir::Value *value,
-                                  std::unordered_set<mlir::Value *> *visiting) -> bool;
+                                  std::unordered_set<mlir::Value *> *visiting,
+                                  bool conditionally_executed = false) -> bool;
   auto FindInvariantBoolean(mlir::scf::WhileOp *loop, mlir::Value *value, std::unordered_set<mlir::Value *> *visiting,
                             mlir::Value **candidate) -> bool;
   auto HoistInvariantCondition(mlir::scf::WhileOp *loop, mlir::Value *value,

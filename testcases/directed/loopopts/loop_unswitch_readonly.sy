@@ -1,3 +1,5 @@
+//! CHECK-STATS: LoopUnswitch: candidates=1 unswitched=1
+
 int flag;
 int values[32];
 
