@@ -22,6 +22,9 @@ class LowerHelper {
   explicit LowerHelper(context::CompilerContext *compiler_context) : compiler_context_(compiler_context) {}
   context::CompilerContext *compiler_context_;
   RV64Getter rv64_getter_;
+
+  std::unordered_set<std::string> llvm_library_functions_ = {"llvm.memcpy.p0.p0.i64", "llvm.memset.p0.i64"};
+
   friend class RV64Lower;
 
   auto LowerAdd(backend::inst::AddInst *inst) -> void;

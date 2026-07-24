@@ -404,9 +404,7 @@ auto LowerHelper::LowerAllocaInst(middleend::llvm::inst::AllocaInst *alloca_inst
     result_type = static_cast<type::PtrType *>(result_type)->GetBaseType();
   }
 
-  // For frameoperand, the type will be the type of the result type, instead of
-  // the pointer to the variable type.
-  frameoperand->SetType(result_type);
+  frameoperand->SetType(alloca_inst->GetResult()->GetType());
   auto size = result_type->GetDataSize();
   // Then create size and align
   auto align = allocated_type->GetAlign();
