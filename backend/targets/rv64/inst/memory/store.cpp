@@ -69,4 +69,13 @@ auto RVFSDInst::Emit(std::ofstream *out) -> void {
   *out << ")\n";
 }
 
+auto RVFSDInst::Create(TargetOperand *value, TargetOperand *imm, TargetOperand *rs) -> RVFSDInst * {
+  auto *inst = new RVFSDInst();
+  inst->operands_.reserve(3);
+  inst->AddOperand(value);
+  inst->AddOperand(imm);
+  inst->AddOperand(rs);
+  return inst;
+}
+
 }  // namespace backend::targetir::rv64

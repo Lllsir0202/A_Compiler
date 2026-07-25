@@ -9,7 +9,6 @@
 #include "backend/mir/inst/func/call.h"
 #include "backend/mir/inst/memory/load.h"
 #include "backend/mir/inst/memory/store.h"
-#include "backend/mir/inst/pseudo/copy.h"
 #include "backend/mir/utils/memory/addressinfo.h"
 #include "backend/mir/utils/memory/memoryinfo.h"
 #include "backend/mir/utils/operand/operand.h"
@@ -470,20 +469,25 @@ auto LowerHelper::LowerGetElementPtrInst(middleend::llvm::inst::GetElementPtrIns
   auto indices = gep_inst->GetIndices();
 
   std::vector<int> dimensions;
+
+  // Record the base type, which is the type of the original variable.
+  type::Type *base_type;
+
   if (base_ptr->GetInstruction() != nullptr) {
     auto inst = base_ptr->GetInstruction();
     if (inst->VerifyOpKind(middleend::llvm::inst::OpKind::Alloca)) {
       auto alloca_inst = static_cast<middleend::llvm::inst::AllocaInst *>(inst);
       // Means the base pointer is from a local variable
       dimensions = alloca_inst->GetDimensions();
+      base_type = alloca_inst->GetAllocatedType();
     } else if (inst->VerifyOpKind(middleend::llvm::inst::OpKind::GlobalDef)) {
       auto global_def_inst = static_cast<middleend::llvm::inst::GlobalDefInst *>(inst);
       dimensions = global_def_inst->GetDimensions();
+      base_type = global_def_inst->GetAllocatedType();
     }
   } else {
     // Means the base pointer is from a function parameter
     auto base_ptr_type = base_ptr->GetType();
-    type::Type *base_type;
     if (base_ptr_type->GetKind() == type::TypeKind::PTR) {
       base_type = static_cast<type::PtrType *>(base_ptr_type)->GetBaseType();
     } else {
@@ -566,8 +570,11 @@ auto LowerHelper::LowerGetElementPtrInst(middleend::llvm::inst::GetElementPtrIns
 
   // Memory information will be used as a record of the result's memory layout
   auto memory_info = utils::MemoryInfo();
-  memory_info.align_ = gep_inst->GetResult()->GetType()->GetAlign();
-  memory_info.size_ = gep_inst->GetResult()->GetType()->GetDataSize();
+  // Memory information should record the allocated type information
+  printf("Base type: %s\n", base_type->ToString().c_str());
+  memory_info.size_ = base_type->GetDataSize();
+  memory_info.align_ = base_type->GetAlign();
+
   memory_operand->SetMemoryInfo(memory_info);
 
   // Then map the memory operand to the original llvm result operand.
