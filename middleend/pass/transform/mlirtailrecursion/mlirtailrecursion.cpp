@@ -11,10 +11,13 @@
 #include "middleend/mlir/dialect/scf/if.h"
 #include "middleend/mlir/dialect/scf/while.h"
 #include "middleend/mlir/dialect/scf/yield.h"
+#include "middleend/mlir/dialect/var/getptr.h"
+#include "middleend/mlir/dialect/var/getvalue.h"
 #include "middleend/mlir/utils/operation/operation.h"
 #include "middleend/mlir/utils/struct/block.h"
 #include "middleend/mlir/utils/struct/region.h"
 #include "middleend/mlir/utils/value/value.h"
+#include "utils/type/type.h"
 
 #define GET_MLIR_CONTEXT() compiler_context_->GetIRContext()->GetMLIRContext()
 #define GET_TYPE_CONTEXT() compiler_context_->GetTypeContext()
@@ -48,10 +51,191 @@ auto MLIRTailRecursionEliminatePass::Run() -> void {
 
 auto MLIRTailRecursionEliminatePass::RunOnFunction(mlir::func::FuncDefOp *func_op) -> bool {
   TailRecursionPattern pattern;
-  if (!MatchTailRecursion(func_op, &pattern)) {
+  if (MatchTailRecursion(func_op, &pattern)) {
+    return RewriteTailRecursion(func_op, pattern);
+  }
+  return RewriteMultiExitTailRecursion(func_op);
+}
+
+auto MLIRTailRecursionEliminatePass::IsTerminalTailBlock(mlir::Block *block, mlir::func::FuncDefOp *func_op,
+                                                         bool *saw_tail) -> bool {
+  for (size_t index = 0; index < block->operations_.size(); ++index) {
+    auto *operation = block->operations_[index];
+    if (auto *call = mlir::DynamicOrNull<mlir::func::FuncCallOp>(operation)) {
+      if (call->GetName() != func_op->GetName() || index + 1 >= block->operations_.size()) {
+        return false;
+      }
+      auto *return_op = mlir::DynamicOrNull<mlir::func::ReturnOp>(block->operations_[index + 1]);
+      auto *yield_op = mlir::DynamicOrNull<mlir::scf::YieldOp>(block->operations_[index + 1]);
+      bool returns_call = return_op != nullptr && return_op->GetReturnValue() == call->GetRes();
+      bool yields_call =
+          yield_op != nullptr && yield_op->GetOperands().size() == 1 && yield_op->GetOperands()[0] == call->GetRes();
+      if ((!returns_call && !yields_call) || call->GetOperands().size() != func_op->GetArguments().size()) {
+        return false;
+      }
+      *saw_tail = true;
+      return true;
+    }
+    if (auto *return_op = mlir::DynamicOrNull<mlir::func::ReturnOp>(operation)) {
+      return return_op->GetReturnValue() != nullptr;
+    }
+    if (auto *if_op = mlir::DynamicOrNull<mlir::scf::IfOp>(operation)) {
+      if (if_op->GetThenRegion() == nullptr || if_op->GetElseRegion() == nullptr ||
+          if_op->GetThenRegion()->blocks_.size() != 1 || if_op->GetElseRegion()->blocks_.size() != 1 ||
+          if_op->results_.size() > 1) {
+        return false;
+      }
+      if (if_op->results_.size() == 1) {
+        if (index + 1 >= block->operations_.size()) {
+          return false;
+        }
+        auto *return_op = mlir::DynamicOrNull<mlir::func::ReturnOp>(block->operations_[index + 1]);
+        auto *yield_op = mlir::DynamicOrNull<mlir::scf::YieldOp>(block->operations_[index + 1]);
+        bool returns_if = return_op != nullptr && return_op->GetReturnValue() == if_op->GetResultByIndex(0);
+        bool yields_if = yield_op != nullptr && yield_op->GetOperands().size() == 1 &&
+                         yield_op->GetOperands()[0] == if_op->GetResultByIndex(0);
+        if (!returns_if && !yields_if) {
+          return false;
+        }
+      }
+      return IsTerminalTailBlock(if_op->GetThenRegion()->blocks_[0], func_op, saw_tail) &&
+             IsTerminalTailBlock(if_op->GetElseRegion()->blocks_[0], func_op, saw_tail);
+    }
+    if (auto *yield_op = mlir::DynamicOrNull<mlir::scf::YieldOp>(operation)) {
+      return yield_op->GetOperands().size() == 1;
+    }
+    if (!CanCloneOperation(operation)) {
+      return false;
+    }
+  }
+  return false;
+}
+
+auto MLIRTailRecursionEliminatePass::BuildTailState(mlir::Block *source, mlir::Block *destination,
+                                                    mlir::func::FuncDefOp *func_op,
+                                                    const std::vector<mlir::Value *> &current_args,
+                                                    mlir::Value *current_result) -> std::vector<mlir::Value *> {
+  auto make_state = [&](const std::vector<mlir::Value *> &args, mlir::Value *active, mlir::Value *result) {
+    std::vector<mlir::Value *> state = args;
+    state.emplace_back(active);
+    state.emplace_back(result);
+    return state;
+  };
+
+  for (size_t index = 0; index < source->operations_.size(); ++index) {
+    auto *operation = source->operations_[index];
+    if (auto *call = mlir::DynamicOrNull<mlir::func::FuncCallOp>(operation)) {
+      std::vector<mlir::Value *> next_args;
+      next_args.reserve(call->GetOperands().size());
+      for (auto *operand : call->GetOperands()) {
+        next_args.emplace_back(RemapValue(operand));
+      }
+      return make_state(next_args, tail_continue_, current_result);
+    }
+    if (auto *return_op = mlir::DynamicOrNull<mlir::func::ReturnOp>(operation)) {
+      return make_state(current_args, tail_stop_, RemapValue(return_op->GetReturnValue()));
+    }
+    if (auto *yield_op = mlir::DynamicOrNull<mlir::scf::YieldOp>(operation)) {
+      return make_state(current_args, tail_stop_, RemapValue(yield_op->GetOperands()[0]));
+    }
+    if (auto *if_op = mlir::DynamicOrNull<mlir::scf::IfOp>(operation)) {
+      auto outer_map = value_map_;
+      auto *then_region = new mlir::Region();
+      auto *then_block = new mlir::Block();
+      then_region->blocks_.emplace_back(then_block);
+      auto then_state =
+          BuildTailState(if_op->GetThenRegion()->blocks_[0], then_block, func_op, current_args, current_result);
+      then_block->AddOperation(GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::YieldOp>(GET_MLIR_CONTEXT(), then_state));
+
+      value_map_ = outer_map;
+      auto *else_region = new mlir::Region();
+      auto *else_block = new mlir::Block();
+      else_region->blocks_.emplace_back(else_block);
+      auto else_state =
+          BuildTailState(if_op->GetElseRegion()->blocks_[0], else_block, func_op, current_args, current_result);
+      else_block->AddOperation(GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::YieldOp>(GET_MLIR_CONTEXT(), else_state));
+      value_map_ = outer_map;
+
+      auto *state_if = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::IfOp>(
+          GET_MLIR_CONTEXT(), then_state.size(), RemapValue(if_op->GetCondition()), then_region, else_region);
+      for (size_t state_index = 0; state_index < then_state.size(); ++state_index) {
+        state_if->GetResultByIndex(state_index)->SetType(then_state[state_index]->GetType());
+      }
+      destination->AddOperation(state_if);
+      std::vector<mlir::Value *> results;
+      results.reserve(then_state.size());
+      for (size_t state_index = 0; state_index < then_state.size(); ++state_index) {
+        results.emplace_back(state_if->GetResultByIndex(state_index));
+      }
+      return results;
+    }
+    destination->AddOperation(CloneOperation(operation));
+  }
+  throw std::logic_error("tail-recursive terminal block did not produce a state");
+}
+
+auto MLIRTailRecursionEliminatePass::RewriteMultiExitTailRecursion(mlir::func::FuncDefOp *func_op) -> bool {
+  if (func_op->GetReturnType() == nullptr || func_op->GetReturnType()->GetKind() != type::TypeKind::INT) {
     return false;
   }
-  return RewriteTailRecursion(func_op, pattern);
+  bool saw_tail = false;
+  if (!IsTerminalTailBlock(func_op->GetEntryBlock(), func_op, &saw_tail) || !saw_tail) {
+    return false;
+  }
+
+  auto arguments = func_op->GetArguments();
+  auto *one = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), 1);
+  one->GetRes()->SetType(GET_TYPE_CONTEXT()->GetIntegerType());
+  auto *active = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(
+      GET_MLIR_CONTEXT(), one->GetRes(), GET_TYPE_CONTEXT()->GetIntegerType(), GET_TYPE_CONTEXT()->GetBooleanType());
+  auto *zero = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), 0);
+  zero->GetRes()->SetType(GET_TYPE_CONTEXT()->GetIntegerType());
+  auto *stopped = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(
+      GET_MLIR_CONTEXT(), zero->GetRes(), GET_TYPE_CONTEXT()->GetIntegerType(), GET_TYPE_CONTEXT()->GetBooleanType());
+  tail_continue_ = active->GetRes();
+  tail_stop_ = stopped->GetRes();
+
+  auto *cond_region = new mlir::Region();
+  auto *cond_block = new mlir::Block();
+  cond_region->blocks_.emplace_back(cond_block);
+  auto *body_region = new mlir::Region();
+  auto *body_block = new mlir::Block();
+  body_region->blocks_.emplace_back(body_block);
+
+  std::vector<mlir::Value *> loop_args;
+  std::vector<mlir::Value *> initial_values = arguments;
+  initial_values.emplace_back(tail_continue_);
+  initial_values.emplace_back(zero->GetRes());
+  loop_args.reserve(initial_values.size());
+  for (auto *initial : initial_values) {
+    auto *loop_arg = CloneValue(initial);
+    cond_block->AddArgument(loop_arg);
+    body_block->AddArgument(loop_arg);
+    loop_args.emplace_back(loop_arg);
+  }
+  auto *condition = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::ConditionOp>(
+      GET_MLIR_CONTEXT(), loop_args[arguments.size()], std::unordered_map<symboltable::VarEntry *, mlir::Value *>{});
+  condition->SetLoopCarriedValues(loop_args, initial_values);
+  cond_block->AddOperation(condition);
+
+  value_map_.clear();
+  std::vector<mlir::Value *> current_args;
+  for (size_t index = 0; index < arguments.size(); ++index) {
+    value_map_[arguments[index]] = loop_args[index];
+    current_args.emplace_back(loop_args[index]);
+  }
+  auto next_state = BuildTailState(func_op->GetEntryBlock(), body_block, func_op, current_args, loop_args.back());
+  body_block->AddOperation(GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::YieldOp>(GET_MLIR_CONTEXT(), next_state));
+
+  auto *while_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::WhileOp>(GET_MLIR_CONTEXT(), initial_values.size(),
+                                                                           cond_region, body_region);
+  for (size_t index = 0; index < initial_values.size(); ++index) {
+    while_op->GetResultByIndex(index)->SetType(initial_values[index]->GetType());
+  }
+  auto *return_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::func::ReturnOp>(
+      GET_MLIR_CONTEXT(), func_op->GetReturnType(), while_op->GetResultByIndex(initial_values.size() - 1));
+  func_op->GetEntryBlock()->operations_ = {one, active, zero, stopped, while_op, return_op};
+  return true;
 }
 
 auto MLIRTailRecursionEliminatePass::MatchTailRecursion(mlir::func::FuncDefOp *func_op,
@@ -248,7 +432,9 @@ auto MLIRTailRecursionEliminatePass::CanCloneOperation(mlir::Operation *operatio
          mlir::DynamicOrNull<mlir::arithm::LessOp>(operation) != nullptr ||
          mlir::DynamicOrNull<mlir::arithm::LessEqualOp>(operation) != nullptr ||
          mlir::DynamicOrNull<mlir::arithm::GreaterOp>(operation) != nullptr ||
-         mlir::DynamicOrNull<mlir::arithm::GreaterEqualOp>(operation) != nullptr;
+         mlir::DynamicOrNull<mlir::arithm::GreaterEqualOp>(operation) != nullptr ||
+         mlir::DynamicOrNull<mlir::var::VarGetPtrOp>(operation) != nullptr ||
+         mlir::DynamicOrNull<mlir::var::VarGetValOp>(operation) != nullptr;
 }
 
 auto MLIRTailRecursionEliminatePass::CloneOperation(mlir::Operation *operation) -> mlir::Operation * {
@@ -275,6 +461,24 @@ auto MLIRTailRecursionEliminatePass::CloneOperation(mlir::Operation *operation) 
     auto *new_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(
         GET_MLIR_CONTEXT(), RemapValue(cast_op->GetOperand()), cast_op->GetFromType(), cast_op->GetToType());
     value_map_[cast_op->GetRes()] = new_op->GetRes();
+    return new_op;
+  }
+  if (auto *get_ptr = mlir::DynamicOrNull<mlir::var::VarGetPtrOp>(operation)) {
+    std::vector<mlir::Value *> indices;
+    for (auto *index : get_ptr->GetIndices()) {
+      indices.emplace_back(RemapValue(index));
+    }
+    auto *new_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetPtrOp>(GET_MLIR_CONTEXT(),
+                                                                               RemapValue(get_ptr->GetPtr()), indices);
+    new_op->GetRes()->SetType(get_ptr->GetRes()->GetType());
+    value_map_[get_ptr->GetRes()] = new_op->GetRes();
+    return new_op;
+  }
+  if (auto *get_value = mlir::DynamicOrNull<mlir::var::VarGetValOp>(operation)) {
+    auto *new_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetValOp>(GET_MLIR_CONTEXT(),
+                                                                               RemapValue(get_value->GetPtr()));
+    new_op->GetRes()->SetType(get_value->GetRes()->GetType());
+    value_map_[get_value->GetRes()] = new_op->GetRes();
     return new_op;
   }
 
