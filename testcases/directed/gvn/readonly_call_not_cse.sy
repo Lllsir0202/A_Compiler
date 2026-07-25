@@ -1,0 +1,19 @@
+// Calls that read memory are not referentially transparent: an intervening
+// write can change the result even when the scalar arguments are identical.
+//! CHECK-COUNT: 3 :: base.call@read_global
+int state = 1;
+
+int read_global(int x) {
+    if (x == 0) {
+        return state;
+    }
+    return read_global(x - 1);
+}
+
+int main() {
+    int a = read_global(10);
+    state = 5;
+    int b = read_global(10);
+    putint(a + b);
+    return 0;
+}
