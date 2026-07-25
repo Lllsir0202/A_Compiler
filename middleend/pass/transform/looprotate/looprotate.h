@@ -37,8 +37,9 @@ namespace middleend::pass::transform {
  *
  * Only loops whose sole exit edge is the header test are rotated (loops with
  * `break` have several exits and are left untouched); the header must consist
- * of phis followed by pure, clonable operations. Nested loops are handled
- * innermost-first. Set LOOP_ROTATE=1 to enable.
+ * of phis followed by safely clonable operations. Nested loops are handled
+ * innermost-first. Scalar-only loops stay top-tested so SCEV can prefer a
+ * closed form over control-flow tuning.
  *
  * Reference: LLVM LoopRotate.
  */

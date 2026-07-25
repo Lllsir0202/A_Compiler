@@ -14,6 +14,7 @@ class Value;
 
 namespace middleend::pass::analysis {
 class AliasAnalysisPass;
+class FunctionSideEffectPass;
 class Loop;
 class LoopInfoPass;
 class MLIRFunctionCFG;
@@ -63,9 +64,11 @@ class LICMPass : public TransformPass {
   auto IsHoistable(mlir::Operation *operation, analysis::Loop *loop, const std::vector<mlir::Operation *> &loop_stores,
                    const std::vector<mlir::Operation *> &loop_calls) -> bool;
   auto IsSpeculatablePure(mlir::Operation *operation) -> bool;
+  auto IsMustExecuteTransparentCall(mlir::Operation *operation, analysis::Loop *loop) -> bool;
   auto Hoist(mlir::Operation *operation, mlir::Block *preheader) -> void;
 
   analysis::AliasAnalysisPass *alias_analysis_{nullptr};
+  analysis::FunctionSideEffectPass *side_effect_{nullptr};
   std::unordered_map<mlir::Operation *, mlir::Block *> op_to_block_;
   bool before_promotion_{false};
 };

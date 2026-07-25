@@ -1,5 +1,4 @@
 #include "middleend/pass/transform/looprotate/looprotate.h"
-#include <cstdlib>
 #include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
@@ -8,9 +7,12 @@
 #include "context/mlir_context.h"
 #include "middleend/mlir/dialect/base/binaryop.h"
 #include "middleend/mlir/dialect/base/branch.h"
+#include "middleend/mlir/dialect/base/funccall.h"
 #include "middleend/mlir/dialect/base/funcdef.h"
 #include "middleend/mlir/dialect/base/phi.h"
 #include "middleend/mlir/dialect/var/getptr.h"
+#include "middleend/mlir/dialect/var/getvalue.h"
+#include "middleend/mlir/dialect/var/set.h"
 #include "middleend/mlir/utils/operation/operation.h"
 #include "middleend/mlir/utils/struct/block.h"
 #include "middleend/mlir/utils/value/value.h"
@@ -64,8 +66,10 @@ auto PredecessorsOf(mlir::base::FuncDefOp *func_op, Block *target) -> std::vecto
 
 // The subset of BASEIR operations that may appear in a loop header and can be
 // re-executed once more in the guard without changing semantics: pure integer/
-// float arithmetic, comparisons, and address computation. Loads/stores/calls
-// are never cloned (a header holding one blocks rotation).
+// float arithmetic, comparisons, address computation, and ordinary loads.
+// A header load is safe to move into the guard: the unrotated header executes
+// the same load before deciding whether the loop is empty, and SysY has no
+// volatile memory. Stores and calls are never cloned.
 auto IsPureClonable(Operation *op) -> bool {
   return DynamicOrNull<mlir::base::AddOp>(op) != nullptr || DynamicOrNull<mlir::base::SubOp>(op) != nullptr ||
          DynamicOrNull<mlir::base::MulOp>(op) != nullptr || DynamicOrNull<mlir::base::DivOp>(op) != nullptr ||
@@ -79,7 +83,7 @@ auto IsPureClonable(Operation *op) -> bool {
          DynamicOrNull<mlir::base::LessEqualFOp>(op) != nullptr ||
          DynamicOrNull<mlir::base::GreaterFOp>(op) != nullptr ||
          DynamicOrNull<mlir::base::GreaterEqualFOp>(op) != nullptr ||
-         DynamicOrNull<mlir::var::VarGetPtrOp>(op) != nullptr;
+         DynamicOrNull<mlir::var::VarGetPtrOp>(op) != nullptr || DynamicOrNull<mlir::var::VarGetValOp>(op) != nullptr;
 }
 
 // Clone a pure header op into the preheader guard, remapping operands through
@@ -103,6 +107,13 @@ auto CloneGuardOp(context::MLIRContext *ctx, Operation *op,
     for (size_t i = 0; i < clone->operands_.size(); ++i) {
       clone->operands_[i]->AddUse(clone, i);
     }
+    return clone;
+  }
+  if (auto *get_value = DynamicOrNull<mlir::var::VarGetValOp>(op)) {
+    auto *clone = ctx->CreateOperation<mlir::var::VarGetValOp>(ctx, remap(get_value->GetPtr()));
+    clone->GetRes()->SetType(get_value->GetRes()->GetType());
+    (*value_map)[get_value->GetRes()] = clone->GetRes();
+    clone->GetPtr()->AddUse(clone, 0);
     return clone;
   }
 
@@ -153,14 +164,6 @@ auto CloneGuardOp(context::MLIRContext *ctx, Operation *op,
 }  // namespace
 
 auto LoopRotatePass::Run() -> void {
-  // Opt-in (default OFF): SCEV, DeadLoopElim and StrengthReduce now handle the rotated IV/trip-count
-  // shape, and LOOP_ROTATE=1 passes the directed and SysY functional suites. On the riscv dynamic
-  // instruction benchmark it is still neutral overall with a few stable regressions from the extra
-  // guard/control-flow structure, so keep it behind LOOP_ROTATE until the remaining profitability
-  // gaps are closed.
-  if (std::getenv("LOOP_ROTATE") == nullptr) {
-    return;
-  }
   PreRun();
 
   auto *cfg_pass = GET_PASS_CONTEXT()->GetSpecPass<analysis::CFGPass>("CFGPass");
@@ -196,6 +199,29 @@ auto LoopRotatePass::TryRotate(mlir::base::FuncDefOp *func_op, analysis::Loop *l
   }
   auto *cond_br = DynamicOrNull<CondBrOp>(Terminator(header));
   if (cond_br == nullptr) {
+    return false;
+  }
+
+  // Keep scalar-only recurrences in their canonical top-tested form for SCEV,
+  // strength reduction and closed-form dead-loop elimination. In particular,
+  // repeated division loops are much cheaper to remove than to rotate. Loops
+  // that touch memory or call functions are expected to remain as loops and
+  // benefit from a bottom test and a guarded, must-execute LICM preheader.
+  bool contains_memory_or_call = false;
+  for (auto *block : loop->GetBlocks()) {
+    for (auto *operation : block->operations_) {
+      if (DynamicOrNull<mlir::var::VarGetValOp>(operation) != nullptr ||
+          DynamicOrNull<mlir::var::VarSetOp>(operation) != nullptr ||
+          DynamicOrNull<mlir::base::FuncCallOp>(operation) != nullptr) {
+        contains_memory_or_call = true;
+        break;
+      }
+    }
+    if (contains_memory_or_call) {
+      break;
+    }
+  }
+  if (!contains_memory_or_call) {
     return false;
   }
   auto *true_target = cond_br->GetTrueTarget();
