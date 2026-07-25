@@ -395,6 +395,7 @@ auto PromotionPass::Promote(analysis::DomTree *dom_tree, analysis::Loop *loop, c
         value->RemoveUse(phi);
       }
       entry.second->RemoveOperation(phi);
+      op_to_block_.erase(entry.first);
       removed.insert(entry.first);
       changed = true;
     }
@@ -404,6 +405,7 @@ auto PromotionPass::Promote(analysis::DomTree *dom_tree, analysis::Loop *loop, c
   if (seed_load->GetRes()->GetUses().empty()) {
     promoted_pointer_->RemoveUse(seed_load);
     preheader->RemoveOperation(seed_load);
+    op_to_block_.erase(seed_load);
   }
 }
 
