@@ -49,7 +49,9 @@ class RISCVPeephole : public MachineFunctionPass {
   auto TransformInst(TargetInst *inst) -> bool;
 
   std::unordered_map<TargetOperand *, int> def_count_;
+  std::unordered_map<TargetOperand *, int> use_count_;
   std::unordered_map<TargetOperand *, int> li_value_;
+  std::unordered_map<TargetOperand *, TargetInst *> defining_inst_;
 };
 
 }  // namespace backend::targetir::riscv

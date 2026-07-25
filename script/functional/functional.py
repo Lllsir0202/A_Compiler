@@ -122,19 +122,34 @@ def execute_ir(input, output, opt, stdin, stdout, testout, arch="x86"):
         print(f"\033[91mWrong Answer on \033[0m{input}")
         return 0
 
-def execute_asm(input, output, opt, stdin, stdout, testout):
+def execute_asm(input, output, opt, stdin, stdout, testout, arch):
     """run assembly-related commands"""
-    result = execute(["timeout", "60", "../../bin/compiler", input, "-S", "-o", output, opt])
+    if arch == "rv":
+        target_flag = "-riscv"
+        gcc = "riscv64-linux-gnu-gcc"
+        qemu = "qemu-riscv64"
+    elif arch == "arm":
+        target_flag = "-aarch64"
+        gcc = "aarch64-linux-gnu-gcc"
+        qemu = "qemu-aarch64"
+    else:
+        print(f"\033[93mUnsupported assembly target on \033[0m{input}: {arch}")
+        return 0
+
+    result = execute(["timeout", "60", "../../bin/compiler", input, "-S", target_flag, "-o", output, opt])
     if result.returncode != 0:
         print(f"\033[93mCompile Error on \033[0m{input}")
         return 0
 
-    result = execute(["riscv64-unknown-linux-gnu-gcc", output, "-c", "-o", "../../tmp.o", "-w"])
+    result = execute([gcc, output, "-c", "-o", "../../tmp.o", "-w"])
     if result.returncode != 0:
         print(f"\033[93mOutput Error on \033[0m{input}")
         return 0
 
-    result = execute(["riscv64-unknown-linux-gnu-gcc", "-static", "../../tmp.o", "-L../../libs", "-lsysy_riscv", "-mcmodel=medany"])
+    result = execute([
+        gcc, "-static", "../../tmp.o", "../../libs/sylib.c",
+        "-I", "../../libs", "-o", "a.out", "-mcmodel=medany"
+    ])
     if result.returncode != 0:
         execute(["rm", "-rf", "../../tmp.o"])
         print(f"\033[93mLink Error on \033[0m{input}")
@@ -144,9 +159,9 @@ def execute_asm(input, output, opt, stdin, stdout, testout):
 
     result = 0
     if stdin == "none":
-        result = execute_with_stdin_out(f"timeout 60 qemu-riscv64 ./a.out > {testout} 2>/dev/null")
+        result = execute_with_stdin_out(f"timeout 60 {qemu} ./a.out > {testout} 2>/dev/null")
     else:
-        result = execute_with_stdin_out(f"timeout 60 qemu-riscv64 ./a.out < {stdin} > {testout} 2>/dev/null")
+        result = execute_with_stdin_out(f"timeout 60 {qemu} ./a.out < {stdin} > {testout} 2>/dev/null")
 
     if result == 124:
         print(f"\033[93mTime Limit Exceed on \033[0m{input}")
@@ -203,7 +218,7 @@ def main():
             elif step == "llvm":
                 ac += execute_ir(os.path.join(input_folder, file), os.path.join(output_folder, f"{name}.ll"), opt_arg, input_file if os.path.exists(input_file) else "none", output_file, "tmp.out", arch)
             elif step == "S":
-                ac += execute_asm(os.path.join(input_folder, file), os.path.join(output_folder, f"{name}.s"), opt_arg, input_file if os.path.exists(input_file) else "none", output_file, "tmp.out")
+                ac += execute_asm(os.path.join(input_folder, file), os.path.join(output_folder, f"{name}.s"), opt_arg, input_file if os.path.exists(input_file) else "none", output_file, "tmp.out", arch)
     
     print(f"{step.upper()} Test Grade: {ac}/{total}")
     if os.path.exists("tmp.out"):
