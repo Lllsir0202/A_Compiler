@@ -70,6 +70,9 @@ auto LowerHelper::LowerDispatch(mlir::Operation *op) -> void {
     LOWER_DISPATCH(mlir::base::MulOp, MulOp)
     LOWER_DISPATCH(mlir::base::DivOp, DivOp)
     LOWER_DISPATCH(mlir::base::ModOp, ModOp)
+    LOWER_DISPATCH(mlir::base::ShlOp, ShlOp)
+    LOWER_DISPATCH(mlir::base::LShrOp, LShrOp)
+    LOWER_DISPATCH(mlir::base::AShrOp, AShrOp)
     LOWER_DISPATCH(mlir::base::AddFOp, AddFOp)
     LOWER_DISPATCH(mlir::base::SubFOp, SubFOp)
     LOWER_DISPATCH(mlir::base::MulFOp, MulFOp)
@@ -296,6 +299,9 @@ LOWER_BINARY_OP(Sub);
 LOWER_BINARY_OP(Mul);
 LOWER_BINARY_OP(Div);
 LOWER_BINARY_OP(Mod);
+LOWER_BINARY_OP(Shl);
+LOWER_BINARY_OP(LShr);
+LOWER_BINARY_OP(AShr);
 // Float
 LOWER_BINARY_OP(AddF);
 LOWER_BINARY_OP(SubF);

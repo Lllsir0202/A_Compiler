@@ -44,6 +44,9 @@ auto LowerHelper::LowerDispatch(middleend::llvm::inst::Instruction *inst) -> voi
     DISPATCH_LOWERING(MulInst)
     DISPATCH_LOWERING(DivInst)
     DISPATCH_LOWERING(ModInst)
+    DISPATCH_LOWERING(ShlInst)
+    DISPATCH_LOWERING(LShrInst)
+    DISPATCH_LOWERING(AShrInst)
     DISPATCH_LOWERING(AddFInst)
     DISPATCH_LOWERING(SubFInst)
     DISPATCH_LOWERING(MulFInst)
@@ -271,6 +274,9 @@ LOWER_BINARY_INST(MulFInst)
 LOWER_BINARY_INST(DivInst)
 LOWER_BINARY_INST(DivFInst)
 LOWER_BINARY_INST(ModInst)
+LOWER_BINARY_INST(ShlInst)
+LOWER_BINARY_INST(LShrInst)
+LOWER_BINARY_INST(AShrInst)
 
 auto LowerHelper::LowerICmpInst(middleend::llvm::inst::ICmpInst *icmp_inst) -> void {
   auto predicate = inst::CmpPredicateFromLLVM(icmp_inst->GetPredicate());

@@ -17,7 +17,7 @@ class Loop;
  * on it, while `DynamicOrNull`-style dynamic_cast still works for typed access; this mirrors how
  * the rest of the IR identifies operations.
  */
-enum class SCEVKind : uint8_t { Constant, Unknown, Add, Mul, AddRec, Div, SMax, UMin };
+enum class SCEVKind : uint8_t { Constant, Unknown, Add, Mul, AddRec, Div, RepeatedDiv, SMax, UMin };
 
 /**
  * @brief Base class of every scalar-evolution expression. Nodes are immutable after construction,
@@ -152,6 +152,42 @@ class SCEVDivExpr : public SCEV {
   SCEVDivExpr(const SCEV *lhs, const SCEV *rhs, type::Type *type) : SCEV(SCEVKind::Div, type), lhs_(lhs), rhs_(rhs) {}
   const SCEV *lhs_;
   const SCEV *rhs_;
+};
+
+/**
+ * @brief Repeated signed division by a positive power of two.
+ *
+ * The recurrence form has no iteration expression and denotes
+ * `start / 2^(base_shift + step_shift * i)` in `loop`. EvaluateAtIteration
+ * supplies the iteration expression and produces a closed form. Keeping this
+ * as a first-class SCEV avoids pretending that truncating division is an
+ * additive recurrence while still allowing a dead, value-producing loop to
+ * be closed exactly.
+ */
+class SCEVRepeatedDivExpr : public SCEV {
+ public:
+  auto GetStart() const -> const SCEV * { return start_; }
+  auto GetIteration() const -> const SCEV * { return iteration_; }
+  auto GetLoop() const -> Loop * { return loop_; }
+  auto GetBaseShift() const -> int { return base_shift_; }
+  auto GetStepShift() const -> int { return step_shift_; }
+  auto IsClosed() const -> bool { return iteration_ != nullptr; }
+
+ private:
+  friend class SCEVPass;
+  SCEVRepeatedDivExpr(const SCEV *start, const SCEV *iteration, int base_shift, int step_shift, Loop *loop,
+                      type::Type *type)
+      : SCEV(SCEVKind::RepeatedDiv, type),
+        start_(start),
+        iteration_(iteration),
+        loop_(loop),
+        base_shift_(base_shift),
+        step_shift_(step_shift) {}
+  const SCEV *start_;
+  const SCEV *iteration_;
+  Loop *loop_;
+  int base_shift_;
+  int step_shift_;
 };
 
 }  // namespace middleend::pass::analysis

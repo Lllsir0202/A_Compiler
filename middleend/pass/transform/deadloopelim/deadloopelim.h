@@ -60,8 +60,8 @@ class DeadLoopEliminatePass : public TransformPass {
   auto Name() const -> std::string override { return "DeadLoopEliminatePass"; }
 
  private:
-  auto TryDeleteLoop(analysis::MLIRFunctionCFG *function_cfg, mlir::base::FuncDefOp *func_op, analysis::Loop *loop)
-      -> bool;
+  auto TryDeleteLoop(analysis::MLIRFunctionCFG *function_cfg, mlir::base::FuncDefOp *func_op,
+                     analysis::Loop *loop) -> bool;
   auto FindPreheader(analysis::MLIRFunctionCFG *function_cfg, analysis::Loop *loop) -> mlir::Block *;
 
   // The single block outside `loop` that the header branches to on its exit edge, or nullptr when the
@@ -75,6 +75,10 @@ class DeadLoopEliminatePass : public TransformPass {
   auto MakeConstInt(int value, mlir::Block *at) -> mlir::Value *;
   template <typename BinaryOp>
   auto MakeBinary(mlir::Value *lhs, mlir::Value *rhs, mlir::Block *at) -> mlir::Value *;
+  template <typename CompareOp>
+  auto MakeComparison(mlir::Value *lhs, mlir::Value *rhs, mlir::Block *at) -> mlir::Value *;
+  auto MakeBoolToInt(mlir::Value *value, mlir::Block *at) -> mlir::Value *;
+  auto ExpandRepeatedDiv(const analysis::SCEV *scev, mlir::Block *at) -> mlir::Value *;
   auto InsertBeforeTerminator(mlir::Operation *operation, mlir::Block *block) -> void;
 
   analysis::SCEVPass *scev_{nullptr};

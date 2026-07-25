@@ -78,6 +78,8 @@ class SCEVPass : public AnalysisPass {
   auto GetAddExpr(std::vector<const SCEV *> operands) -> const SCEV *;
   auto GetMulExpr(std::vector<const SCEV *> operands) -> const SCEV *;
   auto GetDivExpr(const SCEV *lhs, const SCEV *rhs) -> const SCEV *;
+  auto GetRepeatedDivExpr(const SCEV *start, const SCEV *iteration, int base_shift, int step_shift,
+                          Loop *loop) -> const SCEV *;
   auto GetSMaxExpr(std::vector<const SCEV *> operands) -> const SCEV *;
   auto GetUMinExpr(std::vector<const SCEV *> operands) -> const SCEV *;
   // Affine recurrence {start, +, step}; the chain form is built internally from a vector.
@@ -99,6 +101,7 @@ class SCEVPass : public AnalysisPass {
   auto CreateSCEV(mlir::Value *value) -> const SCEV *;
   auto CreateSCEVForOperation(mlir::Operation *op, mlir::Value *result) -> const SCEV *;
   auto CreateAddRecFromPhi(mlir::base::PhiOp *phi, Loop *loop) -> const SCEV *;
+  auto MatchRepeatedPowerOfTwoDiv(const SCEV *scev, const SCEV *symbol, int *total_shift) -> bool;
 
   auto ComputeBackedgeTakenCount(Loop *loop) -> const SCEV *;
   auto ComputeExitCount(Loop *loop, mlir::Block *exiting) -> const SCEV *;

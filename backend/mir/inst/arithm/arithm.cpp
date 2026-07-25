@@ -455,4 +455,46 @@ auto DivFInst::Emit(std::ofstream *out) const -> void {
   *out << "\n";
 }
 
+#define DEFINE_SHIFT_MIR_INST(NAME, MNEMONIC)                                                               \
+  auto NAME##Inst::Verify(context::CompilerContext *context) const->bool {                                  \
+    if (result_ == nullptr || !result_->IsRegister() || operands_.size() != 2 || operands_[0] == nullptr || \
+        operands_[1] == nullptr) {                                                                          \
+      context->Print(#NAME " instruction has invalid operands or result\n");                                \
+      return false;                                                                                         \
+    }                                                                                                       \
+    if (GetParentBlock() == nullptr || result_->GetDefInst() != this) {                                     \
+      context->Print(#NAME " instruction is not attached consistently\n");                                  \
+      return false;                                                                                         \
+    }                                                                                                       \
+    return operands_[0]->IsInt() && operands_[1]->IsInt();                                                  \
+  }                                                                                                         \
+                                                                                                            \
+  auto NAME##Inst::Create(context::MIRContext *context, utils::Operand *operand1, utils::Operand *operand2) \
+      ->NAME##Inst * {                                                                                      \
+    auto *instruction = new NAME##Inst();                                                                   \
+    instruction->operands_.reserve(2);                                                                      \
+    instruction->AddOperand(operand1);                                                                      \
+    instruction->AddOperand(operand2);                                                                      \
+    auto *result = context->GetNewRegOperand(context->GetIntegerType());                                    \
+    instruction->SetResult(result);                                                                         \
+    result->SetDefInst(instruction);                                                                        \
+    return instruction;                                                                                     \
+  }                                                                                                         \
+                                                                                                            \
+  auto NAME##Inst::Emit(std::ofstream *out) const->void {                                                   \
+    *out << "  ";                                                                                           \
+    result_->Emit(out);                                                                                     \
+    *out << " = " MNEMONIC " ";                                                                             \
+    operands_[0]->Emit(out);                                                                                \
+    *out << ", ";                                                                                           \
+    operands_[1]->Emit(out);                                                                                \
+    *out << "\n";                                                                                           \
+  }
+
+DEFINE_SHIFT_MIR_INST(Shl, "shl")
+DEFINE_SHIFT_MIR_INST(LShr, "lshr")
+DEFINE_SHIFT_MIR_INST(AShr, "ashr")
+
+#undef DEFINE_SHIFT_MIR_INST
+
 }  // namespace backend::inst
