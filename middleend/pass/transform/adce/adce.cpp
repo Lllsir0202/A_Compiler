@@ -66,6 +66,7 @@ auto ADCEPass::RunOnFunction(analysis::MLIRFunctionCFG *function_cfg, analysis::
     }
   }
 
+  BuildControlDependence();
   CollectRootOperations();
   PropagateLiveness();
 
@@ -269,45 +270,47 @@ auto ADCEPass::MarkPhiPredecessorsLive(mlir::Operation *operation) -> void {
   }
 }
 
-auto ADCEPass::MarkControlDependentBranches() -> void {
-  while (!new_live_blocks_.empty()) {
-    auto *live_node = new_live_blocks_.front();
-    new_live_blocks_.pop_front();
-    for (auto *cfg_node : current_function_cfg_->GetNodes()) {
-      auto *mlir_cfg_node = dynamic_cast<analysis::MLIRCFGNode *>(cfg_node);
-      if (mlir_cfg_node == nullptr) {
-        throw std::logic_error("ADCEPass only supports MLIRCFGNode");
+auto ADCEPass::BuildControlDependence() -> void {
+  for (auto *cfg_node : current_function_cfg_->GetNodes()) {
+    auto *mlir_cfg_node = dynamic_cast<analysis::MLIRCFGNode *>(cfg_node);
+    if (mlir_cfg_node == nullptr) {
+      throw std::logic_error("ADCEPass only supports MLIRCFGNode");
+    }
+    auto *terminator = GetTerminator(mlir_cfg_node->GetBlock());
+    if (mlir::DynamicOrNull<mlir::base::CondBrOp>(terminator) == nullptr) {
+      continue;
+    }
+    auto *branch_dom_node = current_post_dom_tree_->GetDomTreeNode(cfg_node);
+    if (branch_dom_node == nullptr) {
+      continue;
+    }
+    auto *ipdom = branch_dom_node->GetIDom();
+    std::unordered_set<analysis::CFGNode *> dependent_nodes;
+    for (auto *successor : cfg_node->GetSuccessors()) {
+      auto *cursor = current_post_dom_tree_->GetDomTreeNode(successor);
+      while (cursor != nullptr && cursor != ipdom) {
+        dependent_nodes.insert(cursor->GetCFGNode());
+        cursor = cursor->GetIDom();
       }
-      auto *terminator = GetTerminator(mlir_cfg_node->GetBlock());
-      if (mlir::DynamicOrNull<mlir::base::CondBrOp>(terminator) == nullptr) {
-        continue;
-      }
-      if (live_operations_.count(terminator) > 0) {
-        continue;
-      }
-      if (IsControlDependent(cfg_node, live_node)) {
-        MarkOperationLive(terminator);
-      }
+    }
+    for (auto *dependent_node : dependent_nodes) {
+      controlling_branches_[dependent_node].emplace_back(terminator);
     }
   }
 }
 
-auto ADCEPass::IsControlDependent(analysis::CFGNode *branch_node, analysis::CFGNode *live_node) -> bool {
-  auto *branch_dom_node = current_post_dom_tree_->GetDomTreeNode(branch_node);
-  if (branch_dom_node == nullptr) {
-    return false;
-  }
-  auto *ipdom = branch_dom_node->GetIDom();
-  for (auto *successor : branch_node->GetSuccessors()) {
-    auto *cursor = current_post_dom_tree_->GetDomTreeNode(successor);
-    while (cursor != nullptr && cursor != ipdom) {
-      if (cursor->GetCFGNode() == live_node) {
-        return true;
-      }
-      cursor = cursor->GetIDom();
+auto ADCEPass::MarkControlDependentBranches() -> void {
+  while (!new_live_blocks_.empty()) {
+    auto *live_node = new_live_blocks_.front();
+    new_live_blocks_.pop_front();
+    auto iter = controlling_branches_.find(live_node);
+    if (iter == controlling_branches_.end()) {
+      continue;
+    }
+    for (auto *terminator : iter->second) {
+      MarkOperationLive(terminator);
     }
   }
-  return false;
 }
 
 auto ADCEPass::RewriteDeadTerminators() -> bool {
@@ -465,6 +468,7 @@ auto ADCEPass::ResetFunctionState() -> void {
   current_function_cfg_ = nullptr;
   current_post_dom_tree_ = nullptr;
   operation_to_block_.clear();
+  controlling_branches_.clear();
   live_operations_.clear();
   live_blocks_.clear();
   live_worklist_.clear();

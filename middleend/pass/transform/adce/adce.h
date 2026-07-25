@@ -40,8 +40,8 @@ class ADCEPass : public TransformPass {
   auto MarkOperationLive(mlir::Operation *operation) -> void;
   auto MarkBlockLive(analysis::CFGNode *cfg_node) -> void;
   auto MarkPhiPredecessorsLive(mlir::Operation *operation) -> void;
+  auto BuildControlDependence() -> void;
   auto MarkControlDependentBranches() -> void;
-  auto IsControlDependent(analysis::CFGNode *branch_node, analysis::CFGNode *live_node) -> bool;
   auto RewriteDeadTerminators() -> bool;
   auto RemoveDeadOperations() -> bool;
   auto RemoveUnreachableBlocks() -> bool;
@@ -56,6 +56,7 @@ class ADCEPass : public TransformPass {
   analysis::MLIRFunctionCFG *current_function_cfg_{nullptr};
   analysis::DomTree *current_post_dom_tree_{nullptr};
   std::unordered_map<mlir::Operation *, mlir::Block *> operation_to_block_;
+  std::unordered_map<analysis::CFGNode *, std::vector<mlir::Operation *>> controlling_branches_;
   std::unordered_set<mlir::Operation *> live_operations_;
   std::unordered_set<analysis::CFGNode *> live_blocks_;
   std::deque<mlir::Operation *> live_worklist_;
