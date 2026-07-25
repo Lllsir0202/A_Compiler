@@ -56,6 +56,9 @@ class AliasAnalysisPass : public AnalysisPass {
   struct MemoryObject {
     ObjectKind kind{ObjectKind::Unknown};
     mlir::Value *root{nullptr};
+    // A phi can prove the underlying object while leaving the concrete
+    // address path-dependent. Such a fact is valid for NoAlias, not MustAlias.
+    bool via_phi{false};
   };
 
   // Base object a pointer is derived from (follows getptr/copy chains and pointer

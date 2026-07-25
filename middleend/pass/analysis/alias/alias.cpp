@@ -265,7 +265,11 @@ auto AliasAnalysisPass::ResolveBaseObject(mlir::Value *pointer,
           return {ObjectKind::Unknown, current};
         }
       }
-      return have_common ? common : MemoryObject{ObjectKind::Unknown, current};
+      if (!have_common) {
+        return {ObjectKind::Unknown, current};
+      }
+      common.via_phi = true;
+      return common;
     }
     return {ObjectKind::Unknown, current};
   }
@@ -282,7 +286,11 @@ auto AliasAnalysisPass::Alias(mlir::Value *lhs, mlir::Value *rhs) -> AliasResult
   auto rhs_object = GetBaseObject(rhs);
   if (lhs_object.kind != ObjectKind::Unknown && lhs_object.kind == rhs_object.kind &&
       lhs_object.root == rhs_object.root) {
-    return SameObjectAlias(lhs, rhs);
+    auto result = SameObjectAlias(lhs, rhs);
+    if (result == AliasResult::MustAlias && (lhs_object.via_phi || rhs_object.via_phi)) {
+      return AliasResult::MayAlias;
+    }
+    return result;
   }
   if (lhs_object.kind == ObjectKind::Param && rhs_object.kind == ObjectKind::Param &&
       AreProvenNoAliasParameters(lhs_object.root, rhs_object.root)) {
