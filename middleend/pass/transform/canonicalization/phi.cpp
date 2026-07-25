@@ -36,6 +36,39 @@ auto PhiCanonicalizationPass::CanonicalizePhiInFunction() -> void {
   auto cfgs = cfgpass->Get();
   for (auto cfg : cfgs) {
     if (auto mlir_cfg = dynamic_cast<analysis::MLIRFunctionCFG *>(cfg)) {
+      // Several CFG transforms construct or redirect operands directly. Rebuild
+      // local SSA use-lists from the authoritative forward operands before
+      // replacing trivial phis, otherwise a stale list can leave a removed phi
+      // referenced by a branch or another phi.
+      std::unordered_set<mlir::Value *> local_values;
+      for (auto *cfg_node : mlir_cfg->GetNodes()) {
+        auto *mlir_node = dynamic_cast<analysis::MLIRCFGNode *>(cfg_node);
+        if (mlir_node == nullptr) {
+          throw std::logic_error("Unsupported CFG node type in PhiCanonicalizationPass");
+        }
+        for (auto *operation : mlir_node->GetBlock()->operations_) {
+          for (auto *result : operation->results_) {
+            if (result != nullptr) {
+              local_values.insert(result);
+            }
+          }
+        }
+      }
+      for (auto *value : local_values) {
+        value->ClearUses();
+      }
+      for (auto *cfg_node : mlir_cfg->GetNodes()) {
+        auto *mlir_node = static_cast<analysis::MLIRCFGNode *>(cfg_node);
+        for (auto *operation : mlir_node->GetBlock()->operations_) {
+          for (size_t index = 0; index < operation->operands_.size(); ++index) {
+            auto *operand = operation->operands_[index];
+            if (local_values.count(operand) > 0) {
+              operand->AddUse(operation, index);
+            }
+          }
+        }
+      }
+
       // Update and canonicalize phi nodes in the block
       // Deal with phi nodes per function basis.
       std::unordered_set<mlir::Operation *> to_remove_ops;

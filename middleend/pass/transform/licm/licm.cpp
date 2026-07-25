@@ -6,6 +6,7 @@
 #include "middleend/mlir/dialect/base/binaryop.h"
 #include "middleend/mlir/dialect/base/cast.h"
 #include "middleend/mlir/dialect/base/funccall.h"
+#include "middleend/mlir/dialect/base/phi.h"
 #include "middleend/mlir/dialect/base/unaryop.h"
 #include "middleend/mlir/dialect/func/funccall.h"
 #include "middleend/mlir/dialect/var/getptr.h"
@@ -18,6 +19,7 @@
 #include "middleend/pass/analysis/cfg/cfg.h"
 #include "middleend/pass/analysis/cfg/mlircfg.h"
 #include "middleend/pass/analysis/loopinfo/loopinfo.h"
+#include "middleend/pass/analysis/sideeffect/sideeffect.h"
 
 #define GET_PASS_CONTEXT() compiler_context_->GetPassContext()
 
@@ -41,7 +43,8 @@ auto LICMPass::Run() -> void {
   auto *loop_info = GET_PASS_CONTEXT()->GetSpecPass<analysis::LoopInfoPass>("LoopInfoPass");
   const char *alias_pass_name = before_promotion_ ? "PrePromotionAliasAnalysisPass" : "AliasAnalysisPass";
   alias_analysis_ = GET_PASS_CONTEXT()->GetSpecPass<analysis::AliasAnalysisPass>(alias_pass_name);
-  if (cfg_pass == nullptr || loop_info == nullptr || alias_analysis_ == nullptr) {
+  side_effect_ = alias_analysis_ == nullptr ? nullptr : alias_analysis_->GetSideEffect();
+  if (cfg_pass == nullptr || loop_info == nullptr || alias_analysis_ == nullptr || side_effect_ == nullptr) {
     throw std::logic_error("LICMPass requires CFGPass, LoopInfoPass and AliasAnalysisPass");
   }
 
@@ -109,8 +112,9 @@ auto LICMPass::RunOnLoop(analysis::MLIRFunctionCFG *function_cfg, analysis::Loop
     return false;
   }
 
-  // Memory writes of the loop are fixed (stores/calls are never hoisted); collect them once so a
-  // load can be tested against them for invariance.
+  // Memory writes of the loop are fixed; collect them once so a load can be
+  // tested against them for invariance. Referentially transparent calls may
+  // later be hoisted, but their mod/ref result is already NoModRef.
   std::vector<mlir::Operation *> loop_stores;
   std::vector<mlir::Operation *> loop_calls;
   for (auto *block : loop->GetBlocks()) {
@@ -179,6 +183,12 @@ auto LICMPass::IsHoistable(mlir::Operation *operation, analysis::Loop *loop,
     return false;
   }
 
+  if (IsCall(operation)) {
+    return IsMustExecuteTransparentCall(operation, loop) &&
+           std::all_of(operation->operands_.begin(), operation->operands_.end(),
+                       [&](mlir::Value *operand) { return IsInvariant(operand, loop); });
+  }
+
   if (IsLoad(operation)) {
     auto *load_op = mlir::DynamicOrNull<mlir::var::VarGetValOp>(operation);
     auto *pointer = load_op->GetPtr();
@@ -201,6 +211,35 @@ auto LICMPass::IsHoistable(mlir::Operation *operation, analysis::Loop *loop,
   }
   return std::all_of(operation->operands_.begin(), operation->operands_.end(),
                      [&](mlir::Value *operand) { return IsInvariant(operand, loop); });
+}
+
+auto LICMPass::IsMustExecuteTransparentCall(mlir::Operation *operation, analysis::Loop *loop) -> bool {
+  auto *call = mlir::DynamicOrNull<mlir::base::FuncCallOp>(operation);
+  if (call == nullptr || !side_effect_->IsReferentiallyTransparent(call->GetName())) {
+    return false;
+  }
+
+  auto block_iter = op_to_block_.find(operation);
+  if (block_iter == op_to_block_.end() || block_iter->second != loop->GetHeader()) {
+    return false;
+  }
+
+  // A rotated loop enters directly through its body/header, so every operation
+  // in that block executes at least once. Do not move a potentially diverging
+  // pure call ahead of an earlier observable operation.
+  for (auto *earlier : block_iter->second->operations_) {
+    if (earlier == operation) {
+      return true;
+    }
+    if (Is<mlir::base::PhiOp>(earlier) || IsLoad(earlier) || IsSpeculatablePure(earlier)) {
+      continue;
+    }
+    auto *earlier_call = mlir::DynamicOrNull<mlir::base::FuncCallOp>(earlier);
+    if (earlier_call == nullptr || !side_effect_->IsReferentiallyTransparent(earlier_call->GetName())) {
+      return false;
+    }
+  }
+  return false;
 }
 
 auto LICMPass::IsSpeculatablePure(mlir::Operation *operation) -> bool {

@@ -444,6 +444,10 @@ auto AliasAnalysisPass::CallModRefPrecise(mlir::Operation *call, mlir::Value *po
     else if (auto *fc = mlir::DynamicOrNull<mlir::func::FuncCallOp>(call))
       callee = fc->GetName();
     if (!callee.empty() && side_effect_->HasSummary(callee)) {
+      // The recursive-SCC memory summary is deliberately conservative, while
+      // the separate greatest-fixed-point transparency analysis can still
+      // prove a scalar recursive SCC touches no memory at all.
+      if (side_effect_->IsReferentiallyTransparent(callee)) return false;
       const auto &s = side_effect_->GetSummary(callee);
 
       // Check memory-specific global effects.
@@ -471,7 +475,10 @@ auto AliasAnalysisPass::CallModRefPrecise(mlir::Operation *call, mlir::Value *po
 
       // Memory-only check: no memory read or write means the call is invisible
       // to the memory system (IO-only, like putint/getint).
-      if (s.IsMemoryWriteNone() && s.IsMemoryReadNone() && arg_effects.empty()) return false;
+      bool has_argument_effect = std::any_of(
+          arg_effects.begin(), arg_effects.end(),
+          [](SideEffectSummary::ArgEffect effect) { return effect != SideEffectSummary::ArgEffect::kNone; });
+      if (s.IsMemoryWriteNone() && s.IsMemoryReadNone() && !has_argument_effect) return false;
     }
   }
 

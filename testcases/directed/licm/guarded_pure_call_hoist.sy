@@ -1,0 +1,29 @@
+//! STAGE: baseir
+//! CHECK-BLOCK: rot_preheader :: base\.call@pure
+//! CHECK-BLOCK-NOT: main_while_body :: base\.call@pure
+
+int limit;
+int values[8];
+
+int pure(int x) {
+  if (x <= 1) {
+    return x;
+  }
+  return pure(x / 2) + 3;
+}
+
+int main() {
+  limit = getint();
+  int i = 0;
+  while (i < limit) {
+    values[i] = pure(limit);
+    i = i + 1;
+  }
+  if (limit > 0) {
+    putint(values[limit - 1]);
+  } else {
+    putint(123);
+  }
+  putch(10);
+  return 0;
+}
