@@ -28,12 +28,20 @@ auto IsPowerOfTwo(int value, int *shift) -> bool {
 
 auto RISCVPeephole::BuildConstants(TargetFunction *func) -> void {
   def_count_.clear();
+  use_count_.clear();
   li_value_.clear();
+  defining_inst_.clear();
   for (auto *block : func->GetBlocks()) {
     for (auto *inst : block->GetInsts()) {
       auto *res = inst->GetResult();
       if (res != nullptr) {
         def_count_[res]++;
+        defining_inst_[res] = inst;
+      }
+      for (auto *operand : inst->GetOperands()) {
+        if (operand != nullptr && operand->IsVirtualReg()) {
+          use_count_[operand]++;
+        }
       }
       auto *ri = static_cast<RISCVInst *>(inst);
       if (ri->GetOpcode() == RVOpcode::LI && res != nullptr) {
@@ -72,6 +80,31 @@ auto RISCVPeephole::TransformInst(TargetInst *inst) -> bool {
   auto *lhs = ops[0];
   auto *rhs = ops[1];
   int c = 0;
+
+  // Signed-magic division first extracts the high 32 product bits, then
+  // applies a word shift:
+  //
+  //   hi = srai product, 32
+  //   q  = sraiw hi, k
+  //
+  // With a single use of `hi`, this is exactly `product >> (32 + k)`.
+  // MachineDCE removes the first shift after this rewrite.
+  if (opcode == RVOpcode::SRAIW && rhs->GetOpType() == TargetOperandType::Immediate && lhs->IsVirtualReg() &&
+      use_count_[lhs] == 1) {
+    auto def_iter = defining_inst_.find(lhs);
+    if (def_iter != defining_inst_.end()) {
+      auto *def = static_cast<RISCVInst *>(def_iter->second);
+      const auto &def_ops = def->GetOperands();
+      int shift = static_cast<TargetIntLiteral *>(rhs)->GetValue();
+      if (def->GetOpcode() == RVOpcode::SRAI && def_ops.size() == 2 &&
+          def_ops[1]->GetOpType() == TargetOperandType::Immediate &&
+          static_cast<TargetIntLiteral *>(def_ops[1])->GetValue() == 32 && shift >= 0 && shift <= 31) {
+        ri->SetOpcode(RVOpcode::SRAI);
+        inst->SetOperands({def_ops[0], ctx_->Imm(32 + shift)});
+        return true;
+      }
+    }
+  }
 
   auto constant_value = [&](TargetOperand *operand, int *value) -> bool {
     if (operand->GetOpType() == TargetOperandType::Immediate) {
