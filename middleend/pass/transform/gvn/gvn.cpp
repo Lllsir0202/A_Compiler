@@ -6,6 +6,7 @@
 #include "middleend/mlir/dialect/base/binaryop.h"
 #include "middleend/mlir/dialect/base/cast.h"
 #include "middleend/mlir/dialect/base/copy.h"
+#include "middleend/mlir/dialect/base/funccall.h"
 #include "middleend/mlir/dialect/base/unaryop.h"
 #include "middleend/mlir/dialect/var/getptr.h"
 #include "middleend/mlir/dialect/var/getvalue.h"
@@ -18,6 +19,7 @@
 #include "middleend/pass/analysis/cfg/mlircfg.h"
 #include "middleend/pass/analysis/domtree/domtree.h"
 #include "middleend/pass/analysis/memoryssa/memoryssa.h"
+#include "middleend/pass/analysis/sideeffect/sideeffect.h"
 
 #define GET_PASS_CONTEXT() compiler_context_->GetPassContext()
 
@@ -34,9 +36,12 @@ auto GVNPass::Run() -> void {
   auto *cfg_pass = GET_PASS_CONTEXT()->GetSpecPass<analysis::CFGPass>("CFGPass");
   auto *dom_tree_pass = GET_PASS_CONTEXT()->GetSpecPass<analysis::DomTreePass>("DomTreePass");
   alias_analysis_ = GET_PASS_CONTEXT()->GetSpecPass<analysis::AliasAnalysisPass>("AliasAnalysisPass");
+  side_effect_ = GET_PASS_CONTEXT()->GetSpecPass<analysis::FunctionSideEffectPass>("FunctionSideEffectPass");
   memory_ssa_ = GET_PASS_CONTEXT()->GetSpecPass<analysis::MemorySSAPass>("MemorySSAPass");
-  if (cfg_pass == nullptr || dom_tree_pass == nullptr || alias_analysis_ == nullptr || memory_ssa_ == nullptr) {
-    throw std::logic_error("GVNPass requires CFGPass, DomTreePass, AliasAnalysisPass and MemorySSAPass");
+  if (cfg_pass == nullptr || dom_tree_pass == nullptr || alias_analysis_ == nullptr || side_effect_ == nullptr ||
+      memory_ssa_ == nullptr) {
+    throw std::logic_error(
+        "GVNPass requires CFGPass, DomTreePass, AliasAnalysisPass, FunctionSideEffectPass and MemorySSAPass");
   }
 
   bool changed = false;
@@ -222,6 +227,16 @@ auto GVNPass::ComputeKey(mlir::Operation *operation, Expr *key) -> bool {
     std::memcpy(&bits, &value, sizeof(bits));
     key->immediate = bits;
     return true;
+  }
+
+  if (auto *call = mlir::DynamicOrNull<mlir::base::FuncCallOp>(operation)) {
+    if (!side_effect_->IsReferentiallyTransparent(call->GetName())) {
+      return false;
+    }
+    key->opcode = &typeid(*operation);
+    key->callee = call->GetName();
+    key->operands = operation->operands_;
+    return operation->results_.size() == 1;
   }
 
   if (!IsPure(operation) || operation->results_.size() != 1) {

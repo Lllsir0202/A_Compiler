@@ -80,12 +80,20 @@ class FunctionSideEffectPass : public AnalysisPass {
   // Only meaningful when HasSummary(callee) is true.
   auto IsReadNoneAndIOClean(mlir::Operation *call) -> bool;
 
+  // True for a function whose result depends only on its scalar arguments:
+  // no memory access, no IO, and only calls to functions with the same property.
+  // The greatest-fixed-point construction deliberately supports self and mutual
+  // recursion, unlike the ordinary bottom-up effect summaries.
+  auto IsReferentiallyTransparent(const std::string &func_name) const -> bool;
+
  private:
   auto ComputeOne(MLIRFunctionCFG *mlir_cfg) -> void;
   auto ComputeLibrary(const std::string &func_name) -> void;
   auto ComputeSCC(std::unordered_set<std::string> *scc_nodes, CFGPass *cfg_pass) -> void;
+  auto ComputeReferentiallyTransparent(CFGPass *cfg_pass) -> void;
 
   std::unordered_map<std::string, SideEffectSummary> summaries_;
+  std::unordered_set<std::string> referentially_transparent_;
 };
 
 }  // namespace middleend::pass::analysis

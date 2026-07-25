@@ -44,7 +44,6 @@ auto RISCVBackend::Run() -> int {
     machine_passes.AddPass(new MachineLICM(&ctx_));
     machine_passes.AddPass(new MachineDCE(&ctx_));
     machine_passes.AddPass(new RISCVBlockLayout(&ctx_));
-    machine_passes.AddPass(new BranchFold(&ctx_));
   }
 
   for (auto *mir_func : module->GetFunctions()) {
@@ -56,6 +55,14 @@ auto RISCVBackend::Run() -> int {
     auto alloca_bytes = isel.AllocaBytes();
     // Spills sit above the outgoing-args and alloca areas.
     auto spill_slots = reg_alloc.Run(tfunc, outgoing + alloca_bytes);
+    // Block layout is chosen while every CFG edge is still explicit. Only
+    // after register allocation and phi destruction do we turn eligible jumps
+    // into fallthroughs; reordering blocks after that point would silently
+    // change the CFG.
+    if (opt_level_ >= 1) {
+      BranchFold late_branch_fold(&ctx_);
+      late_branch_fold.RunOnFunction(tfunc);
+    }
     frame.Finalize(tfunc, outgoing + alloca_bytes, spill_slots, reg_alloc.UsedCalleeSaved());
     target_functions_.push_back(tfunc);
   }

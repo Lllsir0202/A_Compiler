@@ -1,4 +1,5 @@
 #include "backend/targets/riscv/pass/branchfold.h"
+#include <unordered_map>
 #include <vector>
 #include "backend/targets/riscv/inst/riscvinst.h"
 #include "backend/targets/utils/operand/targetsymbol.h"
@@ -23,6 +24,51 @@ auto InverseBranch(RVOpcode opcode, RVOpcode *inverse) -> bool {
 auto BranchFold::RunOnFunction(TargetFunction *func) -> bool {
   const auto &blocks = func->GetBlocks();
   bool changed = false;
+  std::unordered_map<std::string, TargetBlock *> by_label;
+  for (auto *block : blocks) {
+    by_label[block->GetLabel()] = block;
+  }
+
+  // Thread branches through empty forwarding blocks. Phi destruction and CFG
+  // cleanup commonly leave chains such as `j merge.edge; merge.edge: j merge`;
+  // following the chain once here avoids executing every intermediate jump.
+  std::unordered_map<TargetBlock *, TargetOperand *> forwarding_cache;
+  auto resolve_forwarder = [&](TargetOperand *target) -> TargetOperand * {
+    std::vector<TargetBlock *> path;
+    std::unordered_map<TargetBlock *, size_t> path_index;
+    while (target != nullptr && target->GetOpType() == TargetOperandType::Label) {
+      auto iter = by_label.find(static_cast<TargetLabel *>(target)->GetName());
+      if (iter == by_label.end()) {
+        break;
+      }
+      auto cached = forwarding_cache.find(iter->second);
+      if (cached != forwarding_cache.end()) {
+        target = cached->second;
+        break;
+      }
+      if (path_index.count(iter->second) > 0) {
+        break;
+      }
+      const auto &instructions = iter->second->GetInsts();
+      if (instructions.size() != 1) {
+        break;
+      }
+      auto *jump = static_cast<RISCVInst *>(instructions.front());
+      const auto &operands = jump->GetOperands();
+      if (jump->GetOpcode() != RVOpcode::J || operands.size() != 1 ||
+          operands[0]->GetOpType() != TargetOperandType::Label) {
+        break;
+      }
+      path_index[iter->second] = path.size();
+      path.emplace_back(iter->second);
+      target = operands[0];
+    }
+    for (auto *forwarder : path) {
+      forwarding_cache[forwarder] = target;
+    }
+    return target;
+  };
+
   for (size_t i = 0; i + 1 < blocks.size(); ++i) {
     auto *block = blocks[i];
     const auto &insts = block->GetInsts();
@@ -66,6 +112,47 @@ auto BranchFold::RunOnFunction(TargetFunction *func) -> bool {
     if (static_cast<TargetLabel *>(ops[0])->GetName() == blocks[i + 1]->GetLabel()) {
       std::vector<TargetInst *> kept(insts.begin(), insts.end() - 1);
       block->SetInsts(kept);
+      changed = true;
+    }
+  }
+
+  for (auto *block : blocks) {
+    const auto &instructions = block->GetInsts();
+    for (auto *instruction : instructions) {
+      auto *branch = static_cast<RISCVInst *>(instruction);
+      auto operands = branch->GetOperands();
+      if (branch->GetOpcode() == RVOpcode::J && operands.size() == 1) {
+        auto *target = resolve_forwarder(operands[0]);
+        if (target != operands[0]) {
+          branch->SetOperands({target});
+          changed = true;
+        }
+        continue;
+      }
+      RVOpcode unused = RVOpcode::BEQ;
+      if (InverseBranch(branch->GetOpcode(), &unused) && operands.size() == 3) {
+        auto *target = resolve_forwarder(operands[2]);
+        if (target != operands[2]) {
+          branch->SetOperands({operands[0], operands[1], target});
+          changed = true;
+        }
+      }
+    }
+  }
+
+  // Threading can expose one more direct fallthrough.
+  for (size_t i = 0; i + 1 < blocks.size(); ++i) {
+    const auto &instructions = blocks[i]->GetInsts();
+    if (instructions.empty()) {
+      continue;
+    }
+    auto *last = static_cast<RISCVInst *>(instructions.back());
+    const auto &operands = last->GetOperands();
+    if (last->GetOpcode() == RVOpcode::J && operands.size() == 1 &&
+        operands[0]->GetOpType() == TargetOperandType::Label &&
+        static_cast<TargetLabel *>(operands[0])->GetName() == blocks[i + 1]->GetLabel()) {
+      std::vector<TargetInst *> kept(instructions.begin(), instructions.end() - 1);
+      blocks[i]->SetInsts(std::move(kept));
       changed = true;
     }
   }

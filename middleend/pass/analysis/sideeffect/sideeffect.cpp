@@ -137,6 +137,7 @@ auto FunctionSideEffectPass::Run() -> void {
       }
     }
   }
+  ComputeReferentiallyTransparent(cfg_pass);
 }
 
 auto FunctionSideEffectPass::GetSummary(const std::string &func_name) const -> const SideEffectSummary & {
@@ -157,6 +158,75 @@ auto FunctionSideEffectPass::IsReadNoneAndIOClean(mlir::Operation *call) -> bool
 
 bool FunctionSideEffectPass::HasSummary(const std::string &func_name) const {
   return summaries_.count(func_name) > 0;
+}
+
+auto FunctionSideEffectPass::IsReferentiallyTransparent(const std::string &func_name) const -> bool {
+  return referentially_transparent_.count(func_name) > 0;
+}
+
+void FunctionSideEffectPass::ComputeReferentiallyTransparent(CFGPass *cfg_pass) {
+  referentially_transparent_.clear();
+  std::unordered_map<std::string, MLIRFunctionCFG *> functions;
+  for (auto *function_cfg : cfg_pass->Get()) {
+    auto *mlir_cfg = dynamic_cast<MLIRFunctionCFG *>(function_cfg);
+    if (mlir_cfg == nullptr || mlir_cfg->GetFuncOp() == nullptr) {
+      continue;
+    }
+    std::string name;
+    if (auto *func = mlir::DynamicOrNull<mlir::func::FuncDefOp>(mlir_cfg->GetFuncOp())) {
+      name = func->GetName();
+    } else if (auto *func = mlir::DynamicOrNull<mlir::base::FuncDefOp>(mlir_cfg->GetFuncOp())) {
+      name = func->GetName();
+    }
+    if (name.empty() || IsLibrary(name)) {
+      continue;
+    }
+    functions[name] = mlir_cfg;
+    referentially_transparent_.insert(name);
+  }
+
+  // Start optimistically with all defined functions. Repeatedly remove a
+  // function when it directly accesses memory/IO or calls a function already
+  // known not to be transparent. Recursive SCCs remain in the set as a unit.
+  bool changed = true;
+  while (changed) {
+    changed = false;
+    for (const auto &[name, function_cfg] : functions) {
+      if (referentially_transparent_.count(name) == 0) {
+        continue;
+      }
+      bool transparent = true;
+      for (auto *cfg_node : function_cfg->GetNodes()) {
+        auto *node = dynamic_cast<MLIRCFGNode *>(cfg_node);
+        if (node == nullptr) {
+          transparent = false;
+          break;
+        }
+        for (auto *operation : node->GetBlock()->operations_) {
+          if (mlir::DynamicOrNull<mlir::var::VarGetValOp>(operation) != nullptr ||
+              mlir::DynamicOrNull<mlir::var::VarSetOp>(operation) != nullptr) {
+            transparent = false;
+            break;
+          }
+          if (!IsCallOp(operation)) {
+            continue;
+          }
+          auto callee = GetCallName(operation);
+          if (referentially_transparent_.count(callee) == 0) {
+            transparent = false;
+            break;
+          }
+        }
+        if (!transparent) {
+          break;
+        }
+      }
+      if (!transparent) {
+        referentially_transparent_.erase(name);
+        changed = true;
+      }
+    }
+  }
 }
 
 // ---- library table --------------------------------------------------------

@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <stdexcept>
+#include <string>
 #include <typeinfo>
 #include <unordered_map>
 #include <vector>
@@ -18,6 +19,7 @@ namespace middleend::pass::analysis {
 class AliasAnalysisPass;
 class DomTree;
 class DomTreeNode;
+class FunctionSideEffectPass;
 class MemoryAccess;
 class MemorySSAPass;
 class MLIRFunctionCFG;
@@ -59,6 +61,7 @@ class GVNPass : public TransformPass {
     AddDependency("DomTreePass");
     AddDependency("CFGPass");
     AddDependency("AliasAnalysisPass");
+    AddDependency("FunctionSideEffectPass");
     AddDependency("MemorySSAPass");
   }
   ~GVNPass() override = default;
@@ -74,11 +77,12 @@ class GVNPass : public TransformPass {
     const std::type_info *opcode{nullptr};  // dynamic type of the operation, distinguishes op kinds
     bool has_immediate{false};              // constants fold their literal into the key
     uint64_t immediate{0};
+    std::string callee;
     std::vector<mlir::Value *> operands;
 
     auto operator==(const Expr &other) const -> bool {
-      return has_immediate == other.has_immediate && immediate == other.immediate && operands == other.operands &&
-             *opcode == *other.opcode;
+      return has_immediate == other.has_immediate && immediate == other.immediate && callee == other.callee &&
+             operands == other.operands && *opcode == *other.opcode;
     }
   };
 
@@ -88,6 +92,7 @@ class GVNPass : public TransformPass {
       auto mix = [&hash](size_t value) { hash ^= value + 0x9e3779b9 + (hash << 6) + (hash >> 2); };
       mix(std::hash<bool>()(expr.has_immediate));
       mix(std::hash<uint64_t>()(expr.immediate));
+      mix(std::hash<std::string>()(expr.callee));
       for (auto *operand : expr.operands) {
         mix(std::hash<mlir::Value *>()(operand));
       }
@@ -127,6 +132,7 @@ class GVNPass : public TransformPass {
   std::unordered_map<Expr, mlir::Value *, ExprHash> available_values_;
   std::unordered_map<LoadKey, mlir::Value *, LoadKeyHash> available_loads_;
   analysis::AliasAnalysisPass *alias_analysis_{nullptr};
+  analysis::FunctionSideEffectPass *side_effect_{nullptr};
   analysis::MemorySSAPass *memory_ssa_{nullptr};
   bool changed_{false};
 };
