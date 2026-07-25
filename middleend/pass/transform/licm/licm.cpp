@@ -39,7 +39,8 @@ auto LICMPass::Run() -> void {
   PreRun();
   auto *cfg_pass = GET_PASS_CONTEXT()->GetSpecPass<analysis::CFGPass>("CFGPass");
   auto *loop_info = GET_PASS_CONTEXT()->GetSpecPass<analysis::LoopInfoPass>("LoopInfoPass");
-  alias_analysis_ = GET_PASS_CONTEXT()->GetSpecPass<analysis::AliasAnalysisPass>("AliasAnalysisPass");
+  const char *alias_pass_name = before_promotion_ ? "PrePromotionAliasAnalysisPass" : "AliasAnalysisPass";
+  alias_analysis_ = GET_PASS_CONTEXT()->GetSpecPass<analysis::AliasAnalysisPass>(alias_pass_name);
   if (cfg_pass == nullptr || loop_info == nullptr || alias_analysis_ == nullptr) {
     throw std::logic_error("LICMPass requires CFGPass, LoopInfoPass and AliasAnalysisPass");
   }

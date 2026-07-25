@@ -42,6 +42,10 @@ class SCEVPass : public AnalysisPass {
     AddDependency("DomTreePass");
     AddDependency("LoopInfoPass");
     AddDependency("LoopSimplifyPass");
+    // Scalar promotion exposes memory-carried recurrences as SSA phis.  SCEV
+    // must run after that rewrite; otherwise dependency scheduling can execute
+    // it early and all loop consumers observe stale, opaque loads.
+    AddDependency("PromotionPass");
   }
   ~SCEVPass() override { ClearState(); }
 

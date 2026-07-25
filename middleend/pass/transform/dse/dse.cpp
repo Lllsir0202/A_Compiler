@@ -25,7 +25,8 @@ auto IsCall(mlir::Operation *operation) -> bool {
 auto DSEPass::Run() -> void {
   PreRun();
   auto *cfg_pass = GET_PASS_CONTEXT()->GetSpecPass<analysis::CFGPass>("CFGPass");
-  alias_analysis_ = GET_PASS_CONTEXT()->GetSpecPass<analysis::AliasAnalysisPass>("AliasAnalysisPass");
+  const char *alias_pass_name = before_promotion_ ? "PrePromotionAliasAnalysisPass" : "AliasAnalysisPass";
+  alias_analysis_ = GET_PASS_CONTEXT()->GetSpecPass<analysis::AliasAnalysisPass>(alias_pass_name);
   if (cfg_pass == nullptr || alias_analysis_ == nullptr) {
     throw std::logic_error("DSEPass requires CFGPass and AliasAnalysisPass");
   }

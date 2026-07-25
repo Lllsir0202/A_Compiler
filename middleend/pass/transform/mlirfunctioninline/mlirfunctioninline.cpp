@@ -179,7 +179,35 @@ auto MLIRFunctionInlinePass::HasRecursivePath(mlir::func::FuncDefOp *from, mlir:
 }
 
 auto MLIRFunctionInlinePass::CountOperations(mlir::func::FuncDefOp *func_op) -> size_t {
-  return func_op->GetEntryBlock()->operations_.size();
+  size_t count = 0;
+  for (auto *operation : func_op->GetEntryBlock()->operations_) {
+    count += CountOperations(operation);
+  }
+  return count;
+}
+
+auto MLIRFunctionInlinePass::CountOperations(mlir::Operation *operation) -> size_t {
+  size_t count = 1;
+  for (auto *region : operation->regions_) {
+    count += CountOperations(region);
+  }
+  return count;
+}
+
+auto MLIRFunctionInlinePass::CountOperations(mlir::Region *region) -> size_t {
+  if (region == nullptr) {
+    return 0;
+  }
+  size_t count = 0;
+  for (auto *block : region->blocks_) {
+    count += block->operations_.size();
+    for (auto *operation : block->operations_) {
+      for (auto *nested_region : operation->regions_) {
+        count += CountOperations(nested_region);
+      }
+    }
+  }
+  return count;
 }
 
 auto MLIRFunctionInlinePass::CanCloneRegion(mlir::Region *region) -> bool {
@@ -207,7 +235,7 @@ auto MLIRFunctionInlinePass::CanCloneOperation(mlir::Operation *operation) -> bo
   if (mlir::DynamicOrNull<mlir::scf::BreakOp>(operation) != nullptr ||
       mlir::DynamicOrNull<mlir::scf::ContinueOp>(operation) != nullptr ||
       mlir::DynamicOrNull<mlir::scf::ConditionOp>(operation) != nullptr) {
-    return false;
+    return true;
   }
   if (auto *if_op = mlir::DynamicOrNull<mlir::scf::IfOp>(operation)) {
     return CanCloneRegion(if_op->GetThenRegion()) && CanCloneRegion(if_op->GetElseRegion());

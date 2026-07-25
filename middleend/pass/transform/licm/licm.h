@@ -40,14 +40,15 @@ namespace middleend::pass::transform {
  */
 class LICMPass : public TransformPass {
  public:
-  LICMPass(context::CompilerContext *compiler_context, PassStage stage) : TransformPass(compiler_context, stage) {
+  LICMPass(context::CompilerContext *compiler_context, PassStage stage, bool before_promotion = false)
+      : TransformPass(compiler_context, stage), before_promotion_(before_promotion) {
     if (stage != PassStage::BASEIR) {
       throw std::invalid_argument("LICMPass only supports BASEIR stage");
     }
     AddDependency("CFGPass");
     AddDependency("DomTreePass");
     AddDependency("LoopInfoPass");
-    AddDependency("AliasAnalysisPass");
+    AddDependency(before_promotion ? "PrePromotionAliasAnalysisPass" : "AliasAnalysisPass");
     AddDependency("LoopSimplifyPass");
   }
   ~LICMPass() override = default;
@@ -66,6 +67,19 @@ class LICMPass : public TransformPass {
 
   analysis::AliasAnalysisPass *alias_analysis_{nullptr};
   std::unordered_map<mlir::Operation *, mlir::Block *> op_to_block_;
+  bool before_promotion_{false};
+};
+
+// An early LICM round that canonicalizes invariant address expressions for
+// scalar promotion.  The ordinary LICM round remains after SCEV/SR/DLE, where
+// it can hoist invariants exposed by those loop transformations.
+class PrePromotionLICMPass : public LICMPass {
+ public:
+  PrePromotionLICMPass(context::CompilerContext *compiler_context, PassStage stage)
+      : LICMPass(compiler_context, stage, true) {}
+  ~PrePromotionLICMPass() override = default;
+
+  auto Name() const -> std::string override { return "PrePromotionLICMPass"; }
 };
 
 }  // namespace middleend::pass::transform
