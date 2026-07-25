@@ -7,7 +7,9 @@ int read_global(int x) {
     if (x == 0) {
         return state;
     }
-    return read_global(x - 1);
+    // Keep the recursion non-tail so this test remains focused on call CSE
+    // even when tail-recursion elimination grows more capable.
+    return read_global(x - 1) + x;
 }
 
 int main() {

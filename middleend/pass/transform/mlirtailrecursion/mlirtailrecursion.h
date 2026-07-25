@@ -51,6 +51,11 @@ class MLIRTailRecursionEliminatePass : public TransformPass {
   auto RunOnFunction(mlir::func::FuncDefOp *func_op) -> bool;
   auto MatchTailRecursion(mlir::func::FuncDefOp *func_op, TailRecursionPattern *pattern) -> bool;
   auto RewriteTailRecursion(mlir::func::FuncDefOp *func_op, const TailRecursionPattern &pattern) -> bool;
+  auto RewriteMultiExitTailRecursion(mlir::func::FuncDefOp *func_op) -> bool;
+  auto IsTerminalTailBlock(mlir::Block *block, mlir::func::FuncDefOp *func_op, bool *saw_tail) -> bool;
+  auto BuildTailState(mlir::Block *source, mlir::Block *destination, mlir::func::FuncDefOp *func_op,
+                      const std::vector<mlir::Value *> &current_args,
+                      mlir::Value *current_result) -> std::vector<mlir::Value *>;
   auto CloneOperation(mlir::Operation *operation) -> mlir::Operation *;
   auto CloneValue(mlir::Value *value) -> mlir::Value *;
   auto RemapValue(mlir::Value *value) -> mlir::Value *;
@@ -59,6 +64,8 @@ class MLIRTailRecursionEliminatePass : public TransformPass {
   auto RebuildUsesInOperation(mlir::Operation *operation) -> void;
 
   std::unordered_map<mlir::Value *, mlir::Value *> value_map_;
+  mlir::Value *tail_continue_{nullptr};
+  mlir::Value *tail_stop_{nullptr};
 };
 
 }  // namespace middleend::pass::transform

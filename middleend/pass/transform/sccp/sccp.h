@@ -85,6 +85,7 @@ class SCCPPass : public TransformPass {
 
   analysis::MLIRFunctionCFG *current_function_cfg_{nullptr};
   std::unordered_map<mlir::Operation *, mlir::Block *> operation_to_block_;
+  std::unordered_map<mlir::Value *, std::vector<mlir::Operation *>> value_users_;
   std::unordered_map<mlir::Block *, analysis::CFGNode *> block_to_node_;
   std::unordered_map<mlir::Value *, LatticeValue> value_states_;
   std::unordered_set<analysis::CFGNode *> executable_blocks_;

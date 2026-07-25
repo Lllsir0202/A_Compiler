@@ -116,6 +116,11 @@ auto SCCPPass::RunOnFunction(analysis::MLIRFunctionCFG *function_cfg) -> bool {
     block_to_node_[block] = cfg_node;
     for (auto *operation : block->operations_) {
       operation_to_block_[operation] = block;
+      for (auto *operand : operation->operands_) {
+        if (operand != nullptr) {
+          value_users_[operand].emplace_back(operation);
+        }
+      }
     }
   }
 
@@ -149,6 +154,7 @@ auto SCCPPass::RunOnFunction(analysis::MLIRFunctionCFG *function_cfg) -> bool {
 auto SCCPPass::ResetFunctionState() -> void {
   current_function_cfg_ = nullptr;
   operation_to_block_.clear();
+  value_users_.clear();
   block_to_node_.clear();
   value_states_.clear();
   executable_blocks_.clear();
@@ -354,8 +360,12 @@ auto SCCPPass::MergeValues(const LatticeValue &lhs, const LatticeValue &rhs) -> 
 }
 
 auto SCCPPass::MarkUsersChanged(mlir::Value *value) -> void {
-  for (auto *use : value->GetUses()) {
-    MarkOperationChanged(use->operation_);
+  auto iter = value_users_.find(value);
+  if (iter == value_users_.end()) {
+    return;
+  }
+  for (auto *user : iter->second) {
+    MarkOperationChanged(user);
   }
 }
 

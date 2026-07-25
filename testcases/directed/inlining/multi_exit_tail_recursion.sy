@@ -1,0 +1,21 @@
+//! STAGE: baseir
+//! CHECK-NOT: base\.call@walk
+
+int walk(int n, int depth) {
+  if (n <= 0) {
+    return depth;
+  }
+  if (n % 2 == 0) {
+    return walk(n / 2, depth + 1);
+  }
+  if (n > 3) {
+    return walk(n - 3, depth + 2);
+  }
+  return depth + 10;
+}
+
+int main() {
+  putint(walk(getint(), 0));
+  putch(10);
+  return 0;
+}
