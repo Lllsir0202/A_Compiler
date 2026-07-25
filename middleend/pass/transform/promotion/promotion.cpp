@@ -53,7 +53,7 @@ auto PromotionPass::Run() -> void {
   auto *cfg_pass = GET_PASS_CONTEXT()->GetSpecPass<analysis::CFGPass>("CFGPass");
   auto *dom_tree_pass = GET_PASS_CONTEXT()->GetSpecPass<analysis::DomTreePass>("DomTreePass");
   auto *loop_info = GET_PASS_CONTEXT()->GetSpecPass<analysis::LoopInfoPass>("LoopInfoPass");
-  alias_analysis_ = GET_PASS_CONTEXT()->GetSpecPass<analysis::AliasAnalysisPass>("AliasAnalysisPass");
+  alias_analysis_ = GET_PASS_CONTEXT()->GetSpecPass<analysis::AliasAnalysisPass>("PrePromotionAliasAnalysisPass");
   if (cfg_pass == nullptr || dom_tree_pass == nullptr || loop_info == nullptr || alias_analysis_ == nullptr) {
     throw std::logic_error("PromotionPass requires CFGPass, DomTreePass, LoopInfoPass and AliasAnalysisPass");
   }

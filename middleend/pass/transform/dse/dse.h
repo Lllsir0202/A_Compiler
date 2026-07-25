@@ -40,12 +40,13 @@ namespace middleend::pass::transform {
  */
 class DSEPass : public TransformPass {
  public:
-  DSEPass(context::CompilerContext *compiler_context, PassStage stage) : TransformPass(compiler_context, stage) {
+  DSEPass(context::CompilerContext *compiler_context, PassStage stage, bool before_promotion = false)
+      : TransformPass(compiler_context, stage), before_promotion_(before_promotion) {
     if (stage != PassStage::BASEIR) {
       throw std::invalid_argument("DSEPass only supports BASEIR stage");
     }
     AddDependency("CFGPass");
-    AddDependency("AliasAnalysisPass");
+    AddDependency(before_promotion ? "PrePromotionAliasAnalysisPass" : "AliasAnalysisPass");
   }
   ~DSEPass() override = default;
 
@@ -71,6 +72,16 @@ class DSEPass : public TransformPass {
   analysis::AliasAnalysisPass *alias_analysis_{nullptr};
   analysis::MLIRFunctionCFG *current_cfg_{nullptr};
   std::unordered_set<mlir::Value *> loaded_local_roots_;
+  bool before_promotion_{false};
+};
+
+class PrePromotionDSEPass : public DSEPass {
+ public:
+  PrePromotionDSEPass(context::CompilerContext *compiler_context, PassStage stage)
+      : DSEPass(compiler_context, stage, true) {}
+  ~PrePromotionDSEPass() override = default;
+
+  auto Name() const -> std::string override { return "PrePromotionDSEPass"; }
 };
 
 }  // namespace middleend::pass::transform

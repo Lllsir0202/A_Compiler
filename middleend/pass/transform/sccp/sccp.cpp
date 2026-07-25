@@ -11,6 +11,9 @@
 #include "middleend/mlir/dialect/base/unaryop.h"
 #include "middleend/mlir/dialect/func/return.h"
 #include "middleend/mlir/dialect/var/basic.h"
+#include "middleend/mlir/dialect/var/getptr.h"
+#include "middleend/mlir/dialect/var/getvalue.h"
+#include "middleend/mlir/dialect/var/globaldef.h"
 #include "middleend/mlir/utils/operation/operation.h"
 #include "middleend/mlir/utils/struct/block.h"
 #include "middleend/mlir/utils/value/value.h"
@@ -369,6 +372,25 @@ auto SCCPPass::EvaluateOperation(mlir::Operation *operation) -> LatticeValue {
   if (auto *const_float_op = mlir::DynamicOrNull<mlir::base::ConstFloatOp>(operation)) {
     return ConstantFloat(const_float_op->GetValue());
   }
+  if (auto *load_op = mlir::DynamicOrNull<mlir::var::VarGetValOp>(operation)) {
+    auto *pointer = load_op->GetPtr();
+    auto *get_ptr_op = pointer == nullptr ? nullptr : mlir::DynamicOrNull<mlir::var::VarGetPtrOp>(pointer->op_);
+    mlir::Value *root = get_ptr_op == nullptr ? pointer : get_ptr_op->GetPtr();
+    if (get_ptr_op != nullptr && !get_ptr_op->GetIndices().empty()) {
+      return OverdefinedValue();
+    }
+    auto *global = root == nullptr ? nullptr : mlir::DynamicOrNull<mlir::var::GlobalVarDefOp>(root->op_);
+    if (global == nullptr || !global->IsConst() || !global->GetDimensions().empty()) {
+      return OverdefinedValue();
+    }
+    if (global->GetIntInitValues().size() == 1) {
+      return ConstantInt(global->GetIntInitValues()[0]);
+    }
+    if (global->GetFloatInitValues().size() == 1) {
+      return ConstantFloat(global->GetFloatInitValues()[0]);
+    }
+    return OverdefinedValue();
+  }
   if (Is<mlir::base::PhiOp>(operation)) {
     return EvaluatePhi(operation);
   }
@@ -558,6 +580,9 @@ auto SCCPPass::AreEqualConstants(const ConstantValue &lhs, const ConstantValue &
 auto SCCPPass::IsTrackedResultOperation(mlir::Operation *operation) -> bool {
   if (operation == nullptr || operation->results_.size() != 1) {
     return false;
+  }
+  if (Is<mlir::var::VarGetValOp>(operation)) {
+    return true;
   }
   if (mlir::DynamicOrNull<mlir::var::VarOps>(operation) != nullptr) {
     return false;

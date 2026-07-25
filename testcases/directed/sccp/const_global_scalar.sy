@@ -1,0 +1,11 @@
+//! STAGE: baseir
+//! CHECK-NOT: var\.getval
+
+const int radix = 17;
+
+int main() {
+  int value = getint();
+  putint(value * radix);
+  putch(10);
+  return 0;
+}

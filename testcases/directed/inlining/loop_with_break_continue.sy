@@ -1,0 +1,25 @@
+//! STAGE: baseir
+//! CHECK-NOT: base\.call@sum_until
+
+int sum_until(int n) {
+  int i = 0;
+  int sum = 0;
+  while (i < n) {
+    i = i + 1;
+    if (i == 3) {
+      continue;
+    }
+    if (i == 7) {
+      break;
+    }
+    sum = sum + i;
+  }
+  return sum;
+}
+
+int main() {
+  int result = sum_until(getint());
+  putint(result);
+  putch(10);
+  return 0;
+}

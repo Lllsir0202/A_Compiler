@@ -49,8 +49,11 @@ class PromotionPass : public TransformPass {
     AddDependency("CFGPass");
     AddDependency("DomTreePass");
     AddDependency("LoopInfoPass");
-    AddDependency("AliasAnalysisPass");
+    AddDependency("PrePromotionAliasAnalysisPass");
+    AddDependency("PrePromotionDSEPass");
     AddDependency("LoopSimplifyPass");
+    AddDependency("LoopRotatePass");
+    AddDependency("PrePromotionLICMPass");
   }
   ~PromotionPass() override = default;
 

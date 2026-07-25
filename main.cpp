@@ -401,6 +401,23 @@ auto main(int argc, char *argv[]) -> int {
     auto post_rotate_gvn_pass = context::PassContext::CreatePass<middleend::pass::transform::PostRotateGVNPass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(post_rotate_gvn_pass);
+    auto pre_promotion_alias_pass =
+        context::PassContext::CreatePass<middleend::pass::analysis::PrePromotionAliasAnalysisPass>(
+            &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(pre_promotion_alias_pass);
+    auto pre_promotion_dse_pass = context::PassContext::CreatePass<middleend::pass::transform::PrePromotionDSEPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(pre_promotion_dse_pass);
+    auto pre_promotion_licm_pass = context::PassContext::CreatePass<middleend::pass::transform::PrePromotionLICMPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(pre_promotion_licm_pass);
+    // Promote loop-invariant scalar memory locations before SCEV.  This exposes
+    // recurrences hidden behind repeated loads/stores (including private global
+    // scalars after structured inlining), so trip-count and closed-form loop
+    // consumers reason about SSA values rather than opaque memory.
+    auto promotion_pass = context::PassContext::CreatePass<middleend::pass::transform::PromotionPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(promotion_pass);
     auto scev_pass = context::PassContext::CreatePass<middleend::pass::analysis::SCEVPass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(scev_pass);
@@ -413,9 +430,6 @@ auto main(int argc, char *argv[]) -> int {
     auto licm_pass = context::PassContext::CreatePass<middleend::pass::transform::LICMPass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(licm_pass);
-    auto promotion_pass = context::PassContext::CreatePass<middleend::pass::transform::PromotionPass>(
-        &compiler_context, middleend::pass::PassStage::BASEIR);
-    baseirpass_context->AddPass(promotion_pass);
     // The loop passes are done with LCSSA now, so collapse the exit phis it left behind (and any
     // other phi whose incomings all agree, e.g. from loop rotation). LLVM does the same: LCSSA is
     // maintained across the loop pipeline and cleaned up after it.

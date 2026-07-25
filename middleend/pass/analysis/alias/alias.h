@@ -33,10 +33,12 @@ enum class AliasResult : uint8_t { NoAlias, MayAlias, MustAlias };
  */
 class AliasAnalysisPass : public AnalysisPass {
  public:
-  explicit AliasAnalysisPass(context::CompilerContext *compiler_context, PassStage stage)
+  explicit AliasAnalysisPass(context::CompilerContext *compiler_context, PassStage stage, bool require_scev = true)
       : AnalysisPass(compiler_context, stage) {
     AddDependency("CFGPass");
-    AddDependency("SCEVPass");
+    if (require_scev) {
+      AddDependency("SCEVPass");
+    }
   }
   ~AliasAnalysisPass() override = default;
 
@@ -95,6 +97,20 @@ class AliasAnalysisPass : public AnalysisPass {
   std::unordered_map<mlir::Value *, std::unordered_set<mlir::Value *>> noalias_parameters_;
   FunctionSideEffectPass *side_effect_{nullptr};
   SCEVPass *scev_{nullptr};
+};
+
+// Basic points-to/mod-ref analysis used to expose memory-carried recurrences
+// before SCEV exists.  The full AliasAnalysisPass runs after promotion and
+// SCEV, adding recurrence-aware index disambiguation for later consumers.
+class PrePromotionAliasAnalysisPass : public AliasAnalysisPass {
+ public:
+  explicit PrePromotionAliasAnalysisPass(context::CompilerContext *compiler_context, PassStage stage)
+      : AliasAnalysisPass(compiler_context, stage, false) {
+    AddDependency("FunctionSideEffectPass");
+  }
+  ~PrePromotionAliasAnalysisPass() override = default;
+
+  auto Name() const -> std::string override { return "PrePromotionAliasAnalysisPass"; }
 };
 
 }  // namespace middleend::pass::analysis

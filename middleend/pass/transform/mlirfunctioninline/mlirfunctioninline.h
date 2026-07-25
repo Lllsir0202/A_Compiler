@@ -55,6 +55,8 @@ class MLIRFunctionInlinePass : public TransformPass {
   auto IsInlineCandidate(mlir::func::FuncDefOp *caller, mlir::func::FuncDefOp *callee) -> bool;
   auto HasRecursivePath(mlir::func::FuncDefOp *from, mlir::func::FuncDefOp *target) -> bool;
   auto CountOperations(mlir::func::FuncDefOp *func_op) -> size_t;
+  auto CountOperations(mlir::Operation *operation) -> size_t;
+  auto CountOperations(mlir::Region *region) -> size_t;
   auto CanCloneOperation(mlir::Operation *operation) -> bool;
   auto CanCloneRegion(mlir::Region *region) -> bool;
   auto InlineCallSite(const InlineSite &site) -> bool;
@@ -62,7 +64,10 @@ class MLIRFunctionInlinePass : public TransformPass {
   std::unordered_map<std::string, mlir::func::FuncDefOp *> function_map_;
   std::unordered_map<mlir::func::FuncDefOp *, std::unordered_set<mlir::func::FuncDefOp *>> call_graph_;
   mlir::utils::OperationCloner cloner_{compiler_context_};
-  static constexpr size_t kMaxInlineOperationCount = 80;
+  // Match the flattened-IR inliner budget used by mature SysY compilers.  This
+  // is a recursive structured-IR cost (including nested regions), so it permits
+  // medium-sized loop kernels without treating a whole scf.while as one op.
+  static constexpr size_t kMaxInlineOperationCount = 200;
   // Each round fully inlines every acyclic call site (RunInlineRound re-scans each
   // caller until fixpoint), so the program converges in one productive round plus
   // one confirming round. This bound is only a safety cap against unexpected
