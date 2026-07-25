@@ -6,6 +6,7 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 #include "middleend/pass/transform/transform.h"
 
@@ -68,6 +69,7 @@ class MemoizationPass : public TransformPass {
     mlir::base::FuncDefOp *func{nullptr};
     std::vector<mlir::Value *> args;
     std::vector<mlir::Operation *> returns;
+    std::vector<std::pair<mlir::Block *, mlir::Operation *>> recursive_call_sites;
     std::unordered_set<mlir::Value *> local_scalar_roots;
     std::unordered_set<mlir::Value *> calltime_readonly_global_roots;
     int self_calls{0};
@@ -98,6 +100,10 @@ class MemoizationPass : public TransformPass {
   void ComputePureFunctions();
   auto Analyze(mlir::base::FuncDefOp *func) -> Candidate;
   auto IsCandidate(const Candidate &candidate) -> bool;
+  // True when one invocation can execute at least two self-recursive calls.
+  // Merely having calls in mutually-exclusive branches describes linear
+  // recursion and is usually not profitable to memoize.
+  auto HasMultipleCallsPerInvocation(const Candidate &candidate) -> bool;
   auto IsPermittedPureOp(mlir::Operation *op, const std::string &func_name,
                          const std::unordered_set<mlir::Value *> &local_scalar_roots, int *self_calls,
                          const std::unordered_set<mlir::Value *> &calltime_readonly_global_roots,

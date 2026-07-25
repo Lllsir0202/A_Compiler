@@ -314,6 +314,10 @@ auto MemoizationPass::Analyze(mlir::base::FuncDefOp *func) -> Candidate {
         candidate.func = nullptr;
         return candidate;
       }
+      auto *call = mlir::DynamicOrNull<mlir::base::FuncCallOp>(op);
+      if (call != nullptr && call->GetName() == func->GetName()) {
+        candidate.recursive_call_sites.emplace_back(block, op);
+      }
     }
   }
   return candidate;
@@ -343,10 +347,56 @@ auto MemoizationPass::IsCandidate(const Candidate &candidate) -> bool {
   if (candidate.mutual_scc) {
     return candidate.recursive_scc_calls > 0;
   }
-  if (candidate.self_calls < 2) {
+  if (candidate.self_calls < 2 || !HasMultipleCallsPerInvocation(candidate)) {
     return false;
   }
   return true;
+}
+
+auto MemoizationPass::HasMultipleCallsPerInvocation(const Candidate &candidate) -> bool {
+  if (candidate.recursive_call_sites.size() < 2) {
+    return false;
+  }
+
+  auto cfg_iter = cfg_by_name_.find(candidate.func->GetName());
+  if (cfg_iter == cfg_by_name_.end() || cfg_iter->second == nullptr) {
+    return false;
+  }
+  auto *cfg = cfg_iter->second;
+
+  auto block_reaches = [&](Block *from, Block *target) {
+    auto *start = cfg->GetNodeByBlock(from);
+    auto *goal = cfg->GetNodeByBlock(target);
+    if (start == nullptr || goal == nullptr) {
+      return false;
+    }
+    std::vector<analysis::CFGNode *> worklist(start->GetSuccessors());
+    std::unordered_set<analysis::CFGNode *> visited;
+    while (!worklist.empty()) {
+      auto *node = worklist.back();
+      worklist.pop_back();
+      if (node == goal) {
+        return true;
+      }
+      if (node == nullptr || !visited.insert(node).second) {
+        continue;
+      }
+      auto successors = node->GetSuccessors();
+      worklist.insert(worklist.end(), successors.begin(), successors.end());
+    }
+    return false;
+  };
+
+  for (size_t lhs = 0; lhs < candidate.recursive_call_sites.size(); ++lhs) {
+    for (size_t rhs = lhs + 1; rhs < candidate.recursive_call_sites.size(); ++rhs) {
+      auto *lhs_block = candidate.recursive_call_sites[lhs].first;
+      auto *rhs_block = candidate.recursive_call_sites[rhs].first;
+      if (lhs_block == rhs_block || block_reaches(lhs_block, rhs_block) || block_reaches(rhs_block, lhs_block)) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 auto MemoizationPass::IsPermittedPureOp(Operation *op, const std::string &func_name,
