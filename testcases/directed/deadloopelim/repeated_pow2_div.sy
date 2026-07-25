@@ -1,0 +1,56 @@
+// Repeated signed division by a positive power of two has an exact closed
+// form, including truncation toward zero for negative inputs. Exponents 31
+// and 32 exercise the i32 boundary where the result changes from -1 to zero.
+//! CHECK: base.shl
+//! CHECK: base.lshr
+//! CHECK: base.ashr
+int div16(int value, int count) {
+    int i = 0;
+    while (i < count) {
+        value = value / 16;
+        i = i + 1;
+    }
+    return value;
+}
+
+int div2(int value, int count) {
+    int i = 0;
+    while (i < count) {
+        value = value / 2;
+        i = i + 1;
+    }
+    return value;
+}
+
+void print_line(int value) {
+    putint(value);
+    putch(10);
+}
+
+int main() {
+    int value = getint();
+    int count = getint();
+    print_line(div16(value, count));
+    value = getint();
+    count = getint();
+    print_line(div16(value, count));
+    value = getint();
+    count = getint();
+    print_line(div16(value, count));
+    value = getint();
+    count = getint();
+    print_line(div16(value, count));
+    value = getint();
+    count = getint();
+    print_line(div16(value, count));
+    value = getint();
+    count = getint();
+    print_line(div16(value, count));
+    value = getint();
+    count = getint();
+    print_line(div2(value, count));
+    value = getint();
+    count = getint();
+    print_line(div2(value, count));
+    return 0;
+}

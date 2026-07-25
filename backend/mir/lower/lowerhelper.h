@@ -40,8 +40,7 @@ class LowerHelper {
   // sequentialized so simultaneous updates (e.g. a swap a<->b at a loop
   // back-edge) are not corrupted by the lost-copy problem, breaking cycles with
   // a fresh temporary. Inserted before the terminator of `block`.
-  auto EmitParallelCopy(utils::Block *block,
-                        std::vector<std::pair<utils::Operand *, utils::Operand *>> copies) -> void;
+  auto EmitParallelCopy(utils::Block *block, std::vector<std::pair<utils::Operand *, utils::Operand *>> copies) -> void;
 
   // Lowering llvmir instructions
   // Integer
@@ -50,6 +49,9 @@ class LowerHelper {
   auto LowerMulInst(middleend::llvm::inst::MulInst *mul_inst) -> void;
   auto LowerDivInst(middleend::llvm::inst::DivInst *div_inst) -> void;
   auto LowerModInst(middleend::llvm::inst::ModInst *mod_inst) -> void;
+  auto LowerShlInst(middleend::llvm::inst::ShlInst *shl_inst) -> void;
+  auto LowerLShrInst(middleend::llvm::inst::LShrInst *lshr_inst) -> void;
+  auto LowerAShrInst(middleend::llvm::inst::AShrInst *ashr_inst) -> void;
 
   // Float
   auto LowerAddFInst(middleend::llvm::inst::AddFInst *add_f_inst) -> void;

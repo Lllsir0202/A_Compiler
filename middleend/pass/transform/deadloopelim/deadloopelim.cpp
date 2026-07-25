@@ -1,4 +1,5 @@
 #include "middleend/pass/transform/deadloopelim/deadloopelim.h"
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <stdexcept>
@@ -10,6 +11,7 @@
 #include "context/mlir_context.h"
 #include "middleend/mlir/dialect/base/binaryop.h"
 #include "middleend/mlir/dialect/base/branch.h"
+#include "middleend/mlir/dialect/base/cast.h"
 #include "middleend/mlir/dialect/base/funccall.h"
 #include "middleend/mlir/dialect/base/funcdef.h"
 #include "middleend/mlir/dialect/base/phi.h"
@@ -62,9 +64,28 @@ auto CanExpand(const analysis::SCEV *scev) -> bool {
       }
       return true;
     }
+    case analysis::SCEVKind::SMax: {
+      const auto &operands = static_cast<const analysis::SCEVSMaxExpr *>(scev)->GetOperands();
+      if (operands.size() != 2) {
+        return false;
+      }
+      for (size_t index = 0; index < 2; ++index) {
+        const auto *candidate = operands[index];
+        if (candidate->GetKind() == analysis::SCEVKind::Constant &&
+            static_cast<const analysis::SCEVConstant *>(candidate)->IsInt() &&
+            static_cast<const analysis::SCEVConstant *>(candidate)->GetInt() == 0) {
+          return CanExpand(operands[1 - index]);
+        }
+      }
+      return false;
+    }
     case analysis::SCEVKind::Div: {
       const auto *div = static_cast<const analysis::SCEVDivExpr *>(scev);
       return CanExpand(div->GetLHS()) && CanExpand(div->GetRHS());
+    }
+    case analysis::SCEVKind::RepeatedDiv: {
+      const auto *repeat = static_cast<const analysis::SCEVRepeatedDivExpr *>(scev);
+      return repeat->IsClosed() && CanExpand(repeat->GetStart()) && CanExpand(repeat->GetIteration());
     }
     default:
       return false;  // an AddRec / SMax / UMin cannot be materialized at a single point here
@@ -106,12 +127,20 @@ auto DeadLoopEliminatePass::Run() -> void {
       }
     }
 
-    // Delete one loop per function: a deletion leaves the cached CFG/loop analysis stale, so stop
-    // after it and let the invalidation-driven rerun expose any further opportunity to a later pass.
+    // Independent loops can be deleted from the same cached loop forest: removing
+    // one does not change another loop's header predecessors or exit edge. A
+    // containing loop is skipped once any of its blocks has been removed; that
+    // case needs freshly rebuilt analyses.
     for (auto *loop : loop_info->GetLoops(function_cfg)) {
+      const auto live_block_list = func_op->GetBlocks();
+      std::unordered_set<mlir::Block *> live_blocks(live_block_list.begin(), live_block_list.end());
+      bool all_blocks_live = std::all_of(loop->GetBlocks().begin(), loop->GetBlocks().end(),
+                                         [&](mlir::Block *block) { return live_blocks.count(block) > 0; });
+      if (!all_blocks_live) {
+        continue;
+      }
       if (TryDeleteLoop(mlir_function_cfg, func_op, loop)) {
         changed = true;
-        break;
       }
     }
   }
@@ -231,20 +260,9 @@ auto DeadLoopEliminatePass::TryDeleteLoop(analysis::MLIRFunctionCFG *function_cf
     return false;
   }
   const analysis::SCEV *raw_trip = scev_->GetAddExpr({backedge, scev_->GetConstant(1)});
-  // The trip count from ComputeExitCount is clamped with SMax(0, ...) so that a negative
-  // ceil_div result means zero iterations. Since ceil_div((n+d-1)/d) >= 0 for all integer n
-  // when d > 0 (SysY integer division truncates toward zero), the SMax is a no-op.
-  // Peek through it so that CanExpand / EvaluateAtIteration see the simpler inner form.
+  // Preserve SMax(0, count): it is what gives a top-tested loop zero
+  // iterations when its initial condition is false.
   const analysis::SCEV *trip_scev = raw_trip;
-  if (raw_trip->GetKind() == analysis::SCEVKind::SMax) {
-    const auto &sm_ops = static_cast<const analysis::SCEVSMaxExpr *>(raw_trip)->GetOperands();
-    if (sm_ops.size() == 2 && sm_ops[0]->GetKind() == analysis::SCEVKind::Constant) {
-      if (static_cast<const analysis::SCEVConstant *>(sm_ops[0])->IsInt() &&
-          static_cast<const analysis::SCEVConstant *>(sm_ops[0])->GetInt() == 0) {
-        trip_scev = sm_ops[1];
-      }
-    }
-  }
   bool symbolic_trip = scev_->GetConstantTripCount(loop) < 0;
   if (symbolic_trip && !CanExpand(trip_scev)) {
     return false;
@@ -276,13 +294,18 @@ auto DeadLoopEliminatePass::TryDeleteLoop(analysis::MLIRFunctionCFG *function_cf
         }
         const analysis::SCEV *scev = scev_->GetSCEV(result);
         const analysis::SCEV *closed = nullptr;
-        if (scev->GetKind() == analysis::SCEVKind::AddRec &&
-            static_cast<const analysis::SCEVAddRecExpr *>(scev)->GetLoop() == loop) {
+        bool loop_recurrence = (scev->GetKind() == analysis::SCEVKind::AddRec &&
+                                static_cast<const analysis::SCEVAddRecExpr *>(scev)->GetLoop() == loop) ||
+                               (scev->GetKind() == analysis::SCEVKind::RepeatedDiv &&
+                                !static_cast<const analysis::SCEVRepeatedDivExpr *>(scev)->IsClosed() &&
+                                static_cast<const analysis::SCEVRepeatedDivExpr *>(scev)->GetLoop() == loop);
+        if (loop_recurrence) {
           // With a symbolic trip count, only affine AddRecs are supported: the closed form
           // start + step*iteration involves no division, so it is exact under modular arithmetic.
           // Higher-order chains (running sums) need binomial coefficients that divide by
           // factorials, which requires a no-wrap guarantee that we do not yet track.
-          if (symbolic_trip && !static_cast<const analysis::SCEVAddRecExpr *>(scev)->IsAffine()) {
+          if (symbolic_trip && scev->GetKind() == analysis::SCEVKind::AddRec &&
+              !static_cast<const analysis::SCEVAddRecExpr *>(scev)->IsAffine()) {
             return false;
           }
           closed = scev_->EvaluateAtIteration(scev, exit_iteration_scev);
@@ -373,6 +396,73 @@ auto DeadLoopEliminatePass::MakeBinary(mlir::Value *lhs, mlir::Value *rhs, mlir:
   return result;
 }
 
+template <typename CompareOp>
+auto DeadLoopEliminatePass::MakeComparison(mlir::Value *lhs, mlir::Value *rhs, mlir::Block *at) -> mlir::Value * {
+  auto *result = GET_MLIR_CONTEXT()->CreateValue();
+  result->SetType(type::TypeFactory::GetBooleanType());
+  auto *operation = GET_MLIR_CONTEXT()->CreateOperation<CompareOp>(result, lhs, rhs);
+  lhs->AddUse(operation, 0);
+  rhs->AddUse(operation, 1);
+  InsertBeforeTerminator(operation, at);
+  return result;
+}
+
+auto DeadLoopEliminatePass::MakeBoolToInt(mlir::Value *value, mlir::Block *at) -> mlir::Value * {
+  auto *result = GET_MLIR_CONTEXT()->CreateValue();
+  result->SetType(type::TypeFactory::GetIntegerType());
+  auto *operation = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::Bool2IntOp>(result, value);
+  value->AddUse(operation, 0);
+  InsertBeforeTerminator(operation, at);
+  return result;
+}
+
+auto DeadLoopEliminatePass::ExpandRepeatedDiv(const analysis::SCEV *scev, mlir::Block *at) -> mlir::Value * {
+  const auto *repeat = static_cast<const analysis::SCEVRepeatedDivExpr *>(scev);
+  if (!repeat->IsClosed() || repeat->GetStepShift() <= 0) {
+    return nullptr;
+  }
+  mlir::Value *start = Expand(repeat->GetStart(), at);
+  mlir::Value *iteration = Expand(repeat->GetIteration(), at);
+  if (start == nullptr || iteration == nullptr) {
+    return nullptr;
+  }
+
+  // Once the total shift reaches 32, repeated truncating division of an i32
+  // value is exactly zero. Compute a validity bit before multiplying by the
+  // iteration count, so neither the exponent arithmetic nor the emitted shift
+  // can overflow or use an out-of-range shift amount.
+  int base_shift = repeat->GetBaseShift();
+  if (base_shift >= 32) {
+    return MakeConstInt(0, at);
+  }
+  int iteration_limit = (31 - base_shift) / repeat->GetStepShift() + 1;
+  mlir::Value *zero = MakeConstInt(0, at);
+  mlir::Value *limit = MakeConstInt(iteration_limit, at);
+  mlir::Value *nonnegative = MakeBoolToInt(MakeComparison<mlir::base::GreaterEqualOp>(iteration, zero, at), at);
+  mlir::Value *below_limit = MakeBoolToInt(MakeComparison<mlir::base::LessOp>(iteration, limit, at), at);
+  mlir::Value *valid = MakeBinary<mlir::base::MulOp>(nonnegative, below_limit, at);
+  mlir::Value *safe_iteration = MakeBinary<mlir::base::MulOp>(iteration, valid, at);
+  mlir::Value *step = MakeConstInt(repeat->GetStepShift(), at);
+  mlir::Value *exponent = MakeBinary<mlir::base::MulOp>(safe_iteration, step, at);
+  if (base_shift != 0) {
+    exponent = MakeBinary<mlir::base::AddOp>(exponent, MakeConstInt(base_shift, at), at);
+  }
+
+  // Signed division by 2^s, truncating toward zero:
+  //   (x + sign(x) * (2^s - 1)) >> s
+  // Here s is proven in [0, 31]. The final validity mask selects zero for
+  // exponents outside the representable i32 range.
+  mlir::Value *one = MakeConstInt(1, at);
+  mlir::Value *power = MakeBinary<mlir::base::ShlOp>(one, exponent, at);
+  mlir::Value *mask = MakeBinary<mlir::base::SubOp>(power, one, at);
+  mlir::Value *sign_shift = MakeConstInt(31, at);
+  mlir::Value *sign = MakeBinary<mlir::base::LShrOp>(start, sign_shift, at);
+  mlir::Value *bias = MakeBinary<mlir::base::MulOp>(sign, mask, at);
+  mlir::Value *adjusted = MakeBinary<mlir::base::AddOp>(start, bias, at);
+  mlir::Value *quotient = MakeBinary<mlir::base::AShrOp>(adjusted, exponent, at);
+  return MakeBinary<mlir::base::MulOp>(quotient, valid, at);
+}
+
 auto DeadLoopEliminatePass::Expand(const analysis::SCEV *scev, mlir::Block *at) -> mlir::Value * {
   switch (scev->GetKind()) {
     case analysis::SCEVKind::Constant: {
@@ -409,6 +499,31 @@ auto DeadLoopEliminatePass::Expand(const analysis::SCEV *scev, mlir::Block *at) 
       }
       return MakeBinary<mlir::base::DivOp>(lhs, rhs, at);
     }
+    case analysis::SCEVKind::SMax: {
+      const auto &operands = static_cast<const analysis::SCEVSMaxExpr *>(scev)->GetOperands();
+      if (operands.size() != 2) {
+        return nullptr;
+      }
+      const analysis::SCEV *value_scev = nullptr;
+      for (size_t index = 0; index < 2; ++index) {
+        const auto *candidate = operands[index];
+        if (candidate->GetKind() == analysis::SCEVKind::Constant &&
+            static_cast<const analysis::SCEVConstant *>(candidate)->IsInt() &&
+            static_cast<const analysis::SCEVConstant *>(candidate)->GetInt() == 0) {
+          value_scev = operands[1 - index];
+          break;
+        }
+      }
+      mlir::Value *value = value_scev == nullptr ? nullptr : Expand(value_scev, at);
+      if (value == nullptr) {
+        return nullptr;
+      }
+      mlir::Value *zero = MakeConstInt(0, at);
+      mlir::Value *nonnegative = MakeBoolToInt(MakeComparison<mlir::base::GreaterEqualOp>(value, zero, at), at);
+      return MakeBinary<mlir::base::MulOp>(value, nonnegative, at);
+    }
+    case analysis::SCEVKind::RepeatedDiv:
+      return ExpandRepeatedDiv(scev, at);
     default:
       return nullptr;
   }

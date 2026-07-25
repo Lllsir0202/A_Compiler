@@ -535,4 +535,48 @@ auto ModInst::Create(context::LLVMIRContext *context, utils::Operand *operand1, 
   return inst;
 }
 
+#define DEFINE_SHIFT_INST(NAME, MNEMONIC)                                                                      \
+  auto NAME##Inst::Emit(std::ofstream *out) const->void {                                                      \
+    *out << "  ";                                                                                              \
+    result_->Emit(out);                                                                                        \
+    *out << " = " MNEMONIC " i32 ";                                                                            \
+    operands_[0]->Emit(out);                                                                                   \
+    *out << ", ";                                                                                              \
+    operands_[1]->Emit(out);                                                                                   \
+    *out << "\n";                                                                                              \
+  }                                                                                                            \
+                                                                                                               \
+  auto NAME##Inst::Verify(context::CompilerContext *context) const->bool {                                     \
+    if (result_ == nullptr || !result_->IsRegister() || !result_->IsInt32()) {                                 \
+      context->Print(#NAME " instruction must have a valid int32 result\n");                                   \
+      return false;                                                                                            \
+    }                                                                                                          \
+    if (operands_.size() != 2 || operands_[0] == nullptr || operands_[1] == nullptr) {                         \
+      context->Print(#NAME " instruction must have exactly two valid operands\n");                             \
+      return false;                                                                                            \
+    }                                                                                                          \
+    if (GetParentBlock() == nullptr || result_->GetInstruction() != this) {                                    \
+      context->Print(#NAME " instruction is not attached consistently\n");                                     \
+      return false;                                                                                            \
+    }                                                                                                          \
+    return operands_[0]->IsInt32() && operands_[1]->IsInt32();                                                 \
+  }                                                                                                            \
+                                                                                                               \
+  auto NAME##Inst::Create(context::LLVMIRContext *context, utils::Operand *operand1, utils::Operand *operand2) \
+      ->NAME##Inst * {                                                                                         \
+    auto *inst = new NAME##Inst();                                                                             \
+    auto *result = context->GetNewRegOperand(context->GetIntegerType());                                       \
+    inst->SetResult(result);                                                                                   \
+    result->SetInstruction(inst);                                                                              \
+    inst->AddOperand(operand1);                                                                                \
+    inst->AddOperand(operand2);                                                                                \
+    return inst;                                                                                               \
+  }
+
+DEFINE_SHIFT_INST(Shl, "shl")
+DEFINE_SHIFT_INST(LShr, "lshr")
+DEFINE_SHIFT_INST(AShr, "ashr")
+
+#undef DEFINE_SHIFT_INST
+
 }  // namespace middleend::llvm::inst

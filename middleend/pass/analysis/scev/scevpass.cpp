@@ -91,6 +91,15 @@ auto ToString(const SCEV *scev) -> std::string {
       const auto *div = static_cast<const SCEVDivExpr *>(scev);
       return "(" + ToString(div->GetLHS()) + " / " + ToString(div->GetRHS()) + ")";
     }
+    case SCEVKind::RepeatedDiv: {
+      const auto *repeat = static_cast<const SCEVRepeatedDivExpr *>(scev);
+      std::string exponent = std::to_string(repeat->GetBaseShift());
+      if (repeat->GetStepShift() != 0) {
+        exponent += "+" + std::to_string(repeat->GetStepShift()) + "*";
+        exponent += repeat->IsClosed() ? ToString(repeat->GetIteration()) : "i";
+      }
+      return "(" + ToString(repeat->GetStart()) + " / 2^(" + exponent + "))";
+    }
   }
   return "?";
 }
@@ -133,7 +142,7 @@ auto SCEVPass::Run() -> void {
           for (auto *operation : block->operations_) {
             if (operation->results_.size() == 1) {
               const SCEV *scev = GetSCEV(operation->results_[0]);
-              if (scev->GetKind() == SCEVKind::AddRec) {
+              if (scev->GetKind() == SCEVKind::AddRec || scev->GetKind() == SCEVKind::RepeatedDiv) {
                 std::printf("    %s : %s\n", operation->Name().c_str(), ToString(scev).c_str());
               }
             }
@@ -201,6 +210,12 @@ auto SCEVPass::Unique(SCEV *candidate) -> const SCEV * {
     case SCEVKind::Div: {
       auto *div = static_cast<SCEVDivExpr *>(candidate);
       key = "D" + PtrKey(div->GetLHS()) + ":" + PtrKey(div->GetRHS());
+      break;
+    }
+    case SCEVKind::RepeatedDiv: {
+      auto *repeat = static_cast<SCEVRepeatedDivExpr *>(candidate);
+      key = "Q" + PtrKey(repeat->GetStart()) + ":" + PtrKey(repeat->GetIteration()) + ":" + PtrKey(repeat->GetLoop()) +
+            ":" + std::to_string(repeat->GetBaseShift()) + ":" + std::to_string(repeat->GetStepShift());
       break;
     }
   }
@@ -450,8 +465,19 @@ auto SCEVPass::GetDivExpr(const SCEV *lhs, const SCEV *rhs) -> const SCEV * {
     if (divisor != 0 && lhs->GetKind() == SCEVKind::Constant && static_cast<const SCEVConstant *>(lhs)->IsInt()) {
       return GetConstant(static_cast<const SCEVConstant *>(lhs)->GetInt() / divisor);
     }
+    if (divisor > 1 && (divisor & (divisor - 1)) == 0 && lhs->GetKind() == SCEVKind::RepeatedDiv) {
+      const auto *repeat = static_cast<const SCEVRepeatedDivExpr *>(lhs);
+      return GetRepeatedDivExpr(repeat->GetStart(), repeat->GetIteration(),
+                                repeat->GetBaseShift() + __builtin_ctz(static_cast<unsigned>(divisor)),
+                                repeat->GetStepShift(), repeat->GetLoop());
+    }
   }
   return Unique(new SCEVDivExpr(lhs, rhs, IntType()));
+}
+
+auto SCEVPass::GetRepeatedDivExpr(const SCEV *start, const SCEV *iteration, int base_shift, int step_shift,
+                                  Loop *loop) -> const SCEV * {
+  return Unique(new SCEVRepeatedDivExpr(start, iteration, base_shift, step_shift, loop, IntType()));
 }
 
 auto SCEVPass::GetSMaxExpr(std::vector<const SCEV *> operands) -> const SCEV * {
@@ -571,7 +597,15 @@ auto SCEVPass::GetBinomialCoefficient(const SCEV *iteration, int order) -> const
 }
 
 auto SCEVPass::EvaluateAtIteration(const SCEV *scev, const SCEV *iteration) -> const SCEV * {
-  // A value invariant in the recurrence's loop is unchanged by iterating; only an AddRec closes.
+  if (scev->GetKind() == SCEVKind::RepeatedDiv) {
+    const auto *repeat = static_cast<const SCEVRepeatedDivExpr *>(scev);
+    if (!repeat->IsClosed()) {
+      return GetRepeatedDivExpr(repeat->GetStart(), iteration, repeat->GetBaseShift(), repeat->GetStepShift(),
+                                repeat->GetLoop());
+    }
+    return scev;
+  }
+  // A value invariant in the recurrence's loop is unchanged by iterating; only recurrence nodes close.
   if (scev->GetKind() != SCEVKind::AddRec) {
     return scev;
   }
@@ -625,6 +659,14 @@ auto SCEVPass::IsLoopInvariant(const SCEV *scev, Loop *loop) -> bool {
       const auto &operands = add_rec->GetOperands();
       return std::all_of(operands.begin(), operands.end(),
                          [&](const SCEV *operand) { return IsLoopInvariant(operand, loop); });
+    }
+    case SCEVKind::RepeatedDiv: {
+      const auto *repeat = static_cast<const SCEVRepeatedDivExpr *>(scev);
+      if (!repeat->IsClosed() && (repeat->GetLoop() == loop || !repeat->GetLoop()->Contains(loop->GetHeader()))) {
+        return false;
+      }
+      return IsLoopInvariant(repeat->GetStart(), loop) &&
+             (repeat->GetIteration() == nullptr || IsLoopInvariant(repeat->GetIteration(), loop));
     }
   }
   return false;
@@ -744,6 +786,12 @@ auto SCEVPass::CreateAddRecFromPhi(mlir::base::PhiOp *phi, Loop *loop) -> const 
 
   const SCEV *self_symbol = value_to_scev_[phi->GetRes()];
   const SCEV *back_scev = GetSCEV(back_value);
+  int repeated_shift = 0;
+  if (MatchRepeatedPowerOfTwoDiv(back_scev, self_symbol, &repeated_shift)) {
+    const SCEV *recurrence = GetRepeatedDivExpr(GetSCEV(init_value), nullptr, 0, repeated_shift, loop);
+    ForgetValuesContaining(self_symbol);
+    return recurrence;
+  }
   if (back_scev->GetKind() != SCEVKind::Add) {
     return nullptr;
   }
@@ -791,6 +839,31 @@ auto SCEVPass::CreateAddRecFromPhi(mlir::base::PhiOp *phi, Loop *loop) -> const 
   return recurrence;
 }
 
+auto SCEVPass::MatchRepeatedPowerOfTwoDiv(const SCEV *scev, const SCEV *symbol, int *total_shift) -> bool {
+  int shift = 0;
+  while (scev->GetKind() == SCEVKind::Div) {
+    const auto *div = static_cast<const SCEVDivExpr *>(scev);
+    if (div->GetRHS()->GetKind() != SCEVKind::Constant) {
+      return false;
+    }
+    const auto *constant = static_cast<const SCEVConstant *>(div->GetRHS());
+    if (!constant->IsInt()) {
+      return false;
+    }
+    int divisor = constant->GetInt();
+    if (divisor <= 1 || (divisor & (divisor - 1)) != 0) {
+      return false;
+    }
+    shift += __builtin_ctz(static_cast<unsigned>(divisor));
+    scev = div->GetLHS();
+  }
+  if (scev != symbol || shift == 0) {
+    return false;
+  }
+  *total_shift = shift;
+  return true;
+}
+
 auto SCEVPass::ScevContains(const SCEV *scev, const SCEV *target) -> bool {
   if (scev == target) {
     return true;
@@ -812,6 +885,11 @@ auto SCEVPass::ScevContains(const SCEV *scev, const SCEV *target) -> bool {
     case SCEVKind::Div: {
       const auto *div = static_cast<const SCEVDivExpr *>(scev);
       return ScevContains(div->GetLHS(), target) || ScevContains(div->GetRHS(), target);
+    }
+    case SCEVKind::RepeatedDiv: {
+      const auto *repeat = static_cast<const SCEVRepeatedDivExpr *>(scev);
+      return ScevContains(repeat->GetStart(), target) ||
+             (repeat->GetIteration() != nullptr && ScevContains(repeat->GetIteration(), target));
     }
     default:
       return false;

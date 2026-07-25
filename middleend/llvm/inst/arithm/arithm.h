@@ -17,6 +17,9 @@ DEFINE_ARITHM_INST(MulF, MulF)
 DEFINE_ARITHM_INST(Div, Div)
 DEFINE_ARITHM_INST(DivF, DivF)
 DEFINE_ARITHM_INST(Mod, Mod)
+DEFINE_ARITHM_INST(Shl, Shl)
+DEFINE_ARITHM_INST(LShr, LShr)
+DEFINE_ARITHM_INST(AShr, AShr)
 }  // namespace middleend::llvm::inst
 
 #endif

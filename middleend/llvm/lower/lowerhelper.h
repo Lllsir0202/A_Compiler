@@ -54,6 +54,9 @@ class LowerHelper {
   auto LowerMulOp(mlir::base::MulOp *op) -> void;
   auto LowerDivOp(mlir::base::DivOp *op) -> void;
   auto LowerModOp(mlir::base::ModOp *op) -> void;
+  auto LowerShlOp(mlir::base::ShlOp *op) -> void;
+  auto LowerLShrOp(mlir::base::LShrOp *op) -> void;
+  auto LowerAShrOp(mlir::base::AShrOp *op) -> void;
   // Float
   auto LowerAddFOp(mlir::base::AddFOp *op) -> void;
   auto LowerSubFOp(mlir::base::SubFOp *op) -> void;
