@@ -81,19 +81,11 @@ auto RISCVLocalCSE::RunOnFunction(TargetFunction *function) -> bool {
   MachineCFG cfg(function);
   MachineLiveness liveness(function, cfg);
   std::unordered_map<TargetOperand *, TargetBlock *> definitions;
-  std::unordered_map<TargetBlock *, std::unordered_map<TargetOperand *, size_t>> last_local_use;
   for (auto *block : function->GetBlocks()) {
-    const auto &instructions = block->GetInsts();
-    for (size_t index = 0; index < instructions.size(); ++index) {
-      auto *instruction = instructions[index];
+    for (auto *instruction : block->GetInsts()) {
       auto *result = instruction->GetResult();
       if (result != nullptr && result->IsVirtualReg()) {
         definitions[result] = block;
-      }
-      for (auto *operand : instruction->GetOperands()) {
-        if (operand->IsVirtualReg()) {
-          last_local_use[block][operand] = index;
-        }
       }
     }
   }
@@ -104,7 +96,6 @@ auto RISCVLocalCSE::RunOnFunction(TargetFunction *function) -> bool {
   struct AvailableValue {
     TargetOperand *value_;
     TargetBlock *block_;
-    size_t instruction_index_;
   };
   auto safe_across_iterations = [&](TargetBlock *canonical_block, TargetBlock *use_block,
                                     TargetInst *instruction) -> bool {
@@ -143,9 +134,7 @@ auto RISCVLocalCSE::RunOnFunction(TargetFunction *function) -> bool {
     // them through the dominator tree turns a one-instruction rematerialization
     // into a function-long live range, which raises pressure and spill cost.
     Available local_rematerializable;
-    const auto &instructions = block->GetInsts();
-    for (size_t instruction_index = 0; instruction_index < instructions.size(); ++instruction_index) {
-      auto *instruction = instructions[instruction_index];
+    for (auto *instruction : block->GetInsts()) {
       std::vector<TargetOperand *> operands = instruction->GetOperands();
       for (auto *&operand : operands) {
         operand = Resolve(operand, replacements);
@@ -163,15 +152,10 @@ auto RISCVLocalCSE::RunOnFunction(TargetFunction *function) -> bool {
       // Cross-block CSE is profitable only when the canonical value is already
       // live into this block. Otherwise deleting a cheap recomputation extends
       // the canonical live range through intervening CFG and may create spills.
-      bool local_profitable = false;
-      if (found != scope.end() && found->second.block_ == block) {
-        size_t existing_end = found->second.instruction_index_;
-        auto last_use = last_local_use[block].find(found->second.value_);
-        if (last_use != last_local_use[block].end()) {
-          existing_end = std::max(existing_end, last_use->second);
-        }
-        local_profitable = rematerializable || instruction_index <= existing_end;
-      }
+      // Within one block the earlier expression dominates the duplicate and no
+      // control-flow path can bypass it. Keep this standard local-CSE case
+      // complete; register pressure is handled by allocation and spilling.
+      bool local_profitable = found != scope.end() && found->second.block_ == block;
       bool no_live_range_extension =
           found != scope.end() &&
           (local_profitable ||
@@ -181,7 +165,7 @@ auto RISCVLocalCSE::RunOnFunction(TargetFunction *function) -> bool {
         replacements[instruction->GetResult()] = found->second.value_;
         redundant.insert(instruction);
       } else {
-        scope[key] = {instruction->GetResult(), block, instruction_index};
+        scope[key] = {instruction->GetResult(), block};
       }
     }
     for (auto *child : cfg.DominatorChildren(block)) {

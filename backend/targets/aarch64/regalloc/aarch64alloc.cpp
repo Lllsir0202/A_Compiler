@@ -248,7 +248,10 @@ auto AArch64GraphColorRegAlloc::Liveness() -> void {
           in.insert(n);
         }
       }
-      if (out.size() != live_out_[b].size() || in.size() != live_in_[b].size()) {
+      // Dataflow facts can change members without changing cardinality. Compare
+      // the complete sets or the allocator may stop before reaching a fixpoint
+      // and omit required interference edges.
+      if (out != live_out_[b] || in != live_in_[b]) {
         changed = true;
       }
       live_out_[b] = std::move(out);

@@ -377,3 +377,53 @@ preserving the `h-11`/`h-2` wins. This is the well-known trade-off of running
 LICM before register allocation on a small register file: loop-body savings and
 allocation cost are close in magnitude, and the pass is tuned to stay net
 positive rather than to win every case.
+
+## 9. Exact register-allocation liveness fixpoint and complete local CSE
+
+### Change
+
+- Fix graph-coloring liveness convergence to compare complete live-in/live-out
+  sets. Equal set cardinality is not an unchanged dataflow fact: a loop can
+  replace one live value with another while preserving the size. The previous
+  shortcut could stop early, omit an interference edge, and let coalescing
+  assign one physical register to simultaneously live values.
+- Validate every completed RISC-V coloring before rewriting virtual registers:
+  adjacent nodes must have different colors and coalesced nodes must agree with
+  their representative. This converts future allocator invariant violations
+  into a deterministic compiler failure instead of silently emitting wrong
+  code.
+- Apply the same dataflow fix to the AArch64 allocator, which shared the
+  algorithmic defect.
+- With correct interference information, restore standard complete local CSE
+  inside a basic block. Cross-block CSE remains pressure-aware and requires the
+  canonical value to be live-in, so the change does not extend arbitrary values
+  through the dominator tree.
+- Keep the post-Phi compatibility CSE/LICM pipeline for now. Removing it
+  increased the 60-case instruction total by about 1.06%; it remains necessary
+  until register allocation consumes machine-SSA Phi nodes directly.
+
+### Validation
+
+- RISC-V directed tests: 58/58 passed across `-O0` and `-O1`.
+- Functional suites: 109/109 and 40/40 passed at both optimization levels.
+- 2026 RISC-V functional suites: 100/100 and 40/40 passed at both optimization
+  levels.
+- 2026 RISC-V performance suite: 60/60 passed at both optimization levels.
+- Historical RISC-V performance suites: 57/57 and 60/60 passed at `-O1`.
+- No ARM runtime tests were run; the requested RISC-V-only policy was kept.
+
+### Result
+
+| Scope | M2 baseline | M3 | Change |
+|---|---:|---:|---:|
+| 2026 60-case total dynamic instructions | 20,635,470,697 | 20,599,209,245 | -0.176% |
+| 2026 60-case geometric mean | 1.0000 | 0.9960 | -0.40% |
+| `03_sort1` | 156,251,718 | 144,168,198 | -7.73% |
+| `03_sort2` | 156,401,558 | 144,300,362 | -7.74% |
+| `03_sort3` | 156,176,027 | 144,099,213 | -7.73% |
+
+Ten alternating whole-suite wall-clock measurements produced medians of
+8.490 s for M2 and 8.535 s for M3. The 0.045 s difference is smaller than the
+observed run-to-run noise (individual runs ranged from 8.42 s to 8.90 s), so
+wall-clock performance is treated as statistically unchanged rather than as a
+measured regression or speedup.

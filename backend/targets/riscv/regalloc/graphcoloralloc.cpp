@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <stdexcept>
 #include "backend/targets/riscv/pass/machineanalysis.h"
 #include "backend/targets/riscv/regs/riscvreg.h"
 #include "backend/targets/utils/operand/targetreg.h"
@@ -229,7 +230,11 @@ auto GraphColorRegAlloc::Liveness() -> void {
           in.insert(n);
         }
       }
-      if (out.size() != live_out_[b].size() || in.size() != live_in_[b].size()) {
+      // Equal cardinality does not imply an unchanged dataflow fact. A loop can
+      // exchange one live value for another while preserving set size; stopping
+      // there omits interference edges and makes an otherwise legal-looking
+      // coalescing decision silently miscompile.
+      if (out != live_out_[b] || in != live_in_[b]) {
         changed = true;
       }
       live_out_[b] = std::move(out);
@@ -611,6 +616,25 @@ auto GraphColorRegAlloc::AssignColors() -> void {
   }
 }
 
+auto GraphColorRegAlloc::ValidateColoring() -> void {
+  for (auto edge : adj_set_) {
+    auto lhs = static_cast<NodeId>(edge >> 32);
+    auto rhs = static_cast<NodeId>(static_cast<uint32_t>(edge));
+    auto lhs_alias = GetAlias(lhs);
+    auto rhs_alias = GetAlias(rhs);
+    if (lhs_alias == rhs_alias || color_[lhs_alias] < 0 || color_[rhs_alias] < 0 ||
+        color_[lhs_alias] == color_[rhs_alias]) {
+      throw std::runtime_error("RISC-V register allocator produced an illegal interference coloring");
+    }
+  }
+  for (auto node : coalesced_nodes_) {
+    auto alias = GetAlias(node);
+    if (color_[node] < 0 || color_[alias] < 0 || color_[node] != color_[alias]) {
+      throw std::runtime_error("RISC-V register allocator produced an inconsistent coalesced color");
+    }
+  }
+}
+
 auto GraphColorRegAlloc::SlotOf(TargetOperand *vreg) -> size_t {
   auto it = spill_slot_.find(vreg);
   if (it != spill_slot_.end()) {
@@ -794,6 +818,7 @@ auto GraphColorRegAlloc::AllocateClass(TargetRegClass reg_class) -> void {
     }
     AssignColors();
     if (spilled_nodes_.empty()) {
+      ValidateColoring();
       break;
     }
     RewriteProgram();
