@@ -5,42 +5,67 @@
 namespace backend::targetir::riscv {
 
 auto GetRVOpcodeInfo(RVOpcode opcode) -> const RVOpcodeInfo & {
+  constexpr auto N = RVInstFlag::None;
+  constexpr auto C = RVInstFlag::Commutable;
+  constexpr auto R = RVInstFlag::Rematerializable;
+  constexpr auto LD = RVInstFlag::MayLoad;
+  constexpr auto ST = RVInstFlag::MayStore | RVInstFlag::SideEffect;
+  constexpr auto BR = RVInstFlag::Terminator | RVInstFlag::Branch | RVInstFlag::SideEffect;
   static const std::array<RVOpcodeInfo, 60> TABLE = {{
-      {"addw", RVForm::RType},   {"subw", RVForm::RType},   {"mulw", RVForm::RType},
-      {"divw", RVForm::RType},   {"remw", RVForm::RType},   {"add", RVForm::RType},
-      {"sub", RVForm::RType},    {"mul", RVForm::RType},    {"and", RVForm::RType},    {"or", RVForm::RType},
-      {"xor", RVForm::RType},    {"sllw", RVForm::RType},   {"srlw", RVForm::RType},
-      {"sraw", RVForm::RType},   {"slt", RVForm::RType},    {"sltu", RVForm::RType},
-      {"addiw", RVForm::IType},  {"addi", RVForm::IType},   {"andi", RVForm::IType},
-      {"ori", RVForm::IType},    {"xori", RVForm::IType},   {"slliw", RVForm::IType},
-      {"srliw", RVForm::IType},  {"sraiw", RVForm::IType},  {"slli", RVForm::IType},
-      {"slti", RVForm::IType},
-      {"sltiu", RVForm::IType},  {"mv", RVForm::Unary},     {"negw", RVForm::Unary},
-      {"seqz", RVForm::Unary},   {"snez", RVForm::Unary},   {"sext.w", RVForm::Unary},
-      {"li", RVForm::LoadImm},   {"la", RVForm::LoadSym},   {"lw", RVForm::Load},
-      {"ld", RVForm::Load},      {"sw", RVForm::Store},     {"sd", RVForm::Store},
-      {"fadd.s", RVForm::RType}, {"fsub.s", RVForm::RType}, {"fmul.s", RVForm::RType},
-      {"fdiv.s", RVForm::RType}, {"feq.s", RVForm::RType},  {"flt.s", RVForm::RType},
-      {"fle.s", RVForm::RType},  {"fmv.s", RVForm::Unary},  {"fcvt.s.w", RVForm::Unary},
-      {"fcvt.w.s", RVForm::ConvertToInt}, {"fmv.w.x", RVForm::Unary}, {"fmv.x.w", RVForm::Unary},
-      {"flw", RVForm::Load},     {"fsw", RVForm::Store},
-      {"beq", RVForm::Branch},   {"bne", RVForm::Branch},   {"blt", RVForm::Branch},
-      {"bge", RVForm::Branch},   {"bltu", RVForm::Branch},  {"bgeu", RVForm::Branch},
-      {"j", RVForm::Jump},
+      {"addw", RVForm::RType, 2, true, C},     {"subw", RVForm::RType, 2, true, N},
+      {"mulw", RVForm::RType, 2, true, C},     {"divw", RVForm::RType, 2, true, N},
+      {"remw", RVForm::RType, 2, true, N},     {"add", RVForm::RType, 2, true, C},
+      {"sub", RVForm::RType, 2, true, N},      {"mul", RVForm::RType, 2, true, C},
+      {"and", RVForm::RType, 2, true, C},      {"or", RVForm::RType, 2, true, C},
+      {"xor", RVForm::RType, 2, true, C},      {"sllw", RVForm::RType, 2, true, N},
+      {"srlw", RVForm::RType, 2, true, N},     {"sraw", RVForm::RType, 2, true, N},
+      {"slt", RVForm::RType, 2, true, N},      {"sltu", RVForm::RType, 2, true, N},
+      {"addiw", RVForm::IType, 2, true, N},    {"addi", RVForm::IType, 2, true, N},
+      {"andi", RVForm::IType, 2, true, N},     {"ori", RVForm::IType, 2, true, N},
+      {"xori", RVForm::IType, 2, true, N},     {"slliw", RVForm::IType, 2, true, N},
+      {"srliw", RVForm::IType, 2, true, N},    {"sraiw", RVForm::IType, 2, true, N},
+      {"slli", RVForm::IType, 2, true, N},     {"slti", RVForm::IType, 2, true, N},
+      {"sltiu", RVForm::IType, 2, true, N},    {"mv", RVForm::Unary, 1, true, N},
+      {"negw", RVForm::Unary, 1, true, N},     {"seqz", RVForm::Unary, 1, true, N},
+      {"snez", RVForm::Unary, 1, true, N},     {"sext.w", RVForm::Unary, 1, true, N},
+      {"li", RVForm::LoadImm, 1, true, R},     {"la", RVForm::LoadSym, 1, true, R},
+      {"lw", RVForm::Load, 2, true, LD},       {"ld", RVForm::Load, 2, true, LD},
+      {"sw", RVForm::Store, 3, false, ST},     {"sd", RVForm::Store, 3, false, ST},
+      {"fadd.s", RVForm::RType, 2, true, C},   {"fsub.s", RVForm::RType, 2, true, N},
+      {"fmul.s", RVForm::RType, 2, true, C},   {"fdiv.s", RVForm::RType, 2, true, N},
+      {"feq.s", RVForm::RType, 2, true, C},    {"flt.s", RVForm::RType, 2, true, N},
+      {"fle.s", RVForm::RType, 2, true, N},    {"fmv.s", RVForm::Unary, 1, true, N},
+      {"fcvt.s.w", RVForm::Unary, 1, true, N}, {"fcvt.w.s", RVForm::ConvertToInt, 1, true, N},
+      {"fmv.w.x", RVForm::Unary, 1, true, N},  {"fmv.x.w", RVForm::Unary, 1, true, N},
+      {"flw", RVForm::Load, 2, true, LD},      {"fsw", RVForm::Store, 3, false, ST},
+      {"beq", RVForm::Branch, 3, false, BR},   {"bne", RVForm::Branch, 3, false, BR},
+      {"blt", RVForm::Branch, 3, false, BR},   {"bge", RVForm::Branch, 3, false, BR},
+      {"bltu", RVForm::Branch, 3, false, BR},  {"bgeu", RVForm::Branch, 3, false, BR},
+      {"j", RVForm::Jump, 1, false, BR},
   }};
-  // CALL and RET have no operands-based form; handle them out of the table so the
-  // table stays index-aligned with the RVOpcode enum up to J.
-  static const RVOpcodeInfo CALL_INFO = {"call", RVForm::Call};
-  static const RVOpcodeInfo RET_INFO = {"ret", RVForm::Ret};
-  static const RVOpcodeInfo SRAI_INFO = {"srai", RVForm::IType};
+  // CALL, RET, COMMENT and SRAI sit after the index-aligned table.
+  static const RVOpcodeInfo CALL_INFO = {
+      "call", RVForm::Call, -1, false,
+      RVInstFlag::Call | RVInstFlag::MayLoad | RVInstFlag::MayStore | RVInstFlag::SideEffect};
+  static const RVOpcodeInfo RET_INFO = {"ret", RVForm::Ret, 0, false,
+                                        RVInstFlag::Terminator | RVInstFlag::Return | RVInstFlag::SideEffect};
+  static const RVOpcodeInfo COMMENT_INFO = {"#", RVForm::Ret, 0, false, N};
+  static const RVOpcodeInfo SRAI_INFO = {"srai", RVForm::IType, 2, true, N};
+  static const RVOpcodeInfo PHI_INFO = {"phi", RVForm::Phi, -1, true, RVInstFlag::Pseudo};
   if (opcode == RVOpcode::CALL) {
     return CALL_INFO;
   }
   if (opcode == RVOpcode::RET) {
     return RET_INFO;
   }
+  if (opcode == RVOpcode::COMMENT) {
+    return COMMENT_INFO;
+  }
   if (opcode == RVOpcode::SRAI) {
     return SRAI_INFO;
+  }
+  if (opcode == RVOpcode::PHI) {
+    return PHI_INFO;
   }
   return TABLE[static_cast<size_t>(opcode)];
 }
@@ -122,6 +147,9 @@ auto RISCVInst::Emit(std::ofstream *out) -> void {
       *out << ", rtz";
       break;
     case RVForm::Ret:
+      break;
+    case RVForm::Phi:
+      *out << " # unlowered machine phi";
       break;
   }
   if (!comment_.empty()) {

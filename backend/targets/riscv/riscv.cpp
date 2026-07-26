@@ -13,6 +13,8 @@
 #include "backend/targets/riscv/pass/localcse.h"
 #include "backend/targets/riscv/pass/machinedce.h"
 #include "backend/targets/riscv/pass/machinelicm.h"
+#include "backend/targets/riscv/pass/machinephielim.h"
+#include "backend/targets/riscv/pass/machineverifier.h"
 #include "backend/targets/riscv/pass/peephole.h"
 #include "backend/targets/riscv/printer/riscvprinter.h"
 #include "backend/targets/riscv/regalloc/graphcoloralloc.h"
@@ -32,24 +34,45 @@ auto RISCVBackend::Run() -> int {
   RISCVISel isel(compiler_context_, &ctx_, magic_div_);
   GraphColorRegAlloc reg_alloc(&ctx_);
   RISCVFrame frame(&ctx_);
+  RISCVVerifier verifier(compiler_context_);
 
   // Machine-level optimization pipeline, toggled by the optimization level (like
   // the middle-end pass pipeline). Runs on the selected code before register
   // allocation, on virtual registers.
   MachinePassManager machine_passes(&ctx_);
+  MachinePassManager post_phi_passes(&ctx_);
   if (opt_level_ >= 1) {
-    machine_passes.AddPass(new RISCVPeephole(&ctx_));
-    machine_passes.AddPass(new RISCVAddrFold(&ctx_));
-    machine_passes.AddPass(new RISCVLocalCSE(&ctx_));
-    machine_passes.AddPass(new MachineLICM(&ctx_));
-    machine_passes.AddPass(new MachineDCE(&ctx_));
-    machine_passes.AddPass(new RISCVBlockLayout(&ctx_));
+    // M1 keeps the existing optimization order after phi destruction. Moving
+    // individual passes into the SSA section is gated on their adopting phi
+    // edge-use semantics; doing it prematurely changes hot-loop register
+    // pressure even when static code becomes smaller.
+    post_phi_passes.AddPass(new RISCVPeephole(&ctx_));
+    post_phi_passes.AddPass(new RISCVAddrFold(&ctx_));
+    post_phi_passes.AddPass(new RISCVLocalCSE(&ctx_));
+    post_phi_passes.AddPass(new MachineLICM(&ctx_));
+    post_phi_passes.AddPass(new MachineDCE(&ctx_));
+    post_phi_passes.AddPass(new RISCVBlockLayout(&ctx_));
   }
 
   for (auto *mir_func : module->GetFunctions()) {
     auto *tfunc = isel.SelectFunction(mir_func);
     if (!machine_passes.Empty()) {
       machine_passes.Run(tfunc);
+    }
+    if (!verifier.Verify(tfunc, MachineVerifyStage::PreRegisterAllocation)) {
+      return -1;
+    }
+    MachinePhiElimination phi_elimination(&ctx_);
+    phi_elimination.RunOnFunction(tfunc);
+    // Phi destruction introduces edge copies and, for critical edges, split
+    // blocks. Run the ordinary non-SSA-safe cleanup pipeline once more so those
+    // new instructions receive the same folding, DCE and layout treatment as
+    // copies that historically existed before instruction selection.
+    if (!post_phi_passes.Empty()) {
+      post_phi_passes.Run(tfunc);
+    }
+    if (!verifier.Verify(tfunc, MachineVerifyStage::PostPhiElimination)) {
+      return -1;
     }
     auto outgoing = isel.OutgoingBytes();
     auto alloca_bytes = isel.AllocaBytes();
@@ -64,6 +87,9 @@ auto RISCVBackend::Run() -> int {
       late_branch_fold.RunOnFunction(tfunc);
     }
     frame.Finalize(tfunc, outgoing + alloca_bytes, spill_slots, reg_alloc.UsedCalleeSaved());
+    if (!verifier.Verify(tfunc, MachineVerifyStage::PostRegisterAllocation)) {
+      return -1;
+    }
     target_functions_.push_back(tfunc);
   }
   return 0;

@@ -96,7 +96,7 @@ SysY 的 int 是 32 位、指针/地址运算 64 位、float 是 32 位单精度
 | `Ret` | 结果→a0/fa0；`j .epilogue` | |
 | `GlobalDef` | `.data/.bss/.section` + `la` 取址 | 见 §5 |
 | `alloca`(已在 MIR 化为 Frame) | 分配 FrameIndex 槽 | |
-| `Phi` | **不在此处**——降级前先做 phi 消除（见 §3.4） | |
+| `Phi` | 保留为 machine-SSA `PHI` pseudo，寄存器分配前统一消除（见 §3.4） | incoming 常量/地址按 CFG edge 延迟物化 |
 
 ### 2.3 比较/分支融合（重要，影响质量）
 RISC-V 没有条件码。若把 `ICmp` 单独物化成 0/1 再 `bnez` 会多一条指令。做法：ISel 时若 `ICmp` 的**唯一 use 是紧跟的 `CondBr`**，则直接选成 `blt/bge/beq/bne/bltu/bgeu`（浮点用 `feq/flt/fle`+`bnez`）。否则物化成 0/1。判断"唯一 use 且相邻"用 MIR 的 use-list，不特判具体样例。
@@ -113,7 +113,7 @@ RISC-V 没有条件码。若把 `ICmp` 单独物化成 0/1 再 `bnez` 会多一�
 参考：Appel《Modern Compiler Implementation》第 11 章（Iterated Register Coalescing, George & Appel 1996）、LLVM `RegAllocGreedy` 思路、以及 Briggs 的乐观着色。
 
 ### 3.1 输入/输出
-- 输入：ISel 后的 `TargetFunction`，指令操作数为虚拟寄存器（`TargetVirtualReg`）+ 少量预着色物理寄存器（参数/返回/除法约束）。
+- 输入：Phi 消除后的 `TargetFunction`，指令操作数为虚拟寄存器（`TargetVirtualReg`）+ 少量预着色物理寄存器（参数/返回/除法约束）。
 - 输出：全部替换为 `TargetPhysicalReg`；必要处插入 spill 的 load/store 与 FrameIndex 槽。
 
 ### 3.2 两套独立寄存器文件
@@ -147,9 +147,10 @@ loop:
 - **预着色结点**（物理寄存器）度数视为 ∞，不可 simplify/spill，只能被 coalesce 或作为约束。
 
 ### 3.4 Phi 消除（在寄存器分配之前）
-在 ISel 之前或之内，把 `Phi` 用**并行复制（parallel copy）**在前驱块末尾展开，注意：
+LLVM IR → MIR → ISel 全程保留 `Phi`，让选择后的虚拟寄存器维持单定义；机器 SSA 优化完成后、寄存器分配之前，再把 `PHI` 用**并行复制（parallel copy）**在 CFG edge 上展开：
 - 同一前驱多个 phi 的复制是**并行语义**，要处理相互覆盖 → 用经典的"并行复制串行化 + 必要时借临时寄存器打破环"（见 Boissinot 等 *Revisiting Out-of-SSA Translation*）。
 - 关键边（critical edge）先拆分，避免复制放错块。
+- incoming 常量、全局地址等不能提前放进整个前驱块；将物化指令绑定到 `(pred, succ)`，拆边后放入 edge block，避免在未走该边时推测执行。
 - 复制统一走 `Copy`/`mv`，由分配器合并消除，不特判。
 > 记忆点：项目里 `scf.while` 的 cond/body 共享 loop-carried arg（见 memory `while-shared-block-arg`），phi/复制处理要按块重建 use-list，避免踩到同类坑。
 
@@ -212,7 +213,7 @@ loop:
 ## 7. 健壮性工程（"通过全部样例"的保障）
 
 1. **立即数合法化 helper 唯一入口**：任何 `addi/lw/sw/...` 的立即数越界都在一处集中处理，杜绝散落特判。
-2. **Verifier**：仿照现有 MIR/LLVM/MLIR 的 `Verify()`，加 `TargetFunction::Verify()`——分配后检查无残留虚拟寄存器、无非法立即数、每块以终结指令结尾、CFG 一致。放 `-S` 前跑。
+2. **Verifier**：在 Phi 消除前、Phi 消除后、寄存器分配后三个边界运行。检查 machine SSA 单定义、Phi 连续且 incoming block 为真实 CFG 前驱、opcode arity/form、立即数范围、终结指令顺序、分配后无残留虚拟寄存器。
 3. **两级对拍**：
    - functional：本编译器 `.s` → `riscv64 gcc` 汇编链接 `librv.a` → `qemu-riscv64` 跑 → 比对 `.out` 与返回码（SysY 用低 8 位返回码 + stdout）。
    - performance：同上并计时（`_sysy_starttime/stoptime`）。

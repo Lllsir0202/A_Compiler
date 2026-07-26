@@ -67,6 +67,7 @@ class RISCVISel {
   auto SelectBr(backend::inst::Instruction *inst) -> void;
   auto SelectRet(backend::inst::Instruction *inst) -> void;
   auto SelectCopy(backend::inst::Instruction *inst) -> void;
+  auto SelectPhi(backend::inst::Instruction *inst) -> void;
   auto SelectCall(backend::inst::Instruction *inst) -> void;
   auto SelectLoad(backend::inst::Instruction *inst) -> void;
   auto SelectStore(backend::inst::Instruction *inst) -> void;
@@ -85,6 +86,7 @@ class RISCVISel {
   auto PhysGPR(uint8_t id) -> TargetOperand *;
   auto PhysFPR(uint8_t id) -> TargetOperand *;
   auto LabelForBlock(size_t block_id) -> TargetLabel *;
+  auto MaterializePhiIncoming(backend::utils::Operand *operand, TargetBlock *predecessor) -> TargetOperand *;
 
   // Instruction emission helper: build a RISCVInst, wire result + operands, append.
   auto Emit(RVOpcode opcode, TargetOperand *result, const std::vector<TargetOperand *> &operands) -> RISCVInst *;
@@ -108,6 +110,8 @@ class RISCVISel {
   TargetBlock *cur_block_ = nullptr;
   std::unordered_map<backend::utils::Operand *, TargetOperand *> value_map_;
   std::unordered_map<size_t, TargetBlock *> block_by_id_;
+  TargetFunction *target_func_ = nullptr;
+  std::vector<TargetInst *> *detached_sink_ = nullptr;
   std::unordered_set<backend::inst::Instruction *> fused_icmps_;
 
   // Function-wide def-use summary used for compare/branch fusion: how many times

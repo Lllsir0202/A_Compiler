@@ -627,11 +627,31 @@ auto GraphColorRegAlloc::AssignColors() -> void {
       spilled_nodes_.insert(n);
     } else {
       colored_nodes_.insert(n);
-      // Prefer allocatable order (caller-saved temps first) for determinism.
-      for (auto id : allocatable) {
-        if (ok.count(id) != 0) {
-          color_[n] = id;
+      // A copy that could not be coalesced still carries a useful affinity:
+      // prefer the already-colored source/destination color when it remains
+      // legal. This is especially important for phi-edge parallel copies; a
+      // pure first-available policy makes their surviving mv count depend on
+      // virtual-register creation order.
+      for (auto *move : move_list_[n]) {
+        NodeId destination = -1;
+        NodeId source = -1;
+        if (!IsMove(move, &destination, &source)) {
+          continue;
+        }
+        NodeId other = GetAlias(GetAlias(destination) == GetAlias(n) ? source : destination);
+        if ((precolored_[other] || colored_nodes_.count(other) != 0) && ok.count(color_[other]) != 0) {
+          color_[n] = color_[other];
           break;
+        }
+      }
+      if (color_[n] < 0) {
+        // Otherwise prefer target allocation order (caller-saved temps first)
+        // for deterministic, leaf-friendly assignments.
+        for (auto id : allocatable) {
+          if (ok.count(id) != 0) {
+            color_[n] = id;
+            break;
+          }
         }
       }
     }
@@ -686,8 +706,8 @@ auto GraphColorRegAlloc::EmitReload(std::vector<TargetInst *> *out, TargetOperan
   out->push_back(ld);
 }
 
-auto GraphColorRegAlloc::EmitSpill(std::vector<TargetInst *> *out, TargetOperand *vreg, TargetOperand *src, size_t slot)
-    -> void {
+auto GraphColorRegAlloc::EmitSpill(std::vector<TargetInst *> *out, TargetOperand *vreg, TargetOperand *src,
+                                   size_t slot) -> void {
   auto *v = static_cast<TargetVirtualReg *>(vreg);
   RVOpcode op = v->GetRegClass() == TargetRegClass::Float ? RVOpcode::FSW
                 : v->GetRegSize() == TargetRegSize::QWord ? RVOpcode::SD

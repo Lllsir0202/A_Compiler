@@ -11,70 +11,9 @@
 
 namespace backend::targetir::riscv {
 
-namespace {
-// Pure register-to-register opcodes: a deterministic function of their operands
-// with no memory or control-flow effect. Loads/stores, branches, calls, ret and
-// the comment pseudo are intentionally absent. `li`/`la` materialize a constant
-// or address and are pure functions of their immediate/symbol operand.
-auto IsPure(RVOpcode op) -> bool {
-  switch (op) {
-    case RVOpcode::ADDW:
-    case RVOpcode::SUBW:
-    case RVOpcode::MULW:
-    case RVOpcode::DIVW:
-    case RVOpcode::REMW:
-    case RVOpcode::ADD:
-    case RVOpcode::SUB:
-    case RVOpcode::MUL:
-    case RVOpcode::AND:
-    case RVOpcode::OR:
-    case RVOpcode::XOR:
-    case RVOpcode::SLLW:
-    case RVOpcode::SRLW:
-    case RVOpcode::SRAW:
-    case RVOpcode::SLT:
-    case RVOpcode::SLTU:
-    case RVOpcode::ADDIW:
-    case RVOpcode::ADDI:
-    case RVOpcode::ANDI:
-    case RVOpcode::ORI:
-    case RVOpcode::XORI:
-    case RVOpcode::SLLIW:
-    case RVOpcode::SRLIW:
-    case RVOpcode::SRAIW:
-    case RVOpcode::SLLI:
-    case RVOpcode::SLTI:
-    case RVOpcode::SLTIU:
-    case RVOpcode::MV:
-    case RVOpcode::NEGW:
-    case RVOpcode::SEQZ:
-    case RVOpcode::SNEZ:
-    case RVOpcode::SEXT_W:
-    case RVOpcode::LI:
-    case RVOpcode::LA:
-    case RVOpcode::FADD_S:
-    case RVOpcode::FSUB_S:
-    case RVOpcode::FMUL_S:
-    case RVOpcode::FDIV_S:
-    case RVOpcode::FEQ_S:
-    case RVOpcode::FLT_S:
-    case RVOpcode::FLE_S:
-    case RVOpcode::FMV_S:
-    case RVOpcode::FCVT_S_W:
-    case RVOpcode::FCVT_W_S:
-    case RVOpcode::FMV_W_X:
-    case RVOpcode::FMV_X_W:
-    case RVOpcode::SRAI:
-      return true;
-    default:
-      return false;
-  }
-}
-}  // namespace
-
 auto RISCVLocalCSE::KeyOf(TargetInst *inst) -> std::string {
   auto *ri = static_cast<RISCVInst *>(inst);
-  if (!IsPure(ri->GetOpcode())) {
+  if (!GetRVOpcodeInfo(ri->GetOpcode()).IsPure()) {
     return "";
   }
   auto *res = inst->GetResult();

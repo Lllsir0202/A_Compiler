@@ -12,6 +12,7 @@
 #include "backend/mir/inst/func/funcdef.h"
 #include "backend/mir/inst/inst.h"
 #include "backend/mir/inst/pseudo/copy.h"
+#include "backend/mir/inst/pseudo/phi.h"
 #include "backend/mir/utils/memory/frameinfo.h"
 #include "backend/mir/utils/operand/frameoperand.h"
 #include "backend/mir/utils/operand/globaloperand.h"
@@ -72,6 +73,8 @@ auto RISCVISel::SelectFunction(backend::utils::Function *mir_func) -> TargetFunc
   func_name_ = mir_func->GetName();
   value_map_.clear();
   block_by_id_.clear();
+  target_func_ = nullptr;
+  detached_sink_ = nullptr;
   fused_icmps_.clear();
   use_count_.clear();
   one_user_.clear();
@@ -96,6 +99,7 @@ auto RISCVISel::SelectFunction(backend::utils::Function *mir_func) -> TargetFunc
   outgoing_bytes_ = max_stack_args * 8;
 
   auto *tfunc = ctx_->NewFunction(func_name_);
+  target_func_ = tfunc;
 
   // Pass 1: create a target block per MIR block, keyed by MIR block id.
   for (auto *mir_block : mir_func->GetBlocks()) {
@@ -165,7 +169,6 @@ auto RISCVISel::SelectFunction(backend::utils::Function *mir_func) -> TargetFunc
       SelectInst(inst);
     }
   }
-
   // Prepend the once-per-function global-address materializations to the entry
   // block, ahead of the body so their defs dominate every use.
   if (entry_block_ != nullptr && !entry_globals_.empty()) {
@@ -251,6 +254,9 @@ auto RISCVISel::SelectInst(backend::inst::Instruction *inst) -> void {
       break;
     case OpKind::Copy:
       SelectCopy(inst);
+      break;
+    case OpKind::Phi:
+      SelectPhi(inst);
       break;
     case OpKind::Zext:
       SelectCopy(inst);
@@ -464,10 +470,11 @@ auto RISCVISel::SelectFCmp(backend::inst::Instruction *inst) -> void {
     case CmpPredicate::EQ:
       Emit(RVOpcode::FEQ_S, res, {lhs, rhs});
       break;
-    case CmpPredicate::NE:
-      Emit(RVOpcode::FEQ_S, res, {lhs, rhs});
-      Emit(RVOpcode::XORI, res, {res, ctx_->Imm(1)});
-      break;
+    case CmpPredicate::NE: {
+      auto *equal = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::DWord);
+      Emit(RVOpcode::FEQ_S, equal, {lhs, rhs});
+      Emit(RVOpcode::XORI, res, {equal, ctx_->Imm(1)});
+    } break;
     case CmpPredicate::LT:
       Emit(RVOpcode::FLT_S, res, {lhs, rhs});
       break;
@@ -551,6 +558,37 @@ auto RISCVISel::SelectCopy(backend::inst::Instruction *inst) -> void {
   auto *src = GetReg(inst->GetOperands()[0]);
   auto opcode = inst->GetResult()->IsFloat() ? RVOpcode::FMV_S : RVOpcode::MV;
   Emit(opcode, GetOrCreateVReg(inst->GetResult()), {src});
+}
+
+auto RISCVISel::MaterializePhiIncoming(backend::utils::Operand *operand, TargetBlock *predecessor) -> TargetOperand * {
+  if (operand->IsRegister()) {
+    return GetOrCreateVReg(operand);
+  }
+  std::vector<TargetInst *> code;
+  auto *saved_sink = detached_sink_;
+  detached_sink_ = &code;
+  auto *value = GetReg(operand);
+  detached_sink_ = saved_sink;
+  target_func_->AddEdgeCode(predecessor->GetLabel(), cur_block_->GetLabel(), code);
+  return value;
+}
+
+auto RISCVISel::SelectPhi(backend::inst::Instruction *inst) -> void {
+  auto *phi = static_cast<backend::inst::PhiInst *>(inst);
+  auto *selected = ctx_->CreateInst<RISCVInst>(RVOpcode::PHI);
+  selected->SetResult(GetOrCreateVReg(phi->GetResult()));
+  const auto &values = phi->GetIncomingValues();
+  const auto &blocks = phi->GetIncomingBlocks();
+  for (size_t index = 0; index < values.size(); ++index) {
+    auto block_it = block_by_id_.find(blocks[index]->GetId());
+    if (block_it == block_by_id_.end()) {
+      compiler_context_->ReportError("RISC-V instruction selection: phi references an unknown predecessor");
+      continue;
+    }
+    selected->AddOperand(MaterializePhiIncoming(values[index], block_it->second));
+    selected->AddOperand(ctx_->Label(block_it->second->GetLabel()));
+  }
+  cur_block_->AddInst(selected);
 }
 
 auto RISCVISel::SelectCall(backend::inst::Instruction *inst) -> void {
@@ -680,8 +718,8 @@ auto RISCVISel::LabelForBlock(size_t block_id) -> TargetLabel * {
   return ctx_->Label(".L_" + func_name_ + "_" + std::to_string(block_id));
 }
 
-auto RISCVISel::Emit(RVOpcode opcode, TargetOperand *result, const std::vector<TargetOperand *> &operands)
-    -> RISCVInst * {
+auto RISCVISel::Emit(RVOpcode opcode, TargetOperand *result,
+                     const std::vector<TargetOperand *> &operands) -> RISCVInst * {
   auto *inst = ctx_->CreateInst<RISCVInst>(opcode);
   if (result != nullptr) {
     inst->SetResult(result);
@@ -689,14 +727,22 @@ auto RISCVISel::Emit(RVOpcode opcode, TargetOperand *result, const std::vector<T
   for (auto *op : operands) {
     inst->AddOperand(op);
   }
-  cur_block_->AddInst(inst);
+  if (detached_sink_ != nullptr) {
+    detached_sink_->push_back(inst);
+  } else {
+    cur_block_->AddInst(inst);
+  }
   return inst;
 }
 
 auto RISCVISel::Comment(const std::string &text) -> void {
   auto *inst = ctx_->CreateInst<RISCVInst>(RVOpcode::COMMENT);
   inst->SetComment(text);
-  cur_block_->AddInst(inst);
+  if (detached_sink_ != nullptr) {
+    detached_sink_->push_back(inst);
+  } else {
+    cur_block_->AddInst(inst);
+  }
 }
 
 auto RISCVISel::EmitBaseLoad(RVOpcode opcode, TargetOperand *dst, uint8_t base_id, int offset) -> void {
@@ -704,9 +750,10 @@ auto RISCVISel::EmitBaseLoad(RVOpcode opcode, TargetOperand *dst, uint8_t base_i
     Emit(opcode, dst, {PhysGPR(base_id), ctx_->Imm(offset)});
     return;
   }
+  auto *offset_reg = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
   auto *addr = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
-  Emit(RVOpcode::LI, addr, {ctx_->Imm(offset)});
-  Emit(RVOpcode::ADD, addr, {PhysGPR(base_id), addr});
+  Emit(RVOpcode::LI, offset_reg, {ctx_->Imm(offset)});
+  Emit(RVOpcode::ADD, addr, {PhysGPR(base_id), offset_reg});
   Emit(opcode, dst, {addr, ctx_->Imm(0)});
 }
 
@@ -715,9 +762,10 @@ auto RISCVISel::EmitBaseStore(RVOpcode opcode, TargetOperand *value, uint8_t bas
     Emit(opcode, nullptr, {value, PhysGPR(base_id), ctx_->Imm(offset)});
     return;
   }
+  auto *offset_reg = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
   auto *addr = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
-  Emit(RVOpcode::LI, addr, {ctx_->Imm(offset)});
-  Emit(RVOpcode::ADD, addr, {PhysGPR(base_id), addr});
+  Emit(RVOpcode::LI, offset_reg, {ctx_->Imm(offset)});
+  Emit(RVOpcode::ADD, addr, {PhysGPR(base_id), offset_reg});
   Emit(opcode, nullptr, {value, addr, ctx_->Imm(0)});
 }
 
@@ -761,8 +809,9 @@ auto RISCVISel::LowerAddress(backend::utils::Operand *ptr) -> TargetOperand * {
     if (offset >= -2048 && offset <= 2047) {
       Emit(RVOpcode::ADDI, addr, {sp, ctx_->Imm(offset)});
     } else {
-      Emit(RVOpcode::LI, addr, {ctx_->Imm(offset)});
-      Emit(RVOpcode::ADD, addr, {sp, addr});
+      auto *offset_reg = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
+      Emit(RVOpcode::LI, offset_reg, {ctx_->Imm(offset)});
+      Emit(RVOpcode::ADD, addr, {sp, offset_reg});
     }
     return addr;
   }

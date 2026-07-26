@@ -17,60 +17,130 @@ namespace backend::targetir::riscv {
  */
 enum class RVOpcode : uint8_t {
   // R-type integer (rd, rs1, rs2)
-  ADDW, SUBW, MULW, DIVW, REMW,
-  ADD, SUB, MUL,  // 64-bit, address arithmetic
-  AND, OR, XOR,
-  SLLW, SRLW, SRAW,
-  SLT, SLTU,
+  ADDW,
+  SUBW,
+  MULW,
+  DIVW,
+  REMW,
+  ADD,
+  SUB,
+  MUL,  // 64-bit, address arithmetic
+  AND,
+  OR,
+  XOR,
+  SLLW,
+  SRLW,
+  SRAW,
+  SLT,
+  SLTU,
   // I-type integer (rd, rs1, imm)
-  ADDIW, ADDI, ANDI, ORI, XORI,
-  SLLIW, SRLIW, SRAIW,
+  ADDIW,
+  ADDI,
+  ANDI,
+  ORI,
+  XORI,
+  SLLIW,
+  SRLIW,
+  SRAIW,
   SLLI,  // 64-bit shift-left immediate (address arithmetic / strength reduction)
-  SLTI, SLTIU,
+  SLTI,
+  SLTIU,
   // Unary (rd, rs1)
-  MV, NEGW, SEQZ, SNEZ, SEXT_W,
+  MV,
+  NEGW,
+  SEQZ,
+  SNEZ,
+  SEXT_W,
   // Immediate / address materialization (rd, imm|symbol)
-  LI, LA,
+  LI,
+  LA,
   // Memory
-  LW, LD,   // load  : rd, imm(rs1)
-  SW, SD,   // store : rs2, imm(rs1)
+  LW,
+  LD,  // load  : rd, imm(rs1)
+  SW,
+  SD,  // store : rs2, imm(rs1)
   // Single-precision float
-  FADD_S, FSUB_S, FMUL_S, FDIV_S,  // R-type, FPR operands + FPR result
-  FEQ_S, FLT_S, FLE_S,             // R-type, FPR operands -> GPR result
-  FMV_S,                           // fmv.s  fd, fs   (float register move)
-  FCVT_S_W,                        // fcvt.s.w fd, rs (int -> float)
-  FCVT_W_S,                        // fcvt.w.s rd, fs, rtz (float -> int, truncate)
-  FMV_W_X, FMV_X_W,                // bit-pattern move GPR<->FPR
-  FLW, FSW,                        // float load / store
+  FADD_S,
+  FSUB_S,
+  FMUL_S,
+  FDIV_S,  // R-type, FPR operands + FPR result
+  FEQ_S,
+  FLT_S,
+  FLE_S,     // R-type, FPR operands -> GPR result
+  FMV_S,     // fmv.s  fd, fs   (float register move)
+  FCVT_S_W,  // fcvt.s.w fd, rs (int -> float)
+  FCVT_W_S,  // fcvt.w.s rd, fs, rtz (float -> int, truncate)
+  FMV_W_X,
+  FMV_X_W,  // bit-pattern move GPR<->FPR
+  FLW,
+  FSW,  // float load / store
   // Control flow
-  BEQ, BNE, BLT, BGE, BLTU, BGEU,  // rs1, rs2, label
+  BEQ,
+  BNE,
+  BLT,
+  BGE,
+  BLTU,
+  BGEU,     // rs1, rs2, label
   J,        // label
   CALL,     // symbol
   RET,      // (none)
   COMMENT,  // "# text" pseudo, carries no operands; used for annotations / TODOs
   SRAI,     // 64-bit arithmetic shift-right immediate (magic-division high part);
             // kept out of the index-aligned table like CALL/RET
+  PHI,      // machine-SSA phi: result, then alternating value/block operands
 };
 
 /// How an opcode's operands are rendered as text.
 enum class RVForm : uint8_t {
-  RType,   // mnem rd, op0, op1
-  IType,   // mnem rd, op0, imm
-  Unary,   // mnem rd, op0
-  Load,    // mnem rd, op1(op0)        op0 = base, op1 = imm
-  Store,   // mnem op0, op2(op1)       op0 = value, op1 = base, op2 = imm
-  Branch,  // mnem op0, op1, op2       op0/op1 = regs, op2 = label
-  Jump,    // mnem op0
-  LoadImm, // mnem rd, op0             op0 = imm
-  LoadSym, // mnem rd, op0             op0 = symbol
-  Call,    // mnem op0                 op0 = symbol
-  Ret,     // mnem
+  RType,         // mnem rd, op0, op1
+  IType,         // mnem rd, op0, imm
+  Unary,         // mnem rd, op0
+  Load,          // mnem rd, op1(op0)        op0 = base, op1 = imm
+  Store,         // mnem op0, op2(op1)       op0 = value, op1 = base, op2 = imm
+  Branch,        // mnem op0, op1, op2       op0/op1 = regs, op2 = label
+  Jump,          // mnem op0
+  LoadImm,       // mnem rd, op0             op0 = imm
+  LoadSym,       // mnem rd, op0             op0 = symbol
+  Call,          // mnem op0                 op0 = symbol
+  Ret,           // mnem
   ConvertToInt,  // mnem rd, op0, rtz  (fcvt.w.s truncating convert)
+  Phi,           // pre-RA pseudo; eliminated before assembly emission
 };
+
+enum class RVInstFlag : uint16_t {
+  None = 0,
+  Terminator = 1U << 0,
+  Branch = 1U << 1,
+  Call = 1U << 2,
+  Return = 1U << 3,
+  MayLoad = 1U << 4,
+  MayStore = 1U << 5,
+  SideEffect = 1U << 6,
+  Commutable = 1U << 7,
+  Rematerializable = 1U << 8,
+  Pseudo = 1U << 9,
+};
+
+constexpr auto operator|(RVInstFlag lhs, RVInstFlag rhs) -> RVInstFlag {
+  return static_cast<RVInstFlag>(static_cast<uint16_t>(lhs) | static_cast<uint16_t>(rhs));
+}
 
 struct RVOpcodeInfo {
   const char *mnemonic_;
   RVForm form_;
+  // Number of explicit source operands. Calls are variadic because the callee
+  // symbol is followed by the physical argument registers used at the call.
+  int8_t num_operands_;
+  bool has_result_;
+  RVInstFlag flags_;
+
+  auto HasFlag(RVInstFlag flag) const -> bool {
+    return (static_cast<uint16_t>(flags_) & static_cast<uint16_t>(flag)) != 0;
+  }
+  auto IsPure() const -> bool {
+    return has_result_ && !HasFlag(RVInstFlag::SideEffect) && !HasFlag(RVInstFlag::MayLoad) &&
+           !HasFlag(RVInstFlag::MayStore) && !HasFlag(RVInstFlag::Terminator) && !HasFlag(RVInstFlag::Pseudo);
+  }
 };
 
 /// The mnemonic + rendering form for an opcode.

@@ -103,136 +103,32 @@ auto LowerHelper::LowerFunction(middleend::llvm::utils::Function *function) -> v
       }
     }
 
-    // Index MIR blocks by their id. Block ids are not contiguous (the CFG may
-    // drop ids), so they cannot be used as positions into the block vector.
-    std::unordered_map<size_t, utils::Block *> block_by_id;
-    for (auto *mir_block : GET_LOWER_CONTEXT()->GetCurrentFunction()->GetBlocks()) {
-      block_by_id[mir_block->GetId()] = mir_block;
-    }
-
-    // Finish lowering a function: eliminate phi instructions. All phi copies for
-    // one CFG edge (predecessor -> the phi's block) must happen *simultaneously*
-    // -- emitting one `copy dst, src` per phi in sequence corrupts interdependent
-    // updates such as a swap (a,b) <- (b,a) at a loop back-edge (the lost-copy
-    // problem). Group the copies by edge, then sequentialize each group as a
-    // proper parallel copy (see EmitParallelCopy).
-    std::vector<std::pair<utils::Block *, utils::Block *>> edge_order;
-    std::map<std::pair<utils::Block *, utils::Block *>, std::vector<std::pair<utils::Operand *, utils::Operand *>>>
-        edge_copies;
+    // Resolve phi incoming operands only after every block/value has been
+    // lowered. Keep the phi in MIR: destroying SSA here used to turn loop
+    // values into multiply-defined virtual registers before instruction
+    // selection, preventing global machine optimization. Machine phi
+    // elimination now happens immediately before register allocation.
     while (!pending_phi_mirs_.empty()) {
-      auto phi_mir = pending_phi_mirs_.front();
+      auto *phi_mir = pending_phi_mirs_.front();
       pending_phi_mirs_.pop();
-      auto phi_llvm = pending_phi_llvmirs_.front();
+      auto *phi_llvm = pending_phi_llvmirs_.front();
       pending_phi_llvmirs_.pop();
 
-      auto incoming_values = phi_llvm->GetIncomingValues();
-      auto incoming_blocks = phi_llvm->GetIncomingBlocks();
-      auto *succ = phi_mir->GetParentBlock();
+      const auto &incoming_values = phi_llvm->GetIncomingValues();
+      const auto &incoming_blocks = phi_llvm->GetIncomingBlocks();
       for (size_t i = 0; i < phi_llvm->GetIncomingSize(); ++i) {
-        auto *pred = block_by_id.at(incoming_blocks[i]->GetID());
         auto *mir_incoming_value = GET_LOWER_CONTEXT()->GetMIROperandFromLLVMOperand(incoming_values[i]);
-        auto key = std::make_pair(pred, succ);
-        if (edge_copies.find(key) == edge_copies.end()) {
-          edge_order.push_back(key);
+        auto *incoming_label = GET_MIR_CONTEXT()->GetLabelOperand(incoming_blocks[i]->GetID());
+        phi_mir->AddIncoming(mir_incoming_value, incoming_label);
+        if (mir_incoming_value->GetDefInst() != nullptr) {
+          mir_incoming_value->GetDefInst()->AddUser(phi_mir);
         }
-        edge_copies[key].emplace_back(phi_mir->GetResult(), mir_incoming_value);
-      }
-
-      // Erase Phi instruction after we finish handling all incoming edges
-      phi_mir->GetParentBlock()->RemoveInst(phi_mir);
-    }
-    // Fresh block ids for any split blocks sit above all existing ids.
-    size_t next_split_id = 0;
-    for (const auto &[id, blk] : block_by_id) {
-      next_split_id = std::max(next_split_id, id);
-    }
-    next_split_id += 1;
-
-    for (const auto &key : edge_order) {
-      auto *pred = key.first;
-      auto *succ = key.second;
-      auto &copies = edge_copies[key];
-      auto *term = pred->GetInstructions().empty() ? nullptr : pred->GetInstructions().back();
-      // A conditional branch means the predecessor has more than one successor,
-      // so the edge pred -> succ is *critical*: the phi copies cannot be placed
-      // unconditionally in pred (they would also run on the other outgoing edge,
-      // corrupting a value the sibling block still needs). Split the edge with a
-      // new block that holds the copies and jumps to succ, and retarget pred's
-      // branch to it.
-      if (term != nullptr && term->GetOpKind() == inst::OpKind::CondBr) {
-        auto *split = GET_RESOURCE_CONTEXT()->CreateBlock(next_split_id);
-        EmitParallelCopy(split, copies);
-        auto *jump = GET_RESOURCE_CONTEXT()->CreateInstruction<inst::BrInst>(
-            GET_MIR_CONTEXT(), GET_MIR_CONTEXT()->GetLabelOperand(succ->GetId()));
-        split->AddInstBack(jump);
-        const auto &ops = term->GetOperands();  // [cond, true_label, false_label]
-        for (size_t i = 1; i < ops.size(); ++i) {
-          if (ops[i]->GetOpType() == utils::OpType::Label &&
-              static_cast<utils::LabelOperand *>(ops[i])->GetId() == succ->GetId()) {
-            term->SetOperand(i, GET_MIR_CONTEXT()->GetLabelOperand(next_split_id));
-          }
-        }
-        GET_LOWER_CONTEXT()->GetCurrentFunction()->AddBlock(split);
-        next_split_id += 1;
-      } else {
-        EmitParallelCopy(pred, copies);
       }
     }
 
   } catch (std::exception &e) {
     compiler_context_->ReportError("Error during function lowering: " + std::string(e.what()));
     return;
-  }
-}
-
-auto LowerHelper::EmitParallelCopy(utils::Block *block,
-                                   std::vector<std::pair<utils::Operand *, utils::Operand *>> copies) -> void {
-  // Drop trivial self-copies (dst == src).
-  std::vector<std::pair<utils::Operand *, utils::Operand *>> work;
-  for (auto &c : copies) {
-    if (c.first != c.second) {
-      work.push_back(c);
-    }
-  }
-  // Sequentialize the parallel copy. Repeatedly emit a copy whose destination is
-  // not still needed as a source; when only cyclic copies remain (a swap /
-  // rotation), break the cycle by saving one destination into a fresh temporary
-  // and redirecting its readers to that temporary.
-  while (!work.empty()) {
-    int ready = -1;
-    for (size_t i = 0; i < work.size(); ++i) {
-      bool needed_as_src = false;
-      for (auto &c : work) {
-        if (c.second == work[i].first) {
-          needed_as_src = true;
-          break;
-        }
-      }
-      if (!needed_as_src) {
-        ready = static_cast<int>(i);
-        break;
-      }
-    }
-    if (ready >= 0) {
-      auto *dst = work[ready].first;
-      auto *src = work[ready].second;
-      auto *copy_inst = GET_RESOURCE_CONTEXT()->CreateInstruction<inst::CopyInst>(dst, src);
-      block->AddInstBeforeTerminal(copy_inst);
-      work.erase(work.begin() + ready);
-    } else {
-      // Every remaining destination is also a source: a cycle. Save one
-      // destination into a fresh temp and redirect its readers to the temp; the
-      // copy that writes that destination then becomes ready next iteration.
-      auto *dst = work.front().first;
-      auto *tmp = GET_MIR_CONTEXT()->GetNewRegOperand(dst->GetType());
-      auto *save_inst = GET_RESOURCE_CONTEXT()->CreateInstruction<inst::CopyInst>(tmp, dst);
-      block->AddInstBeforeTerminal(save_inst);
-      for (auto &c : work) {
-        if (c.second == dst) {
-          c.second = tmp;
-        }
-      }
-    }
   }
 }
 
