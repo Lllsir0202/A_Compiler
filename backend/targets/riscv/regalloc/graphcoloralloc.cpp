@@ -88,10 +88,99 @@ auto GraphColorRegAlloc::Run(TargetFunction *func, size_t spill_base) -> size_t 
   assigned_.clear();
   used_callee_saved_.clear();
 
+  SplitLiveRangesAroundLoops();
   AllocateClass(TargetRegClass::General);
   AllocateClass(TargetRegClass::Float);
   ApplyColors();
   return spill_count_;
+}
+
+auto GraphColorRegAlloc::SplitLiveRangesAroundLoops() -> void {
+  MachineCFG cfg(func_);
+  MachineLiveness liveness(func_, cfg);
+  std::unordered_map<TargetOperand *, TargetBlock *> definition_blocks;
+  std::unordered_map<TargetOperand *, TargetInst *> definitions;
+  for (auto *block : func_->GetBlocks()) {
+    for (auto *instruction : block->GetInsts()) {
+      auto *result = instruction->GetResult();
+      if (result != nullptr && result->IsVirtualReg()) {
+        definition_blocks[result] = block;
+        definitions[result] = instruction;
+      }
+    }
+  }
+
+  for (const auto &loop : cfg.NaturalLoops()) {
+    if (loop.preheader_ == nullptr) {
+      continue;
+    }
+    int gpr_pressure = liveness.PeakPressure(loop.blocks_, TargetRegClass::General);
+    int fpr_pressure = liveness.PeakPressure(loop.blocks_, TargetRegClass::Float);
+    int gpr_capacity = static_cast<int>(reg_info_.NumAllocatable(TargetRegClass::General));
+    int fpr_capacity = static_cast<int>(reg_info_.NumAllocatable(TargetRegClass::Float));
+    // Region splitting is useful just before pressure reaches capacity: it
+    // partitions interference without adding an in-loop register. Once peak
+    // pressure already exceeds capacity, a preheader copy cannot cure the
+    // shortage and competes with spill/rematerialization instead.
+    bool high_gpr_pressure = gpr_pressure >= gpr_capacity - 2 && gpr_pressure <= gpr_capacity;
+    bool high_fpr_pressure = fpr_pressure >= fpr_capacity - 2 && fpr_pressure <= fpr_capacity;
+    if (!high_gpr_pressure && !high_fpr_pressure) {
+      continue;
+    }
+
+    std::vector<TargetOperand *> candidates;
+    for (auto *value : liveness.LiveIn(loop.header_)) {
+      if (!value->IsVirtualReg() || definition_blocks.count(value) == 0 ||
+          loop.blocks_.count(definition_blocks[value]) != 0) {
+        continue;
+      }
+      auto opcode = static_cast<RISCVInst *>(definitions[value])->GetOpcode();
+      if (GetRVOpcodeInfo(opcode).HasFlag(RVInstFlag::Rematerializable)) {
+        continue;
+      }
+      if (opcode != RVOpcode::PHI) {
+        continue;
+      }
+      // Constants have a cheaper use-local rematerialization strategy. Limit
+      // this first splitter to long Phi webs crossing a loop boundary.
+      auto *reg = static_cast<TargetVirtualReg *>(value);
+      bool pressured = reg->GetRegClass() == TargetRegClass::Float ? high_fpr_pressure : high_gpr_pressure;
+      if (!pressured) {
+        continue;
+      }
+      size_t uses = 0;
+      for (auto *block : loop.blocks_) {
+        for (auto *instruction : block->GetInsts()) {
+          for (auto *operand : instruction->GetOperands()) {
+            uses += operand == value;
+          }
+        }
+      }
+      if (uses >= 2) {
+        candidates.push_back(value);
+      }
+    }
+    std::sort(candidates.begin(), candidates.end(), [](TargetOperand *lhs, TargetOperand *rhs) {
+      return static_cast<TargetVirtualReg *>(lhs)->GetID() < static_cast<TargetVirtualReg *>(rhs)->GetID();
+    });
+
+    std::vector<TargetInst *> copies;
+    for (auto *value : candidates) {
+      auto *reg = static_cast<TargetVirtualReg *>(value);
+      auto *split = ctx_->NewVirtualReg(reg->GetRegClass(), reg->GetRegSize());
+      auto opcode = reg->GetRegClass() == TargetRegClass::Float ? RVOpcode::FMV_S : RVOpcode::MV;
+      auto *copy = ctx_->CreateInst<RISCVInst>(opcode);
+      copy->SetResult(split);
+      copy->AddOperand(value);
+      copies.push_back(copy);
+      for (auto *block : loop.blocks_) {
+        for (auto *instruction : block->GetInsts()) {
+          instruction->ReplaceOperand(value, split);
+        }
+      }
+    }
+    InsertBeforeTerminators(loop.preheader_, copies);
+  }
 }
 
 auto GraphColorRegAlloc::IsInClass(TargetOperand *op) const -> bool {

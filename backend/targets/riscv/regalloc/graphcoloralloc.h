@@ -54,6 +54,7 @@ class GraphColorRegAlloc {
   using NodeId = int;
 
   // --- one full allocation of a single register class, to fixpoint ---
+  auto SplitLiveRangesAroundLoops() -> void;
   auto AllocateClass(TargetRegClass reg_class) -> void;
   auto BuildCFG() -> void;
   auto ComputeLoopDepth() -> void;  // per-block loop-nesting depth, for spill weighting

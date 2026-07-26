@@ -703,3 +703,51 @@ The largest deterministic improvements are about 8.97% on each CRC case,
 cases. The hot `matmul2` Phi edge loses one copy executed about 3.06 million
 times. The only measured regression is 26 instructions on
 `optimization_scheduling1`.
+
+## 16. Pressure-bounded Phi live-range splitting
+
+### Change
+
+- Before graph construction, inspect natural loops with a unique preheader and
+  compute target-class peak pressure using machine-SSA liveness.
+- For loops whose peak is within two registers of target capacity, but does not
+  already exceed capacity, split loop-live-in Phi webs at the preheader. A fresh
+  SSA name replaces uses throughout the loop region, partitioning the original
+  interference range at the loop boundary.
+- Keep the inserted `MV`/`FMV_S` as an ordinary affinity. Conservative
+  coalescing removes it when merging the ranges is harmless; otherwise the copy
+  preserves the profitable split.
+- Do not split rematerializable constants or arbitrary expressions. Constants
+  already have use-local rematerialization, while experiments showed that
+  preheader splitting an over-capacity loop only competes with the required
+  spill decisions.
+- The reference `sysy-competition` allocator does not implement interval
+  splitting, but its Phi priority/preference rules and scheduler explicitly
+  treat Phi webs and short definition-to-use distances as allocation-quality
+  inputs. This stage carries those principles into the current SSA graph
+  allocator as an actual region split.
+
+### Validation
+
+- RISC-V directed tests: 60/60 passed across `-O0` and `-O1`.
+- Functional and hidden-functional suites: 109/109 and 40/40 passed at `-O1`.
+- 2026 RISC-V functional suites: 100/100 and 40/40 passed at `-O1`.
+- 2026 RISC-V performance suite: 60/60 passed at `-O1`.
+- Historical RISC-V performance suites: 57/57 and 60/60 passed at `-O1`.
+- No ARM runtime tests were run.
+
+### Result
+
+| Scope | Affinity repair | + Phi loop splitting | Change |
+|---|---:|---:|---:|
+| 2026 60-case dynamic instructions | 20,440,666,329 | 20,434,291,955 | -6,374,374 (-0.031%) |
+| 2026 60-case geometric mean | 1.0000 | 0.99961 | -0.039% |
+| Five-run no-plugin QEMU median | 8.63 s | 8.63 s | indistinguishable |
+| `matmul1` | 137,592,554 | 136,498,826 | -0.79% |
+| `matmul2` | 452,782,779 | 449,560,645 | -0.71% |
+| `matmul3` | 259,038,884 | 256,980,372 | -0.79% |
+
+The other 57 performance cases are instruction-count identical except for one
+26-instruction improvement and one 26-instruction regression. Local wall-clock
+noise is larger than this stage's whole-suite runtime effect, so the
+deterministic matrix-kernel reduction is the supported performance claim.
