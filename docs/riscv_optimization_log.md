@@ -480,3 +480,40 @@ local QEMU run-to-run noise. QEMU user-mode execution does not model the target
 BOOM pipeline's load-use and functional-unit latency accurately, so the local
 result establishes absence of a measurable regression; platform A/B timing is
 needed to quantify the scheduler's latency benefit.
+
+## 11. Profitable post-register-allocation scheduling
+
+### Change
+
+- Run the dependence scheduler a second time after graph coloring and before
+  frame finalization. With physical registers fixed, latency-oriented reordering
+  cannot create new spills; physical RAW/WAR/WAW edges preserve the allocation.
+- Canonicalize physical dependency keys by register class and architectural
+  register ID, deliberately ignoring the operand's Word/QWord view. Treating
+  those views as separate pointer-identified values initially caused widespread
+  wrong code because, for example, both views still name `a0`.
+- Require every scheduled region to strictly reduce the latency model's
+  estimated completion cycles. A legal but unprofitable first version measured
+  about 0.7% slower locally; the profitability gate removes arbitrary physical
+  reordering while retaining schedules that separate high-latency definitions
+  from their consumers.
+
+### Validation
+
+- RISC-V directed tests: 59/59 passed across `-O0` and `-O1`.
+- Functional and hidden-functional suites: 109/109 and 40/40 passed at `-O1`.
+- 2026 RISC-V functional suites: 100/100 and 40/40 passed at `-O1`.
+- 2026 RISC-V performance suite: 60/60 passed at `-O1`.
+- Historical RISC-V performance suites: 57/57 and 60/60 passed at `-O1`.
+
+### Result
+
+| Scope | Pre-RA scheduler only | Pre + post-RA | Change |
+|---|---:|---:|---:|
+| 2026 60-case dynamic instructions | 20,599,099,374 | 20,599,209,219 | effectively unchanged |
+| Six-run wall-clock median | 8.405 s | 8.365 s | -0.48% |
+
+Five of the six paired whole-suite timings were no slower with profitable
+post-RA scheduling. The local difference remains small enough to require
+platform A/B confirmation, but unlike the unconstrained experiment it is both
+correct and directionally positive without changing spill behavior.

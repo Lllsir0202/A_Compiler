@@ -22,6 +22,57 @@ auto IsRegister(TargetOperand *operand) -> bool {
   return operand != nullptr && (operand->IsVirtualReg() || operand->IsPhysicalReg());
 }
 
+struct RegisterKey {
+  bool physical_ = false;
+  TargetRegClass class_{};
+  size_t id_ = 0;
+
+  auto operator==(const RegisterKey &other) const -> bool {
+    return physical_ == other.physical_ && class_ == other.class_ && id_ == other.id_;
+  }
+};
+
+struct RegisterKeyHash {
+  auto operator()(const RegisterKey &key) const -> size_t {
+    return key.id_ * 4 + static_cast<size_t>(key.class_) * 2 + (key.physical_ ? 1 : 0);
+  }
+};
+
+auto KeyOf(TargetOperand *operand) -> RegisterKey {
+  if (operand->IsPhysicalReg()) {
+    auto *reg = static_cast<TargetPhysicalReg *>(operand);
+    // Word/QWord views name the same architectural register.
+    return {true, reg->GetRegClass(), reg->GetID()};
+  }
+  auto *reg = static_cast<TargetVirtualReg *>(operand);
+  return {false, reg->GetRegClass(), reg->GetID()};
+}
+
+auto Latency(TargetInst *instruction) -> int;
+
+auto EstimatedCycles(const std::vector<TargetInst *> &order) -> int {
+  std::unordered_map<RegisterKey, int, RegisterKeyHash> available_at;
+  int issue_cycle = 0;
+  for (auto *instruction : order) {
+    int ready_cycle = issue_cycle;
+    for (auto *operand : instruction->GetOperands()) {
+      if (!IsRegister(operand)) {
+        continue;
+      }
+      auto available = available_at.find(KeyOf(operand));
+      if (available != available_at.end()) {
+        ready_cycle = std::max(ready_cycle, available->second);
+      }
+    }
+    issue_cycle = ready_cycle + 1;
+    auto *result = instruction->GetResult();
+    if (IsRegister(result)) {
+      available_at[KeyOf(result)] = ready_cycle + Latency(instruction);
+    }
+  }
+  return issue_cycle;
+}
+
 auto Latency(TargetInst *instruction) -> int {
   auto opcode = static_cast<RISCVInst *>(instruction)->GetOpcode();
   switch (opcode) {
@@ -172,10 +223,10 @@ auto ScheduleRegion(const std::vector<TargetInst *> &region,
   }
 
   std::vector<ScheduleNode> nodes(region.size());
-  std::unordered_map<TargetOperand *, size_t> last_definition;
-  std::unordered_map<TargetOperand *, std::vector<size_t>> physical_readers;
-  std::unordered_map<TargetOperand *, int> remaining_uses;
-  std::unordered_map<TargetOperand *, size_t> local_definition;
+  std::unordered_map<RegisterKey, size_t, RegisterKeyHash> last_definition;
+  std::unordered_map<RegisterKey, std::vector<size_t>, RegisterKeyHash> physical_readers;
+  std::unordered_map<RegisterKey, int, RegisterKeyHash> remaining_uses;
+  std::unordered_map<RegisterKey, size_t, RegisterKeyHash> local_definition;
   size_t last_memory = region.size();
 
   auto add_edge = [&](size_t from, size_t to) {
@@ -196,30 +247,32 @@ auto ScheduleRegion(const std::vector<TargetInst *> &region,
       if (!IsRegister(operand)) {
         continue;
       }
-      remaining_uses[operand]++;
-      auto definition = last_definition.find(operand);
+      auto key = KeyOf(operand);
+      remaining_uses[key]++;
+      auto definition = last_definition.find(key);
       if (definition != last_definition.end()) {
         add_edge(definition->second, index);
       }
       if (operand->IsPhysicalReg()) {
-        physical_readers[operand].push_back(index);
+        physical_readers[key].push_back(index);
       }
     }
 
     auto *result = instruction->GetResult();
     if (IsRegister(result)) {
-      auto definition = last_definition.find(result);
+      auto key = KeyOf(result);
+      auto definition = last_definition.find(key);
       if (definition != last_definition.end()) {
         add_edge(definition->second, index);
       }
       if (result->IsPhysicalReg()) {
-        for (auto reader : physical_readers[result]) {
+        for (auto reader : physical_readers[key]) {
           add_edge(reader, index);
         }
-        physical_readers[result].clear();
+        physical_readers[key].clear();
       }
-      last_definition[result] = index;
-      local_definition[result] = index;
+      last_definition[key] = index;
+      local_definition[key] = index;
     }
 
     const auto &info = GetRVOpcodeInfo(static_cast<RISCVInst *>(instruction)->GetOpcode());
@@ -264,11 +317,12 @@ auto ScheduleRegion(const std::vector<TargetInst *> &region,
         if (!IsRegister(operand)) {
           continue;
         }
-        auto definition = local_definition.find(operand);
+        auto key = KeyOf(operand);
+        auto definition = local_definition.find(key);
         if (definition != local_definition.end() && issue_slot[definition->second] >= 0) {
           available_at = std::max(available_at, issue_slot[definition->second] + nodes[definition->second].latency_);
         }
-        if (remaining_uses[operand] == 1) {
+        if (remaining_uses[key] == 1) {
           released_operands++;
         }
       }
@@ -296,7 +350,7 @@ auto ScheduleRegion(const std::vector<TargetInst *> &region,
     order.push_back(nodes[selected].instruction_);
     for (auto *operand : nodes[selected].instruction_->GetOperands()) {
       if (IsRegister(operand)) {
-        remaining_uses[operand]--;
+        remaining_uses[KeyOf(operand)]--;
       }
     }
     for (auto successor : nodes[selected].successors_) {
@@ -324,6 +378,10 @@ auto ScheduleRegion(const std::vector<TargetInst *> &region,
       scheduled_pressure.fpr_length_ > original_pressure.fpr_length_ ||
       !std::includes(original_pressure.interferences_.begin(), original_pressure.interferences_.end(),
                      scheduled_pressure.interferences_.begin(), scheduled_pressure.interferences_.end())) {
+    scheduled->insert(scheduled->end(), region.begin(), region.end());
+    return false;
+  }
+  if (EstimatedCycles(order) >= EstimatedCycles(region)) {
     scheduled->insert(scheduled->end(), region.begin(), region.end());
     return false;
   }

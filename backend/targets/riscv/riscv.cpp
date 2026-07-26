@@ -86,6 +86,14 @@ auto RISCVBackend::Run() -> int {
     auto alloca_bytes = isel.AllocaBytes();
     // Spills sit above the outgoing-args and alloca areas.
     auto spill_slots = reg_alloc.Run(tfunc, outgoing + alloca_bytes);
+    // A second scheduling phase works on fixed physical registers. It can
+    // expose load/use and functional-unit latency without changing allocation
+    // pressure; physical RAW/WAR/WAW dependencies keep the colored program
+    // legal.
+    if (opt_level_ >= 1) {
+      MachineScheduler post_ra_scheduler(&ctx_);
+      post_ra_scheduler.RunOnFunction(tfunc);
+    }
     // Block layout is chosen while every CFG edge is still explicit. Only
     // after register allocation and phi destruction do we turn eligible jumps
     // into fallthroughs; reordering blocks after that point would silently
