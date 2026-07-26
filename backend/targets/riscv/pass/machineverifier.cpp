@@ -1,12 +1,15 @@
 #include "backend/targets/riscv/pass/machineverifier.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <iostream>
+#include <map>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 #include "backend/targets/riscv/inst/riscvinst.h"
+#include "backend/targets/riscv/pass/machineanalysis.h"
 #include "backend/targets/utils/operand/targetliteral.h"
 #include "backend/targets/utils/operand/targetoperand.h"
 #include "backend/targets/utils/operand/targetreg.h"
@@ -190,7 +193,11 @@ auto RISCVVerifier::Verify(TargetFunction *func, MachineVerifyStage stage) -> bo
 
   std::unordered_map<TargetOperand *, size_t> virtual_def_count;
   std::unordered_map<TargetOperand *, std::vector<std::string>> virtual_def_locations;
-  std::unordered_map<std::string, std::unordered_set<std::string>> predecessors;
+  std::unordered_map<TargetOperand *, TargetBlock *> virtual_def_block;
+  std::unordered_map<TargetOperand *, size_t> virtual_def_index;
+  using Edge = std::pair<std::string, std::string>;
+  std::map<Edge, std::unordered_set<TargetOperand *>> edge_definitions;
+  MachineCFG cfg(func);
   for (auto *block : blocks) {
     const auto &insts = block->GetInsts();
     for (size_t index = 0; index < insts.size(); ++index) {
@@ -198,18 +205,22 @@ auto RISCVVerifier::Verify(TargetFunction *func, MachineVerifyStage stage) -> bo
       auto *result = inst->GetResult();
       if (result != nullptr && result->IsVirtualReg()) {
         virtual_def_count[result]++;
+        virtual_def_block[result] = block;
+        virtual_def_index[result] = index;
         virtual_def_locations[result].push_back(block->GetLabel() + ":" + std::to_string(index) + "(" +
                                                 GetRVOpcodeInfo(static_cast<RISCVInst *>(inst)->GetOpcode()).mnemonic_ +
                                                 ")");
       }
-      const auto &info = GetRVOpcodeInfo(static_cast<RISCVInst *>(inst)->GetOpcode());
-      if (!info.HasFlag(RVInstFlag::Branch)) {
-        continue;
-      }
-      for (auto *operand : inst->GetOperands()) {
-        if (operand->GetOpType() == TargetOperandType::Label) {
-          predecessors[static_cast<TargetLabel *>(operand)->GetName()].insert(block->GetLabel());
-        }
+    }
+  }
+  for (const auto &[edge, instructions] : func->GetAllEdgeCode()) {
+    for (size_t index = 0; index < instructions.size(); ++index) {
+      auto *result = instructions[index]->GetResult();
+      if (result != nullptr && result->IsVirtualReg()) {
+        virtual_def_count[result]++;
+        edge_definitions[edge].insert(result);
+        virtual_def_locations[result].push_back("edge " + edge.first + "->" + edge.second + ":" +
+                                                std::to_string(index));
       }
     }
   }
@@ -223,6 +234,32 @@ auto RISCVVerifier::Verify(TargetFunction *func, MachineVerifyStage stage) -> bo
         }
         return Error("function " + func->GetName() + " violates machine SSA: v" + std::to_string(vreg->GetID()) +
                      " has " + std::to_string(count) + " definitions at " + locations);
+      }
+    }
+    for (const auto &[edge, instructions] : func->GetAllEdgeCode()) {
+      auto *predecessor = cfg.BlockForLabel(edge.first);
+      if (predecessor == nullptr || cfg.BlockForLabel(edge.second) == nullptr) {
+        return Error("function " + func->GetName() + " has edge code for an unknown CFG block");
+      }
+      std::unordered_set<TargetOperand *> edge_defs;
+      for (size_t index = 0; index < instructions.size(); ++index) {
+        auto location = func->GetName() + ":edge " + edge.first + "->" + edge.second + ":" + std::to_string(index);
+        if (!VerifyInst(instructions[index], stage, location)) {
+          return false;
+        }
+        for (auto *operand : instructions[index]->GetOperands()) {
+          if (!operand->IsVirtualReg() || edge_defs.count(operand) != 0) {
+            continue;
+          }
+          auto definition = virtual_def_block.find(operand);
+          if (definition == virtual_def_block.end() || !cfg.Dominates(definition->second, predecessor)) {
+            return Error(location + ": edge-code operand definition does not dominate the edge");
+          }
+        }
+        auto *result = instructions[index]->GetResult();
+        if (result != nullptr && result->IsVirtualReg()) {
+          edge_defs.insert(result);
+        }
       }
     }
   }
@@ -243,14 +280,43 @@ auto RISCVVerifier::Verify(TargetFunction *func, MachineVerifyStage stage) -> bo
           return Error(location + ": phi follows a non-phi instruction");
         }
         const auto &operands = insts[index]->GetOperands();
-        for (size_t incoming = 1; incoming < operands.size(); incoming += 2) {
-          const auto &pred_label = static_cast<TargetLabel *>(operands[incoming])->GetName();
-          if (labels.count(pred_label) == 0 || predecessors[block->GetLabel()].count(pred_label) == 0) {
+        for (size_t incoming = 0; incoming + 1 < operands.size(); incoming += 2) {
+          const auto &pred_label = static_cast<TargetLabel *>(operands[incoming + 1])->GetName();
+          auto *predecessor = cfg.BlockForLabel(pred_label);
+          const auto &predecessors = cfg.Predecessors(block);
+          if (predecessor == nullptr ||
+              std::find(predecessors.begin(), predecessors.end(), predecessor) == predecessors.end()) {
             return Error(location + ": phi incoming block is not a CFG predecessor");
+          }
+          auto *value = operands[incoming];
+          if (stage == MachineVerifyStage::PreRegisterAllocation && value->IsVirtualReg() &&
+              edge_definitions[{pred_label, block->GetLabel()}].count(value) == 0) {
+            auto definition = virtual_def_block.find(value);
+            if (definition == virtual_def_block.end() || !cfg.Dominates(definition->second, predecessor)) {
+              return Error(location + ": phi incoming value definition does not dominate its CFG edge");
+            }
           }
         }
       } else {
         saw_non_phi = true;
+        if (stage == MachineVerifyStage::PreRegisterAllocation) {
+          for (auto *operand : insts[index]->GetOperands()) {
+            if (!operand->IsVirtualReg()) {
+              continue;
+            }
+            auto definition = virtual_def_block.find(operand);
+            if (definition == virtual_def_block.end()) {
+              return Error(location + ": virtual-register use has no in-block definition");
+            }
+            if (definition->second == block) {
+              if (virtual_def_index[operand] >= index) {
+                return Error(location + ": virtual-register definition does not precede its use");
+              }
+            } else if (!cfg.Dominates(definition->second, block)) {
+              return Error(location + ": virtual-register definition does not dominate its use");
+            }
+          }
+        }
       }
       if (saw_terminator && !info.HasFlag(RVInstFlag::Terminator)) {
         return Error(location + ": non-terminator follows a terminator");
@@ -260,7 +326,7 @@ auto RISCVVerifier::Verify(TargetFunction *func, MachineVerifyStage stage) -> bo
       if (info.HasFlag(RVInstFlag::Branch)) {
         for (auto *operand : insts[index]->GetOperands()) {
           if (operand->GetOpType() == TargetOperandType::Label &&
-              labels.count(static_cast<TargetLabel *>(operand)->GetName()) == 0) {
+              !cfg.ContainsLabel(static_cast<TargetLabel *>(operand)->GetName())) {
             return Error(location + ": branch references an unknown block label");
           }
         }

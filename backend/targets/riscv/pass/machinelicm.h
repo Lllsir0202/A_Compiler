@@ -36,12 +36,10 @@ namespace backend::targetir::riscv {
  *   - Code is hoisted only when the header has exactly one predecessor outside
  *     the loop -- a dedicated preheader that dominates the header -- and is
  *     inserted before that block's terminator.
- *   - Hoisting is register-pressure aware. Multi-input arithmetic can let its
- *     now loop-dead source operands be freed, so it is hoisted freely. A
- *     trivially rematerializable `li`/`la` frees nothing and adds one value live
- *     across the whole loop, so it is hoisted only while the loop's estimated
- *     peak pressure leaves headroom below the register file. This avoids trading
- *     a one-instruction recompute for a hot-loop spill.
+ *   - Multi-input arithmetic is hoisted freely when invariant. Trivially
+ *     rematerializable `li`/`la` values use a small absolute per-loop budget,
+ *     preventing unbounded pressure while retaining profitable magic-division
+ *     constants in preheaders.
  *
  * The pass manager re-runs the machine pipeline to a fixpoint, so an invariant
  * chain hoisted out of an inner loop is hoisted again out of the enclosing loop

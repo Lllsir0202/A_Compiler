@@ -39,6 +39,9 @@ class TargetFunction {
     auto iter = edge_code_.find({predecessor, successor});
     return iter == edge_code_.end() ? EMPTY : iter->second;
   }
+  auto GetAllEdgeCode() const -> const std::map<std::pair<std::string, std::string>, std::vector<TargetInst *>> & {
+    return edge_code_;
+  }
 
  private:
   // Constructor with function name

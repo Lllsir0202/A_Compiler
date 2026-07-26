@@ -42,13 +42,19 @@ auto RISCVBackend::Run() -> int {
   MachinePassManager machine_passes(&ctx_);
   MachinePassManager post_phi_passes(&ctx_);
   if (opt_level_ >= 1) {
-    // M1 keeps the existing optimization order after phi destruction. Moving
-    // individual passes into the SSA section is gated on their adopting phi
-    // edge-use semantics; doing it prematurely changes hot-loop register
-    // pressure even when static code becomes smaller.
+    // SSA-aware passes run while every virtual register still has one
+    // definition and Phi incoming values are modeled as edge uses.
+    machine_passes.AddPass(new RISCVAddrFold(&ctx_));
+    machine_passes.AddPass(new RISCVLocalCSE(&ctx_));
+    machine_passes.AddPass(new MachineLICM(&ctx_));
+    machine_passes.AddPass(new MachineDCE(&ctx_));
+
+    // Rewriting passes that have not adopted machine-SSA edge semantics remain
+    // after Phi elimination. DCE is repeated here to remove unused
+    // materializations and copies exposed by out-of-SSA translation.
     post_phi_passes.AddPass(new RISCVPeephole(&ctx_));
     post_phi_passes.AddPass(new RISCVAddrFold(&ctx_));
-    post_phi_passes.AddPass(new RISCVLocalCSE(&ctx_));
+    post_phi_passes.AddPass(new RISCVPostPhiLocalCSE(&ctx_));
     post_phi_passes.AddPass(new MachineLICM(&ctx_));
     post_phi_passes.AddPass(new MachineDCE(&ctx_));
     post_phi_passes.AddPass(new RISCVBlockLayout(&ctx_));

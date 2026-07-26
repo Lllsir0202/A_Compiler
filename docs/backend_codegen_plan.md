@@ -154,6 +154,12 @@ LLVM IR → MIR → ISel 全程保留 `Phi`，让选择后的虚拟寄存器维�
 - 复制统一走 `Copy`/`mv`，由分配器合并消除，不特判。
 > 记忆点：项目里 `scf.while` 的 cond/body 共享 loop-carried arg（见 memory `while-shared-block-arg`），phi/复制处理要按块重建 use-list，避免踩到同类坑。
 
+### 3.5 Machine SSA 优化区
+- 统一 `MachineCFG` 负责显式跳转、fallthrough、predecessor/successor、dominators、自然循环与 loop depth，Verifier、LICM、CSE、RA 不再各自猜 CFG。
+- `MachineLiveness` 将 Phi incoming 记为 `(pred, succ)` edge-use，而不是 header 内普通 use。
+- SSA 区顺序：`AddrFold → dominator CSE → LICM → DCE`；CSE 不能无成本地延长活跃区间。
+- Phi 消除后保留 `Peephole → AddrFold → local CSE → LICM → DCE` 兼容清理。待 RA 直接消费 SSA edge copies、修完 coalescing 后，再删除该兼容层。
+
 ---
 
 ## 4. 栈帧与调用约定（RISC-V lp64d ABI）

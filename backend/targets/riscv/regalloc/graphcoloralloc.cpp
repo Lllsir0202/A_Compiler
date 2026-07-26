@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include "backend/targets/riscv/pass/machineanalysis.h"
 #include "backend/targets/riscv/regs/riscvreg.h"
 #include "backend/targets/utils/operand/targetreg.h"
 #include "backend/targets/utils/struct/targetblock.h"
@@ -170,70 +171,17 @@ auto GraphColorRegAlloc::IsMove(TargetInst *inst, NodeId *dst, NodeId *src) -> b
 
 auto GraphColorRegAlloc::BuildCFG() -> void {
   succ_.clear();
-  std::unordered_map<std::string, TargetBlock *> by_label;
-  for (auto *b : func_->GetBlocks()) {
-    by_label[b->GetLabel()] = b;
-  }
-  const auto &blocks = func_->GetBlocks();
-  for (size_t i = 0; i < blocks.size(); ++i) {
-    auto *b = blocks[i];
-    auto &succs = succ_[b];
-    const auto &insts = b->GetInsts();
-    bool ends_unconditionally = false;
-    for (auto *inst : insts) {
-      auto *ri = static_cast<RISCVInst *>(inst);
-      auto opc = ri->GetOpcode();
-      // Branches / jumps carry their target label as an operand; map it back.
-      if (opc == RVOpcode::J || opc == RVOpcode::BEQ || opc == RVOpcode::BNE || opc == RVOpcode::BLT ||
-          opc == RVOpcode::BGE || opc == RVOpcode::BLTU || opc == RVOpcode::BGEU) {
-        for (auto *op : inst->GetOperands()) {
-          if (op->GetOpType() == TargetOperandType::Label) {
-            auto it = by_label.find(static_cast<TargetLabel *>(op)->GetName());
-            if (it != by_label.end() && std::find(succs.begin(), succs.end(), it->second) == succs.end()) {
-              succs.push_back(it->second);
-            }
-          }
-        }
-      }
-    }
-    if (!insts.empty()) {
-      auto last = static_cast<RISCVInst *>(insts.back())->GetOpcode();
-      ends_unconditionally = last == RVOpcode::J || last == RVOpcode::RET;
-    }
-    // Fall through to the next block when the block has no terminating transfer.
-    if (!ends_unconditionally && i + 1 < blocks.size() &&
-        std::find(succs.begin(), succs.end(), blocks[i + 1]) == succs.end()) {
-      succs.push_back(blocks[i + 1]);
-    }
+  MachineCFG cfg(func_);
+  for (auto *block : func_->GetBlocks()) {
+    succ_[block] = cfg.Successors(block);
   }
 }
 
 auto GraphColorRegAlloc::ComputeLoopDepth() -> void {
-  // Loop-nesting depth per block, used to weight spill cost so a value used in a
-  // hot loop body is far more expensive to spill than one used once at top level.
-  // SysY lowers to a reducible CFG whose natural loops are contiguous block
-  // ranges, so a back-edge b->h (successor h laid out at or before b) delimits a
-  // loop spanning [index(h), index(b)]; a block's depth is the number of such
-  // intervals covering it, which nests correctly for nested loops.
   loop_depth_.clear();
-  const auto &blocks = func_->GetBlocks();
-  std::unordered_map<TargetBlock *, size_t> index;
-  for (size_t i = 0; i < blocks.size(); ++i) {
-    index[blocks[i]] = i;
-  }
-  std::vector<int> depth(blocks.size(), 0);
-  for (size_t i = 0; i < blocks.size(); ++i) {
-    for (auto *s : succ_[blocks[i]]) {
-      auto it = index.find(s);
-      if (it != index.end() && it->second <= i) {  // back-edge: header .. latch
-        for (size_t k = it->second; k <= i; ++k) {
-          depth[k]++;
-        }
-      }
-    }
-  }
-  for (size_t i = 0; i < blocks.size(); ++i) {
-    loop_depth_[blocks[i]] = depth[i];
+  MachineCFG cfg(func_);
+  for (auto *block : func_->GetBlocks()) {
+    loop_depth_[block] = cfg.LoopDepth(block);
   }
 }
 

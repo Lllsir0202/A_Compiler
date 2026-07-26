@@ -24,6 +24,19 @@ auto MachineDCE::RunOnFunction(TargetFunction *func) -> bool {
         }
       }
     }
+    // Phi incoming materializations live on CFG edges until out-of-SSA
+    // translation. Their operands are real uses of block-defined values and
+    // must keep those definitions alive.
+    for (const auto &[edge, instructions] : func->GetAllEdgeCode()) {
+      (void)edge;
+      for (auto *inst : instructions) {
+        for (auto *op : inst->GetOperands()) {
+          if (op->IsVirtualReg() || op->IsPhysicalReg()) {
+            use_count[op]++;
+          }
+        }
+      }
+    }
     for (auto *block : func->GetBlocks()) {
       std::vector<TargetInst *> kept;
       kept.reserve(block->GetInsts().size());
