@@ -700,6 +700,182 @@ auto GraphColorRegAlloc::AssignColors() -> void {
   }
 }
 
+auto GraphColorRegAlloc::ImproveAffinityColoring() -> void {
+  struct Affinity {
+    NodeId destination_;
+    NodeId source_;
+    double weight_;
+  };
+
+  MachineCFG cfg(func_);
+  std::vector<Affinity> affinities;
+  for (auto *block : func_->GetBlocks()) {
+    int depth = loop_depth_.count(block) != 0 ? loop_depth_[block] : 0;
+    double block_weight = std::pow(10.0, std::min(depth, 6));
+    for (auto *instruction : block->GetInsts()) {
+      if (static_cast<RISCVInst *>(instruction)->GetOpcode() == RVOpcode::PHI) {
+        auto *result = instruction->GetResult();
+        if (result == nullptr || !IsInClass(result)) {
+          continue;
+        }
+        const auto &operands = instruction->GetOperands();
+        for (size_t index = 0; index + 1 < operands.size(); index += 2) {
+          auto *source = operands[index];
+          if (!IsInClass(source)) {
+            continue;
+          }
+          auto *label = static_cast<TargetLabel *>(operands[index + 1]);
+          auto *predecessor = cfg.BlockForLabel(label->GetName());
+          int edge_depth =
+              predecessor != nullptr && loop_depth_.count(predecessor) != 0 ? loop_depth_[predecessor] : depth;
+          affinities.push_back(
+              {GetAlias(NodeOf(result)), GetAlias(NodeOf(source)), std::pow(10.0, std::min(edge_depth, 6))});
+        }
+        continue;
+      }
+      NodeId destination = 0;
+      NodeId source = 0;
+      if (IsMove(instruction, &destination, &source)) {
+        affinities.push_back({GetAlias(destination), GetAlias(source), block_weight});
+      }
+    }
+  }
+  std::stable_sort(affinities.begin(), affinities.end(),
+                   [](const Affinity &lhs, const Affinity &rhs) { return lhs.weight_ > rhs.weight_; });
+
+  auto score = [&]() {
+    double result = 0.0;
+    for (const auto &affinity : affinities) {
+      if (color_[GetAlias(affinity.destination_)] != color_[GetAlias(affinity.source_)]) {
+        result += affinity.weight_;
+      }
+    }
+    return result;
+  };
+  auto legal_color = [&](NodeId node, int candidate) {
+    node = GetAlias(node);
+    if (precolored_[node] || allocatable_ids_.count(candidate) == 0) {
+      return false;
+    }
+    for (NodeId member = 0; member < static_cast<NodeId>(nodes_.size()); ++member) {
+      if (GetAlias(member) != node) {
+        continue;
+      }
+      for (auto adjacent : adj_list_[member]) {
+        adjacent = GetAlias(adjacent);
+        if (adjacent != node && color_[adjacent] == candidate) {
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+  auto try_recolor = [&](NodeId node, int candidate) {
+    node = GetAlias(node);
+    if (color_[node] == candidate || !legal_color(node, candidate)) {
+      return false;
+    }
+    double before = score();
+    int old_color = color_[node];
+    color_[node] = candidate;
+    if (score() < before) {
+      return true;
+    }
+    color_[node] = old_color;
+    return false;
+  };
+  auto try_evict = [&](NodeId node, int candidate) {
+    node = GetAlias(node);
+    if (precolored_[node] || color_[node] == candidate || allocatable_ids_.count(candidate) == 0) {
+      return false;
+    }
+    std::unordered_set<NodeId> blocker_set;
+    for (NodeId member = 0; member < static_cast<NodeId>(nodes_.size()); ++member) {
+      if (GetAlias(member) != node) {
+        continue;
+      }
+      for (auto adjacent : adj_list_[member]) {
+        adjacent = GetAlias(adjacent);
+        if (adjacent != node && color_[adjacent] == candidate) {
+          blocker_set.insert(adjacent);
+        }
+      }
+    }
+    std::vector<NodeId> blockers(blocker_set.begin(), blocker_set.end());
+    std::sort(blockers.begin(), blockers.end());
+    if (blockers.empty()) {
+      return false;
+    }
+    for (auto blocker : blockers) {
+      if (precolored_[blocker]) {
+        return false;
+      }
+    }
+
+    double before = score();
+    int old_node_color = color_[node];
+    std::vector<std::pair<NodeId, int>> old_blocker_colors;
+    for (auto blocker : blockers) {
+      old_blocker_colors.emplace_back(blocker, color_[blocker]);
+    }
+    for (auto blocker : blockers) {
+      int old_blocker_color = color_[blocker];
+      int best_color = -1;
+      double best_score = std::numeric_limits<double>::infinity();
+      for (auto alternate : reg_info_.AllocatableRegs(class_)) {
+        if (alternate == old_blocker_color || alternate == candidate || !legal_color(blocker, alternate)) {
+          continue;
+        }
+        color_[blocker] = alternate;
+        double alternate_score = score();
+        color_[blocker] = old_blocker_color;
+        if (alternate_score < best_score) {
+          best_score = alternate_score;
+          best_color = alternate;
+        }
+      }
+      if (best_color < 0) {
+        for (const auto &[changed_blocker, old_color] : old_blocker_colors) {
+          color_[changed_blocker] = old_color;
+        }
+        return false;
+      }
+      color_[blocker] = best_color;
+    }
+    if (legal_color(node, candidate)) {
+      color_[node] = candidate;
+      if (score() < before) {
+        return true;
+      }
+      color_[node] = old_node_color;
+    }
+    for (const auto &[blocker, old_color] : old_blocker_colors) {
+      color_[blocker] = old_color;
+    }
+    return false;
+  };
+
+  bool changed = true;
+  size_t rounds = 0;
+  while (changed && rounds++ < affinities.size()) {
+    changed = false;
+    for (const auto &affinity : affinities) {
+      NodeId destination = GetAlias(affinity.destination_);
+      NodeId source = GetAlias(affinity.source_);
+      if (destination == source || color_[destination] == color_[source]) {
+        continue;
+      }
+      int destination_color = color_[destination];
+      int source_color = color_[source];
+      changed |= try_recolor(destination, source_color) || try_recolor(source, destination_color) ||
+                 try_evict(destination, source_color) || try_evict(source, destination_color);
+    }
+  }
+  for (auto node : coalesced_nodes_) {
+    color_[node] = color_[GetAlias(node)];
+  }
+}
+
 auto GraphColorRegAlloc::ValidateColoring() -> void {
   for (auto edge : adj_set_) {
     auto lhs = static_cast<NodeId>(edge >> 32);
@@ -1066,6 +1242,7 @@ auto GraphColorRegAlloc::AllocateClass(TargetRegClass reg_class) -> void {
     }
     AssignColors();
     if (spilled_nodes_.empty()) {
+      ImproveAffinityColoring();
       ValidateColoring();
       break;
     }

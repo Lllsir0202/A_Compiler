@@ -662,3 +662,44 @@ where avoiding stack-backed invariant constants saves about 0.51% per case.
 Three alternating wall-clock runs per version agree with the instruction-count
 direction, but the 0.06 s local difference is small enough to treat as a modest
 rather than architectural runtime win.
+
+## 15. Post-color affinity repair
+
+### Change
+
+- Build a weighted objective from surviving machine Phi affinities and ordinary
+  register copies. References on deeper loop edges receive the same capped
+  loop-depth weighting used by spill selection.
+- After graph coloring succeeds, try to recolor either side of every surviving
+  copy. A recoloring is legal only when the complete coalesced alias class has
+  no interference neighbor using the requested physical register.
+- When direct recoloring is blocked, transactionally evict all non-precolored
+  blockers to legal alternative registers. Commit the transaction only when
+  the complete coloring remains legal and the global weighted copy objective
+  strictly decreases; otherwise restore every original color.
+- This is a bounded local analogue of the eviction stage in priority-based
+  allocators. It preserves the existing iterated-coalescing interface and does
+  not depend on function names, source-language constructs, or benchmark data.
+
+### Validation
+
+- RISC-V directed tests: 60/60 passed across `-O0` and `-O1`.
+- Functional and hidden-functional suites: 109/109 and 40/40 passed at `-O1`.
+- 2026 RISC-V functional suites: 100/100 and 40/40 passed at `-O1`.
+- 2026 RISC-V performance suite: 60/60 passed at `-O1`.
+- Historical RISC-V performance suites: 57/57 and 60/60 passed at `-O1`.
+- No ARM runtime tests were run.
+
+### Result
+
+| Scope | Rematerialization | + affinity repair | Change |
+|---|---:|---:|---:|
+| 2026 60-case dynamic instructions | 20,524,584,941 | 20,440,666,329 | -83,918,612 (-0.409%) |
+| 2026 60-case geometric mean | 1.0000 | 0.99485 | -0.515% |
+| Alternating no-plugin QEMU median | 8.82 s | 8.80 s | -0.02 s (-0.23%) |
+
+The largest deterministic improvements are about 8.97% on each CRC case,
+0.67% on `matmul2`, 0.53% to 0.54% on `many_mat_cal`, and 0.05% on the Huffman
+cases. The hot `matmul2` Phi edge loses one copy executed about 3.06 million
+times. The only measured regression is 26 instructions on
+`optimization_scheduling1`.

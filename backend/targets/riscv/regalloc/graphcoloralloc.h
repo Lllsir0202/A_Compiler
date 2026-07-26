@@ -66,6 +66,7 @@ class GraphColorRegAlloc {
   auto Freeze() -> void;
   auto SelectSpill() -> void;
   auto AssignColors() -> void;  // returns via spilled_nodes_ whether a rewrite is needed
+  auto ImproveAffinityColoring() -> void;
   auto ValidateColoring() -> void;
   auto RewriteProgram() -> void;  // materialize spills; grows the program, then reiterate
   auto ApplyColors() -> void;     // replace vregs, drop nop and adjacent inverse moves
