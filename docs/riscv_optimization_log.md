@@ -427,3 +427,56 @@ Ten alternating whole-suite wall-clock measurements produced medians of
 observed run-to-run noise (individual runs ranged from 8.42 s to 8.90 s), so
 wall-clock performance is treated as statistically unchanged rather than as a
 measured regression or speedup.
+
+## 10. Pressure-monotonic machine-SSA list scheduling
+
+### Change
+
+- Add a deterministic local list scheduler for RISC-V machine-SSA basic
+  blocks. Calls, Phi nodes, terminators, comments and unknown side effects are
+  pinned; each remaining straight-line region is scheduled independently.
+- Build explicit register RAW/WAR/WAW dependencies. All loads and stores also
+  participate in one conservative memory chain, preserving memory order without
+  relying on incomplete machine-level alias analysis.
+- Use a small target latency model for loads, integer and floating multiply,
+  divide and conversions. Ready instructions whose inputs are available are
+  preferred, while critical-path height, operand release and early loads provide
+  deterministic tie-breaking.
+- Make scheduling register-pressure monotonic. A candidate order is rejected if
+  it raises GPR/FPR peak pressure, total live-range length, or introduces any
+  new pair of overlapping virtual-register live ranges. This is stricter than a
+  numeric pressure budget: it guarantees the local interference relation is a
+  subset of the original schedule.
+- The interference condition was added after measuring that a latency-only
+  scheduler increased the 60-case geometric-mean instruction count by 2.21%
+  through spills (`huffman` about +7.2%). Peak/length gating reduced the total
+  regression but still left `crypto` about +1.79%; preserving the complete
+  overlap relation removed both classes of regression without testcase-specific
+  rules.
+
+### Validation
+
+- RISC-V directed tests: 59/59 passed across `-O0` and `-O1`, including a new
+  dependency regression with loads, independent arithmetic, a store and call
+  boundaries.
+- Functional and hidden-functional suites: 109/109 and 40/40 passed at `-O1`.
+- 2026 RISC-V functional suites: 100/100 and 40/40 passed at `-O1`.
+- 2026 RISC-V performance suite: 60/60 passed at `-O1`.
+- Historical RISC-V performance suites: 57/57 and 60/60 passed at `-O1`.
+- No ARM runtime tests were run.
+
+### Result
+
+| Scope | M3 | M4 scheduler | Change |
+|---|---:|---:|---:|
+| 2026 60-case total dynamic instructions | 20,599,209,245 | 20,599,099,374 | -0.0005% |
+| `sl1` | 208,641,473 | 208,602,468 | -0.0187% |
+| `sl2` | 409,740,372 | 409,679,117 | -0.0149% |
+| `sl3` | 25,927,700 | 25,918,195 | -0.0367% |
+
+Six alternating whole-suite wall-clock measurements produced medians of
+8.315 s for M3 and 8.300 s for M4 (about 0.18% faster). This remains within
+local QEMU run-to-run noise. QEMU user-mode execution does not model the target
+BOOM pipeline's load-use and functional-unit latency accurately, so the local
+result establishes absence of a measurable regression; platform A/B timing is
+needed to quantify the scheduler's latency benefit.

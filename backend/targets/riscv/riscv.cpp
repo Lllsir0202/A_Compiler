@@ -14,6 +14,7 @@
 #include "backend/targets/riscv/pass/machinedce.h"
 #include "backend/targets/riscv/pass/machinelicm.h"
 #include "backend/targets/riscv/pass/machinephielim.h"
+#include "backend/targets/riscv/pass/machinescheduler.h"
 #include "backend/targets/riscv/pass/machineverifier.h"
 #include "backend/targets/riscv/pass/peephole.h"
 #include "backend/targets/riscv/printer/riscvprinter.h"
@@ -48,6 +49,7 @@ auto RISCVBackend::Run() -> int {
     machine_passes.AddPass(new RISCVLocalCSE(&ctx_));
     machine_passes.AddPass(new MachineLICM(&ctx_));
     machine_passes.AddPass(new MachineDCE(&ctx_));
+    machine_passes.AddPass(new MachineScheduler(&ctx_));
 
     // Rewriting passes that have not adopted machine-SSA edge semantics remain
     // after Phi elimination. DCE is repeated here to remove unused

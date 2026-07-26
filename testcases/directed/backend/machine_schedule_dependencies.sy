@@ -1,0 +1,22 @@
+int values[8];
+
+int combine(int index) {
+  int left = values[index];
+  int right = values[index + 1];
+  int product = left * right;
+  int shifted = left + 7;
+  values[index + 2] = shifted;
+  return product + shifted;
+}
+
+int main() {
+  values[0] = 3;
+  values[1] = 5;
+  values[2] = 0;
+  int result = combine(0);
+  putint(result);
+  putch(10);
+  putint(values[2]);
+  putch(10);
+  return 0;
+}
