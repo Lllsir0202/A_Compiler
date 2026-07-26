@@ -37,9 +37,9 @@ namespace backend::targetir::riscv {
  *     the loop -- a dedicated preheader that dominates the header -- and is
  *     inserted before that block's terminator.
  *   - Multi-input arithmetic is hoisted freely when invariant. Trivially
- *     rematerializable `li`/`la` values use a small absolute per-loop budget,
- *     preventing unbounded pressure while retaining profitable magic-division
- *     constants in preheaders.
+ *     rematerializable `li`/`la` values use a target-capacity-derived per-loop
+ *     budget, and every candidate transformation is rolled back if measured
+ *     GPR/FPR peak pressure exceeds the allocator's safety headroom.
  *
  * The pass manager re-runs the machine pipeline to a fixpoint, so an invariant
  * chain hoisted out of an inner loop is hoisted again out of the enclosing loop

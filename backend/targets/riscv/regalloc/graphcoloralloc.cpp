@@ -6,6 +6,7 @@
 #include "backend/targets/riscv/pass/machineanalysis.h"
 #include "backend/targets/riscv/regs/riscvreg.h"
 #include "backend/targets/utils/operand/targetreg.h"
+#include "backend/targets/utils/operand/targetsymbol.h"
 #include "backend/targets/utils/struct/targetblock.h"
 #include "backend/targets/utils/struct/targetfunction.h"
 
@@ -55,6 +56,26 @@ auto IsRedundantInverseMove(TargetInst *first, TargetInst *second) -> bool {
     return false;
   }
   return SamePhysicalReg(first_dst, second_ops[0]) && SamePhysicalReg(first_ops[0], second->GetResult());
+}
+
+auto InsertBeforeTerminators(TargetBlock *block, const std::vector<TargetInst *> &code) -> void {
+  if (code.empty()) {
+    return;
+  }
+  std::vector<TargetInst *> rewritten;
+  bool inserted = false;
+  for (auto *instruction : block->GetInsts()) {
+    const auto &info = GetRVOpcodeInfo(static_cast<RISCVInst *>(instruction)->GetOpcode());
+    if (!inserted && info.HasFlag(RVInstFlag::Terminator)) {
+      rewritten.insert(rewritten.end(), code.begin(), code.end());
+      inserted = true;
+    }
+    rewritten.push_back(instruction);
+  }
+  if (!inserted) {
+    rewritten.insert(rewritten.end(), code.begin(), code.end());
+  }
+  block->SetInsts(std::move(rewritten));
 }
 }  // namespace
 
@@ -124,6 +145,14 @@ auto GraphColorRegAlloc::DefsUses(TargetInst *inst, std::vector<NodeId> *defs, s
   defs->clear();
   uses->clear();
   auto *ri = static_cast<RISCVInst *>(inst);
+  if (ri->GetOpcode() == RVOpcode::PHI) {
+    auto *result = inst->GetResult();
+    if (result != nullptr && IsInClass(result)) {
+      defs->push_back(NodeOf(result));
+    }
+    // Phi operands are uses on their incoming CFG edges, not in the successor.
+    return;
+  }
   if (ri->GetOpcode() == RVOpcode::CALL) {
     // A call clobbers every caller-saved register of the class: model each as a
     // def so values live across the call avoid them (or spill).
@@ -186,9 +215,39 @@ auto GraphColorRegAlloc::ComputeLoopDepth() -> void {
   }
 }
 
+auto GraphColorRegAlloc::BuildPhiFacts() -> void {
+  phi_defs_.clear();
+  phi_edge_uses_.clear();
+  MachineCFG cfg(func_);
+  for (auto *successor : func_->GetBlocks()) {
+    for (auto *instruction : successor->GetInsts()) {
+      if (static_cast<RISCVInst *>(instruction)->GetOpcode() != RVOpcode::PHI) {
+        break;
+      }
+      auto *result = instruction->GetResult();
+      if (result != nullptr && IsInClass(result)) {
+        phi_defs_[successor].insert(NodeOf(result));
+      }
+      const auto &operands = instruction->GetOperands();
+      for (size_t index = 0; index + 1 < operands.size(); index += 2) {
+        auto *value = operands[index];
+        if (!IsInClass(value)) {
+          continue;
+        }
+        auto *label = static_cast<TargetLabel *>(operands[index + 1]);
+        auto *predecessor = cfg.BlockForLabel(label->GetName());
+        if (predecessor != nullptr) {
+          phi_edge_uses_[{predecessor, successor}].insert(NodeOf(value));
+        }
+      }
+    }
+  }
+}
+
 auto GraphColorRegAlloc::Liveness() -> void {
   live_in_.clear();
   live_out_.clear();
+  BuildPhiFacts();
   // Per-block upward-exposed uses and defs.
   std::unordered_map<TargetBlock *, std::unordered_set<NodeId>> use_b;
   std::unordered_map<TargetBlock *, std::unordered_set<NodeId>> def_b;
@@ -221,7 +280,13 @@ auto GraphColorRegAlloc::Liveness() -> void {
       std::unordered_set<NodeId> out;
       for (auto *s : succ_[b]) {
         for (auto n : live_in_[s]) {
-          out.insert(n);
+          if (phi_defs_[s].count(n) == 0) {
+            out.insert(n);
+          }
+        }
+        auto edge_uses = phi_edge_uses_.find({b, s});
+        if (edge_uses != phi_edge_uses_.end()) {
+          out.insert(edge_uses->second.begin(), edge_uses->second.end());
         }
       }
       std::unordered_set<NodeId> in = use_b[b];
@@ -290,6 +355,25 @@ auto GraphColorRegAlloc::Build() -> void {
           move_list_[msrc].push_back(inst);
         }
         AddWorklistMove(inst);
+      }
+      if (static_cast<RISCVInst *>(inst)->GetOpcode() == RVOpcode::PHI && !defs.empty()) {
+        const auto &operands = inst->GetOperands();
+        for (size_t index = 0; index + 1 < operands.size(); index += 2) {
+          auto *source = operands[index];
+          if (!IsInClass(source)) {
+            continue;
+          }
+          auto opcode = class_ == TargetRegClass::Float ? RVOpcode::FMV_S : RVOpcode::MV;
+          auto *affinity = ctx_->CreateInst<RISCVInst>(opcode);
+          affinity->SetResult(inst->GetResult());
+          affinity->AddOperand(source);
+          NodeId source_node = NodeOf(source);
+          move_list_[defs.front()].push_back(affinity);
+          if (source_node != defs.front()) {
+            move_list_[source_node].push_back(affinity);
+          }
+          AddWorklistMove(affinity);
+        }
       }
       for (auto d : defs) {
         live.insert(d);
@@ -718,9 +802,60 @@ auto GraphColorRegAlloc::RewriteProgram() -> void {
     spill_set.insert(nodes_[n]);
     SlotOf(nodes_[n]);  // reserve the slot up front
   }
+  MachineCFG cfg(func_);
+  std::unordered_map<TargetBlock *, std::vector<TargetInst *>> edge_code;
+  using SpillPhiCopy = std::pair<TargetOperand *, TargetOperand *>;
+  std::unordered_map<TargetBlock *, std::vector<SpillPhiCopy>> spilled_phi_copies;
+  std::map<std::pair<TargetBlock *, TargetOperand *>, TargetOperand *> edge_reload_temp;
   for (auto *b : func_->GetBlocks()) {
     std::vector<TargetInst *> rewritten;
     for (auto *inst : b->GetInsts()) {
+      if (static_cast<RISCVInst *>(inst)->GetOpcode() == RVOpcode::PHI) {
+        std::vector<TargetOperand *> operands = inst->GetOperands();
+        auto *result = inst->GetResult();
+        if (result != nullptr && result->IsVirtualReg() && spill_set.count(result) != 0) {
+          // Spilling a Phi definition is most naturally expressed on its
+          // incoming edges. Storing each selected value directly into the
+          // result's slot avoids creating one simultaneously-live temporary
+          // per Phi in the successor, which can make spill rewriting fail to
+          // converge for wide Phi bundles.
+          for (size_t index = 0; index + 1 < operands.size(); index += 2) {
+            auto *source = operands[index];
+            auto *label = static_cast<TargetLabel *>(operands[index + 1]);
+            auto *predecessor = cfg.BlockForLabel(label->GetName());
+            if (predecessor == nullptr) {
+              continue;
+            }
+            spilled_phi_copies[predecessor].emplace_back(result, source);
+          }
+          continue;
+        }
+
+        for (size_t index = 0; index + 1 < operands.size(); index += 2) {
+          auto *source = operands[index];
+          if (!source->IsVirtualReg() || spill_set.count(source) == 0) {
+            continue;
+          }
+          auto *label = static_cast<TargetLabel *>(operands[index + 1]);
+          auto *predecessor = cfg.BlockForLabel(label->GetName());
+          if (predecessor == nullptr) {
+            continue;
+          }
+          auto key = std::make_pair(predecessor, source);
+          auto temporary = edge_reload_temp.find(key);
+          if (temporary == edge_reload_temp.end()) {
+            auto *reg = static_cast<TargetVirtualReg *>(source);
+            auto *temp = ctx_->NewVirtualReg(reg->GetRegClass(), reg->GetRegSize());
+            spill_temps_.insert(temp);
+            EmitReload(&edge_code[predecessor], source, temp, SlotOf(source));
+            temporary = edge_reload_temp.emplace(key, temp).first;
+          }
+          operands[index] = temporary->second;
+        }
+        inst->SetOperands(std::move(operands));
+        rewritten.push_back(inst);
+        continue;
+      }
       std::vector<TargetInst *> before;
       std::vector<TargetInst *> after;
       std::unordered_map<TargetOperand *, TargetOperand *> local;
@@ -759,6 +894,59 @@ auto GraphColorRegAlloc::RewriteProgram() -> void {
       }
     }
     b->SetInsts(rewritten);
+  }
+  for (auto &[predecessor, copies] : spilled_phi_copies) {
+    std::vector<SpillPhiCopy> work;
+    for (const auto &copy : copies) {
+      if (copy.first != copy.second) {
+        work.push_back(copy);
+      }
+    }
+    auto &code = edge_code[predecessor];
+    auto emit_copy = [&](TargetOperand *destination, TargetOperand *source) {
+      if (source->IsVirtualReg() && spill_set.count(source) != 0) {
+        auto *source_reg = static_cast<TargetVirtualReg *>(source);
+        auto *temp = ctx_->NewVirtualReg(source_reg->GetRegClass(), source_reg->GetRegSize());
+        spill_temps_.insert(temp);
+        EmitReload(&code, source, temp, SlotOf(source));
+        EmitSpill(&code, destination, temp, SlotOf(destination));
+      } else {
+        EmitSpill(&code, destination, source, SlotOf(destination));
+      }
+    };
+    while (!work.empty()) {
+      auto ready = work.end();
+      for (auto iter = work.begin(); iter != work.end(); ++iter) {
+        bool destination_is_source = false;
+        for (const auto &other : work) {
+          destination_is_source |= other.second == iter->first;
+        }
+        if (!destination_is_source) {
+          ready = iter;
+          break;
+        }
+      }
+      if (ready != work.end()) {
+        emit_copy(ready->first, ready->second);
+        work.erase(ready);
+        continue;
+      }
+
+      // Preserve one old spill-slot value to break a memory parallel-copy
+      // cycle, then redirect every reader of that slot to the temporary.
+      auto *destination = static_cast<TargetVirtualReg *>(work.front().first);
+      auto *temporary = ctx_->NewVirtualReg(destination->GetRegClass(), destination->GetRegSize());
+      spill_temps_.insert(temporary);
+      EmitReload(&code, destination, temporary, SlotOf(destination));
+      for (auto &copy : work) {
+        if (copy.second == destination) {
+          copy.second = temporary;
+        }
+      }
+    }
+  }
+  for (const auto &[predecessor, code] : edge_code) {
+    InsertBeforeTerminators(predecessor, code);
   }
 }
 

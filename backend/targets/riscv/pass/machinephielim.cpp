@@ -7,6 +7,8 @@
 #include <unordered_set>
 #include <vector>
 #include "backend/targets/riscv/inst/riscvinst.h"
+#include "backend/targets/riscv/pass/machineanalysis.h"
+#include "backend/targets/riscv/regs/riscvreg.h"
 #include "backend/targets/utils/context/targetcontext.h"
 #include "backend/targets/utils/operand/targetreg.h"
 #include "backend/targets/utils/operand/targetsymbol.h"
@@ -16,10 +18,41 @@
 namespace backend::targetir::riscv {
 
 namespace {
+constexpr auto T3 = static_cast<uint8_t>(GPR::T3);
 
-auto CopyOpcode(TargetOperand *destination) -> RVOpcode {
-  auto *reg = static_cast<TargetVirtualReg *>(destination);
-  return reg->GetRegClass() == TargetRegClass::Float ? RVOpcode::FMV_S : RVOpcode::MV;
+auto RegClass(TargetOperand *operand) -> TargetRegClass {
+  if (operand->IsVirtualReg()) {
+    return static_cast<TargetVirtualReg *>(operand)->GetRegClass();
+  }
+  return static_cast<TargetPhysicalReg *>(operand)->GetRegClass();
+}
+
+auto RegSize(TargetOperand *operand) -> TargetRegSize {
+  if (operand->IsVirtualReg()) {
+    return static_cast<TargetVirtualReg *>(operand)->GetRegSize();
+  }
+  return static_cast<TargetPhysicalReg *>(operand)->GetRegSize();
+}
+
+auto SameRegister(TargetOperand *lhs, TargetOperand *rhs) -> bool {
+  if (lhs == rhs) {
+    return true;
+  }
+  if (!lhs->IsPhysicalReg() || !rhs->IsPhysicalReg()) {
+    return false;
+  }
+  auto *lhs_reg = static_cast<TargetPhysicalReg *>(lhs);
+  auto *rhs_reg = static_cast<TargetPhysicalReg *>(rhs);
+  return lhs_reg->GetRegClass() == rhs_reg->GetRegClass() && lhs_reg->GetID() == rhs_reg->GetID();
+}
+
+auto CopyOpcode(TargetOperand *destination, TargetOperand *source) -> RVOpcode {
+  auto destination_class = RegClass(destination);
+  auto source_class = RegClass(source);
+  if (destination_class == TargetRegClass::Float) {
+    return source_class == TargetRegClass::Float ? RVOpcode::FMV_S : RVOpcode::FMV_W_X;
+  }
+  return source_class == TargetRegClass::Float ? RVOpcode::FMV_X_W : RVOpcode::MV;
 }
 
 auto BranchTargets(TargetBlock *block) -> std::unordered_set<std::string> {
@@ -63,7 +96,7 @@ auto MachinePhiElimination::InsertBeforeTerminators(TargetBlock *block, const st
 auto MachinePhiElimination::EmitParallelCopies(TargetBlock *block, std::vector<Copy> copies) -> void {
   std::vector<Copy> work;
   for (const auto &copy : copies) {
-    if (copy.first != copy.second) {
+    if (!SameRegister(copy.first, copy.second)) {
       work.push_back(copy);
     }
   }
@@ -73,7 +106,7 @@ auto MachinePhiElimination::EmitParallelCopies(TargetBlock *block, std::vector<C
     for (auto it = work.begin(); it != work.end(); ++it) {
       bool destination_is_source = false;
       for (const auto &other : work) {
-        if (other.second == it->first) {
+        if (SameRegister(other.second, it->first)) {
           destination_is_source = true;
           break;
         }
@@ -85,7 +118,7 @@ auto MachinePhiElimination::EmitParallelCopies(TargetBlock *block, std::vector<C
     }
 
     if (ready != work.end()) {
-      auto *move = ctx_->CreateInst<RISCVInst>(CopyOpcode(ready->first));
+      auto *move = ctx_->CreateInst<RISCVInst>(CopyOpcode(ready->first, ready->second));
       move->SetResult(ready->first);
       move->AddOperand(ready->second);
       emitted.push_back(move);
@@ -95,14 +128,19 @@ auto MachinePhiElimination::EmitParallelCopies(TargetBlock *block, std::vector<C
 
     // A parallel-copy cycle. Preserve one old destination and redirect every
     // reader of that old value to the temporary.
-    auto *destination = static_cast<TargetVirtualReg *>(work.front().first);
-    auto *temporary = ctx_->NewVirtualReg(destination->GetRegClass(), destination->GetRegSize());
-    auto *save = ctx_->CreateInst<RISCVInst>(CopyOpcode(destination));
+    auto *destination = work.front().first;
+    TargetOperand *temporary = nullptr;
+    if (destination->IsVirtualReg()) {
+      temporary = ctx_->NewVirtualReg(RegClass(destination), RegSize(destination));
+    } else {
+      temporary = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, T3);
+    }
+    auto *save = ctx_->CreateInst<RISCVInst>(CopyOpcode(temporary, destination));
     save->SetResult(temporary);
     save->AddOperand(destination);
     emitted.push_back(save);
     for (auto &copy : work) {
-      if (copy.second == destination) {
+      if (SameRegister(copy.second, destination)) {
         copy.second = temporary;
       }
     }
@@ -110,7 +148,106 @@ auto MachinePhiElimination::EmitParallelCopies(TargetBlock *block, std::vector<C
   InsertBeforeTerminators(block, emitted);
 }
 
+auto MachinePhiElimination::PrepareEdges(TargetFunction *func) -> bool {
+  MachineCFG cfg(func);
+  std::unordered_map<std::string, TargetBlock *> by_label;
+  size_t next_block_id = 0;
+  for (auto *block : func->GetBlocks()) {
+    by_label[block->GetLabel()] = block;
+    next_block_id = std::max(next_block_id, block->GetID() + 1);
+  }
+
+  using Edge = std::pair<TargetBlock *, TargetBlock *>;
+  std::map<Edge, std::vector<TargetInst *>> edges;
+  for (const auto &[labels, code] : func->GetAllEdgeCode()) {
+    auto predecessor = by_label.find(labels.first);
+    auto successor = by_label.find(labels.second);
+    if (predecessor != by_label.end() && successor != by_label.end()) {
+      edges[{predecessor->second, successor->second}] = code;
+    }
+  }
+  for (auto *successor : func->GetBlocks()) {
+    for (auto *instruction : successor->GetInsts()) {
+      if (static_cast<RISCVInst *>(instruction)->GetOpcode() != RVOpcode::PHI) {
+        break;
+      }
+      const auto &operands = instruction->GetOperands();
+      for (size_t index = 0; index + 1 < operands.size(); index += 2) {
+        auto *label = static_cast<TargetLabel *>(operands[index + 1]);
+        auto predecessor = by_label.find(label->GetName());
+        if (predecessor != by_label.end()) {
+          edges.try_emplace({predecessor->second, successor});
+        }
+      }
+    }
+  }
+
+  bool changed = false;
+  std::vector<TargetBlock *> blocks = func->GetBlocks();
+  for (const auto &[edge, code] : edges) {
+    auto *predecessor = edge.first;
+    auto *successor = edge.second;
+    if (cfg.Successors(predecessor).size() <= 1) {
+      if (!code.empty()) {
+        InsertBeforeTerminators(predecessor, code);
+        changed = true;
+      }
+      continue;
+    }
+
+    auto *split = ctx_->NewBlock(next_block_id++);
+    split->SetLabel(".L_" + func->GetName() + "_phi_" + std::to_string(split->GetID()));
+    InsertBeforeTerminators(split, code);
+    auto *jump = ctx_->CreateInst<RISCVInst>(RVOpcode::J);
+    jump->AddOperand(ctx_->Label(successor->GetLabel()));
+    split->AddInst(jump);
+
+    bool redirected = false;
+    for (auto *instruction : predecessor->GetInsts()) {
+      std::vector<TargetOperand *> operands = instruction->GetOperands();
+      bool rewritten = false;
+      for (auto *&operand : operands) {
+        if (operand->GetOpType() == TargetOperandType::Label &&
+            static_cast<TargetLabel *>(operand)->GetName() == successor->GetLabel()) {
+          operand = ctx_->Label(split->GetLabel());
+          rewritten = true;
+        }
+      }
+      if (rewritten) {
+        instruction->SetOperands(std::move(operands));
+        redirected = true;
+      }
+    }
+    if (!redirected) {
+      // The selected CFG may represent the second edge of a conditional as an
+      // implicit fallthrough. Once its dedicated block is appended elsewhere
+      // in layout order, make that edge explicit.
+      auto *jump_to_split = ctx_->CreateInst<RISCVInst>(RVOpcode::J);
+      jump_to_split->AddOperand(ctx_->Label(split->GetLabel()));
+      predecessor->AddInst(jump_to_split);
+    }
+    for (auto *instruction : successor->GetInsts()) {
+      if (static_cast<RISCVInst *>(instruction)->GetOpcode() != RVOpcode::PHI) {
+        break;
+      }
+      std::vector<TargetOperand *> operands = instruction->GetOperands();
+      for (size_t index = 1; index < operands.size(); index += 2) {
+        if (static_cast<TargetLabel *>(operands[index])->GetName() == predecessor->GetLabel()) {
+          operands[index] = ctx_->Label(split->GetLabel());
+        }
+      }
+      instruction->SetOperands(std::move(operands));
+    }
+    blocks.push_back(split);
+    changed = true;
+  }
+  func->SetBlocks(std::move(blocks));
+  func->ClearEdgeCode();
+  return changed;
+}
+
 auto MachinePhiElimination::RunOnFunction(TargetFunction *func) -> bool {
+  PrepareEdges(func);
   std::unordered_map<std::string, TargetBlock *> by_label;
   size_t next_block_id = 0;
   for (auto *block : func->GetBlocks()) {
@@ -155,10 +292,8 @@ auto MachinePhiElimination::RunOnFunction(TargetFunction *func) -> bool {
     auto &copies = edge_copies[edge];
     auto *predecessor = edge.first;
     auto *successor = edge.second;
-    const auto &edge_code = func->GetEdgeCode(predecessor->GetLabel(), successor->GetLabel());
     auto targets = BranchTargets(predecessor);
     if (targets.size() <= 1) {
-      InsertBeforeTerminators(predecessor, edge_code);
       EmitParallelCopies(predecessor, copies);
       continue;
     }
@@ -167,7 +302,6 @@ auto MachinePhiElimination::RunOnFunction(TargetFunction *func) -> bool {
     // edge only. Split it and redirect every matching explicit target.
     auto *split = ctx_->NewBlock(next_block_id++);
     split->SetLabel(".L_" + func->GetName() + "_phi_" + std::to_string(split->GetID()));
-    InsertBeforeTerminators(split, edge_code);
     EmitParallelCopies(split, copies);
     auto *jump = ctx_->CreateInst<RISCVInst>(RVOpcode::J);
     jump->AddOperand(ctx_->Label(successor->GetLabel()));

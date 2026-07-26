@@ -42,6 +42,7 @@ class TargetFunction {
   auto GetAllEdgeCode() const -> const std::map<std::pair<std::string, std::string>, std::vector<TargetInst *>> & {
     return edge_code_;
   }
+  auto ClearEdgeCode() -> void { edge_code_.clear(); }
 
  private:
   // Constructor with function name

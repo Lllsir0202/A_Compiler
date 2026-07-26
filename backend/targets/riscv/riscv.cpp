@@ -41,7 +41,6 @@ auto RISCVBackend::Run() -> int {
   // the middle-end pass pipeline). Runs on the selected code before register
   // allocation, on virtual registers.
   MachinePassManager machine_passes(&ctx_);
-  MachinePassManager post_phi_passes(&ctx_);
   if (opt_level_ >= 1) {
     // SSA-aware passes run while every virtual register still has one
     // definition and Phi incoming values are modeled as edge uses.
@@ -50,16 +49,6 @@ auto RISCVBackend::Run() -> int {
     machine_passes.AddPass(new MachineLICM(&ctx_));
     machine_passes.AddPass(new MachineDCE(&ctx_));
     machine_passes.AddPass(new MachineScheduler(&ctx_));
-
-    // Rewriting passes that have not adopted machine-SSA edge semantics remain
-    // after Phi elimination. DCE is repeated here to remove unused
-    // materializations and copies exposed by out-of-SSA translation.
-    post_phi_passes.AddPass(new RISCVPeephole(&ctx_));
-    post_phi_passes.AddPass(new RISCVAddrFold(&ctx_));
-    post_phi_passes.AddPass(new RISCVPostPhiLocalCSE(&ctx_));
-    post_phi_passes.AddPass(new MachineLICM(&ctx_));
-    post_phi_passes.AddPass(new MachineDCE(&ctx_));
-    post_phi_passes.AddPass(new RISCVBlockLayout(&ctx_));
   }
 
   for (auto *mir_func : module->GetFunctions()) {
@@ -67,17 +56,21 @@ auto RISCVBackend::Run() -> int {
     if (!machine_passes.Empty()) {
       machine_passes.Run(tfunc);
     }
+    MachinePhiElimination phi_elimination(&ctx_);
+    phi_elimination.PrepareEdges(tfunc);
     if (opt_level_ >= 1) {
       // Run SSA-safe instruction combining after scheduling. Feeding rewritten
       // opcodes back into the scheduler can change live-range overlap even when
       // each combine is locally pressure-reducing.
-      RISCVPeephole ssa_peephole(&ctx_, true);
+      RISCVPeephole ssa_peephole(&ctx_);
       RISCVAddrFold ssa_addr_fold(&ctx_);
+      MachineLICM ssa_licm(&ctx_);
       MachineDCE ssa_dce(&ctx_);
-      constexpr int MAX_SSA_CLEANUP_ITERS = 4;
+      constexpr int MAX_SSA_CLEANUP_ITERS = 8;
       for (int iteration = 0; iteration < MAX_SSA_CLEANUP_ITERS; ++iteration) {
         bool changed = ssa_peephole.RunOnFunction(tfunc);
         changed |= ssa_addr_fold.RunOnFunction(tfunc);
+        changed |= ssa_licm.RunOnFunction(tfunc);
         changed |= ssa_dce.RunOnFunction(tfunc);
         if (!changed) {
           break;
@@ -87,22 +80,17 @@ auto RISCVBackend::Run() -> int {
     if (!verifier.Verify(tfunc, MachineVerifyStage::PreRegisterAllocation)) {
       return -1;
     }
-    MachinePhiElimination phi_elimination(&ctx_);
+    auto outgoing = isel.OutgoingBytes();
+    auto alloca_bytes = isel.AllocaBytes();
+    // Allocate while machine Phi nodes still describe edge uses. This gives
+    // graph coloring the same affinity information as the parallel copies it
+    // will eventually lower and avoids extending every incoming value through
+    // the successor block.
+    auto spill_slots = reg_alloc.Run(tfunc, outgoing + alloca_bytes);
     phi_elimination.RunOnFunction(tfunc);
-    // Phi destruction introduces edge copies and, for critical edges, split
-    // blocks. Run the ordinary non-SSA-safe cleanup pipeline once more so those
-    // new instructions receive the same folding, DCE and layout treatment as
-    // copies that historically existed before instruction selection.
-    if (!post_phi_passes.Empty()) {
-      post_phi_passes.Run(tfunc);
-    }
     if (!verifier.Verify(tfunc, MachineVerifyStage::PostPhiElimination)) {
       return -1;
     }
-    auto outgoing = isel.OutgoingBytes();
-    auto alloca_bytes = isel.AllocaBytes();
-    // Spills sit above the outgoing-args and alloca areas.
-    auto spill_slots = reg_alloc.Run(tfunc, outgoing + alloca_bytes);
     // A second scheduling phase works on fixed physical registers. It can
     // expose load/use and functional-unit latency without changing allocation
     // pressure; physical RAW/WAR/WAW dependencies keep the colored program

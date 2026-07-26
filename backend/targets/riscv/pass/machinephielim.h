@@ -17,16 +17,17 @@ namespace backend::targetir::riscv {
 /**
  * Destroy machine SSA immediately before register allocation.
  *
- * Phi copies are grouped per CFG edge, critical edges are split, and each group
- * is sequentialized with a fresh virtual register when a parallel-copy cycle is
- * present. Keeping this pass late lets all pre-RA machine optimizations reason
- * about single-definition values.
+ * Edge preparation and SSA destruction are separate operations. PrepareEdges
+ * materializes edge-local code and splits critical edges while retaining Phi
+ * nodes; RunOnFunction then groups Phi copies per prepared edge and
+ * sequentializes each parallel-copy set.
  */
 class MachinePhiElimination final : public MachineFunctionPass {
  public:
   explicit MachinePhiElimination(TargetContext *ctx) : MachineFunctionPass(ctx) {}
 
   auto Name() const -> std::string override { return "MachinePhiElimination"; }
+  auto PrepareEdges(TargetFunction *func) -> bool;
   auto RunOnFunction(TargetFunction *func) -> bool override;
 
  private:

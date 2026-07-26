@@ -1,12 +1,14 @@
 #include "backend/targets/riscv/pass/machinelicm.h"
 
 #include <algorithm>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 #include "backend/targets/riscv/inst/riscvinst.h"
 #include "backend/targets/riscv/pass/machineanalysis.h"
 #include "backend/targets/riscv/regs/riscvreg.h"
+#include "backend/targets/riscv/regs/riscvreginfo.h"
 #include "backend/targets/utils/operand/targetreg.h"
 #include "backend/targets/utils/struct/targetblock.h"
 #include "backend/targets/utils/struct/targetfunction.h"
@@ -108,12 +110,15 @@ class MachineLICMImpl {
   auto Hoist(const MachineNaturalLoop &loop) -> bool {
     BuildDefinitions();
 
-    constexpr int kRematerializableCap = 3;
-    // Keep a small absolute budget even when full edge-aware liveness reports
-    // high exit pressure. Repeated magic-division constants are otherwise
-    // rematerialized on every iteration; the cap prevents unbounded pressure.
-    int gpr_budget = kRematerializableCap;
-    int fpr_budget = kRematerializableCap;
+    RISCVRegisterInfo reg_info;
+    int rematerializable_cap = std::max(3, static_cast<int>(std::min(reg_info.NumAllocatable(TargetRegClass::General),
+                                                                     reg_info.NumAllocatable(TargetRegClass::Float)) /
+                                                            4));
+    // Bound rematerializable hoists by a fraction of target capacity even when
+    // full edge-aware liveness reports high exit pressure. Repeated
+    // magic-division constants are otherwise kept live through the whole loop.
+    int gpr_budget = rematerializable_cap;
+    int fpr_budget = rematerializable_cap;
 
     // Charge constants already hoisted by an earlier pass-manager iteration.
     for (auto *instruction : loop.preheader_->GetInsts()) {
@@ -187,7 +192,16 @@ class MachineLICMImpl {
       return false;
     }
 
+    MachineLiveness before_liveness(function_, cfg_);
+    std::unordered_set<TargetBlock *> pressure_region = loop.blocks_;
+    pressure_region.insert(loop.preheader_);
+    int before_gpr = before_liveness.PeakPressure(pressure_region, TargetRegClass::General);
+    int before_fpr = before_liveness.PeakPressure(pressure_region, TargetRegClass::Float);
+
+    std::unordered_map<TargetBlock *, std::vector<TargetInst *>> original_instructions;
+    original_instructions[loop.preheader_] = loop.preheader_->GetInsts();
     for (auto *block : ordered_blocks) {
+      original_instructions[block] = block->GetInsts();
       std::vector<TargetInst *> kept;
       for (auto *instruction : block->GetInsts()) {
         if (moved.count(instruction) == 0) {
@@ -202,6 +216,24 @@ class MachineLICMImpl {
       sequence.push_back(instruction);
     }
     InsertBeforeTerminators(loop.preheader_, sequence);
+
+    MachineLiveness after_liveness(function_, cfg_);
+    int after_gpr = after_liveness.PeakPressure(pressure_region, TargetRegClass::General);
+    int after_fpr = after_liveness.PeakPressure(pressure_region, TargetRegClass::Float);
+    auto pressure_safe = [&](int before, int after, TargetRegClass reg_class) {
+      // Keep two colors of slack for precolored operands and constraints that a
+      // scalar peak count cannot express. If a loop already exceeds that
+      // budget, LICM must not make its peak pressure still worse.
+      int budget = std::max(0, static_cast<int>(reg_info.NumAllocatable(reg_class)) - 2);
+      return after <= before || after <= budget;
+    };
+    if (!pressure_safe(before_gpr, after_gpr, TargetRegClass::General) ||
+        !pressure_safe(before_fpr, after_fpr, TargetRegClass::Float)) {
+      for (auto &[block, instructions] : original_instructions) {
+        block->SetInsts(std::move(instructions));
+      }
+      return false;
+    }
     return true;
   }
 

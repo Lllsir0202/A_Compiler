@@ -57,8 +57,9 @@ class GraphColorRegAlloc {
   auto AllocateClass(TargetRegClass reg_class) -> void;
   auto BuildCFG() -> void;
   auto ComputeLoopDepth() -> void;  // per-block loop-nesting depth, for spill weighting
-  auto Liveness() -> void;          // per-block live-in/out (backward dataflow)
-  auto Build() -> void;             // interference graph + move edges
+  auto BuildPhiFacts() -> void;
+  auto Liveness() -> void;  // per-block live-in/out (backward dataflow)
+  auto Build() -> void;     // interference graph + move edges
   auto MakeWorklists() -> void;
   auto Simplify() -> void;
   auto Coalesce() -> void;
@@ -163,6 +164,8 @@ class GraphColorRegAlloc {
   // CFG + liveness (rebuilt every Build iteration; program grows on spill).
   std::unordered_map<TargetBlock *, std::vector<TargetBlock *>> succ_;
   std::unordered_map<TargetBlock *, int> loop_depth_;  // nesting depth per block (topology-stable)
+  std::unordered_map<TargetBlock *, std::unordered_set<NodeId>> phi_defs_;
+  std::map<std::pair<TargetBlock *, TargetBlock *>, std::unordered_set<NodeId>> phi_edge_uses_;
   std::unordered_map<TargetBlock *, std::unordered_set<NodeId>> live_in_;
   std::unordered_map<TargetBlock *, std::unordered_set<NodeId>> live_out_;
 };

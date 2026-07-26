@@ -564,3 +564,61 @@ normalization corrects an earlier exploratory estimate of 0.75%. Six alternating
 whole-suite wall-clock runs produced the same median of about 8.37 s for M5 and
 M6.1, so local elapsed time is unchanged despite the deterministic instruction
 reduction.
+
+## 13. Phi-aware graph coloring
+
+### Change
+
+- Split machine Phi lowering into two phases. `PrepareEdges` materializes
+  edge-local selection code and creates dedicated Phi edges while preserving
+  machine SSA; actual parallel-copy emission now happens after coloring.
+  Implicit fallthrough edges are made explicit when split.
+- Teach graph coloring true Phi semantics: Phi results are successor-block
+  definitions, incoming values are predecessor-edge uses, and each incoming
+  pair contributes a coalescing affinity. Register allocation consequently runs
+  before Phi destruction instead of extending every incoming value through the
+  successor.
+- Make spill rewriting Phi-aware. A spilled incoming value is reloaded on its
+  prepared edge. A spilled Phi result is represented by edge stores to its spill
+  slot; those stores are themselves sequentialized as a parallel copy, including
+  memory cycles such as two spilled loop values swapping slots.
+- Lower colored Phi cycles with physical-register copies. Architectural register
+  identity ignores Word/QWord views, cross-class copies use the RISC-V bit-move
+  instructions, and the reserved `t3` scratch register breaks physical cycles.
+- Run edge preparation before the late SSA cleanup fixpoint. This gives LICM
+  dedicated preheaders without destroying Phi information. LICM changes are
+  transactional and rejected when they exceed a target-derived pressure budget;
+  the rematerializable budget is derived from one quarter of the smaller
+  allocatable register file rather than remaining fixed at three.
+
+### Validation
+
+- RISC-V directed tests: 60/60 passed across `-O0` and `-O1`. The new test
+  combines integer and floating Phi cycles with a 28-value loop-carried cycle;
+  its optimized assembly contains 119 stack accesses, so the test exercises
+  Phi spilling rather than only the no-spill path.
+- Functional and hidden-functional suites: 109/109 and 40/40 passed at `-O1`.
+- 2026 RISC-V functional suites: 100/100 and 40/40 passed at `-O1`.
+- 2026 RISC-V performance suite: 60/60 passed at `-O1`.
+- Historical RISC-V performance suites: 57/57 and 60/60 passed at `-O1`.
+- No ARM runtime tests were run.
+
+### Result
+
+| Scope | M6.1 | Phi-aware RA | Change |
+|---|---:|---:|---:|
+| 2026 60-case dynamic instructions | 20,544,114,152 | 20,530,627,494 | -0.066% |
+| 2026 60-case geometric mean | 1.0000 | 0.9993 | -0.07% |
+| `h-1-01/02/03` | baseline | baseline -9.5% to -9.3% | faster |
+| `transpose0/1/2` | baseline | baseline -5.5% / -4.0% / -12.8% | faster |
+| `huffman-01/02/03` | baseline | baseline about -1.7% | faster |
+| `matmul1/2/3` | baseline | baseline +18% to +23% | slower |
+
+The deterministic aggregate instruction count is slightly better, but local
+wall time is not yet a win. Six alternating no-plugin QEMU runs gave medians of
+8.369 s for M6.1 and 8.668 s for Phi-aware RA (about 3.6% slower). The remaining
+work is therefore performance, not correctness: matrix kernels still receive a
+less favorable invariant-materialization/allocation combination even though
+Phi-aware coloring removes more copies and stack traffic. This stage establishes
+the SSA-correct allocator foundation; it should not be presented as a runtime
+speedup until that matrix-kernel gap is closed.
