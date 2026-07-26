@@ -43,7 +43,8 @@ namespace backend::targetir::riscv {
  */
 class RISCVPeephole : public MachineFunctionPass {
  public:
-  explicit RISCVPeephole(TargetContext *ctx) : MachineFunctionPass(ctx) {}
+  explicit RISCVPeephole(TargetContext *ctx, bool ssa_safe_mode = false)
+      : MachineFunctionPass(ctx), ssa_safe_mode_(ssa_safe_mode) {}
 
   auto Name() const -> std::string override { return "riscv-peephole"; }
   auto RunOnFunction(TargetFunction *func) -> bool override;
@@ -72,6 +73,7 @@ class RISCVPeephole : public MachineFunctionPass {
   std::unordered_map<TargetOperand *, TargetInst *> defining_inst_;
   std::unordered_map<TargetInst *, TargetBlock *> inst_block_;
   std::unordered_map<TargetInst *, size_t> inst_index_;
+  bool ssa_safe_mode_ = false;
 };
 
 }  // namespace backend::targetir::riscv

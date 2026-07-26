@@ -517,3 +517,50 @@ Five of the six paired whole-suite timings were no slower with profitable
 post-RA scheduling. The local difference remains small enough to require
 platform A/B confirmation, but unlike the unconstrained experiment it is both
 correct and directionally positive without changing spill behavior.
+
+## 12. Late machine-SSA instruction combining
+
+### Change
+
+- Add an explicit SSA-safe mode to the RISC-V peephole pass. It retains local
+  constant folding, immediate formation and algebraic identities, while
+  pressure-sensitive `sext.w` coalescing, single-use chain folding and
+  compare-to-branch folding remain in the post-Phi pass.
+- Run `Peephole -> AddrFold -> DCE` to a bounded fixpoint after pre-RA
+  scheduling and immediately before machine-SSA verification. Placing these
+  combines after scheduling is important: running them inside the main
+  fixpoint changes scheduling priorities and caused about 7.2% more dynamic
+  instructions in `huffman` through different allocation/spill decisions.
+- Make compare-to-branch folding genuinely local. The implementation previously
+  claimed the comparison and branch were in one block but did not check it;
+  under SSA it could chase a unique definition across blocks and extend two
+  compare operands through the CFG where only one boolean had been live.
+- Keep post-Phi LICM for now. Removing it still increases the 60-case total by
+  roughly 267 million instructions. Moving the complete, pressure-sensitive
+  peephole plus LICM before Phi recovers part of that loss but regresses the
+  best SSA-safe configuration, so the remaining migration is deferred to the
+  Phi-aware allocator stage.
+
+### Validation
+
+- RISC-V directed tests: 59/59 passed across `-O0` and `-O1`.
+- Functional and hidden-functional suites: 109/109 and 40/40 passed at `-O1`.
+- 2026 RISC-V functional suites: 100/100 and 40/40 passed at `-O1`.
+- 2026 RISC-V performance suite: 60/60 passed at `-O1`.
+- Historical RISC-V performance suites: 57/57 and 60/60 passed at `-O1`.
+
+### Result
+
+| Scope | M5 | M6.1 | Change |
+|---|---:|---:|---:|
+| 2026 60-case dynamic instructions | 20,599,209,219 | 20,544,114,152 | -0.27% |
+| 2026 60-case geometric mean | 1.0000 | 0.9961 | -0.39% |
+| `crc1/2/3` | baseline | baseline -4.14% | -4.14% each |
+| `matmul1` | 120,242,573 | 116,268,845 | -3.31% |
+| `matmul3` | 225,303,855 | 217,557,843 | -3.44% |
+
+The raw total reduction is 55,095,067 instructions, or about 0.27%; this exact
+normalization corrects an earlier exploratory estimate of 0.75%. Six alternating
+whole-suite wall-clock runs produced the same median of about 8.37 s for M5 and
+M6.1, so local elapsed time is unchanged despite the deterministic instruction
+reduction.

@@ -273,13 +273,17 @@ auto RISCVPeephole::FoldCompareBranch(TargetInst *inst) -> bool {
   }
 
   const auto &compare_ops = def->GetOperands();
+  auto defining_block = inst_block_.find(def);
+  auto branch_block = inst_block_.find(inst);
+  if (defining_block == inst_block_.end() || branch_block == inst_block_.end() ||
+      defining_block->second != branch_block->second) {
+    return false;
+  }
   // The comparison's register operands are moved into the branch. Backend vregs
-  // are not SSA, so this is only sound if those operands still hold the value
-  // they had at the comparison. A single-def operand is always stable; a
-  // multiply-defined one is safe only when no redefinition sits between the
-  // comparison and the branch. Both instructions live in the same block here
-  // (the comparison is `inst`'s in-block predecessor via def-use), so a linear
-  // scan of that window is sufficient and precise.
+  // may be SSA, but folding across blocks extends both compare operands through
+  // the CFG where only the boolean result was live. Keep this a local combine;
+  // for non-SSA code the same-block scan also proves no operand is redefined
+  // between the comparison and branch.
   if (!OperandsStableBetween(def, inst, compare_ops)) {
     return false;
   }
@@ -323,14 +327,14 @@ auto RISCVPeephole::TransformInst(TargetInst *inst) -> bool {
   auto *ri = static_cast<RISCVInst *>(inst);
   auto opcode = ri->GetOpcode();
   const auto &ops = inst->GetOperands();
-  if (opcode == RVOpcode::SEXT_W && ops.size() == 1 && HasSignExtendedWordResult(ops[0])) {
+  if (!ssa_safe_mode_ && opcode == RVOpcode::SEXT_W && ops.size() == 1 && HasSignExtendedWordResult(ops[0])) {
     // Keep the destination SSA value but expose a coalescible copy. The graph
     // allocator removes the move when source and destination receive one color.
     ri->SetOpcode(RVOpcode::MV);
     return true;
   }
   bool branch_changed = FoldBranchZero(inst);
-  if (FoldCompareBranch(inst)) {
+  if (!ssa_safe_mode_ && FoldCompareBranch(inst)) {
     return true;
   }
   if (branch_changed) {
@@ -351,8 +355,8 @@ auto RISCVPeephole::TransformInst(TargetInst *inst) -> bool {
   //
   // With a single use of `hi`, this is exactly `product >> (32 + k)`.
   // MachineDCE removes the first shift after this rewrite.
-  if (opcode == RVOpcode::SRAIW && rhs->GetOpType() == TargetOperandType::Immediate && lhs->IsVirtualReg() &&
-      use_count_[lhs] == 1) {
+  if (!ssa_safe_mode_ && opcode == RVOpcode::SRAIW && rhs->GetOpType() == TargetOperandType::Immediate &&
+      lhs->IsVirtualReg() && use_count_[lhs] == 1) {
     auto def_iter = defining_inst_.find(lhs);
     if (def_iter != defining_inst_.end()) {
       auto *def = static_cast<RISCVInst *>(def_iter->second);

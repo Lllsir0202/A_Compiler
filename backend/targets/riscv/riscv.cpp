@@ -67,6 +67,23 @@ auto RISCVBackend::Run() -> int {
     if (!machine_passes.Empty()) {
       machine_passes.Run(tfunc);
     }
+    if (opt_level_ >= 1) {
+      // Run SSA-safe instruction combining after scheduling. Feeding rewritten
+      // opcodes back into the scheduler can change live-range overlap even when
+      // each combine is locally pressure-reducing.
+      RISCVPeephole ssa_peephole(&ctx_, true);
+      RISCVAddrFold ssa_addr_fold(&ctx_);
+      MachineDCE ssa_dce(&ctx_);
+      constexpr int MAX_SSA_CLEANUP_ITERS = 4;
+      for (int iteration = 0; iteration < MAX_SSA_CLEANUP_ITERS; ++iteration) {
+        bool changed = ssa_peephole.RunOnFunction(tfunc);
+        changed |= ssa_addr_fold.RunOnFunction(tfunc);
+        changed |= ssa_dce.RunOnFunction(tfunc);
+        if (!changed) {
+          break;
+        }
+      }
+    }
     if (!verifier.Verify(tfunc, MachineVerifyStage::PreRegisterAllocation)) {
       return -1;
     }
