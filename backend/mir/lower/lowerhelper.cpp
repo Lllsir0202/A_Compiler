@@ -571,7 +571,6 @@ auto LowerHelper::LowerGetElementPtrInst(middleend::llvm::inst::GetElementPtrIns
   // Memory information will be used as a record of the result's memory layout
   auto memory_info = utils::MemoryInfo();
   // Memory information should record the allocated type information
-  printf("Base type: %s\n", base_type->ToString().c_str());
   memory_info.size_ = base_type->GetDataSize();
   memory_info.align_ = base_type->GetAlign();
 

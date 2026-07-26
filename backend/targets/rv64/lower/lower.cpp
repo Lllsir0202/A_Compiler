@@ -150,6 +150,14 @@ auto RV64Lower::Lower() -> int {
         // Current slot id equals to : offset_of_local_frame_object_ + frame_info->GetSlotID()
       }
 
+      // Create all local variables as frame objects
+      {
+        auto frame_objects = mir_function->GetFrameInfos();
+        for (const auto &frame_object : frame_objects) {
+          backend_context->AddFrameObject(frame_object->GetSize(), frame_object->GetAlign());
+        }
+      }
+
       for (auto *mir_block : mir_function->GetBlocks()) {
         auto *target_block = backend_context->CreateBlock(mir_block->GetId());
         target_block->SetFuncName(target_function->GetName());
