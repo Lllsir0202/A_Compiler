@@ -800,13 +800,59 @@ auto GraphColorRegAlloc::RewriteProgram() -> void {
   std::unordered_set<TargetOperand *> spill_set;
   for (auto n : spilled_nodes_) {
     spill_set.insert(nodes_[n]);
-    SlotOf(nodes_[n]);  // reserve the slot up front
+  }
+  std::unordered_map<TargetOperand *, TargetInst *> rematerializable_defs;
+  std::unordered_set<TargetOperand *> multiply_defined;
+  for (auto *block : func_->GetBlocks()) {
+    for (auto *instruction : block->GetInsts()) {
+      auto *result = instruction->GetResult();
+      if (result == nullptr || !result->IsVirtualReg() || spill_set.count(result) == 0) {
+        continue;
+      }
+      auto opcode = static_cast<RISCVInst *>(instruction)->GetOpcode();
+      bool stable_operands = true;
+      for (auto *operand : instruction->GetOperands()) {
+        stable_operands &= !operand->IsVirtualReg();
+      }
+      if (!GetRVOpcodeInfo(opcode).HasFlag(RVInstFlag::Rematerializable) || !stable_operands ||
+          rematerializable_defs.count(result) != 0) {
+        multiply_defined.insert(result);
+        continue;
+      }
+      rematerializable_defs[result] = instruction;
+    }
+  }
+  for (auto *result : multiply_defined) {
+    rematerializable_defs.erase(result);
+  }
+  // LLVM's greedy allocator treats trivially rematerializable definitions
+  // differently from ordinary spills: recreate them at each use instead of
+  // extending their live range or storing a constant in the stack frame.
+  for (auto *operand : spill_set) {
+    if (rematerializable_defs.count(operand) == 0) {
+      SlotOf(operand);  // reserve ordinary spill slots up front
+    }
   }
   MachineCFG cfg(func_);
   std::unordered_map<TargetBlock *, std::vector<TargetInst *>> edge_code;
   using SpillPhiCopy = std::pair<TargetOperand *, TargetOperand *>;
   std::unordered_map<TargetBlock *, std::vector<SpillPhiCopy>> spilled_phi_copies;
-  std::map<std::pair<TargetBlock *, TargetOperand *>, TargetOperand *> edge_reload_temp;
+  std::map<std::pair<TargetBlock *, TargetOperand *>, TargetOperand *> edge_value_temp;
+  auto emit_rematerialization = [&](std::vector<TargetInst *> *code, TargetOperand *source) -> TargetOperand * {
+    auto definition = rematerializable_defs.find(source);
+    if (definition == rematerializable_defs.end()) {
+      return nullptr;
+    }
+    auto *source_reg = static_cast<TargetVirtualReg *>(source);
+    auto *temporary = ctx_->NewVirtualReg(source_reg->GetRegClass(), source_reg->GetRegSize());
+    spill_temps_.insert(temporary);
+    auto opcode = static_cast<RISCVInst *>(definition->second)->GetOpcode();
+    auto *clone = ctx_->CreateInst<RISCVInst>(opcode);
+    clone->SetResult(temporary);
+    clone->SetOperands(definition->second->GetOperands());
+    code->push_back(clone);
+    return temporary;
+  };
   for (auto *b : func_->GetBlocks()) {
     std::vector<TargetInst *> rewritten;
     for (auto *inst : b->GetInsts()) {
@@ -842,18 +888,26 @@ auto GraphColorRegAlloc::RewriteProgram() -> void {
             continue;
           }
           auto key = std::make_pair(predecessor, source);
-          auto temporary = edge_reload_temp.find(key);
-          if (temporary == edge_reload_temp.end()) {
+          auto temporary = edge_value_temp.find(key);
+          if (temporary == edge_value_temp.end()) {
             auto *reg = static_cast<TargetVirtualReg *>(source);
-            auto *temp = ctx_->NewVirtualReg(reg->GetRegClass(), reg->GetRegSize());
-            spill_temps_.insert(temp);
-            EmitReload(&edge_code[predecessor], source, temp, SlotOf(source));
-            temporary = edge_reload_temp.emplace(key, temp).first;
+            auto *temp = emit_rematerialization(&edge_code[predecessor], source);
+            if (temp == nullptr) {
+              temp = ctx_->NewVirtualReg(reg->GetRegClass(), reg->GetRegSize());
+              spill_temps_.insert(temp);
+              EmitReload(&edge_code[predecessor], source, temp, SlotOf(source));
+            }
+            temporary = edge_value_temp.emplace(key, temp).first;
           }
           operands[index] = temporary->second;
         }
         inst->SetOperands(std::move(operands));
         rewritten.push_back(inst);
+        continue;
+      }
+      auto *original_result = inst->GetResult();
+      if (original_result != nullptr && rematerializable_defs.count(original_result) != 0 &&
+          rematerializable_defs[original_result] == inst) {
         continue;
       }
       std::vector<TargetInst *> before;
@@ -863,10 +917,13 @@ auto GraphColorRegAlloc::RewriteProgram() -> void {
       for (auto *op : inst->GetOperands()) {
         if (op->IsVirtualReg() && spill_set.count(op) != 0 && local.count(op) == 0) {
           auto *v = static_cast<TargetVirtualReg *>(op);
-          auto *tmp = ctx_->NewVirtualReg(v->GetRegClass(), v->GetRegSize());
-          spill_temps_.insert(tmp);
+          auto *tmp = emit_rematerialization(&before, op);
+          if (tmp == nullptr) {
+            tmp = ctx_->NewVirtualReg(v->GetRegClass(), v->GetRegSize());
+            spill_temps_.insert(tmp);
+            EmitReload(&before, op, tmp, SlotOf(op));
+          }
           local[op] = tmp;
-          EmitReload(&before, op, tmp, SlotOf(op));
           inst->ReplaceOperand(op, tmp);
         }
       }
@@ -905,10 +962,13 @@ auto GraphColorRegAlloc::RewriteProgram() -> void {
     auto &code = edge_code[predecessor];
     auto emit_copy = [&](TargetOperand *destination, TargetOperand *source) {
       if (source->IsVirtualReg() && spill_set.count(source) != 0) {
-        auto *source_reg = static_cast<TargetVirtualReg *>(source);
-        auto *temp = ctx_->NewVirtualReg(source_reg->GetRegClass(), source_reg->GetRegSize());
-        spill_temps_.insert(temp);
-        EmitReload(&code, source, temp, SlotOf(source));
+        auto *temp = emit_rematerialization(&code, source);
+        if (temp == nullptr) {
+          auto *source_reg = static_cast<TargetVirtualReg *>(source);
+          temp = ctx_->NewVirtualReg(source_reg->GetRegClass(), source_reg->GetRegSize());
+          spill_temps_.insert(temp);
+          EmitReload(&code, source, temp, SlotOf(source));
+        }
         EmitSpill(&code, destination, temp, SlotOf(destination));
       } else {
         EmitSpill(&code, destination, source, SlotOf(destination));

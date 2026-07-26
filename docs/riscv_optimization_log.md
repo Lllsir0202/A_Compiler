@@ -622,3 +622,43 @@ less favorable invariant-materialization/allocation combination even though
 Phi-aware coloring removes more copies and stack traffic. This stage establishes
 the SSA-correct allocator foundation; it should not be presented as a runtime
 speedup until that matrix-kernel gap is closed.
+
+## 14. Spill rematerialization
+
+### Change
+
+- Treat uniquely defined `LI` and `LA` values with stable operands as
+  rematerializable spill recipes. When graph coloring selects one of these
+  values for spilling, recreate it at each ordinary use or prepared Phi edge
+  instead of allocating a stack slot, storing the value, and reloading it.
+- Remove the original long-lived definition after selecting rematerialization.
+  Fresh short-lived temporaries remain protected by the allocator's existing
+  spill-rewrite convergence rule.
+- Keep the policy deliberately local to the selected spill set. Experiments
+  that globally favored rematerializable candidates were rejected because a
+  coalesced Phi representative is not equivalent to a standalone SSA value.
+- This follows LLVM's MachineLICM and greedy-register-allocation model: cheap
+  instructions should not lengthen live ranges under pressure, while truly
+  rematerializable values can be recreated close to their uses.
+
+### Validation
+
+- RISC-V directed tests: 60/60 passed across `-O0` and `-O1`.
+- Functional and hidden-functional suites: 109/109 and 40/40 passed at `-O1`.
+- 2026 RISC-V functional suites: 100/100 and 40/40 passed at `-O1`.
+- 2026 RISC-V performance suite: 60/60 passed at `-O1`.
+- Historical RISC-V performance suites: 57/57 and 60/60 passed at `-O1`.
+- No ARM runtime tests were run.
+
+### Result
+
+| Scope | Phi-aware RA | + rematerialization | Change |
+|---|---:|---:|---:|
+| 2026 60-case dynamic instructions | 20,530,627,494 | 20,524,584,941 | -6,042,553 (-0.029%) |
+| Alternating no-plugin QEMU median | 8.68 s | 8.62 s | -0.06 s (-0.69%) |
+
+The deterministic reduction is concentrated in the `many_mat_cal` family,
+where avoiding stack-backed invariant constants saves about 0.51% per case.
+Three alternating wall-clock runs per version agree with the instruction-count
+direction, but the 0.06 s local difference is small enough to treat as a modest
+rather than architectural runtime win.
