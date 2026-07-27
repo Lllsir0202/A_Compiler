@@ -1,0 +1,27 @@
+{
+  "name": "SYSY Compiler - Ubuntu 24.04",
+  "dockerComposeFile": [
+    "../docker/compose.yaml",
+    "compose.extend.yaml"
+  ],
+  "service": "compiler",
+  "workspaceFolder": "/workspace",
+  "shutdownAction": "stopCompose",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "llvm-vs-code-extensions.vscode-clangd",
+        "ms-vscode.cpptools",
+        "ms-python.python"
+      ],
+      "settings": {
+        "C_Cpp.intelliSenseEngine": "disabled",
+        "clangd.arguments": [
+          "--background-index",
+          "--clang-tidy"
+        ]
+      }
+    }
+  },
+  "postCreateCommand": "make -B -j\"$(nproc)\" build"
+}

@@ -6,6 +6,38 @@ Make sure you have the following toolchains installed:
 - RISC-V GCC: `riscv64-unknown-elf-gcc`
 - ARM GCC: `aarch64-linux-gnu-gcc`
 
+## Ubuntu 24.04 Docker environment
+
+Docker-related files are kept under `docker/`. Build the reproducible
+`linux/amd64` development image from the repository root:
+
+```bash
+docker compose -f docker/compose.yaml build
+```
+
+Open a development shell with the repository mounted at `/workspace`:
+
+```bash
+docker compose -f docker/compose.yaml run --rm compiler
+```
+
+Inside the container, build the compiler and run the directed tests:
+
+```bash
+make -j"$(nproc)" build
+python3 script/directed/directed.py
+```
+
+To run the directed suite while building the image:
+
+```bash
+RUN_DIRECTED_TESTS=1 docker compose -f docker/compose.yaml build
+```
+
+VS Code users can install the Dev Containers extension and run
+`Dev Containers: Reopen in Container`; the configuration under
+`.devcontainer/` reuses the same Compose service automatically.
+
 ## Compile libs
 Since we need to build our compiler from very scratch, we have to build our libs from the sourcecode. So I provide a Makefile command to build ths sylibs easily.
 
