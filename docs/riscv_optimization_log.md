@@ -542,3 +542,51 @@ frame from 480 to 448 bytes and eliminate several spill accesses. `03_sort3`
 has a small, repeatable 319-instruction increase (0.00037%) on its different
 input data even though it shares byte-identical code with `03_sort2`; the five
 programs remain net positive by 858,347 dynamic instructions.
+
+## 13. Post-allocation sign-bit extraction folding
+
+### Change
+
+- Fold the RV64 sequence `sraiw sign, x, 31; srliw bit, sign, 31` to the
+  equivalent single instruction `srliw bit, x, 31`.
+- Run the fold after register allocation. This preserves the interference graph,
+  coloring, frame layout, and spill decisions; the generated assembly changes
+  only by deleting a redundant shift.
+- Remove the first definition only when the second instruction overwrites the
+  same physical register, so the discarded sign value cannot remain live.
+
+The sequence is especially common in signed division by two. The quotient uses
+`(x + ((x >> 31) >>> 31)) >> 1` to implement truncation toward zero, but the
+first arithmetic shift is unnecessary when extracting only bit 31 of an i32.
+An initial instruction-selection prototype exposed the same identity before
+allocation, but its shorter live ranges perturbed coloring in otherwise
+unchanged programs. Moving the fold post-RA makes the result deterministic and
+isolates the intended instruction saving.
+
+### Validation
+
+- Clean native compiler rebuild: passed.
+- RV64 compile plus GNU assemble at `-O1`: functional 112/112,
+  hidden-functional 40/40, performance 57/57, and final-performance 60/60
+  (269/269 total).
+- Differential Spike runs covered all seven changed correctness programs, all
+  fourteen runnable changed performance programs, and the three final Huffman
+  programs. Filtered output and exit status matched in every case.
+- The former `h-1-03` register-allocation regression sentinel also matched.
+
+### Result
+
+| Scope | Baseline | Optimized | Reduction |
+|---|---:|---:|---:|
+| All 269 RV programs, static instructions | 101,908 | 100,838 | 1.050% |
+| 117 performance programs, static instructions | 49,589 | 49,300 | 0.583% |
+| Three final Huffman programs, Spike dynamic instructions | 1,160,446,964 | 1,065,948,069 | 8.143% |
+| `2025-236-50`, Spike dynamic instructions | 949,112,282 | 871,660,651 | 8.160% |
+| `2025-UNA-47`, Spike dynamic instructions | 12,517,946 | 11,610,315 | 7.251% |
+| `2025-ZUM-7`, Spike dynamic instructions | 198,816,736 | 182,677,103 | 8.118% |
+
+The large Huffman reduction comes from removing sign-bit extraction inside the
+bit-processing loop rather than from a one-time prologue saving. Two large
+correctness stress cases also fall from 84,534,885 to 82,828,345 dynamic
+instructions (2.019%), providing independent coverage outside the performance
+suite.

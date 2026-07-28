@@ -39,6 +39,11 @@ auto IsZeroReg(TargetOperand *operand) -> bool {
   return key.has_value() && *key == static_cast<int>(GPR::Zero);
 }
 
+auto IsImmediate(TargetOperand *operand, int64_t value) -> bool {
+  return operand != nullptr && operand->GetOpType() == TargetOperandType::Immediate &&
+         static_cast<TargetIntLiteral *>(operand)->GetValue() == value;
+}
+
 auto LoadKind(RVOpcode opcode) -> std::optional<SpillKind> {
   switch (opcode) {
     case RVOpcode::LW:
@@ -245,12 +250,56 @@ auto CleanupCopies(TargetBlock *block) -> bool {
   return changed;
 }
 
+// RV64 signed i32 division by two uses the truncation bias
+//   (x + ((x >> 31) >>> 31)) >> 1.
+// After register allocation, collapse the adjacent two-shift sign-bit
+// extraction to `srliw ..., x, 31`.  Doing this post-RA deliberately leaves
+// the interference graph and coloring unchanged while saving one instruction
+// in every executed sequence.
+auto FoldSignBitExtraction(TargetBlock *block) -> bool {
+  const auto &insts = block->GetInsts();
+  if (insts.size() < 2) {
+    return false;
+  }
+
+  bool changed = false;
+  std::vector<TargetInst *> kept;
+  kept.reserve(insts.size());
+  for (size_t i = 0; i < insts.size(); ++i) {
+    auto *first = insts[i];
+    if (i + 1 < insts.size() && static_cast<RISCVInst *>(first)->GetOpcode() == RVOpcode::SRAIW) {
+      auto *second = insts[i + 1];
+      const auto &first_ops = first->GetOperands();
+      const auto &second_ops = second->GetOperands();
+      auto sign = PhysicalRegKey(first->GetResult());
+      auto sign_use = second_ops.empty() ? std::optional<int>{} : PhysicalRegKey(second_ops[0]);
+      auto second_result = PhysicalRegKey(second->GetResult());
+      if (static_cast<RISCVInst *>(second)->GetOpcode() == RVOpcode::SRLIW && first_ops.size() == 2 &&
+          second_ops.size() == 2 && IsImmediate(first_ops[1], 31) && IsImmediate(second_ops[1], 31) &&
+          sign.has_value() && sign_use == sign && second_result == sign) {
+        second->SetOperands({first_ops[0], second_ops[1]});
+        kept.push_back(second);
+        ++i;
+        changed = true;
+        continue;
+      }
+    }
+    kept.push_back(first);
+  }
+
+  if (changed) {
+    block->SetInsts(std::move(kept));
+  }
+  return changed;
+}
+
 }  // namespace
 
 auto RISCVPostRA::RunOnFunction(TargetFunction *func, size_t spill_base, size_t spill_slots) -> bool {
   bool changed = false;
   for (auto *block : func->GetBlocks()) {
     changed |= CleanupSpills(ctx_, block, spill_base, spill_slots);
+    changed |= FoldSignBitExtraction(block);
     changed |= CleanupCopies(block);
   }
   return changed;
