@@ -966,3 +966,76 @@ loops. Teaching it that `int2bool x` means `x != 0` gives the three 32-iteration
 bit loops in this same program derivable trip counts (previously unknown). The
 symbolic-distance case is deliberately left uncomputable: see the comment in the
 `NE` branch for why clamping it would be wrong.
+
+## 19. Power-of-two remainder without the quotient
+
+### Motivation
+
+`2025-EQV-46` is a pseudo-MD5 whose hot loop is a one-bit rotate applied 5.77
+million times:
+
+```c
+int rotl1(int x) { return x * 2 + x % 2; }
+```
+
+Profiling attributed the whole 1.51x gap against `gcc -O2` to `pseudo_md5`
+(134.8M against 80.1M); `main` was already even. In the rotate loop gcc used 8
+instructions and we used 10, and the difference was entirely `x % 2`.
+
+`SelectMod` already had a fast path, but only when the remainder feeds an
+`== 0` / `!= 0` test, where the low bits can simply be masked. When the value
+itself is needed it fell through to `EmitConstDivide` -- four instructions for the
+sign-biased shift -- and then reconstructed the remainder as `n - q * d`, adding
+`LI`, `MULW` and `SUBW`. Seven instructions, including a multiply, to compute
+`x % 2`.
+
+### Implementation
+
+For a positive power-of-two divisor the quotient is not needed at all. Truncating
+toward zero means the remainder keeps the numerator's sign, and the same sign bias
+the division already computes supplies it directly:
+
+```
+sign = n >>s 31          (0 or -1)
+bias = sign >>u (32 - k) (0 or 2^k - 1)
+r    = n - ((n + bias) & ~(2^k - 1))
+```
+
+Five instructions, no multiply. `~(2^k - 1)` is `-2^k`, which fits `ANDI`'s
+12-bit signed immediate for k <= 11 and otherwise costs one extra `LI`.
+
+### Validation
+
+- The sequence was checked against C's `%` for every k in [1, 30] over 800,001
+  numerators each, plus `INT_MIN`, `INT_MIN + 1`, `INT_MAX` and `INT_MAX - 1` at
+  every k: 24,000,240 cases, zero mismatches.
+- An end-to-end SysY program cross-checked all 13 of
+  {0, ±1, ±2, ±7, ±1023, ±65536, INT_MAX, INT_MIN} against all 8 of
+  {2, 4, 8, 16, 256, 2048, 4096, 2^30}, printing both quotient and remainder --
+  104 pairs, byte-identical to a native reference build.
+- RV64 compile plus GNU assemble at `-O0` and `-O1`: functional 112/112,
+  hidden-functional 40/40, performance 57/57, final-performance 60/60. The only
+  executed-and-diffed failure is the pre-existing `30_many_dimensions`.
+- Eight final-performance cases executed under Spike with real inputs: all
+  correct, three improved, none regressed.
+- Compiling the same input three times produced byte-identical assembly.
+
+### Result
+
+| Program | Before | After | Reduction |
+|---|---:|---:|---:|
+| `2025-EQV-46` | 156,395,031 | 145,182,959 | 7.17% |
+| `2025-236-50` | 394,172,871 | 386,560,871 | 1.93% |
+| `2025-8AD-57` | 203,725,056 | 201,441,762 | 1.12% |
+
+`2025-EQV-46` moves from 1.51x to 1.40x against `gcc -O2`. The rotate loop is now
+9 instructions against gcc's 8; the residual is the unconditional back-branch,
+not the remainder.
+
+### A trade deliberately not taken
+
+gcc replaces `n * 3` with `slliw` + `addw`, spending one *more* instruction to
+avoid the multiplier -- a latency bet. Since the metric here is dynamic
+instruction count, strength-reducing constant multiplies that way would make our
+numbers worse, so `MULW` is kept. The dynamic `mulw` count is 7.9M in
+`2025-18P-6` and 2 in `2025-EQV-46`, so there is little at stake either way.

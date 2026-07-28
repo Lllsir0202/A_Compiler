@@ -338,6 +338,35 @@ auto RISCVISel::SelectMod(backend::inst::Instruction *inst) -> void {
       }
       return;
     }
+    // A power-of-two divisor does not need the quotient at all. Truncating toward zero means the
+    // remainder keeps the sign of the numerator, which the same sign bias used for the division
+    // supplies directly:
+    //   sign = n >>s 31        (0 or -1)
+    //   bias = sign >>u 32-k   (0 or 2^k - 1)
+    //   r    = n - ((n + bias) & ~(2^k - 1))
+    // Five instructions instead of the four-instruction quotient plus LI/MULW/SUBW, and it drops the
+    // multiply entirely. `n % 2` in a hot rotate loop is the motivating case.
+    if (divisor > 1 && (ad & (ad - 1)) == 0 && magic_div_) {
+      int k = __builtin_ctz(ad);
+      auto new_reg = [&] { return ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::DWord); };
+      auto *sign = new_reg();
+      Emit(RVOpcode::SRAIW, sign, {numer, ctx_->Imm(31)});
+      auto *bias = new_reg();
+      Emit(RVOpcode::SRLIW, bias, {sign, ctx_->Imm(32 - k)});
+      auto *adj = new_reg();
+      Emit(RVOpcode::ADDW, adj, {numer, bias});
+      auto *low_cleared = new_reg();
+      int keep = -(1 << k);  // ~(2^k - 1)
+      if (keep >= -2048) {   // fits ANDI's 12-bit signed immediate
+        Emit(RVOpcode::ANDI, low_cleared, {adj, ctx_->Imm(keep)});
+      } else {
+        auto *keep_reg = new_reg();
+        Emit(RVOpcode::LI, keep_reg, {ctx_->Imm(keep)});
+        Emit(RVOpcode::AND, low_cleared, {adj, keep_reg});
+      }
+      Emit(RVOpcode::SUBW, GetOrCreateVReg(inst->GetResult()), {numer, low_cleared});
+      return;
+    }
     if (auto *q = EmitConstDivide(numer, lit->GetValue())) {
       // r = n - q * d.
       auto *d = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::DWord);
