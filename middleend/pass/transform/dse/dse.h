@@ -34,6 +34,10 @@ namespace middleend::pass::transform {
  *    not just consecutive stores inside one block.
  *  - Write-only locals: a store to a local whose address never escapes and which is never
  *    loaded anywhere in the function is unobservable and removed.
+ *  - Store-back of a loaded value: `t = p[i]; ...; p[i] = t` writes the value already in
+ *    memory. When the load and store are in one block and nothing between them may write
+ *    the location, the store is a no-op and is removed. This is what makes an in-place
+ *    "swap" whose two halves target the same element collapse.
  *
  * Both rules only fire when the store is guaranteed unobservable, so this stays general and
  * correct without per-input special-casing.
@@ -57,6 +61,9 @@ class DSEPass : public TransformPass {
   auto ComputeLoadedLocals() -> void;
   auto RunOnFunction(analysis::MLIRFunctionCFG *function_cfg) -> bool;
   auto IsWriteOnlyDead(mlir::Value *pointer) -> bool;
+  // A store that writes back the value a dominating load already read from the
+  // same location, with no intervening may-alias write, leaves memory unchanged.
+  auto IsRedundantStoreOfLoadedValue(mlir::Block *block, size_t store_index) -> bool;
   // A store to `pointer` at position `store_index` in `block` is dead when every forward path
   // overwrites the location (must-alias store) before reading it or exiting the function.
   auto IsDeadByOverwrite(mlir::Block *block, size_t store_index, mlir::Value *pointer) -> bool;
