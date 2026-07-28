@@ -72,8 +72,6 @@ class MLIRTailRecursionEliminatePass : public TransformPass {
   auto RebuildUsesInOperation(mlir::Operation *operation) -> void;
 
   std::unordered_map<mlir::Value *, mlir::Value *> value_map_;
-  mlir::Value *tail_continue_{nullptr};
-  mlir::Value *tail_stop_{nullptr};
 };
 
 }  // namespace middleend::pass::transform

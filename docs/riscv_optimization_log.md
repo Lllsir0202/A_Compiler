@@ -1039,3 +1039,79 @@ avoid the multiplier -- a latency bet. Since the metric here is dynamic
 instruction count, strength-reducing constant multiplies that way would make our
 numbers worse, so `MULW` is kept. The dynamic `mulw` count is 7.9M in
 `2025-18P-6` and 2 in `2025-EQV-46`, so there is little at stake either way.
+
+## 20. Leaving a de-recursed loop by break instead of a flag
+
+### Motivation
+
+After the tail-recursion rewrite landed (entry 17), `2025-18P-6` was still 2.27x
+`gcc -O2`. Profiling showed the residual was not arithmetic at all:
+
+| | ours | gcc -O2 |
+|---|---:|---:|
+| dynamic `mv` | 98,138,412 (29% of total) | 15,580,056 |
+| dynamic unconditional `j` | 52,191,427 (15.5%) | 8,341,576 |
+
+Roughly 126M of the 188M gap was register shuffling and control flow.
+
+`RewriteMultiExitTailRecursion` encoded the recursion as a `while` carrying
+`(args..., active, result)`, where `active` is a boolean the loop condition tests.
+Because every `scf.if` in the function's guard nest has to merge the whole state
+tuple, a 4-slot state over four nested merges produced 21 phis, all threading the
+same values. After lowering these became swap-shaped copies (`mv t2,s1` ...
+`mv s1,t2`), which the register allocator cannot coalesce, so they survived to the
+final assembly.
+
+### Implementation
+
+`active` exists only to tell the condition to stop, which a real exit does
+directly. Each returning branch now emits `scf.break` carrying `(args..., result)`
+instead of setting the flag, and the loop becomes unconditional. `LowerBreakOp`
+already branches straight to the loop's exit block and adds the break's state as
+an incoming to the exit phis, so the return value still arrives without the flag.
+
+The state drops from 4 slots to 3, and -- because a branch that breaks no longer
+contributes to the enclosing merges at all -- the phi count fell further than the
+slot count alone predicts: **21 phis to 10**.
+
+An investigation that came first and was discarded: `blocklayout` picks the
+conditional's target as fallthrough, so a loop lays out its body next and needs a
+`j` back to the header. Preferring the back-edge instead (letting `BranchFold`
+invert the condition) had no effect, because all six `j`s in this function are
+back-edges into blocks with multiple predecessors, which inherently cost a jump
+per iteration -- and the conditional and the `j` sit in *different* blocks, so the
+terminator-pair test never matched. Layout was not the problem; the state encoding
+was. That change was reverted.
+
+### Validation
+
+- Two hand-written recursion shapes were checked against native reference builds
+  at `-O0`, `-O1` and `-O2`: one with three tail-call sites and three return sites
+  under nested guards (`-342607`), and one with a global side effect in the body to
+  confirm the break does not skip body effects (`2340 780`, both matching). Both
+  compile to zero recursive calls.
+- A function whose every path recurses (no base case) still compiles, and a
+  function with returns but no tail call is left alone and returns correctly --
+  the matcher guarantees at least one return leaf, hence at least one break.
+- RV64 compile plus GNU assemble at `-O0` and `-O1`: functional 112/112,
+  hidden-functional 40/40, performance 57/57, final-performance 60/60. The only
+  executed-and-diffed failure is the pre-existing `30_many_dimensions`.
+- Final-performance cases executed under Spike with real inputs: all correct, none
+  regressed.
+- Compiling the same input three times produced byte-identical assembly.
+
+### Result
+
+| Scope | Baseline | Optimized | Reduction |
+|---|---:|---:|---:|
+| `2025-18P-6`, Spike dynamic instructions | 335,696,917 | 193,611,877 | 42.32% |
+| Same, ratio against `gcc -O2` | 2.27x | 1.31x | -- |
+| `2025-18P-6`, phis in the de-recursed loop | 21 | 10 | 52.38% |
+| `2025-18P-6`, dynamic `mv` | 98,138,412 | 8,141,503 | 91.70% |
+| `2025-18P-6`, dynamic `j` | 52,191,427 | 22,624,265 | 56.65% |
+| `2025-2EI-3`, dynamic instructions | 64,861,045 | 63,976,174 | 1.36% |
+
+`mv` is now well below gcc's 15.6M. The remaining 1.31x is the `n/2` sign
+correction (four instructions where gcc proved the dividend non-negative and used
+one `sraiw`) plus the back-edge jumps, which need a range analysis and a different
+loop shape respectively.
