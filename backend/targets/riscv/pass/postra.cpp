@@ -1,5 +1,6 @@
 #include "backend/targets/riscv/pass/postra.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <unordered_map>
@@ -10,6 +11,7 @@
 #include "backend/targets/utils/context/targetcontext.h"
 #include "backend/targets/utils/operand/targetliteral.h"
 #include "backend/targets/utils/operand/targetreg.h"
+#include "backend/targets/utils/operand/targetsymbol.h"
 #include "backend/targets/utils/struct/targetblock.h"
 #include "backend/targets/utils/struct/targetfunction.h"
 
@@ -293,6 +295,144 @@ auto FoldSignBitExtraction(TargetBlock *block) -> bool {
   return changed;
 }
 
+auto FoldShortCircuitMerges(TargetFunction *func) -> bool {
+  std::unordered_map<std::string, TargetBlock *> by_label;
+  for (auto *block : func->GetBlocks()) {
+    by_label[block->GetLabel()] = block;
+  }
+
+  auto target_block = [&](TargetOperand *operand) -> TargetBlock * {
+    if (operand == nullptr || operand->GetOpType() != TargetOperandType::Label) {
+      return nullptr;
+    }
+    auto found = by_label.find(static_cast<TargetLabel *>(operand)->GetName());
+    return found == by_label.end() ? nullptr : found->second;
+  };
+  auto resolve_forwarder = [&](TargetOperand *operand) -> TargetBlock * {
+    auto *block = target_block(operand);
+    std::vector<TargetBlock *> seen;
+    while (block != nullptr) {
+      if (std::find(seen.begin(), seen.end(), block) != seen.end()) {
+        return nullptr;
+      }
+      seen.push_back(block);
+      const auto &insts = block->GetInsts();
+      if (insts.size() != 1) {
+        return block;
+      }
+      auto *jump = static_cast<RISCVInst *>(insts.front());
+      const auto &ops = jump->GetOperands();
+      if (jump->GetOpcode() != RVOpcode::J || ops.size() != 1) {
+        return block;
+      }
+      block = target_block(ops[0]);
+    }
+    return nullptr;
+  };
+  auto equality_branch = [](RVOpcode opcode) { return opcode == RVOpcode::BEQ || opcode == RVOpcode::BNE; };
+  auto compares_reg_to_zero = [](TargetInst *inst, int reg) {
+    const auto &ops = inst->GetOperands();
+    if (ops.size() != 3) {
+      return false;
+    }
+    auto lhs = PhysicalRegKey(ops[0]);
+    auto rhs = PhysicalRegKey(ops[1]);
+    return (lhs.has_value() && *lhs == reg && IsZeroReg(ops[1])) ||
+           (rhs.has_value() && *rhs == reg && IsZeroReg(ops[0]));
+  };
+  auto defines_before_jump = [](TargetBlock *block, int reg) {
+    const auto &insts = block->GetInsts();
+    if (insts.empty() || static_cast<RISCVInst *>(insts.back())->GetOpcode() != RVOpcode::J ||
+        insts.back()->GetOperands().size() != 1 ||
+        insts.back()->GetOperands()[0]->GetOpType() != TargetOperandType::Label) {
+      return false;
+    }
+    bool defined = false;
+    for (size_t i = 0; i + 1 < insts.size(); ++i) {
+      for (auto *operand : insts[i]->GetOperands()) {
+        auto used = PhysicalRegKey(operand);
+        if (used.has_value() && *used == reg && !defined) {
+          return false;
+        }
+      }
+      auto result = PhysicalRegKey(insts[i]->GetResult());
+      if (result.has_value() && *result == reg) {
+        defined = true;
+      }
+    }
+    return defined;
+  };
+
+  bool changed = false;
+  for (auto *block : func->GetBlocks()) {
+    const auto &insts = block->GetInsts();
+    if (insts.size() < 3) {
+      continue;
+    }
+    auto *materialize = static_cast<RISCVInst *>(insts[insts.size() - 3]);
+    auto *branch = static_cast<RISCVInst *>(insts[insts.size() - 2]);
+    auto *jump = static_cast<RISCVInst *>(insts.back());
+    auto materialize_opcode = materialize->GetOpcode();
+    auto branch_opcode = branch->GetOpcode();
+    const auto &materialize_ops = materialize->GetOperands();
+    auto branch_ops = branch->GetOperands();
+    auto jump_ops = jump->GetOperands();
+    auto bool_reg = PhysicalRegKey(materialize->GetResult());
+    auto cond_reg = materialize_ops.empty() ? std::optional<int>{} : PhysicalRegKey(materialize_ops[0]);
+    if (!materialize->IsShortCircuitMaterialization() ||
+        (materialize_opcode != RVOpcode::SEQZ && materialize_opcode != RVOpcode::SNEZ) ||
+        !equality_branch(branch_opcode) || jump->GetOpcode() != RVOpcode::J || materialize_ops.size() != 1 ||
+        branch_ops.size() != 3 || jump_ops.size() != 1 || !bool_reg.has_value() || !cond_reg.has_value() ||
+        *bool_reg == *cond_reg || !compares_reg_to_zero(branch, *cond_reg)) {
+      continue;
+    }
+
+    auto *branch_edge = resolve_forwarder(branch_ops[2]);
+    auto *jump_edge = resolve_forwarder(jump_ops[0]);
+    TargetBlock *merge = nullptr;
+    bool short_is_branch = false;
+    auto is_merge = [&](TargetBlock *candidate) {
+      if (candidate == nullptr || candidate->GetInsts().size() != 2) {
+        return false;
+      }
+      auto *merge_branch = static_cast<RISCVInst *>(candidate->GetInsts()[0]);
+      auto *merge_jump = static_cast<RISCVInst *>(candidate->GetInsts()[1]);
+      return equality_branch(merge_branch->GetOpcode()) && compares_reg_to_zero(merge_branch, *bool_reg) &&
+             merge_jump->GetOpcode() == RVOpcode::J && merge_jump->GetOperands().size() == 1;
+    };
+    if (is_merge(branch_edge) && jump_edge != nullptr && defines_before_jump(jump_edge, *bool_reg) &&
+        resolve_forwarder(jump_edge->GetInsts().back()->GetOperands()[0]) == branch_edge) {
+      merge = branch_edge;
+      short_is_branch = true;
+    } else if (is_merge(jump_edge) && branch_edge != nullptr && defines_before_jump(branch_edge, *bool_reg) &&
+               resolve_forwarder(branch_edge->GetInsts().back()->GetOperands()[0]) == jump_edge) {
+      merge = jump_edge;
+      short_is_branch = false;
+    }
+    if (merge == nullptr) {
+      continue;
+    }
+
+    bool condition_is_zero = short_is_branch ? branch_opcode == RVOpcode::BEQ : branch_opcode == RVOpcode::BNE;
+    bool known_boolean = materialize_opcode == RVOpcode::SEQZ ? condition_is_zero : !condition_is_zero;
+    auto *merge_branch = static_cast<RISCVInst *>(merge->GetInsts()[0]);
+    auto *merge_jump = static_cast<RISCVInst *>(merge->GetInsts()[1]);
+    bool merge_branch_taken = merge_branch->GetOpcode() == RVOpcode::BEQ ? !known_boolean : known_boolean;
+    TargetOperand *known_target = merge_branch_taken ? merge_branch->GetOperands()[2] : merge_jump->GetOperands()[0];
+    if (short_is_branch) {
+      branch->SetOperands({branch_ops[0], branch_ops[1], known_target});
+    } else {
+      jump->SetOperands({known_target});
+    }
+    std::vector<TargetInst *> kept(insts.begin(), insts.end() - 3);
+    kept.push_back(branch);
+    kept.push_back(jump);
+    block->SetInsts(std::move(kept));
+    changed = true;
+  }
+  return changed;
+}
+
 }  // namespace
 
 auto RISCVPostRA::RunOnFunction(TargetFunction *func, size_t spill_base, size_t spill_slots) -> bool {
@@ -302,6 +442,7 @@ auto RISCVPostRA::RunOnFunction(TargetFunction *func, size_t spill_base, size_t 
     changed |= FoldSignBitExtraction(block);
     changed |= CleanupCopies(block);
   }
+  changed |= FoldShortCircuitMerges(func);
   return changed;
 }
 

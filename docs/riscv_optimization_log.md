@@ -590,3 +590,63 @@ bit-processing loop rather than from a one-time prologue saving. Two large
 correctness stress cases also fall from 84,534,885 to 82,828,345 dynamic
 instructions (2.019%), providing independent coverage outside the performance
 suite.
+
+## 14. Post-allocation short-circuit merge bypass
+
+### Change
+
+- Recognize `seqz`/`snez` values that are used only by a short-circuit branch
+  and a phi-edge copy, and prove that the copied value has a single equality
+  branch use in the boolean merge block.
+- Preserve that proof as instruction metadata through register allocation, then
+  bypass the merge on the edge where the boolean value is already known. The
+  post-RA rewrite removes the redundant boolean materialization and lets late
+  branch folding thread the edge directly to the known final successor.
+- Validate the physical-register form again before rewriting: the condition,
+  result, RHS definition, forwarding chain, and two-way merge must all retain
+  the expected shape. Candidates changed by spilling or other lowering are
+  conservatively left untouched.
+
+A pre-RA CFG-rewrite prototype reduced the static instruction count, but changed
+the interference graph and regressed `2025-236-50` by 0.752%. Splitting the pass
+into pre-RA semantic marking and post-RA rewriting preserves the existing
+coloring, spill decisions, and frame layout while still shortening the executed
+path.
+
+For example, the hot Huffman loop previously executed a first comparison,
+materialized its `0/1` result, and then tested that result again after the RHS
+merge. On the short-circuit edge the new code branches directly to the final
+successor, saving both the materialization and the merge test.
+
+### Validation
+
+- Clean native compiler rebuild and targeted clang-tidy analysis completed; the
+  reported diagnostics are pre-existing checks in the touched pass files.
+- RV64 compile plus GNU assemble at `-O1`: functional 112/112,
+  hidden-functional 40/40, performance 57/57, and final-performance 60/60
+  (269/269 total).
+- All 33 changed programs were linked and run as before/after Spike pairs. All
+  performance outputs and exit statuses matched. Fourteen changed correctness
+  programs matched byte-for-byte; the two remaining programs already fault in
+  the baseline and retained the same exit status and illegal address, with only
+  the diagnostic PC/RA shifted by the removed instruction.
+- The 17 changed performance programs were measured with contemporaneously
+  linked binaries to keep the system/runtime contribution comparable.
+
+### Result
+
+| Scope | Baseline | Optimized | Reduction |
+|---|---:|---:|---:|
+| All 269 RV programs, static instructions | 100,838 | 100,474 | 0.361% |
+| 117 performance programs, static instructions | 49,300 | 49,288 | 0.024% |
+| 17 changed performance programs, Spike dynamic instructions | 2,261,217,374 | 2,203,011,648 | 2.574% |
+| Three final Huffman programs, Spike dynamic instructions | 1,065,947,420 | 1,010,125,635 | 5.237% |
+| `2025-236-50`, Spike dynamic instructions | 871,660,434 | 826,006,517 | 5.238% |
+| `2025-BTH-42`, Spike dynamic instructions | 32,420,226 | 31,466,462 | 2.942% |
+| `2025-MB8-51`, Spike dynamic instructions | 18,099,134 | 17,581,317 | 2.861% |
+| `82_long_func`, Spike dynamic instructions | 1,743,594 | 1,653,435 | 5.171% |
+
+The modest static reduction understates the effect: the deleted sequences sit
+inside the bit-processing loops, so three Huffman inputs save 55,821,785 dynamic
+instructions in aggregate. Unlike the rejected early rewrite, the final result
+does not depend on a favorable register-allocation change.

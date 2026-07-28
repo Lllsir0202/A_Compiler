@@ -94,11 +94,19 @@ class RISCVInst : public TargetInst {
   auto SetComment(std::string comment) -> void { comment_ = std::move(comment); }
   auto GetComment() const -> const std::string & { return comment_; }
 
+  // A pre-RA analysis proved that this boolean materialization is used only
+  // to carry a short-circuit value into a later merge.  Preserve the fact on
+  // the instruction itself so the post-RA pass can bypass that merge without
+  // perturbing register allocation.
+  auto MarkShortCircuitMaterialization() -> void { short_circuit_materialization_ = true; }
+  auto IsShortCircuitMaterialization() const -> bool { return short_circuit_materialization_; }
+
   auto Emit(std::ofstream *out) -> void override;
 
  private:
   RVOpcode opcode_;
   std::string comment_;
+  bool short_circuit_materialization_ = false;
 };
 
 }  // namespace backend::targetir::riscv

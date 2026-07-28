@@ -51,6 +51,9 @@ class RISCVPeephole : public MachineFunctionPass {
  private:
   // Rebuild single-definition and constant facts for virtual registers.
   auto BuildFacts(TargetFunction *func) -> void;
+  // Record short-circuit boolean materializations whose only non-branch uses
+  // are phi-edge copies.  The actual CFG rewrite is delayed until post-RA.
+  auto MarkShortCircuitCandidates(TargetFunction *func) -> void;
   // If `op` is a register holding a known constant, store it in `*value`.
   auto IsConst(TargetOperand *op, int *value) const -> bool;
   // Whether the single instruction defining `op` already sign-extends its
