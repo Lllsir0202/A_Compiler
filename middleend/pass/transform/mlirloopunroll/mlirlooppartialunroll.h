@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <stdexcept>
+#include <unordered_set>
 #include <vector>
 #include "middleend/mlir/utils/clone/operationcloner.h"
 #include "middleend/pass/transform/mlirloopunroll/inductionvariable.h"
@@ -42,10 +43,13 @@ namespace middleend::pass::transform {
  */
 class MLIRLoopPartialUnrollPass : public TransformPass {
  public:
-  MLIRLoopPartialUnrollPass(context::CompilerContext *compiler_context, PassStage stage)
-      : TransformPass(compiler_context, stage) {
+  MLIRLoopPartialUnrollPass(context::CompilerContext *compiler_context, PassStage stage, int64_t jam_unroll_factor = 8)
+      : TransformPass(compiler_context, stage), jam_unroll_factor_(jam_unroll_factor) {
     if (stage != PassStage::MLIR) {
       throw std::invalid_argument("MLIRLoopPartialUnrollPass only supports MLIR stage");
+    }
+    if (jam_unroll_factor_ < 2 || jam_unroll_factor_ > 16) {
+      throw std::invalid_argument("MLIRLoopPartialUnrollPass jam unroll factor must be in [2, 16]");
     }
   }
   ~MLIRLoopPartialUnrollPass() override = default;
@@ -60,17 +64,21 @@ class MLIRLoopPartialUnrollPass : public TransformPass {
   auto RunOnFunction(mlir::func::FuncDefOp *func_op) -> bool;
   auto JamDotProductLoops(mlir::func::FuncDefOp *func_op) -> bool;
   auto TryJamDotProductLoop(mlir::Block *block, mlir::scf::WhileOp *while_op) -> bool;
-  auto CollectWhileLoops(mlir::Block *block,
-                         std::vector<std::pair<mlir::Block *, mlir::scf::WhileOp *>> *loops) -> void;
-  auto CanPartialUnroll(mlir::scf::WhileOp *while_op, loopiv::Induction *iv) -> bool;
-  auto PartialUnroll(mlir::Block *block, mlir::scf::WhileOp *while_op, const loopiv::Induction &iv) -> void;
-  auto MakeComparison(loopiv::CmpKind kind, mlir::Value *lhs, mlir::Value *rhs,
-                      mlir::Value *result_type_source) -> mlir::Operation *;
+  auto CollectWhileLoops(mlir::Block *block, std::vector<std::pair<mlir::Block *, mlir::scf::WhileOp *>> *loops)
+      -> void;
+  auto CanPartialUnroll(mlir::scf::WhileOp *while_op, loopiv::Induction *iv, int64_t factor) -> bool;
+  auto PartialUnroll(mlir::Block *block, mlir::scf::WhileOp *while_op, const loopiv::Induction &iv, int64_t factor)
+      -> void;
+  auto MakeComparison(loopiv::CmpKind kind, mlir::Value *lhs, mlir::Value *rhs, mlir::Value *result_type_source)
+      -> mlir::Operation *;
 
   mlir::utils::OperationCloner cloner_{compiler_context_};
 
-  // Cost cap on the widened main-loop body (kUnrollFactor * body-op-count).
+  // Target-specific reduction unroll factor inside the four-column register block. Ordinary
+  // loops retain the general unroll factor above.
   static constexpr int64_t kJamFactor = 4;
+  int64_t jam_unroll_factor_;
+  std::unordered_set<mlir::scf::WhileOp *> register_blocked_loops_;
   static constexpr size_t kMaxBodyCost = 1024;
 };
 

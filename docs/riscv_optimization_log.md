@@ -650,3 +650,43 @@ The modest static reduction understates the effect: the deleted sequences sit
 inside the bit-processing loops, so three Huffman inputs save 55,821,785 dynamic
 instructions in aggregate. Unlike the rejected early rewrite, the final result
 does not depend on a favorable register-allocation change.
+
+## 15. RISC-V matrix register-block pressure tuning
+
+### Change
+
+- Keep the four-column dot-product register block, which supplies four independent
+  accumulators and row-contiguous `A[k][j..j+3]` accesses.
+- Use a four-way reduction unroll inside RISC-V register blocks instead of the
+  general eight-way loop unroll. Ordinary loops and the AArch64 schedule remain
+  at eight-way unrolling.
+- Track the reduction loops created by unroll-and-jam so the smaller factor is
+  applied only to those loops. This avoids weakening unrelated loop optimization.
+
+Widening the column block to five, six, or eight columns was rejected: the extra
+accumulators and addresses exceeded the available RV64 registers and introduced
+hot-loop spills. Reduction factors two and three were also measured and lost to
+factor four because their extra loop control outweighed the lower pressure.
+
+### Validation
+
+- Native compiler rebuild and RV64 GNU assembly passed.
+- RV64 compile plus GNU assemble at `-O1`: functional 112/112,
+  hidden-functional 40/40, performance 57/57, and final-performance 60/60
+  (269/269 total).
+- The runtime-bound dot-product regression (`n=5`) exercised a four-column main
+  block and scalar remainder under Spike and produced the expected `19234415`.
+- A deterministic 128x128 in-place matrix product produced the same checksum
+  (`53417127`) before and after the change.
+
+### Result
+
+| Scope | Baseline | Optimized | Reduction |
+|---|---:|---:|---:|
+| 128x128 matrix product, Spike dynamic instructions | 12,043,346 | 11,876,346 | 1.387% |
+| Same matrix product, static instructions | 752 | 658 | 12.500% |
+| Each final `many_mat_cal` program, static instructions | 893 | 814 | 8.847% |
+
+This change reduces instruction-cache footprint and loop overhead without
+changing the four-column memory-access pattern that supplies the larger cache
+locality benefit.
