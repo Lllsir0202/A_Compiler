@@ -9,6 +9,7 @@
 namespace middleend::mlir {
 class Block;
 class Operation;
+class Region;
 class Value;
 }  // namespace middleend::mlir
 
@@ -52,10 +53,17 @@ class MLIRTailRecursionEliminatePass : public TransformPass {
   auto MatchTailRecursion(mlir::func::FuncDefOp *func_op, TailRecursionPattern *pattern) -> bool;
   auto RewriteTailRecursion(mlir::func::FuncDefOp *func_op, const TailRecursionPattern &pattern) -> bool;
   auto RewriteMultiExitTailRecursion(mlir::func::FuncDefOp *func_op) -> bool;
-  auto IsTerminalTailBlock(mlir::Block *block, mlir::func::FuncDefOp *func_op, bool *saw_tail) -> bool;
+  // Both walkers take a start index so that the operations after an scf.if can be treated as that
+  // if's fall-through continuation: `if (c) return f(..);` followed by more code is the natural way
+  // to write guarded tail recursion, and its else region is empty rather than terminal.
+  auto IsTerminalTailBlock(mlir::Block *block, mlir::func::FuncDefOp *func_op, bool *saw_tail,
+                           size_t start = 0) -> bool;
   auto BuildTailState(mlir::Block *source, mlir::Block *destination, mlir::func::FuncDefOp *func_op,
-                      const std::vector<mlir::Value *> &current_args,
-                      mlir::Value *current_result) -> std::vector<mlir::Value *>;
+                      const std::vector<mlir::Value *> &current_args, mlir::Value *current_result,
+                      size_t start = 0) -> std::vector<mlir::Value *>;
+  // True when the region is a single block whose only operation is an operand-less scf.yield, i.e. an
+  // `if` with no `else`: control leaves it by falling through to the enclosing block.
+  static auto IsFallThroughRegion(mlir::Region *region) -> bool;
   auto CloneOperation(mlir::Operation *operation) -> mlir::Operation *;
   auto CloneValue(mlir::Value *value) -> mlir::Value *;
   auto RemapValue(mlir::Value *value) -> mlir::Value *;

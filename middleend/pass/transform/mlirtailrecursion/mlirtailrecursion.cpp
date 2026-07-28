@@ -57,9 +57,17 @@ auto MLIRTailRecursionEliminatePass::RunOnFunction(mlir::func::FuncDefOp *func_o
   return RewriteMultiExitTailRecursion(func_op);
 }
 
+auto MLIRTailRecursionEliminatePass::IsFallThroughRegion(mlir::Region *region) -> bool {
+  if (region == nullptr || region->blocks_.size() != 1 || region->blocks_[0]->operations_.size() != 1) {
+    return false;
+  }
+  auto *yield_op = mlir::DynamicOrNull<mlir::scf::YieldOp>(region->blocks_[0]->operations_[0]);
+  return yield_op != nullptr && yield_op->GetOperands().empty();
+}
+
 auto MLIRTailRecursionEliminatePass::IsTerminalTailBlock(mlir::Block *block, mlir::func::FuncDefOp *func_op,
-                                                         bool *saw_tail) -> bool {
-  for (size_t index = 0; index < block->operations_.size(); ++index) {
+                                                         bool *saw_tail, size_t start) -> bool {
+  for (size_t index = start; index < block->operations_.size(); ++index) {
     auto *operation = block->operations_[index];
     if (auto *call = mlir::DynamicOrNull<mlir::func::FuncCallOp>(operation)) {
       if (call->GetName() != func_op->GetName() || index + 1 >= block->operations_.size()) {
@@ -98,6 +106,21 @@ auto MLIRTailRecursionEliminatePass::IsTerminalTailBlock(mlir::Block *block, mli
           return false;
         }
       }
+      // An `if` with no `else` does not end control flow: whichever branch is empty continues with
+      // the operations that follow this `if`, so scan those as that branch's continuation.
+      bool then_falls = IsFallThroughRegion(if_op->GetThenRegion());
+      bool else_falls = IsFallThroughRegion(if_op->GetElseRegion());
+      if (then_falls && else_falls) {
+        continue;  // an empty `if` decides nothing; keep scanning this block
+      }
+      if (then_falls || else_falls) {
+        if (if_op->results_.size() != 0) {
+          return false;  // a value-producing if cannot fall through
+        }
+        auto *terminal = then_falls ? if_op->GetElseRegion() : if_op->GetThenRegion();
+        return IsTerminalTailBlock(terminal->blocks_[0], func_op, saw_tail) &&
+               IsTerminalTailBlock(block, func_op, saw_tail, index + 1);
+      }
       return IsTerminalTailBlock(if_op->GetThenRegion()->blocks_[0], func_op, saw_tail) &&
              IsTerminalTailBlock(if_op->GetElseRegion()->blocks_[0], func_op, saw_tail);
     }
@@ -114,7 +137,8 @@ auto MLIRTailRecursionEliminatePass::IsTerminalTailBlock(mlir::Block *block, mli
 auto MLIRTailRecursionEliminatePass::BuildTailState(mlir::Block *source, mlir::Block *destination,
                                                     mlir::func::FuncDefOp *func_op,
                                                     const std::vector<mlir::Value *> &current_args,
-                                                    mlir::Value *current_result) -> std::vector<mlir::Value *> {
+                                                    mlir::Value *current_result,
+                                                    size_t start) -> std::vector<mlir::Value *> {
   auto make_state = [&](const std::vector<mlir::Value *> &args, mlir::Value *active, mlir::Value *result) {
     std::vector<mlir::Value *> state = args;
     state.emplace_back(active);
@@ -122,7 +146,7 @@ auto MLIRTailRecursionEliminatePass::BuildTailState(mlir::Block *source, mlir::B
     return state;
   };
 
-  for (size_t index = 0; index < source->operations_.size(); ++index) {
+  for (size_t index = start; index < source->operations_.size(); ++index) {
     auto *operation = source->operations_[index];
     if (auto *call = mlir::DynamicOrNull<mlir::func::FuncCallOp>(operation)) {
       std::vector<mlir::Value *> next_args;
@@ -139,20 +163,31 @@ auto MLIRTailRecursionEliminatePass::BuildTailState(mlir::Block *source, mlir::B
       return make_state(current_args, tail_stop_, RemapValue(yield_op->GetOperands()[0]));
     }
     if (auto *if_op = mlir::DynamicOrNull<mlir::scf::IfOp>(operation)) {
+      bool then_falls = IsFallThroughRegion(if_op->GetThenRegion());
+      bool else_falls = IsFallThroughRegion(if_op->GetElseRegion());
+      if (then_falls && else_falls) {
+        continue;
+      }
       auto outer_map = value_map_;
       auto *then_region = new mlir::Region();
       auto *then_block = new mlir::Block();
       then_region->blocks_.emplace_back(then_block);
-      auto then_state =
-          BuildTailState(if_op->GetThenRegion()->blocks_[0], then_block, func_op, current_args, current_result);
+      // A fall-through branch continues with the operations after this `if`, so its state is built
+      // from the rest of the enclosing block rather than from the (empty) region.
+      auto then_state = then_falls
+                            ? BuildTailState(source, then_block, func_op, current_args, current_result, index + 1)
+                            : BuildTailState(if_op->GetThenRegion()->blocks_[0], then_block, func_op, current_args,
+                                             current_result);
       then_block->AddOperation(GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::YieldOp>(GET_MLIR_CONTEXT(), then_state));
 
       value_map_ = outer_map;
       auto *else_region = new mlir::Region();
       auto *else_block = new mlir::Block();
       else_region->blocks_.emplace_back(else_block);
-      auto else_state =
-          BuildTailState(if_op->GetElseRegion()->blocks_[0], else_block, func_op, current_args, current_result);
+      auto else_state = else_falls
+                            ? BuildTailState(source, else_block, func_op, current_args, current_result, index + 1)
+                            : BuildTailState(if_op->GetElseRegion()->blocks_[0], else_block, func_op, current_args,
+                                             current_result);
       else_block->AddOperation(GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::YieldOp>(GET_MLIR_CONTEXT(), else_state));
       value_map_ = outer_map;
 

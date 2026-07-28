@@ -785,3 +785,81 @@ Dynamic instruction counts under Spike, inputs inlined from each `.in` file
 All three now run 3.8x to 6.7x fewer instructions than `gcc -O2`, which cannot
 perform this rewrite. Outputs are unchanged and match the reference build
 exactly.
+
+## 17. Tail recursion through a fall-through `if`
+
+### Motivation
+
+`2025-18P-6` walks a Collatz-like chain for every start value up to 500,000:
+
+```c
+int fun(int n, int dep){
+	if(n==1) return dep;
+	else{
+		if(n%2==0) return fun(n/2,dep+1);
+		else{
+			if(n*3+1<=lim) return fun(n*3+1,dep+1);
+			if(n*4+1<=lim) return fun(n*4+1,dep+1);
+			return 7;
+		}
+	}
+}
+```
+
+Every recursive call is in tail position, so the function should become a loop.
+`gcc -O2` does exactly that and spends zero instructions in `fun`. We were
+spending 422M of 429M there -- 2.90x gcc's total.
+
+The blocker was a shape check, not the rewrite. `IsTerminalTailBlock` required
+every leaf of the `scf.if` nest to end in a return or a single-operand yield. But
+`if (n*3+1<=lim) return fun(...);` has *no else*, so its else region holds a bare
+operand-less `scf.yield` and control falls through to the next statement. The
+walker recursed into that empty region, saw a zero-operand yield, and rejected
+the whole function. That shape -- a guarded tail call followed by more code -- is
+the natural way to write this, so the pass was missing the common case.
+
+### Implementation
+
+Both walkers now take a start index, and a fall-through region is recognized
+explicitly (`IsFallThroughRegion`: single block, single operand-less yield).
+When one branch of a void `scf.if` falls through, its continuation is the rest of
+the *enclosing* block, so `IsTerminalTailBlock` scans from `index + 1` and
+`BuildTailState` builds that branch's state from the same suffix. An `if` with
+both regions empty decides nothing and is skipped. A value-producing `scf.if` can
+never fall through, so that combination is still refused.
+
+### Validation
+
+- RV64 compile plus GNU assemble at `-O0` and `-O1`: functional 112/112,
+  hidden-functional 40/40, performance 57/57, final-performance 60/60. The only
+  executed-and-diffed failure is `30_many_dimensions`, which fails identically on
+  the parent commit and is unrelated.
+- Five recursion-bearing final-performance cases were executed under Spike with
+  their real inputs and all produced the expected output, each at or below gcc's
+  instruction count (`2025-0XT-12` 0.95x, `2025-6U4-15` 0.98x, `2025-CXI-10`
+  1.01x, `2025-3F1-17` 1.00x, `2025-FH0-62` 0.89x).
+- Compiling the same input three times produced byte-identical assembly.
+
+### Result
+
+| Scope | Baseline | Optimized | Reduction |
+|---|---:|---:|---:|
+| `2025-18P-6`, Spike dynamic instructions | 429,725,842 | 335,696,917 | 21.88% |
+| `2025-18P-6`, instructions attributed to `fun` | 422,350,593 | 0 | 100% |
+
+The recursion is now entirely a loop, as in gcc's output. The residual 2.27x gap
+against `gcc -O2` is no longer call overhead but the loop body: the state-machine
+encoding spends about five copy/branch instructions per iteration shuffling the
+`(active, result)` pair, we sign-correct `n/2` in four instructions where gcc
+proved the dividend non-negative and used one `sraiw`, and we emit `mulw` for
+`n*3` where gcc uses `slliw`/`addw`. Those are separate, independently
+addressable gaps.
+
+### Measurement note
+
+This case could not be measured before. Spike's proxy kernel does not deliver
+stdin, so every input-driven case previously read garbage and exited early --
+making an ours-vs-gcc sweep report `ratio=1.00` almost everywhere. The numbers
+above come from linking both binaries against a sylib variant whose input
+functions read a compiled-in copy of the `.in` file, which needs no change to the
+test source and keeps the two builds directly comparable.
