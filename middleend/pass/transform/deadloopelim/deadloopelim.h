@@ -79,6 +79,7 @@ class DeadLoopEliminatePass : public TransformPass {
   auto MakeComparison(mlir::Value *lhs, mlir::Value *rhs, mlir::Block *at) -> mlir::Value *;
   auto MakeBoolToInt(mlir::Value *value, mlir::Block *at) -> mlir::Value *;
   auto ExpandRepeatedDiv(const analysis::SCEV *scev, mlir::Block *at) -> mlir::Value *;
+  auto ExpandModAddRec(const analysis::SCEV *scev, mlir::Block *at) -> mlir::Value *;
   auto InsertBeforeTerminator(mlir::Operation *operation, mlir::Block *block) -> void;
 
   analysis::SCEVPass *scev_{nullptr};

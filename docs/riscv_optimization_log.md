@@ -690,3 +690,98 @@ factor four because their extra loop control outweighed the lower pressure.
 This change reduces instruction-cache footprint and loop overhead without
 changing the four-column memory-access pattern that supplies the larger cache
 locality benefit.
+
+## 16. Closed form for wrapped counters
+
+### Motivation
+
+Three of the sixty final-performance programs seed a matrix through the same
+pseudo-random generator:
+
+```c
+int get_random() {
+    int n = state % 2048;
+    int i = 0;
+    while (i < n) { state = state + 128; state = state % 65535; i = i + 1; }
+    state = state % 65535;
+    return state;
+}
+```
+
+`init_matrix` calls this once per element, so the inner loop runs on the order of
+`n` times per call and dominates the whole program: for `2025-OKA-1` it accounts
+for 1.51 billion of 1.52 billion dynamic instructions. The loop is
+side-effect-free after scalar promotion turns `state` into an SSA phi, and its
+trip count is available, so `DeadLoopEliminatePass` should already have deleted
+it. It did not, because `base.mod` had no scalar-evolution rule at all: the
+header phi never resolved to a recurrence and the value stayed opaque.
+
+### Why the obvious closed form is wrong
+
+`(start + step * n) % modulus` is not a valid rewrite here, for two independent
+reasons. SysY `%` truncates toward zero, so it is not a ring homomorphism on
+negative values -- and `state` is a global whose initial value comes from input.
+A brute-force sweep over all of int32 found 215,448 mismatching starts out of
+430,660 tested. Separately, `start + step * n` overflows i32 for large `n`.
+
+What is valid is a reduction of the *step count*, resting on two facts about the
+orbit:
+
+- After one step the state lies in `(-modulus, modulus)`. While it is negative,
+  adding `step < modulus` cannot trigger a reduction, so the state climbs
+  additively; after at most `K = ceil(modulus / step)` steps it is non-negative.
+- Once non-negative the orbit is periodic with `P = modulus / gcd(step, modulus)`.
+
+So the step count collapses to at most `K` additive steps followed by a count
+taken mod `P`, and one final `% modulus` finishes. Every intermediate value is
+bounded by compile-time constants, which the pass checks against i32 before
+committing rather than assuming.
+
+Two shape details matter in practice. The MLIR loop unroller chains eight
+reductions per iteration, so the recurrence carries a `fold` factor; and the
+value the transform actually needs is the one on the back edge, one step further
+along than the header phi, so it carries an `offset`. Both are folded into the
+same step count.
+
+### Implementation
+
+`SCEVModAddRecExpr` is a new SCEV kind, deliberately distinct from
+`SCEVAddRecExpr` so no consumer can apply affine reasoning to a sequence that
+wraps. `SCEVModExpr` gives `base.mod` a representation, and absorbs
+`(counter + step) % modulus` into an offset bump so a mid-chain value is
+described in the same terms as the header phi. `MatchModAddRec` peels the chain
+off a back-edge value, requiring every layer to share the same constants and
+each step to satisfy `0 < step < modulus` -- a larger step could reduce twice in
+one application, which the bounded-orbit argument excludes.
+`DeadLoopEliminatePass::ExpandModAddRec` materializes the two phases branchlessly
+in the preheader.
+
+### Validation
+
+- The emitted integer sequence was validated op-for-op against a reference
+  interpreter over 55,820,106 (start, iteration) pairs spanning 1,008
+  configurations of (step, modulus, fold, offset), including negative and
+  past-modulus starts: zero mismatches.
+- End-to-end under Spike, 20 seed values covering negatives, zero, the modulus
+  and beyond, at `-O0`, `-O1` and `-O2`: all matched a native reference build.
+- RV64 compile plus GNU assemble: functional 112/112 at `-O0` and `-O1`,
+  hidden-functional 40/40, performance 57/57, final-performance 60/60.
+  Executed-and-diffed cases pass except `30_many_dimensions`, which fails
+  identically on the parent commit (verified by stashing) and is unrelated.
+- Compiling the same input three times produced byte-identical assembly.
+
+### Result
+
+Dynamic instruction counts under Spike, inputs inlined from each `.in` file
+(Spike's proxy kernel does not deliver stdin), against `riscv64-unknown-elf-gcc
+-O2` on the same source:
+
+| Program | Before | After | Reduction | gcc -O2 |
+|---|---:|---:|---:|---:|
+| 2025-1NE-37 | 158,737,190 | 48,024,769 | 69.7% | 184,577,155 |
+| 2025-MGB-26 | 428,923,609 | 91,422,778 | 78.7% | 509,130,540 |
+| 2025-OKA-1 | 1,506,191,371 | 269,743,762 | 82.1% | 1,800,519,995 |
+
+All three now run 3.8x to 6.7x fewer instructions than `gcc -O2`, which cannot
+perform this rewrite. Outputs are unchanged and match the reference build
+exactly.
