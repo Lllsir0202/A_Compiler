@@ -504,3 +504,41 @@ allocator's coloring, not merely from deleting twelve static copies per
 program.  The `sl*` programs lose one static instruction each; the `crypto*`
 and many-matrix triples change by only single-digit static instructions and
 showed no meaningful dynamic regression in the local runs.
+
+## 12. Non-adjacent local copy propagation
+
+### Change
+
+- Extend the RV pre-allocation result-folding pass to remove a non-adjacent
+  `dst = mv src` or `dst = fmv.s src` inside one basic block.
+- Require `src` to have exactly one definition and one use, `dst` to have
+  exactly one definition, the source definition to precede the copy in the
+  same block, and every destination use to occur later in that same block.
+- Replace those later destination uses with the source and remove the copy.
+  Rebuild definition/use locations after every removal, so chains cannot reuse
+  stale facts and phi-lowered multiply-defined registers remain excluded.
+
+### Validation
+
+- RV64 compile plus GNU assemble at `-O1`: functional 112/112,
+  hidden-functional 40/40, performance 57/57, and final-performance 60/60.
+- Only `03_sort2`, `03_sort3`, and their three final-performance equivalents
+  changed. All five produced identical filtered output and exit status before
+  and after the optimization under Spike.
+- Three fresh generations of `03_sort2` were byte-for-byte identical.
+
+### Result
+
+| Scope | Baseline | Optimized | Reduction |
+|---|---:|---:|---:|
+| 117 performance programs, static instructions | 49,729 | 49,589 | 0.282% |
+| Five changed sort programs, Spike dynamic instructions | 1,142,868,974 | 1,142,010,627 | 0.075% |
+| Each changed sort program, static instructions | 663 / 672 | 635 / 644 | 28 instructions |
+| `2025-8AD-57`, Spike dynamic instructions | 502,066,823 | 501,640,280 | 0.085% |
+| `2025-D01-22`, Spike dynamic instructions | 378,103,588 | 377,676,737 | 0.113% |
+
+The local copy removal shortens the allocator input enough to reduce the sort
+frame from 480 to 448 bytes and eliminate several spill accesses. `03_sort3`
+has a small, repeatable 319-instruction increase (0.00037%) on its different
+input data even though it shares byte-identical code with `03_sort2`; the five
+programs remain net positive by 858,347 dynamic instructions.

@@ -11,7 +11,7 @@ class TargetFunction;
 
 namespace backend::targetir::riscv {
 
-/** Fold `tmp = op ...; dst = mv tmp` into `dst = op ...` before allocation. */
+/** Fold adjacent results and propagate safe single-use local copies. */
 class RISCVTwoAddress : public MachineFunctionPass {
  public:
   explicit RISCVTwoAddress(TargetContext *ctx) : MachineFunctionPass(ctx) {}

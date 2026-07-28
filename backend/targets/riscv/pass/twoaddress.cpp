@@ -12,6 +12,11 @@ namespace backend::targetir::riscv {
 
 namespace {
 
+struct InstLocation {
+  TargetBlock *block_;
+  size_t index_;
+};
+
 auto CompatibleVirtualRegisters(TargetOperand *lhs, TargetOperand *rhs) -> bool {
   if (lhs == nullptr || rhs == nullptr || !lhs->IsVirtualReg() || !rhs->IsVirtualReg()) {
     return false;
@@ -26,6 +31,79 @@ auto IsCopyForClass(TargetInst *copy, TargetOperand *source) -> bool {
   auto *reg = static_cast<TargetVirtualReg *>(source);
   return (opcode == RVOpcode::MV && reg->GetRegClass() == TargetRegClass::General) ||
          (opcode == RVOpcode::FMV_S && reg->GetRegClass() == TargetRegClass::Float);
+}
+
+auto TryPropagateLocalCopy(TargetFunction *func) -> bool {
+  std::unordered_map<TargetOperand *, int> definitions;
+  std::unordered_map<TargetOperand *, int> uses;
+  std::unordered_map<TargetOperand *, InstLocation> definition_locations;
+  std::unordered_map<TargetOperand *, std::vector<InstLocation>> use_locations;
+  for (auto *block : func->GetBlocks()) {
+    const auto &insts = block->GetInsts();
+    for (size_t index = 0; index < insts.size(); ++index) {
+      auto *inst = insts[index];
+      auto *result = inst->GetResult();
+      if (result != nullptr && result->IsVirtualReg()) {
+        ++definitions[result];
+        definition_locations[result] = {block, index};
+      }
+      for (auto *operand : inst->GetOperands()) {
+        if (operand != nullptr && operand->IsVirtualReg()) {
+          ++uses[operand];
+          use_locations[operand].push_back({block, index});
+        }
+      }
+    }
+  }
+
+  for (auto *block : func->GetBlocks()) {
+    const auto &insts = block->GetInsts();
+    for (size_t index = 0; index < insts.size(); ++index) {
+      auto *copy = insts[index];
+      const auto &copy_operands = copy->GetOperands();
+      auto *destination = copy->GetResult();
+      if (copy_operands.size() != 1) {
+        continue;
+      }
+      auto *source = copy_operands[0];
+      if (!CompatibleVirtualRegisters(source, destination) || !IsCopyForClass(copy, source) ||
+          definitions[source] != 1 || uses[source] != 1 || definitions[destination] != 1) {
+        continue;
+      }
+      auto def = definition_locations.find(source);
+      if (def == definition_locations.end() || def->second.block_ != block || def->second.index_ >= index) {
+        continue;
+      }
+      const auto &destination_uses = use_locations[destination];
+      if (destination_uses.empty()) {
+        continue;
+      }
+      bool local_and_after = true;
+      for (const auto &use : destination_uses) {
+        if (use.block_ != block || use.index_ <= index) {
+          local_and_after = false;
+          break;
+        }
+      }
+      if (!local_and_after) {
+        continue;
+      }
+
+      for (size_t use_index = index + 1; use_index < insts.size(); ++use_index) {
+        insts[use_index]->ReplaceOperand(destination, source);
+      }
+      std::vector<TargetInst *> kept;
+      kept.reserve(insts.size() - 1);
+      for (size_t kept_index = 0; kept_index < insts.size(); ++kept_index) {
+        if (kept_index != index) {
+          kept.push_back(insts[kept_index]);
+        }
+      }
+      block->SetInsts(std::move(kept));
+      return true;
+    }
+  }
+  return false;
 }
 
 }  // namespace
@@ -85,6 +163,16 @@ auto RISCVTwoAddress::RunOnFunction(TargetFunction *func) -> bool {
       block->SetInsts(std::move(kept));
       changed = true;
     }
+  }
+  if (changed) {
+    return true;
+  }
+
+  // Once adjacent result folding reaches a fixpoint, remove non-adjacent local
+  // copies by propagating their single-use source through the destination's
+  // later uses. Rebuild facts after each rewrite so copy chains stay safe.
+  while (TryPropagateLocalCopy(func)) {
+    changed = true;
   }
   return changed;
 }
