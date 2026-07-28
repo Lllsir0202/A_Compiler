@@ -49,6 +49,8 @@ auto DSEPass::Run() -> void {
 
 auto DSEPass::ComputeLoadedLocals() -> void {
   loaded_local_roots_.clear();
+  loaded_global_roots_.clear();
+  call_reachable_roots_.clear();
   auto *cfg_pass = GET_PASS_CONTEXT()->GetSpecPass<analysis::CFGPass>("CFGPass");
   for (auto *function_cfg : cfg_pass->Get()) {
     auto *mlir_function_cfg = dynamic_cast<analysis::MLIRFunctionCFG *>(function_cfg);
@@ -65,6 +67,20 @@ auto DSEPass::ComputeLoadedLocals() -> void {
           auto object = alias_analysis_->GetBaseObject(load_op->GetPtr());
           if (object.kind == analysis::AliasAnalysisPass::ObjectKind::Local) {
             loaded_local_roots_.insert(object.root);
+          } else if (object.kind == analysis::AliasAnalysisPass::ObjectKind::Global) {
+            loaded_global_roots_.insert(object.root);
+          }
+          continue;
+        }
+        // A pointer handed to a callee may be read there — including by a
+        // library function such as putarray, which reads memory without any
+        // var.getval appearing in our IR.
+        if (IsCall(operation)) {
+          for (auto *operand : operation->operands_) {
+            auto object = alias_analysis_->GetBaseObject(operand);
+            if (object.root != nullptr) {
+              call_reachable_roots_.insert(object.root);
+            }
           }
         }
       }
@@ -74,8 +90,17 @@ auto DSEPass::ComputeLoadedLocals() -> void {
 
 auto DSEPass::IsWriteOnlyDead(mlir::Value *pointer) -> bool {
   auto object = alias_analysis_->GetBaseObject(pointer);
-  return object.kind == analysis::AliasAnalysisPass::ObjectKind::Local && !alias_analysis_->IsEscaped(object) &&
-         loaded_local_roots_.count(object.root) == 0;
+  if (object.kind == analysis::AliasAnalysisPass::ObjectKind::Local) {
+    return !alias_analysis_->IsEscaped(object) && loaded_local_roots_.count(object.root) == 0;
+  }
+  // A global that no load in the whole module reads, and that is never passed to
+  // a call, is unobservable: SysY programs report results only through the IO
+  // library, so its final contents cannot be seen. `loaded_global_roots_` is
+  // collected across every function, so this is a whole-module property.
+  if (object.kind == analysis::AliasAnalysisPass::ObjectKind::Global && object.root != nullptr) {
+    return loaded_global_roots_.count(object.root) == 0 && call_reachable_roots_.count(object.root) == 0;
+  }
+  return false;
 }
 
 auto DSEPass::RunOnFunction(analysis::MLIRFunctionCFG *function_cfg) -> bool {

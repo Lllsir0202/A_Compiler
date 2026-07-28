@@ -34,6 +34,9 @@ namespace middleend::pass::transform {
  *    not just consecutive stores inside one block.
  *  - Write-only locals: a store to a local whose address never escapes and which is never
  *    loaded anywhere in the function is unobservable and removed.
+ *  - Write-only globals: likewise for a global that no load in the whole module reads and
+ *    whose pointer never reaches a call. A SysY program reports results only through the IO
+ *    library, so such a global's contents cannot be observed.
  *  - Store-back of a loaded value: `t = p[i]; ...; p[i] = t` writes the value already in
  *    memory. When the load and store are in one block and nothing between them may write
  *    the location, the store is a no-op and is removed. This is what makes an in-place
@@ -79,6 +82,11 @@ class DSEPass : public TransformPass {
   analysis::AliasAnalysisPass *alias_analysis_{nullptr};
   analysis::MLIRFunctionCFG *current_cfg_{nullptr};
   std::unordered_set<mlir::Value *> loaded_local_roots_;
+  // Globals read by some load anywhere in the module, and objects whose pointer
+  // reaches a call (where a callee, or a library routine like putarray, could
+  // read them without a var.getval in our IR).
+  std::unordered_set<mlir::Value *> loaded_global_roots_;
+  std::unordered_set<mlir::Value *> call_reachable_roots_;
   bool before_promotion_{false};
 };
 
