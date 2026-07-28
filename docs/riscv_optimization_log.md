@@ -863,3 +863,106 @@ making an ours-vs-gcc sweep report `ratio=1.00` almost everywhere. The numbers
 above come from linking both binaries against a sylib variant whose input
 functions read a compiled-in copy of the `.in` file, which needs no change to the
 test source and keeps the two builds directly comparable.
+
+## 18. Skipping a pure loop to its last iteration
+
+### Motivation
+
+`2025-BTH-42` computes a software CRC over an array, then throws away all but the
+final result:
+
+```c
+while (n) {
+    ans = crc32(crc, a, n) % 19260817;
+    n = n - 1;
+}
+putint(ans);
+```
+
+`crc` is zero and never updated, `a` is never written, and `crc32table` is fixed
+before the timed region, so each call differs only in its length argument -- and
+only the last assignment to `ans` survives. `gcc -O2` executes `crc32` exactly
+once (1,897 instructions in total); we executed it 500 times, spending 218.4M
+against gcc's 0.7M. That was the largest remaining gap on the suite at 308.61x.
+
+This is deadness, not idempotence: the calls genuinely return different values
+(len 500 gives 173, len 1 gives 0). ADCE cannot see it because the accumulator
+phi *is* used after the loop, which transitively marks the entire body live.
+
+### The transform
+
+When a pure loop's accumulator is written every iteration and never read back,
+only the final iteration is observable, so the loop can simply be *entered at its
+final induction value* -- no peeling, no cloning, no CFG surgery. One phi operand
+changes.
+
+Conditions, all of which the pass checks:
+
+- The loop is side-effect free. `HasSideEffect` already rejects every `var.set`
+  and every impure call, so no iteration can write memory a later one reads; the
+  body is a function of its induction variable alone.
+- The loop is top-tested with a single exit, so entering with the final value runs
+  exactly one iteration.
+- The exit test is `iv != 0` (what `while (n)` lowers to) with a unit step. The
+  last iteration is then the single value `bound - step`. A relational test would
+  not pin down a unique last value without a trip count, and a non-unit step could
+  step over the bound.
+- Every other header phi is dead across iterations: nothing inside the loop reads
+  it. A read from outside is fine, since that sees the final value either way.
+
+Note this needs no trip count at all, which is what makes it apply here -- the
+count depends on a runtime `getarray` result and is not derivable.
+
+### The guard that keeps it honest
+
+If the start value lies on the far side of the bound, the original loop does not
+terminate at zero; it runs until the type wraps. Starting at the final value would
+silently turn that into a halting loop. The rewritten entry value is therefore
+selected arithmetically:
+
+```
+start' = (start is on the terminating side) ? (bound - step) : start
+```
+
+so the pathological path stays bit-identical. Verified: with `n = -3` the
+transformed program still executes 21,475,320,843 instructions -- the full
+wraparound -- while `n = 500` takes 484,383.
+
+### Validation
+
+- The rewrite was checked against a reference loop over all 5,202 combinations of
+  start and bound in `[-25, 25]` for both unit step directions, comparing the
+  final body value, the exit induction value, and whether the loop terminated at
+  all: zero mismatches, including the non-terminating cases.
+- Negative-path behaviour confirmed under Spike as described above.
+- Three hand-written cases confirm the pass declines when it must: an accumulator
+  read inside the loop (`ans = f(n) + ans/2`), a store inside the loop
+  (`arr[n] = ans`), and a zero-trip loop. All three report `skipped-to-last: 0`
+  and produce the reference output. The counting-up direction was also exercised.
+- Across the 60 final-performance cases the transform fires on exactly one loop,
+  which is the intent for a rewrite this aggressive.
+- RV64 compile plus GNU assemble at `-O0` and `-O1`: functional 112/112,
+  hidden-functional 40/40, performance 57/57, final-performance 60/60. The only
+  executed-and-diffed failure is `30_many_dimensions`, which fails identically on
+  the parent commit.
+- Nineteen final-performance cases were executed under Spike with their real
+  inputs; every one produced the expected output and none regressed.
+- Compiling the same input three times produced byte-identical assembly.
+
+### Result
+
+| Scope | Baseline | Optimized | Reduction |
+|---|---:|---:|---:|
+| `2025-BTH-42`, Spike dynamic instructions | 218,427,209 | 707,454 | 99.68% |
+| Same, ratio against `gcc -O2` (707,769) | 308.61x | 1.00x | -- |
+
+A 308x reduction, now marginally ahead of `gcc -O2`.
+
+### Also in this change
+
+`ComputeExitCount` had no rule for `base.int2bool`, so `while (n)` -- a truthiness
+cast rather than a comparison -- yielded no trip count for an entire family of
+loops. Teaching it that `int2bool x` means `x != 0` gives the three 32-iteration
+bit loops in this same program derivable trip counts (previously unknown). The
+symbolic-distance case is deliberately left uncomputable: see the comment in the
+`NE` branch for why clamping it would be wrong.

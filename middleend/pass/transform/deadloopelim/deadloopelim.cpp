@@ -126,6 +126,7 @@ auto DeadLoopEliminatePass::Run() -> void {
       continue;
     }
 
+    skipped_this_function_ = false;
     op_to_block_.clear();
     for (auto *cfg_node : mlir_function_cfg->GetNodes()) {
       auto *mlir_node = dynamic_cast<analysis::MLIRCFGNode *>(cfg_node);
@@ -152,11 +153,17 @@ auto DeadLoopEliminatePass::Run() -> void {
       if (TryDeleteLoop(mlir_function_cfg, func_op, loop)) {
         changed = true;
       }
+      if (skipped_this_function_) {
+        // A skip rewrites a phi but leaves every block in place, so the cached SCEVs of the loops
+        // still to be visited now describe stale start values. Deleting a loop cannot mislead the
+        // others that way (its blocks are gone), but this can, so stop and let the analyses rebuild.
+        break;
+      }
     }
   }
 
   if (std::getenv("DLE_STATS") != nullptr) {
-    std::fprintf(stderr, "[DLE] deleted loops: %d\n", deleted_count_);
+    std::fprintf(stderr, "[DLE] deleted loops: %d skipped-to-last: %d\n", deleted_count_, skipped_count_);
   }
   if (changed) {
     GET_PASS_CONTEXT()->InvalidateAnalysis();
@@ -267,7 +274,9 @@ auto DeadLoopEliminatePass::TryDeleteLoop(analysis::MLIRFunctionCFG *function_cf
   // (loop-invariant) expressions; only an opaque Unknown sentinel blocks the transform.
   const analysis::SCEV *backedge = scev_->GetBackedgeTakenCount(loop);
   if (backedge->GetKind() == analysis::SCEVKind::Unknown) {
-    return false;
+    // No trip count, so the loop cannot be deleted -- but if only its last iteration is observable it
+    // can still be started there, which needs the exit test rather than a count.
+    return TrySkipToLastIteration(function_cfg, loop, preheader, exiting);
   }
   const analysis::SCEV *raw_trip = scev_->GetAddExpr({backedge, scev_->GetConstant(1)});
   // Preserve SMax(0, count): it is what gives a top-tested loop zero
@@ -326,7 +335,9 @@ auto DeadLoopEliminatePass::TryDeleteLoop(analysis::MLIRFunctionCFG *function_cf
           closed = scev;
         }
         if (closed == nullptr || !CanExpand(closed)) {
-          return false;  // cannot express this live-out in closed form: leave the loop alone
+          // Cannot express this live-out in closed form, so the loop cannot be deleted outright. It
+          // may still be reducible to its final iteration.
+          return TrySkipToLastIteration(function_cfg, loop, preheader, exiting);
         }
         to_close.emplace_back(result, closed);
       }
@@ -382,6 +393,137 @@ auto DeadLoopEliminatePass::TryDeleteLoop(analysis::MLIRFunctionCFG *function_cf
   func_op->SetBlocks(std::move(remaining));
 
   ++deleted_count_;
+  return true;
+}
+
+auto DeadLoopEliminatePass::IsDeadAcrossIterations(analysis::Loop *loop, mlir::base::PhiOp *phi) -> bool {
+  // A header phi is dead across iterations when nothing inside the loop ever reads it. Its value is
+  // then recomputed from scratch every iteration and only the final one can be observed. Reads from
+  // outside the loop are fine -- those see the final value either way.
+  //
+  // The phi's own back-edge operand is not a read: that is the definition being carried around.
+  mlir::Value *result = phi->GetRes();
+  for (auto *use : result->GetUses()) {
+    auto *user = use->operation_;
+    if (user == phi) {
+      continue;
+    }
+    auto iter = op_to_block_.find(user);
+    if (iter == op_to_block_.end() || !loop->Contains(iter->second)) {
+      continue;  // read after the loop
+    }
+    // A read inside the loop by another header phi of the same loop is still a genuine read, so no
+    // exception is made for phis here.
+    return false;
+  }
+  return true;
+}
+
+auto DeadLoopEliminatePass::TrySkipToLastIteration(analysis::MLIRFunctionCFG *function_cfg, analysis::Loop *loop,
+                                                   mlir::Block *preheader, mlir::Block *exiting) -> bool {
+  auto *header = loop->GetHeader();
+  // Only a top-tested loop is handled: the exit test must run before the body, so that entering with
+  // the final induction value executes exactly the last iteration.
+  if (exiting != header) {
+    return false;
+  }
+
+  // The exit test has to be `iv != bound` (which is what `while (n)` lowers to) with a unit step, so
+  // the last iteration is the single value `bound - step`. A relational test would not pin down a
+  // unique last value without a trip count, and a non-unit step could step over the bound.
+  auto *cond_br = mlir::DynamicOrNull<mlir::base::CondBrOp>(header->operations_.back());
+  if (cond_br == nullptr) {
+    return false;
+  }
+  mlir::Value *condition = cond_br->GetCondition();
+  if (condition == nullptr || condition->op_ == nullptr) {
+    return false;
+  }
+  // `while (n)` is a truthiness cast, i.e. `n != 0`.
+  auto *to_bool = mlir::DynamicOrNull<mlir::base::Int2BoolOp>(condition->op_);
+  if (to_bool == nullptr || !loop->Contains(cond_br->GetTrueTarget()) ||
+      loop->Contains(cond_br->GetFalseTarget())) {
+    return false;
+  }
+  mlir::Value *tested = to_bool->GetOperand();
+
+  // Split the header phis into the induction variable being tested and the accumulators. Every
+  // accumulator must be dead across iterations; if any one is read inside the loop then earlier
+  // iterations are observable and nothing may be skipped.
+  mlir::base::PhiOp *induction = nullptr;
+  int step = 0;
+  bool saw_dead_accumulator = false;
+  for (auto *operation : header->operations_) {
+    auto *phi = mlir::DynamicOrNull<mlir::base::PhiOp>(operation);
+    if (phi == nullptr) {
+      continue;
+    }
+    if (phi->GetRes() == tested) {
+      const analysis::SCEV *scev = scev_->GetSCEV(phi->GetRes());
+      if (scev->GetKind() != analysis::SCEVKind::AddRec ||
+          static_cast<const analysis::SCEVAddRecExpr *>(scev)->GetLoop() != loop ||
+          !static_cast<const analysis::SCEVAddRecExpr *>(scev)->IsAffine()) {
+        return false;
+      }
+      const analysis::SCEV *step_scev = static_cast<const analysis::SCEVAddRecExpr *>(scev)->GetStep();
+      if (step_scev->GetKind() != analysis::SCEVKind::Constant ||
+          !static_cast<const analysis::SCEVConstant *>(step_scev)->IsInt()) {
+        return false;
+      }
+      step = static_cast<const analysis::SCEVConstant *>(step_scev)->GetInt();
+      induction = phi;
+      continue;
+    }
+    if (!IsDeadAcrossIterations(loop, phi)) {
+      return false;
+    }
+    saw_dead_accumulator = true;
+  }
+  if (induction == nullptr || !saw_dead_accumulator || (step != 1 && step != -1)) {
+    return false;
+  }
+
+  // ---- Legal; commit. -------------------------------------------------------------------------
+  //
+  // Enter the loop holding the value the induction variable had on its final iteration, so the body
+  // runs exactly once more and then the test fails. The last iteration's computation and the loop's
+  // own exit value are both unchanged.
+  //
+  // The guard matters: if the start value is on the far side of the bound, the original loop runs
+  // until the type wraps rather than terminating. Selecting the skipped start only when the loop was
+  // going to terminate keeps that pathological case bit-identical instead of silently making it halt.
+  mlir::Value *entry_value = nullptr;
+  size_t entry_index = 0;
+  const auto &incoming_values = induction->GetIncomingValue();
+  const auto &incoming_blocks = induction->GetIncomingBlock();
+  for (size_t index = 0; index < incoming_blocks.size(); ++index) {
+    if (!loop->Contains(incoming_blocks[index])) {
+      entry_value = incoming_values[index];
+      entry_index = index;
+    }
+  }
+  if (entry_value == nullptr) {
+    return false;
+  }
+
+  mlir::Value *last_iteration = MakeConstInt(-step, preheader);  // bound(0) - step
+  mlir::Value *zero = MakeConstInt(0, preheader);
+  // Counting down terminates from a start above the bound; counting up, from below it.
+  mlir::Value *terminates = step < 0 ? MakeComparison<mlir::base::GreaterOp>(entry_value, zero, preheader)
+                                     : MakeComparison<mlir::base::LessOp>(entry_value, zero, preheader);
+  mlir::Value *selector = MakeBoolToInt(terminates, preheader);
+  mlir::Value *keep = MakeBinary<mlir::base::SubOp>(MakeConstInt(1, preheader), selector, preheader);
+  mlir::Value *start_value =
+      MakeBinary<mlir::base::AddOp>(MakeBinary<mlir::base::MulOp>(selector, last_iteration, preheader),
+                                    MakeBinary<mlir::base::MulOp>(keep, entry_value, preheader), preheader);
+
+  // UpdateIncoming does not maintain use lists, so move the use across by hand.
+  entry_value->RemoveUse(induction);
+  induction->UpdateIncoming(entry_index, start_value, incoming_blocks[entry_index]);
+  start_value->AddUse(induction, entry_index);
+
+  ++skipped_count_;
+  skipped_this_function_ = true;
   return true;
 }
 

@@ -8,6 +8,7 @@
 #include "context/compiler_context.h"
 #include "middleend/mlir/dialect/base/binaryop.h"
 #include "middleend/mlir/dialect/base/branch.h"
+#include "middleend/mlir/dialect/base/cast.h"
 #include "middleend/mlir/dialect/base/copy.h"
 #include "middleend/mlir/dialect/base/phi.h"
 #include "middleend/mlir/dialect/base/unaryop.h"
@@ -1164,12 +1165,18 @@ auto SCEVPass::ComputeExitCount(Loop *loop, mlir::Block *exiting) -> const SCEV 
     predicate = Predicate::EQ;
     lhs_value = eq->GetLHS();
     rhs_value = eq->GetRHS();
+  } else if (auto *to_bool = mlir::DynamicOrNull<mlir::base::Int2BoolOp>(compare)) {
+    // `while (n)` lowers to a truthiness cast rather than a comparison, but it means exactly
+    // `n != 0`. Without this the whole family of countdown loops has no derivable trip count.
+    predicate = Predicate::NE;
+    lhs_value = to_bool->GetOperand();
+    rhs_value = nullptr;
   } else {
     return nullptr;
   }
 
   const SCEV *lhs_scev = GetSCEV(lhs_value);
-  const SCEV *rhs_scev = GetSCEV(rhs_value);
+  const SCEV *rhs_scev = rhs_value == nullptr ? GetConstant(0) : GetSCEV(rhs_value);
 
   // Orient so the induction variable is on the left; swap the predicate if it is on the right.
   auto swap_predicate = [](Predicate value) {
@@ -1262,8 +1269,11 @@ auto SCEVPass::ComputeExitCount(Loop *loop, mlir::Block *exiting) -> const SCEV 
           step < 0 ? clamp(ceil_div(GetMinusSCEV(start, GetAddExpr({bound, GetConstant(-1)})), -step)) : nullptr;
       break;
     case Predicate::NE: {
-      // The bound is reached exactly only for a compile-time-known monotone distance; otherwise the
-      // loop is not statically bounded through this exit.
+      // Both ends must be constant. A symbolic distance is unusable even with a unit step:
+      // `bound - start` is the count only when the induction variable moves *towards* the bound, and
+      // if it moves away the loop runs until the type wraps. Clamping the negative distance to zero
+      // would then wrongly report that the loop never runs. Proving the direction needs a dominating
+      // guard on the start value, which this analysis does not track.
       int start_value = 0;
       int limit_value = 0;
       if (!GetConstantValue(start, &start_value) || !GetConstantValue(bound, &limit_value)) {
