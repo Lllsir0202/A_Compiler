@@ -459,3 +459,48 @@ existing mismatched short path under the local Spike/newlib setup, so their
 local dynamic counts do not exercise the optimization and are intentionally not
 reported as a speedup.  Native board timing is required for the submitted
 `transpose2` result.
+
+## 11. Pre-allocation single-use copy folding
+
+### Change
+
+- Fold an adjacent `tmp = op ...; dst = mv tmp` pair into `dst = op ...`
+  before register allocation, for both integer and single-precision register
+  classes.
+- Require the temporary to have exactly one definition and one use, and require
+  the destination to have exactly one definition.  The destination condition
+  is essential because virtual registers created by phi lowering can have
+  multiple definitions and are not SSA copy-coalescing candidates.
+- Let the machine-pass fixpoint expose and fold short chains while keeping
+  register class and width unchanged.
+
+An initial broader prototype accepted multiply-defined destinations.  It
+changed the output of `h-1-03` and was rejected before commit; the restricted
+version preserves its output and avoids that invalid interaction with lowered
+phi copies.
+
+### Validation
+
+- RV64 compile plus GNU assemble at `-O1`: functional 112/112,
+  hidden-functional 40/40, performance 57/57, and final-performance 60/60.
+- All 17 performance programs whose static instruction count changed produced
+  identical filtered output and exit status before and after the optimization
+  under Spike.
+- An additional 13-case differential set covered matrix multiplication, FFT,
+  recursive/iterative kernels, transpose, and the `h-1-03` regression; all
+  outputs and exit statuses matched.
+
+### Result
+
+| Scope | Baseline | Optimized | Reduction |
+|---|---:|---:|---:|
+| 117 performance programs, static instructions | 49,856 | 49,729 | 0.255% |
+| 17 statically changed programs, Spike dynamic instructions | 2,572,729,012 | 2,477,986,650 | 3.683% |
+| Three final Huffman programs, Spike dynamic instructions | 1,254,577,091 | 1,160,539,436 | 7.496% |
+| Three final sort programs, Spike dynamic instructions | 968,033,368 | 967,332,928 | 0.072% |
+
+The large Huffman gain comes from shorter loop-carried live ranges changing the
+allocator's coloring, not merely from deleting twelve static copies per
+program.  The `sl*` programs lose one static instruction each; the `crypto*`
+and many-matrix triples change by only single-digit static instructions and
+showed no meaningful dynamic regression in the local runs.

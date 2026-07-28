@@ -16,6 +16,7 @@
 #include "backend/targets/riscv/pass/machinelicm.h"
 #include "backend/targets/riscv/pass/peephole.h"
 #include "backend/targets/riscv/pass/postra.h"
+#include "backend/targets/riscv/pass/twoaddress.h"
 #include "backend/targets/riscv/printer/riscvprinter.h"
 #include "backend/targets/riscv/regalloc/graphcoloralloc.h"
 #include "backend/targets/utils/operand/targetreg.h"
@@ -45,6 +46,7 @@ auto RISCVBackend::Run() -> int {
     machine_passes.AddPass(new RISCVLocalCSE(&ctx_));
     machine_passes.AddPass(new MachineLICM(&ctx_));
     machine_passes.AddPass(new MachineDCE(&ctx_));
+    machine_passes.AddPass(new RISCVTwoAddress(&ctx_));
     machine_passes.AddPass(new RISCVBlockLayout(&ctx_));
   }
 
