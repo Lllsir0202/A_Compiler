@@ -10,6 +10,7 @@
 #include "backend/targets/riscv/pass/addrfold.h"
 #include "backend/targets/riscv/pass/blocklayout.h"
 #include "backend/targets/riscv/pass/branchfold.h"
+#include "backend/targets/riscv/pass/emptytail.h"
 #include "backend/targets/riscv/pass/localcse.h"
 #include "backend/targets/riscv/pass/machinedce.h"
 #include "backend/targets/riscv/pass/machinelicm.h"
@@ -64,6 +65,8 @@ auto RISCVBackend::Run() -> int {
     if (opt_level_ >= 1) {
       RISCVPostRA post_ra(&ctx_);
       post_ra.RunOnFunction(tfunc, spill_base, spill_slots);
+      RISCVEmptyTail empty_tail;
+      empty_tail.RunOnFunction(tfunc);
       BranchFold late_branch_fold(&ctx_);
       late_branch_fold.RunOnFunction(tfunc);
     }

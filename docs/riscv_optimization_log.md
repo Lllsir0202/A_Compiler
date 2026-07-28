@@ -416,3 +416,46 @@ but most spill reloads are either in different basic blocks or lose their source
 register before reuse.  The measured gain confirms that larger improvements
 need rematerialization/live-range work or loop-address optimization rather than
 additional local spill peepholes.
+
+## 10. Monotone empty-loop-tail bypass
+
+### Change
+
+- Add an RV-only late CFG optimization after register allocation and before
+  branch folding.
+- Recognize a guarded counted-loop tail in which a branch enters a path that
+  does nothing except increment the induction register by one, compare it with
+  the same bound, and jump back.
+- Redirect that branch directly to the loop exit only when every header entry is
+  proven to satisfy `iv < bound`, the increment is exactly one, all skipped
+  instructions are side-effect-free, and the physical IV register is dead at
+  the exit.  These conditions also prove that the skipped signed increment loop
+  reaches the bound without overflow.
+
+The transform targets the `transpose*` family.  Its source continues incrementing
+`j` all the way to `rowsize` after `i < j` becomes permanently true, even though
+that tail has no effect other than the dead final value of `j`.
+
+### Validation
+
+- RV64 compile plus GNU assemble at `-O1`: functional 112/112, hidden-functional
+  40/40, performance 57/57, and final-performance 60/60.
+- The three `transpose*` programs and their three final-performance equivalents
+  are the only programs whose assembly changes.  All six produced identical
+  output and exit status before and after the optimization under Spike.
+- A directed runtime-bound transpose with a 100,000-element empty tail produced
+  identical output under Spike.
+
+### Result
+
+| Scope | Baseline | Optimized | Result |
+|---|---:|---:|---:|
+| Directed empty-tail case, dynamic instructions | 794,210 | 790,112 | 0.52% reduction |
+| Each matching performance program, static instructions | 166 / 195 | 167 / 196 | +1 branch |
+
+The extra static jump executes only on the useful body path; the formerly long
+empty path exits immediately.  The official performance inputs follow an
+existing mismatched short path under the local Spike/newlib setup, so their
+local dynamic counts do not exercise the optimization and are intentionally not
+reported as a speedup.  Native board timing is required for the submitted
+`transpose2` result.
