@@ -377,3 +377,42 @@ preserving the `h-11`/`h-2` wins. This is the well-known trade-off of running
 LICM before register allocation on a small register file: loop-body savings and
 allocation cost are close in magnitude, and the pass is tuned to stay net
 positive rather than to win every case.
+
+## 9. Post-allocation spill and copy cleanup
+
+### Change
+
+- Run an RV-only cleanup immediately after graph-coloring register allocation.
+- Restrict stack-slot reasoning to the private spill range returned by the
+  allocator, excluding local arrays, outgoing arguments, callee-save slots, and
+  arbitrary SP-relative accesses.
+- Forward stores and repeated reloads while the saved physical register remains
+  valid, remove stores of an unchanged reloaded value, and remove stores that
+  are overwritten before any real memory read.
+- Track physical-register value equivalence within a basic block and remove
+  redundant integer or floating-point copies even when harmless instructions
+  separate the two copies. Calls and register definitions conservatively kill
+  the relevant facts.
+
+### Validation
+
+- Clean incremental compiler build: passed.
+- RV64 compile plus GNU assemble at `-O1`: functional 112/112, hidden-functional
+  40/40, performance 57/57, and final-performance 60/60.
+- All 14 performance programs whose assembly changed produced identical output
+  and exit status before and after the optimization under Spike.
+
+### Result
+
+| Scope | Baseline | Optimized | Reduction |
+|---|---:|---:|---:|
+| 117 performance programs, static instructions | 49,711 | 49,664 | 0.095% |
+| 14 changed programs, Spike dynamic instructions | 1,258,763,234 | 1,258,087,801 | 0.054% |
+| Each `03_sort2/3` and matching final sort, static instructions | 691/700 | 684/693 | 7 |
+| Each `many_mat_cal` final program, static instructions | 878 | 876 | 2 |
+
+The optimization is deliberately conservative and has no observed regression,
+but most spill reloads are either in different basic blocks or lose their source
+register before reuse.  The measured gain confirms that larger improvements
+need rematerialization/live-range work or loop-address optimization rather than
+additional local spill peepholes.
