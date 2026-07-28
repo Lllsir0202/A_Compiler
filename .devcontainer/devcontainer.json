@@ -16,12 +16,14 @@
       ],
       "settings": {
         "C_Cpp.intelliSenseEngine": "disabled",
+        "clangd.path": "/usr/bin/clangd",
         "clangd.arguments": [
           "--background-index",
-          "--clang-tidy"
+          "--clang-tidy",
+          "--compile-commands-dir=/workspace"
         ]
       }
     }
   },
-  "postCreateCommand": "make -B -j\"$(nproc)\" build"
+  "postCreateCommand": "bear --output /workspace/compile_commands.json -- make -B -j\"$(nproc)\" build"
 }

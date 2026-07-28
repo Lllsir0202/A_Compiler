@@ -24,10 +24,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         binutils-aarch64-linux-gnu \
         binutils-riscv64-linux-gnu \
         binutils-riscv64-unknown-elf \
+        bear \
         bison \
         build-essential \
         ca-certificates \
         clang \
+        clangd \
         clang-format \
         clang-tidy \
         clang-tools \
@@ -67,7 +69,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # harness is absent.
 RUN required_tools=( \
         aarch64-linux-gnu-ar aarch64-linux-gnu-gcc \
-        bison clang clang++ clang-format clang-tidy dot flex gcc gdb-multiarch \
+        bear bison clang clang++ clangd clang-format clang-tidy dot flex gcc gdb-multiarch \
         llvm-mca make opt python3 qemu-aarch64 qemu-riscv64 \
         riscv64-linux-gnu-ar riscv64-linux-gnu-gcc \
         riscv64-unknown-elf-ar riscv64-unknown-elf-gcc valgrind \
