@@ -511,8 +511,8 @@ auto StrengthReducePass::InsertAfterPhis(mlir::Operation *operation, mlir::Block
   op_to_block_[operation] = block;
 }
 
-auto StrengthReducePass::EmitScalarIV(mlir::Value *init, mlir::Value *stride, const LoopFrame &frame,
-                                      type::Type *type) -> mlir::Value * {
+auto StrengthReducePass::EmitScalarIV(mlir::Value *init, mlir::Value *stride, const LoopFrame &frame, type::Type *type)
+    -> mlir::Value * {
   auto *phi_value = GET_MLIR_CONTEXT()->CreateValue();
   phi_value->SetType(type);
   auto *next_value = GET_MLIR_CONTEXT()->CreateValue();

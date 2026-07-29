@@ -30,8 +30,8 @@ auto LLVMIRResourceContext::GetNewRegOperand(type::Type *type) -> middleend::llv
   return op;
 }
 
-auto LLVMIRResourceContext::GetNewGlobalOperand(const std::string &name,
-                                                type::Type *type) -> middleend::llvm::utils::GlobalOperand * {
+auto LLVMIRResourceContext::GetNewGlobalOperand(const std::string &name, type::Type *type)
+    -> middleend::llvm::utils::GlobalOperand * {
   auto op = middleend::llvm::utils::factory::OperandFactory::CreateGlobalOperand(name);
   op->SetType(type);
   operands_.emplace_back(op);
@@ -118,8 +118,8 @@ auto LLVMIRResourceContext::GetGlobalOperand(const std::string &name) -> middlee
 }
 
 // Function-related resource management
-auto LLVMIRResourceContext::AddFunctionDef(const std::string &func_name,
-                                           middleend::llvm::inst::FuncDefInst *func_def) -> void {
+auto LLVMIRResourceContext::AddFunctionDef(const std::string &func_name, middleend::llvm::inst::FuncDefInst *func_def)
+    -> void {
   if (module_ == nullptr) {
     throw std::logic_error("Module is not set in LLVMIRContext");
   }
@@ -211,8 +211,8 @@ auto LLVMIRResourceContext::GetNewBasicBlock(middleend::llvm::utils::Function *f
   return block;
 }
 
-auto LLVMIRResourceContext::CreateFunction(const std::string &func_name,
-                                           type::Type *return_type) -> middleend::llvm::utils::Function * {
+auto LLVMIRResourceContext::CreateFunction(const std::string &func_name, type::Type *return_type)
+    -> middleend::llvm::utils::Function * {
   if (module_ == nullptr) {
     throw std::logic_error("Module is not set in LLVMIRContext");
   }

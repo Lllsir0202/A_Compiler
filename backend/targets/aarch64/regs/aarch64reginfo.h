@@ -37,9 +37,7 @@ class AArch64RegisterInfo : public RegisterInfo {
     return reg_class == TargetRegClass::Float ? fpr_alloc_ : gpr_alloc_;
   }
 
-  auto NumAllocatable(TargetRegClass reg_class) const -> size_t override {
-    return AllocatableRegs(reg_class).size();
-  }
+  auto NumAllocatable(TargetRegClass reg_class) const -> size_t override { return AllocatableRegs(reg_class).size(); }
 
   auto IsCallerSaved(TargetRegClass reg_class, uint8_t id) const -> bool override {
     return reg_class == TargetRegClass::Float ? IsFPRCallerSaved(id) : IsGPRCallerSaved(id);

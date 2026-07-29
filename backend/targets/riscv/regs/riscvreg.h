@@ -52,7 +52,7 @@ enum class GPR : uint8_t {
 };
 
 enum class FPR : uint8_t {
-  Ft0 = 0,   // f0  temporary                 (caller-saved)
+  Ft0 = 0,  // f0  temporary                 (caller-saved)
   Ft1 = 1,
   Ft2 = 2,
   Ft3 = 3,
@@ -60,7 +60,7 @@ enum class FPR : uint8_t {
   Ft5 = 5,
   Ft6 = 6,
   Ft7 = 7,
-  Fs0 = 8,   // f8                            (callee-saved)
+  Fs0 = 8,  // f8                            (callee-saved)
   Fs1 = 9,
   Fa0 = 10,  // f10 arg / return value        (caller-saved)
   Fa1 = 11,
@@ -88,15 +88,12 @@ enum class FPR : uint8_t {
 
 // ABI names, indexed by raw register id, used by the printer.
 inline constexpr std::array<const char *, 32> GPR_ABI_NAME = {
-    "zero", "ra", "sp", "gp", "tp",  "t0", "t1", "t2", "s0", "s1", "a0",
-    "a1",   "a2", "a3", "a4", "a5",  "a6", "a7", "s2", "s3", "s4", "s5",
-    "s6",   "s7", "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"};
+    "zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2", "s0", "s1", "a0",  "a1",  "a2", "a3", "a4", "a5",
+    "a6",   "a7", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"};
 
 inline constexpr std::array<const char *, 32> FPR_ABI_NAME = {
-    "ft0", "ft1", "ft2",  "ft3",  "ft4", "ft5", "ft6", "ft7",
-    "fs0", "fs1", "fa0",  "fa1",  "fa2", "fa3", "fa4", "fa5",
-    "fa6", "fa7", "fs2",  "fs3",  "fs4", "fs5", "fs6", "fs7",
-    "fs8", "fs9", "fs10", "fs11", "ft8", "ft9", "ft10", "ft11"};
+    "ft0", "ft1", "ft2", "ft3", "ft4", "ft5", "ft6", "ft7", "fs0", "fs1", "fa0",  "fa1",  "fa2", "fa3", "fa4",  "fa5",
+    "fa6", "fa7", "fs2", "fs3", "fs4", "fs5", "fs6", "fs7", "fs8", "fs9", "fs10", "fs11", "ft8", "ft9", "ft10", "ft11"};
 
 // Integer argument / return registers (a0..a7).
 inline constexpr std::array<GPR, 8> INT_ARG_REGS = {GPR::A0, GPR::A1, GPR::A2, GPR::A3,
@@ -109,17 +106,16 @@ inline constexpr std::array<FPR, 8> FLOAT_ARG_REGS = {FPR::Fa0, FPR::Fa1, FPR::F
 /// by the ABI), fp (reserved as the frame pointer by the frame layer), and t3
 /// (reserved as the spill/frame address scratch for offsets outside the ±2047
 /// immediate range).
-inline constexpr std::array<GPR, 25> ALLOCATABLE_GPR = {
-    GPR::T0, GPR::T1, GPR::T2, GPR::S1, GPR::A0, GPR::A1, GPR::A2, GPR::A3, GPR::A4,
-    GPR::A5, GPR::A6, GPR::A7, GPR::S2, GPR::S3, GPR::S4, GPR::S5, GPR::S6, GPR::S7,
-    GPR::S8, GPR::S9, GPR::S10, GPR::S11, GPR::T4, GPR::T5, GPR::T6};
+inline constexpr std::array<GPR, 25> ALLOCATABLE_GPR = {GPR::T0,  GPR::T1, GPR::T2, GPR::S1, GPR::A0, GPR::A1, GPR::A2,
+                                                        GPR::A3,  GPR::A4, GPR::A5, GPR::A6, GPR::A7, GPR::S2, GPR::S3,
+                                                        GPR::S4,  GPR::S5, GPR::S6, GPR::S7, GPR::S8, GPR::S9, GPR::S10,
+                                                        GPR::S11, GPR::T4, GPR::T5, GPR::T6};
 
 /// Allocatable FPRs.
 inline constexpr std::array<FPR, 32> ALLOCATABLE_FPR = {
-    FPR::Ft0, FPR::Ft1, FPR::Ft2,  FPR::Ft3,  FPR::Ft4, FPR::Ft5, FPR::Ft6, FPR::Ft7,
-    FPR::Fs0, FPR::Fs1, FPR::Fa0,  FPR::Fa1,  FPR::Fa2, FPR::Fa3, FPR::Fa4, FPR::Fa5,
-    FPR::Fa6, FPR::Fa7, FPR::Fs2,  FPR::Fs3,  FPR::Fs4, FPR::Fs5, FPR::Fs6, FPR::Fs7,
-    FPR::Fs8, FPR::Fs9, FPR::Fs10, FPR::Fs11, FPR::Ft8, FPR::Ft9, FPR::Ft10, FPR::Ft11};
+    FPR::Ft0, FPR::Ft1, FPR::Ft2, FPR::Ft3, FPR::Ft4,  FPR::Ft5,  FPR::Ft6, FPR::Ft7, FPR::Fs0,  FPR::Fs1, FPR::Fa0,
+    FPR::Fa1, FPR::Fa2, FPR::Fa3, FPR::Fa4, FPR::Fa5,  FPR::Fa6,  FPR::Fa7, FPR::Fs2, FPR::Fs3,  FPR::Fs4, FPR::Fs5,
+    FPR::Fs6, FPR::Fs7, FPR::Fs8, FPR::Fs9, FPR::Fs10, FPR::Fs11, FPR::Ft8, FPR::Ft9, FPR::Ft10, FPR::Ft11};
 
 /// True if a GPR id is caller-saved (t*, a*) and therefore clobbered across a call.
 inline auto IsGPRCallerSaved(uint8_t id) -> bool {

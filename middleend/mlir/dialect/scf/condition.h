@@ -53,8 +53,8 @@ class ConditionOp : public SCFOps {
     original_var_map_.clear();
   }
 
-  auto SetLoopCarriedValues(const std::vector<mlir::Value *> &values,
-                            const std::vector<mlir::Value *> &original_values) -> void {
+  auto SetLoopCarriedValues(const std::vector<mlir::Value *> &values, const std::vector<mlir::Value *> &original_values)
+      -> void {
     operands_.resize(1);
     for (auto *value : values) {
       operands_.emplace_back(value);

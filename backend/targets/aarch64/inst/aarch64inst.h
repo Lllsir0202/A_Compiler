@@ -17,49 +17,72 @@ namespace backend::targetir::aarch64 {
  */
 enum class A64Opcode : uint8_t {
   // R-type (rd, rn, rm)
-  ADD, SUB, MUL, SDIV,
-  AND, ORR, EOR,
-  LSLV, LSRV, ASRV,          // register-amount shifts
+  ADD,
+  SUB,
+  MUL,
+  SDIV,
+  AND,
+  ORR,
+  EOR,
+  LSLV,
+  LSRV,
+  ASRV,  // register-amount shifts
   // Multiply-accumulate (rd, rn, rm, ra)
-  MSUB, MADD,                // msub: rd = ra - rn*rm  (used for modulo)
+  MSUB,
+  MADD,  // msub: rd = ra - rn*rm  (used for modulo)
   // Immediate (rd, rn, #imm)
-  ADD_I, SUB_I,
-  AND_I, ORR_I, EOR_I,
-  LSL_I, LSR_I, ASR_I,       // shift by immediate
+  ADD_I,
+  SUB_I,
+  AND_I,
+  ORR_I,
+  EOR_I,
+  LSL_I,
+  LSR_I,
+  ASR_I,  // shift by immediate
   // Moves / constant materialization
-  MOV,                       // mov rd, rn   (register move)
-  MOVZ, MOVN,                // movz/movn rd, #imm16
-  MOVK,                      // movk rd, #imm16, lsl #shift
-  SXTW,                      // sxtw xd, wn  (sign-extend 32->64 for address math)
+  MOV,  // mov rd, rn   (register move)
+  MOVZ,
+  MOVN,  // movz/movn rd, #imm16
+  MOVK,  // movk rd, #imm16, lsl #shift
+  SXTW,  // sxtw xd, wn  (sign-extend 32->64 for address math)
   // Compare + conditional set / branch (condition in cond_)
-  CMP, CMP_I,                // cmp rn, rm | cmp rn, #imm  (sets flags)
-  CSET,                      // cset rd, <cond>
-  B_COND,                    // b.<cond> label
-  B,                         // b label
-  CBZ, CBNZ,                 // cbz/cbnz rn, label
+  CMP,
+  CMP_I,   // cmp rn, rm | cmp rn, #imm  (sets flags)
+  CSET,    // cset rd, <cond>
+  B_COND,  // b.<cond> label
+  B,       // b label
+  CBZ,
+  CBNZ,  // cbz/cbnz rn, label
   // Memory  (int=w, float=s, ptr=x, chosen by operand size/class)
-  LDR_OFF, STR_OFF,          // ldr rt, [rn, #imm] | str rt, [rn, #imm]
-  LDR_REG, STR_REG,          // ldr rt, [rn, rm, lsl #shift]
+  LDR_OFF,
+  STR_OFF,  // ldr rt, [rn, #imm] | str rt, [rn, #imm]
+  LDR_REG,
+  STR_REG,  // ldr rt, [rn, rm, lsl #shift]
   // Address materialization
-  ADRP,                      // adrp xd, sym
-  ADD_LO12,                  // add xd, xn, #:lo12:sym
+  ADRP,      // adrp xd, sym
+  ADD_LO12,  // add xd, xn, #:lo12:sym
   // Single-precision float
-  FADD, FSUB, FMUL, FDIV,    // R-type, s operands
-  FCMP,                      // fcmp sn, sm  (sets flags)
-  FMOV,                      // fmov sd, sn  (float register move)
-  FMOV_TO_GPR, FMOV_FROM_GPR,// fmov wd, sn | fmov sd, wn  (bit move)
-  SCVTF,                     // scvtf sd, wn  (int -> float)
-  FCVTZS,                    // fcvtzs wd, sn (float -> int, truncate)
+  FADD,
+  FSUB,
+  FMUL,
+  FDIV,  // R-type, s operands
+  FCMP,  // fcmp sn, sm  (sets flags)
+  FMOV,  // fmov sd, sn  (float register move)
+  FMOV_TO_GPR,
+  FMOV_FROM_GPR,  // fmov wd, sn | fmov sd, wn  (bit move)
+  SCVTF,          // scvtf sd, wn  (int -> float)
+  FCVTZS,         // fcvtzs wd, sn (float -> int, truncate)
   // Calls / control
-  BL,                        // bl sym
-  RET,                       // ret
-  COMMENT,                   // "// text" pseudo
-  SMULH,                     // pseudo: rd = high 32 of signed (rn * rm); expands to
-                             // `smull x16, wn, wm; asr x16,x16,#32; mov wd,w16`
-  STP, LDP,                  // stp/ldp rt1, rt2, [rn, #imm]  (frame save/restore pairing);
-                             // operands {rt1, rt2, base, imm}, rendered out of the table
-  CSEL,                      // csel rd, rn, rm, <cond>  (rd = cond ? rn : rm); result=rd,
-                             // operands {rn, rm}, condition in cond_; rendered out of the table
+  BL,       // bl sym
+  RET,      // ret
+  COMMENT,  // "// text" pseudo
+  SMULH,    // pseudo: rd = high 32 of signed (rn * rm); expands to
+            // `smull x16, wn, wm; asr x16,x16,#32; mov wd,w16`
+  STP,
+  LDP,   // stp/ldp rt1, rt2, [rn, #imm]  (frame save/restore pairing);
+         // operands {rt1, rt2, base, imm}, rendered out of the table
+  CSEL,  // csel rd, rn, rm, <cond>  (rd = cond ? rn : rm); result=rd,
+         // operands {rn, rm}, condition in cond_; rendered out of the table
 };
 
 /// AArch64 condition codes used by cset / b.<cond>. SysY comparisons are signed
@@ -71,10 +94,28 @@ auto A64CondName(A64Cond cond) -> const char *;
 
 /// How an opcode renders its operands.
 enum class A64Form : uint8_t {
-  R3, R4, RI, MovReg, MovImm, MovK, Unary,
-  Cmp, CmpImm, Cset, BCond, Branch, CbzForm,
-  LoadOff, StoreOff, LoadReg, StoreReg, Adrp, AddLo12,
-  FCmpForm, Call, Ret,
+  R3,
+  R4,
+  RI,
+  MovReg,
+  MovImm,
+  MovK,
+  Unary,
+  Cmp,
+  CmpImm,
+  Cset,
+  BCond,
+  Branch,
+  CbzForm,
+  LoadOff,
+  StoreOff,
+  LoadReg,
+  StoreReg,
+  Adrp,
+  AddLo12,
+  FCmpForm,
+  Call,
+  Ret,
 };
 
 struct A64OpcodeInfo {

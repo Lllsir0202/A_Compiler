@@ -51,8 +51,8 @@ auto SymbolTableContext::LookupFunc(const std::string &name) -> symboltable::Fun
   return nullptr;  // Not found
 }
 
-auto SymbolTableContext::AddVar(const std::string &name, type::Type *type, bool is_const,
-                                std::vector<int> dimensions) -> bool {
+auto SymbolTableContext::AddVar(const std::string &name, type::Type *type, bool is_const, std::vector<int> dimensions)
+    -> bool {
   // Check if the variable already exists in the current function parameters
   /**
    * @note: function parameter will be seen as in the first scope,

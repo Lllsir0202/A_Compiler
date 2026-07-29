@@ -29,6 +29,14 @@
 #define GET_SYMBOLTABLE_CONTEXT() compiler_context_->GetSymbolTableContext()
 namespace middleend {
 
+namespace {
+// Until target constant materialization is loop-aware, eagerly expose only
+// small scalar globals. This covers compact fixed loops and immediate-friendly
+// arithmetic without turning one hoisted global load into a repeated large
+// constant materialization or triggering aggressive large-trip unrolling.
+constexpr int kMaxEagerGlobalConstMagnitude = 8;
+}  // namespace
+
 #include "middleend/builder/mlir/binary_handler.def"
 
 /**
@@ -83,8 +91,8 @@ inline auto MLIRVisitor::HandleUnaryOperator(mlir::Value *operand, frontend::ast
   return result;
 }
 
-inline auto MLIRVisitor::HandleLValExpr(frontend::ast::LValExprNode *lval_expr, bool get_ptr,
-                                        bool &is_array_or_global) -> mlir::Value * {
+inline auto MLIRVisitor::HandleLValExpr(frontend::ast::LValExprNode *lval_expr, bool get_ptr, bool &is_array_or_global)
+    -> mlir::Value * {
   /**
    * @brief The lval expression shall be a variable
    */
@@ -100,6 +108,34 @@ inline auto MLIRVisitor::HandleLValExpr(frontend::ast::LValExprNode *lval_expr, 
   if (ptr == nullptr) {
     compiler_context_->ReportError(lval_expr, "variable is not defined in the current context");
     return nullptr;
+  }
+
+  // A scalar global const cannot be assigned to or passed by address in SysY.
+  // Preserve that semantic information as an SSA constant instead of lowering
+  // every read through var.getptr/var.getval. Besides removing the load, this
+  // exposes fixed loop bounds to the MLIR loop transforms.
+  if (!get_ptr && entry->is_global_ && entry->is_const_ && entry->dimensions_.empty() &&
+      lval_expr->GetType()->GetKind() == type::TypeKind::INT &&
+      lval_expr->GetValueType() == frontend::ast::ValueType::INT) {
+    int value = lval_expr->GetValue().GetIntValue();
+    if (value >= -kMaxEagerGlobalConstMagnitude && value <= kMaxEagerGlobalConstMagnitude) {
+      auto key = std::to_string(value);
+      auto *const_op = GET_MLIR_CONTEXT()->GetResourceContext()->GetConstOpFromConstValue(key);
+      if (const_op == nullptr) {
+        const_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), value);
+        const_op->GetRes()->SetType(lval_expr->GetType());
+        auto *func_op = GET_MLIR_CONTEXT()->GetCurrentFuncDefOp();
+        if (func_op == nullptr) {
+          GET_MLIR_CONTEXT()->GetInsertPoint()->AddOperation(const_op);
+        } else {
+          func_op->GetEntryBlock()->AddOperation(const_op);
+        }
+        GET_MLIR_CONTEXT()->GetResourceContext()->SetConstOpForConstValue(key, const_op);
+      }
+      GET_MLIR_CONTEXT()->GetResourceContext()->MapExprToValue(lval_expr, const_op->GetRes());
+      is_array_or_global = false;
+      return const_op->GetRes();
+    }
   }
   mlir::var::VarGetPtrOp *var_get_op = nullptr;
   // if the variable is not an array

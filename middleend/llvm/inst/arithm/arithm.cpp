@@ -111,8 +111,8 @@ auto AddFInst::Verify(context::CompilerContext *context) const -> bool {
   return operands_[0]->IsFloat() && operands_[1]->IsFloat();
 }
 
-auto AddFInst::Create(context::LLVMIRContext *context, utils::Operand *operand1,
-                      utils::Operand *operand2) -> AddFInst * {
+auto AddFInst::Create(context::LLVMIRContext *context, utils::Operand *operand1, utils::Operand *operand2)
+    -> AddFInst * {
   auto *inst = new AddFInst();
   auto res = context->GetNewRegOperand(context->GetFloatType());
   inst->SetResult(res);
@@ -238,8 +238,8 @@ auto SubFInst::Verify(context::CompilerContext *context) const -> bool {
   return operands_[0]->IsFloat() && operands_[1]->IsFloat();
 }
 
-auto SubFInst::Create(context::LLVMIRContext *context, utils::Operand *operand1,
-                      utils::Operand *operand2) -> SubFInst * {
+auto SubFInst::Create(context::LLVMIRContext *context, utils::Operand *operand1, utils::Operand *operand2)
+    -> SubFInst * {
   auto *inst = new SubFInst();
   auto res = context->GetNewRegOperand(context->GetFloatType());
   inst->SetResult(res);
@@ -354,8 +354,8 @@ auto MulFInst::Verify(context::CompilerContext *context) const -> bool {
   return operands_[0]->IsFloat() && operands_[1]->IsFloat();
 }
 
-auto MulFInst::Create(context::LLVMIRContext *context, utils::Operand *operand1,
-                      utils::Operand *operand2) -> MulFInst * {
+auto MulFInst::Create(context::LLVMIRContext *context, utils::Operand *operand1, utils::Operand *operand2)
+    -> MulFInst * {
   auto *inst = new MulFInst();
   auto res = context->GetNewRegOperand(context->GetFloatType());
   inst->SetResult(res);
@@ -469,8 +469,8 @@ auto DivFInst::Verify(context::CompilerContext *context) const -> bool {
   return operands_[0]->IsFloat() && operands_[1]->IsFloat();
 }
 
-auto DivFInst::Create(context::LLVMIRContext *context, utils::Operand *operand1,
-                      utils::Operand *operand2) -> DivFInst * {
+auto DivFInst::Create(context::LLVMIRContext *context, utils::Operand *operand1, utils::Operand *operand2)
+    -> DivFInst * {
   auto *inst = new DivFInst();
   auto res = context->GetNewRegOperand(context->GetFloatType());
   inst->SetResult(res);

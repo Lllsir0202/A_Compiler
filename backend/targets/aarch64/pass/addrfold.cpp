@@ -71,8 +71,7 @@ auto AArch64AddrFold::RunOnFunction(TargetFunction *func) -> bool {
       // load:  {base, #off}  (result = value)   store: {value, base, #off}
       auto *base = is_load ? ops[0] : ops[1];
       auto *off = is_load ? ops[1] : ops[2];
-      if (off->GetOpType() != TargetOperandType::Immediate ||
-          static_cast<TargetIntLiteral *>(off)->GetValue() != 0) {
+      if (off->GetOpType() != TargetOperandType::Immediate || static_cast<TargetIntLiteral *>(off)->GetValue() != 0) {
         continue;  // already carries a folded offset / register form
       }
       auto *value = is_load ? inst->GetResult() : ops[0];

@@ -158,8 +158,8 @@ class LLVMIRLowerContext {
   auto GetCurrentFunction() -> middleend::llvm::utils::Function * { return current_function_; }
 
   // Interface to map and get llvm ops from mlir ops
-  auto MapMLIRBlockToLLVMIRBlock(middleend::mlir::Block *mlir_block,
-                                 middleend::llvm::utils::BasicBlock *llvm_block) -> void {
+  auto MapMLIRBlockToLLVMIRBlock(middleend::mlir::Block *mlir_block, middleend::llvm::utils::BasicBlock *llvm_block)
+      -> void {
     // Should never found
     if (block_mapping_.count(mlir_block) > 0) {
       throw std::logic_error("MLIR block already mapped to LLVM IR block");
@@ -173,8 +173,8 @@ class LLVMIRLowerContext {
     return nullptr;
   }
 
-  auto MapMLIRValueToLLVMIROperand(middleend::mlir::Value *mlir_value,
-                                   middleend::llvm::utils::Operand *llvm_operand) -> void {
+  auto MapMLIRValueToLLVMIROperand(middleend::mlir::Value *mlir_value, middleend::llvm::utils::Operand *llvm_operand)
+      -> void {
     // Should never found
     if (value_mapping_.count(mlir_value) > 0) {
       throw std::logic_error("MLIR value already mapped to LLVM IR operand\n");

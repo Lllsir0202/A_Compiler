@@ -75,8 +75,8 @@ class FlattenHelper {
    * since we have already get the first scalar
    * initializer in the current init list
    */
-  auto CastInitializer(frontend::ast::Initializer *init_node,
-                       LeafHandle function_pointer) -> initializer::InitializerPtr;
+  auto CastInitializer(frontend::ast::Initializer *init_node, LeafHandle function_pointer)
+      -> initializer::InitializerPtr;
 
  public:
   /**
@@ -88,8 +88,8 @@ class FlattenHelper {
    * @param function_pointer: the function pointer used for figure out how to get the value.
    * @return the flattened initializer
    */
-  auto FlattenInitializer(frontend::ast::Initializer *init_node, std::vector<int> &dims,
-                          LeafHandle function_pointer) -> initializer::ArrayInitializer;
+  auto FlattenInitializer(frontend::ast::Initializer *init_node, std::vector<int> &dims, LeafHandle function_pointer)
+      -> initializer::ArrayInitializer;
 
  private:
   context::CompilerContext *compiler_context_;

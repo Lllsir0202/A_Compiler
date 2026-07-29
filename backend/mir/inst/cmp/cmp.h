@@ -24,8 +24,8 @@ class ICmpInst : public Instruction {
 
  private:
   explicit ICmpInst(CmpPredicate predicate) : Instruction(OpKind::ICmp), predicate_(predicate) {}
-  static auto Create(context::MIRContext *context, utils::Operand *lhs, utils::Operand *rhs,
-                     CmpPredicate predicate) -> ICmpInst *;
+  static auto Create(context::MIRContext *context, utils::Operand *lhs, utils::Operand *rhs, CmpPredicate predicate)
+      -> ICmpInst *;
   CmpPredicate predicate_;
   friend class utils::factory::InstFactory;
 };
@@ -38,8 +38,8 @@ class FCmpInst : public Instruction {
 
  private:
   explicit FCmpInst(CmpPredicate predicate) : Instruction(OpKind::FCmp), predicate_(predicate) {}
-  static auto Create(context::MIRContext *context, utils::Operand *lhs, utils::Operand *rhs,
-                     CmpPredicate predicate) -> FCmpInst *;
+  static auto Create(context::MIRContext *context, utils::Operand *lhs, utils::Operand *rhs, CmpPredicate predicate)
+      -> FCmpInst *;
   CmpPredicate predicate_;
   friend class utils::factory::InstFactory;
 };

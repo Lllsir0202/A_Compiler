@@ -127,8 +127,8 @@ class MIRResourceContext {
 
 class MIRLowerContext {
  public:
-  auto MapLLVMOperandToMIROperand(middleend::llvm::utils::Operand *llvm_operand,
-                                  backend::utils::Operand *mir_operand) -> void {
+  auto MapLLVMOperandToMIROperand(middleend::llvm::utils::Operand *llvm_operand, backend::utils::Operand *mir_operand)
+      -> void {
     if (llvm_to_mir_operand_map_.count(llvm_operand) > 0) {
       throw std::runtime_error("LLVM operand has already been mapped to a MIR operand");
       return;
@@ -144,8 +144,8 @@ class MIRLowerContext {
     return nullptr;
   }
 
-  auto MapFrameOperandToFrameInfo(backend::utils::FrameOperand *frame_operand,
-                                  backend::utils::FrameInfo *frame_info) -> void {
+  auto MapFrameOperandToFrameInfo(backend::utils::FrameOperand *frame_operand, backend::utils::FrameInfo *frame_info)
+      -> void {
     if (frame_operand_to_frame_info_map_.count(frame_operand) > 0) {
       throw std::runtime_error("Frame operand has already been mapped to a frame info");
       return;

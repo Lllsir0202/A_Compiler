@@ -97,8 +97,8 @@ auto LoopSimplifyPass::EnsurePreheader(mlir::base::FuncDefOp *func_op, analysis:
   return true;
 }
 
-auto LoopSimplifyPass::OutsidePredecessors(mlir::base::FuncDefOp *func_op,
-                                           analysis::Loop *loop) -> std::vector<mlir::Block *> {
+auto LoopSimplifyPass::OutsidePredecessors(mlir::base::FuncDefOp *func_op, analysis::Loop *loop)
+    -> std::vector<mlir::Block *> {
   // Recompute from the live terminators so the result is correct even after an earlier insertion
   // in the same function mutated the control flow.
   std::vector<mlir::Block *> outside;

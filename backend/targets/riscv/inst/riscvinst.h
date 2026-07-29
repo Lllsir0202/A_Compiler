@@ -17,33 +17,70 @@ namespace backend::targetir::riscv {
  */
 enum class RVOpcode : uint8_t {
   // R-type integer (rd, rs1, rs2)
-  ADDW, SUBW, MULW, DIVW, REMW,
-  ADD, SUB, MUL,  // 64-bit, address arithmetic
-  AND, OR, XOR,
-  SLLW, SRLW, SRAW,
-  SLT, SLTU,
+  ADDW,
+  SUBW,
+  MULW,
+  DIVW,
+  REMW,
+  ADD,
+  SUB,
+  MUL,  // 64-bit, address arithmetic
+  AND,
+  OR,
+  XOR,
+  SLLW,
+  SRLW,
+  SRAW,
+  SLT,
+  SLTU,
   // I-type integer (rd, rs1, imm)
-  ADDIW, ADDI, ANDI, ORI, XORI,
-  SLLIW, SRLIW, SRAIW,
+  ADDIW,
+  ADDI,
+  ANDI,
+  ORI,
+  XORI,
+  SLLIW,
+  SRLIW,
+  SRAIW,
   SLLI,  // 64-bit shift-left immediate (address arithmetic / strength reduction)
-  SLTI, SLTIU,
+  SLTI,
+  SLTIU,
   // Unary (rd, rs1)
-  MV, NEGW, SEQZ, SNEZ, SEXT_W,
+  MV,
+  NEGW,
+  SEQZ,
+  SNEZ,
+  SEXT_W,
   // Immediate / address materialization (rd, imm|symbol)
-  LI, LA,
+  LI,
+  LA,
   // Memory
-  LW, LD,   // load  : rd, imm(rs1)
-  SW, SD,   // store : rs2, imm(rs1)
+  LW,
+  LD,  // load  : rd, imm(rs1)
+  SW,
+  SD,  // store : rs2, imm(rs1)
   // Single-precision float
-  FADD_S, FSUB_S, FMUL_S, FDIV_S,  // R-type, FPR operands + FPR result
-  FEQ_S, FLT_S, FLE_S,             // R-type, FPR operands -> GPR result
-  FMV_S,                           // fmv.s  fd, fs   (float register move)
-  FCVT_S_W,                        // fcvt.s.w fd, rs (int -> float)
-  FCVT_W_S,                        // fcvt.w.s rd, fs, rtz (float -> int, truncate)
-  FMV_W_X, FMV_X_W,                // bit-pattern move GPR<->FPR
-  FLW, FSW,                        // float load / store
+  FADD_S,
+  FSUB_S,
+  FMUL_S,
+  FDIV_S,  // R-type, FPR operands + FPR result
+  FEQ_S,
+  FLT_S,
+  FLE_S,     // R-type, FPR operands -> GPR result
+  FMV_S,     // fmv.s  fd, fs   (float register move)
+  FCVT_S_W,  // fcvt.s.w fd, rs (int -> float)
+  FCVT_W_S,  // fcvt.w.s rd, fs, rtz (float -> int, truncate)
+  FMV_W_X,
+  FMV_X_W,  // bit-pattern move GPR<->FPR
+  FLW,
+  FSW,  // float load / store
   // Control flow
-  BEQ, BNE, BLT, BGE, BLTU, BGEU,  // rs1, rs2, label
+  BEQ,
+  BNE,
+  BLT,
+  BGE,
+  BLTU,
+  BGEU,     // rs1, rs2, label
   J,        // label
   CALL,     // symbol
   RET,      // (none)
@@ -54,17 +91,17 @@ enum class RVOpcode : uint8_t {
 
 /// How an opcode's operands are rendered as text.
 enum class RVForm : uint8_t {
-  RType,   // mnem rd, op0, op1
-  IType,   // mnem rd, op0, imm
-  Unary,   // mnem rd, op0
-  Load,    // mnem rd, op1(op0)        op0 = base, op1 = imm
-  Store,   // mnem op0, op2(op1)       op0 = value, op1 = base, op2 = imm
-  Branch,  // mnem op0, op1, op2       op0/op1 = regs, op2 = label
-  Jump,    // mnem op0
-  LoadImm, // mnem rd, op0             op0 = imm
-  LoadSym, // mnem rd, op0             op0 = symbol
-  Call,    // mnem op0                 op0 = symbol
-  Ret,     // mnem
+  RType,         // mnem rd, op0, op1
+  IType,         // mnem rd, op0, imm
+  Unary,         // mnem rd, op0
+  Load,          // mnem rd, op1(op0)        op0 = base, op1 = imm
+  Store,         // mnem op0, op2(op1)       op0 = value, op1 = base, op2 = imm
+  Branch,        // mnem op0, op1, op2       op0/op1 = regs, op2 = label
+  Jump,          // mnem op0
+  LoadImm,       // mnem rd, op0             op0 = imm
+  LoadSym,       // mnem rd, op0             op0 = symbol
+  Call,          // mnem op0                 op0 = symbol
+  Ret,           // mnem
   ConvertToInt,  // mnem rd, op0, rtz  (fcvt.w.s truncating convert)
 };
 

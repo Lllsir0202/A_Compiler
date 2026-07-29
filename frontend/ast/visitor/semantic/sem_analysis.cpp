@@ -121,8 +121,8 @@ auto SemanticAnalyser::Linear(const std::vector<int> &dimensions, const std::vec
  * and do the cast if needed
  */
 // override for constant list initializer
-auto SemanticAnalyser::Normalize(symboltable::VarEntry *entry,
-                                 std::unique_ptr<initializer::ArrayInitializer> &init) -> void {
+auto SemanticAnalyser::Normalize(symboltable::VarEntry *entry, std::unique_ptr<initializer::ArrayInitializer> &init)
+    -> void {
   // First check the type
   auto type = entry->type_;
   // The initialized variable must be an array variable, otherwise it is a logic error
@@ -208,8 +208,8 @@ auto SemanticAnalyser::Normalize(symboltable::VarEntry *entry,
 }
 
 // override for constant scalar initializer
-auto SemanticAnalyser::Normalize(symboltable::VarEntry *entry,
-                                 std::unique_ptr<initializer::ConstInitializer> &init) -> void {
+auto SemanticAnalyser::Normalize(symboltable::VarEntry *entry, std::unique_ptr<initializer::ConstInitializer> &init)
+    -> void {
   auto type = entry->type_;
   bool is_int = type->GetKind() == type::TypeKind::INT;
   bool is_float = type->GetKind() == type::TypeKind::FLOAT;

@@ -7,8 +7,8 @@ namespace middleend::mlir::base {
 class FuncCallOp : public BaseOps {
  public:
   // Used in lowering
-  static auto Create(mlir::Value *res, const std::string &name,
-                     const std::vector<mlir::Value *> &args) -> FuncCallOp * {
+  static auto Create(mlir::Value *res, const std::string &name, const std::vector<mlir::Value *> &args)
+      -> FuncCallOp * {
     auto func_call_op = new FuncCallOp();
     func_call_op->SetUp(res, name, args);
     return func_call_op;

@@ -80,8 +80,8 @@ class VarDefOp : public VarOps {
 
  private:
   VarDefOp() : VarOps("def") {}
-  auto SetUp(context::MLIRContext *context, std::vector<int> &dimensions, std::vector<Value *> &inits,
-             bool is_const) -> void {
+  auto SetUp(context::MLIRContext *context, std::vector<int> &dimensions, std::vector<Value *> &inits, bool is_const)
+      -> void {
     operands_.reserve(inits.size());
     dimensions_.reserve(dimensions.size());
     results_.reserve(1);

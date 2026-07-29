@@ -142,8 +142,8 @@ auto MIRResourceContext::GetFuncDeclareByName(const std::string &name) -> backen
   return module->GetFuncDeclareByName(name);
 }
 
-auto MIRResourceContext::CreateFunction(const std::string &name,
-                                        type::Type *return_type) -> backend::utils::Function * {
+auto MIRResourceContext::CreateFunction(const std::string &name, type::Type *return_type)
+    -> backend::utils::Function * {
   auto func = backend::utils::factory::FunctionFactory::CreateFunction(name, return_type);
   if (module_ == nullptr) {
     delete func;

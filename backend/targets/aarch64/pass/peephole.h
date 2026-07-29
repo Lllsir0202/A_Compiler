@@ -22,6 +22,8 @@ namespace backend::targetir::aarch64 {
  *     (and sub / cmp) when C fits the 12-bit arithmetic immediate;
  *   - strength reduction: multiply by a power of two -> `lsl`, by 1 -> `mov`,
  *     by 0 -> `movz #0`;
+ *   - integer multiply-accumulate fusion: adjacent single-use `mul` + `add/sub`
+ *     -> `madd/msub`;
  *   - algebraic identities left behind (add/sub/lsl of 0 -> move).
  *
  * Logical immediates (and/orr/eor) are left in register form because AArch64's
@@ -36,11 +38,16 @@ class AArch64Peephole : public MachineFunctionPass {
   auto RunOnFunction(TargetFunction *func) -> bool override;
 
  private:
-  auto BuildConstants(TargetFunction *func) -> void;
+  auto BuildFacts(TargetFunction *func) -> void;
   auto IsConst(TargetOperand *op, int *value) const -> bool;
+  auto SingleUseMultiply(TargetOperand *op) const -> TargetInst *;
+  auto FoldMultiplyAccumulate(TargetInst *inst) -> bool;
   auto TransformInst(TargetInst *inst) -> bool;
 
   std::unordered_map<TargetOperand *, int> def_count_;
+  std::unordered_map<TargetOperand *, int> use_count_;
+  std::unordered_map<TargetOperand *, TargetInst *> defining_inst_;
+  std::unordered_map<TargetInst *, TargetInst *> previous_inst_;
   std::unordered_map<TargetOperand *, int> const_value_;  // vreg -> value (single movz/movn def)
 };
 

@@ -36,8 +36,8 @@ class MLIRReturnCanonicalizePass : public TransformPass {
 
  private:
   auto RunOnFunction(mlir::func::FuncDefOp *func_op) -> bool;
-  auto RewriteEarlyReturnIf(mlir::func::FuncDefOp *func_op, mlir::Block *block, size_t if_index,
-                            mlir::scf::IfOp *if_op) -> bool;
+  auto RewriteEarlyReturnIf(mlir::func::FuncDefOp *func_op, mlir::Block *block, size_t if_index, mlir::scf::IfOp *if_op)
+      -> bool;
   auto IsSimpleEarlyReturnThen(mlir::scf::IfOp *if_op, mlir::func::ReturnOp **return_op) -> bool;
   auto IsBothBranchReturn(mlir::scf::IfOp *if_op, mlir::func::ReturnOp **then_return,
                           mlir::func::ReturnOp **else_return) -> bool;

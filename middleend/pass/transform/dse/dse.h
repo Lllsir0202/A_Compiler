@@ -63,8 +63,8 @@ class DSEPass : public TransformPass {
   // Scan `block` from `begin` onward; true if this path segment plus all its successors are
   // overwritten before any read/exit. `on_stack` guards back-edges, `memo` caches block entries.
   auto TailOverwritten(mlir::Block *block, size_t begin, mlir::Value *pointer,
-                       std::unordered_set<mlir::Block *> *on_stack,
-                       std::unordered_map<mlir::Block *, bool> *memo) -> bool;
+                       std::unordered_set<mlir::Block *> *on_stack, std::unordered_map<mlir::Block *, bool> *memo)
+      -> bool;
   auto BlockEntryOverwritten(mlir::Block *block, mlir::Value *pointer, std::unordered_set<mlir::Block *> *on_stack,
                              std::unordered_map<mlir::Block *, bool> *memo) -> bool;
   auto RemoveStores(mlir::Block *block, const std::unordered_set<mlir::Operation *> &dead) -> void;
