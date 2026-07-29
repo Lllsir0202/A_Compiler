@@ -75,7 +75,7 @@ auto MLIRFunctionInlinePass::TryInlineInBlock(mlir::func::FuncDefOp *caller, mli
       auto iter = function_map_.find(call_op->GetName());
       if (iter != function_map_.end()) {
         auto *callee = iter->second;
-        if (IsInlineCandidate(caller, callee) && call_op->GetOperands().size() == callee->GetArguments().size()) {
+        if (IsInlineCandidate(caller, callee) && HaveCompatibleArgumentTypes(call_op, callee)) {
           return InlineCallSite({caller, block, index, call_op, callee});
         }
       }
@@ -276,6 +276,42 @@ auto MLIRFunctionInlinePass::IsInlineCandidate(mlir::func::FuncDefOp *caller, ml
   return true;
 }
 
+auto MLIRFunctionInlinePass::HaveCompatibleArgumentTypes(mlir::func::FuncCallOp *call_op,
+                                                         mlir::func::FuncDefOp *callee) -> bool {
+  if (call_op == nullptr || callee == nullptr ||
+      call_op->GetOperands().size() != callee->GetArguments().size()) {
+    return false;
+  }
+
+  for (size_t i = 0; i < call_op->GetOperands().size(); ++i) {
+    auto *actual_type = call_op->GetOperands()[i]->GetType();
+    auto *formal_type = callee->GetArguments()[i]->GetType();
+    if (actual_type == nullptr || formal_type == nullptr) {
+      return false;
+    }
+
+    // A function call passes only the pointer value, so the callee can give an
+    // array slice a more precise pointee type than the caller-side expression.
+    // Inlining, however, substitutes the SSA value directly.  VarGetPtr lowering
+    // derives GEP strides from that value's pointee type; substituting a
+    // differently-shaped pointer therefore changes every nested-array offset.
+    // Keep such calls out of the inliner until the IR has an explicit pointer
+    // bitcast/type-refinement operation.  TypeContext interns identical pointer
+    // layouts, so pointer identity is the exact compatibility test here.
+    if (actual_type->GetKind() == type::TypeKind::PTR ||
+        formal_type->GetKind() == type::TypeKind::PTR) {
+      if (actual_type != formal_type) {
+        return false;
+      }
+      continue;
+    }
+    if (actual_type->GetKind() != formal_type->GetKind()) {
+      return false;
+    }
+  }
+  return true;
+}
+
 auto MLIRFunctionInlinePass::FindInlineSites() -> std::vector<InlineSite> {
   std::vector<InlineSite> sites;
   for (const auto &[_, caller] : function_map_) {
@@ -293,7 +329,7 @@ auto MLIRFunctionInlinePass::FindInlineSites() -> std::vector<InlineSite> {
       if (!IsInlineCandidate(caller, callee)) {
         continue;
       }
-      if (call_op->GetOperands().size() != callee->GetArguments().size()) {
+      if (!HaveCompatibleArgumentTypes(call_op, callee)) {
         continue;
       }
       sites.push_back({caller, block, index, call_op, callee});

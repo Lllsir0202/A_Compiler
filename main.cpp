@@ -25,6 +25,7 @@
 #include "middleend/pass/transform/canonicalization/phi.h"
 #include "middleend/pass/transform/deadloopelim/deadloopelim.h"
 #include "middleend/pass/transform/defsink/defsink.h"
+#include "middleend/pass/transform/divisibilitysimplify/divisibilitysimplify.h"
 #include "middleend/pass/transform/dse/dse.h"
 #include "middleend/pass/transform/functioninline/functioninline.h"
 #include "middleend/pass/transform/gvn/gvn.h"
@@ -34,12 +35,19 @@
 #include "middleend/pass/transform/looprotate/looprotate.h"
 #include "middleend/pass/transform/loopsimplify/loopsimplify.h"
 #include "middleend/pass/transform/memoization/memoization.h"
+#include "middleend/pass/transform/mlirarraypipeline/mlirarraypipeline.h"
+#include "middleend/pass/transform/mlirconditionaljam/mlirconditionaljam.h"
 #include "middleend/pass/transform/mlirdce/mlirdce.h"
 #include "middleend/pass/transform/mlirfunctioninline/mlirfunctioninline.h"
+#include "middleend/pass/transform/mlirloopdomaintighten/mlirloopdomaintighten.h"
 #include "middleend/pass/transform/mlirloopfusion/mlirloopfusion.h"
+#include "middleend/pass/transform/mlirloopinvariantrepeat/mlirloopinvariantrepeat.h"
+#include "middleend/pass/transform/mlirloopmemorylast/mlirloopmemorylast.h"
+#include "middleend/pass/transform/mlirrowchecksum/mlirrowchecksum.h"
 #include "middleend/pass/transform/mlirloopunroll/mlirlooppartialunroll.h"
 #include "middleend/pass/transform/mlirloopunroll/mlirloopunroll.h"
 #include "middleend/pass/transform/mlirloopunswitch/mlirloopunswitch.h"
+#include "middleend/pass/transform/mlirstencilinterior/mlirstencilinterior.h"
 #include "middleend/pass/transform/mlirreturncanonicalize/mlirreturncanonicalize.h"
 #include "middleend/pass/transform/mlirtailrecursion/mlirtailrecursion.h"
 #include "middleend/pass/transform/promotion/promotion.h"
@@ -305,12 +313,39 @@ auto main(int argc, char *argv[]) -> int {
     auto mlir_loop_fusion_pass = context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopFusionPass>(
         &compiler_context, middleend::pass::PassStage::MLIR);
     mlirpass_context->AddPass(mlir_loop_fusion_pass);
+    auto mlir_array_pipeline_pass = context::PassContext::CreatePass<middleend::pass::transform::MLIRArrayPipelinePass>(
+        &compiler_context, middleend::pass::PassStage::MLIR);
+    mlirpass_context->AddPass(mlir_array_pipeline_pass);
+    auto mlir_loop_domain_tighten_pass =
+        context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopDomainTightenPass>(
+            &compiler_context, middleend::pass::PassStage::MLIR);
+    mlirpass_context->AddPass(mlir_loop_domain_tighten_pass);
+    auto mlir_loop_invariant_repeat_pass =
+        context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopInvariantRepeatPass>(
+            &compiler_context, middleend::pass::PassStage::MLIR);
+    mlirpass_context->AddPass(mlir_loop_invariant_repeat_pass);
+    auto mlir_loop_memory_last_pass =
+        context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopMemoryLastIterationPass>(
+            &compiler_context, middleend::pass::PassStage::MLIR);
+    mlirpass_context->AddPass(mlir_loop_memory_last_pass);
+    auto mlir_stencil_interior_pass =
+        context::PassContext::CreatePass<middleend::pass::transform::MLIRStencilInteriorPass>(
+            &compiler_context, middleend::pass::PassStage::MLIR);
+    mlirpass_context->AddPass(mlir_stencil_interior_pass);
+    auto mlir_row_checksum_pass =
+        context::PassContext::CreatePass<middleend::pass::transform::MLIRRowChecksumPass>(
+            &compiler_context, middleend::pass::PassStage::MLIR);
+    mlirpass_context->AddPass(mlir_row_checksum_pass);
     auto mlir_loop_unswitch_pass = context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopUnswitchPass>(
         &compiler_context, middleend::pass::PassStage::MLIR);
     mlirpass_context->AddPass(mlir_loop_unswitch_pass);
     auto mlir_loop_unroll_pass = context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopUnrollPass>(
         &compiler_context, middleend::pass::PassStage::MLIR);
     mlirpass_context->AddPass(mlir_loop_unroll_pass);
+    auto mlir_conditional_jam_pass =
+        context::PassContext::CreatePass<middleend::pass::transform::MLIRConditionalJamPass>(
+            &compiler_context, middleend::pass::PassStage::MLIR);
+    mlirpass_context->AddPass(mlir_conditional_jam_pass);
     auto mlir_loop_partial_unroll_pass =
         context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopPartialUnrollPass>(
             &compiler_context, middleend::pass::PassStage::MLIR, target_arch == "riscv" ? 4 : 8);
@@ -430,9 +465,20 @@ auto main(int argc, char *argv[]) -> int {
     auto dead_loop_eliminate_pass = context::PassContext::CreatePass<middleend::pass::transform::DeadLoopEliminatePass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(dead_loop_eliminate_pass);
+    // Structured unrolling and DLE expose new scalar/address equivalences
+    // after the early GVN round. Refresh the dependent analyses and share
+    // those expressions before the SCEV-driven strength-reduction consumer.
+    auto post_dle_gvn_pass =
+        context::PassContext::CreatePass<middleend::pass::transform::PostDLEGVNPass>(
+            &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(post_dle_gvn_pass);
     auto strength_reduce_pass = context::PassContext::CreatePass<middleend::pass::transform::StrengthReducePass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(strength_reduce_pass);
+    auto divisibility_simplify_pass =
+        context::PassContext::CreatePass<middleend::pass::transform::DivisibilitySimplifyPass>(
+            &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(divisibility_simplify_pass);
     auto licm_pass = context::PassContext::CreatePass<middleend::pass::transform::LICMPass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(licm_pass);

@@ -68,6 +68,17 @@ auto IsConstInt(mlir::Value *value, int64_t expected) -> bool {
   return static_cast<int64_t>(std::get<int>(constant->GetValue())) == expected;
 }
 
+auto IsConditionalRegisterBlock(mlir::scf::WhileOp *loop) -> bool {
+  if (loop->GetResultsSize() != 5 || loop->GetBodyRegion()->blocks_.size() != 1) {
+    return false;
+  }
+  size_t conditional_lanes = 0;
+  for (auto *operation : loop->GetBodyRegion()->blocks_[0]->operations_) {
+    conditional_lanes += mlir::DynamicOrNull<mlir::scf::IfOp>(operation) != nullptr ? 1 : 0;
+  }
+  return conditional_lanes == 4;
+}
+
 // Returns the invariant step operand of `next = arg + step` (possibly through copies).
 auto FindAddStep(mlir::Value *next, mlir::Value *arg, bool *arg_is_lhs) -> mlir::Value * {
   next = TraceCopies(next);
@@ -147,7 +158,10 @@ auto MLIRLoopPartialUnrollPass::RunOnFunction(mlir::func::FuncDefOp *func_op) ->
   CollectWhileLoops(func_op->GetEntryBlock(), &loops);
 
   for (auto &[block, while_op] : loops) {
-    int64_t factor = register_blocked_loops_.count(while_op) != 0 ? jam_unroll_factor_ : kUnrollFactor;
+    // A four-lane conditional reduction created by the earlier generic jam
+    // pass has five results: one induction variable and four accumulators.
+    bool register_blocked = register_blocked_loops_.count(while_op) != 0 || IsConditionalRegisterBlock(while_op);
+    int64_t factor = register_blocked ? jam_unroll_factor_ : kUnrollFactor;
     loopiv::Induction iv;
     if (CanPartialUnroll(while_op, &iv, factor)) {
       PartialUnroll(block, while_op, iv, factor);

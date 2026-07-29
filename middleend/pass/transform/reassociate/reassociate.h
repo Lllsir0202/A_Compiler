@@ -4,10 +4,13 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
+#include <vector>
 #include "middleend/pass/transform/transform.h"
 
 namespace middleend::mlir {
 class Block;
+class Operation;
 class Value;
 }  // namespace middleend::mlir
 
@@ -30,8 +33,13 @@ class ReassociatePass : public TransformPass {
 
  private:
   auto RunOnBlock(mlir::Block *block) -> bool;
+  auto Linearize(mlir::Operation *operation,
+                 const std::unordered_set<mlir::Operation *> &seen,
+                 std::vector<mlir::Operation *> *replacement) -> bool;
 
   std::unordered_map<mlir::Value *, size_t> use_count_;
+  size_t linear_candidates_{0};
+  size_t linear_simplified_{0};
 };
 
 }  // namespace middleend::pass::transform

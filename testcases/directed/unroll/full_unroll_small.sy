@@ -1,6 +1,6 @@
-// A constant-trip-count loop (10 <= 64) is fully unrolled: no loop blocks
-// survive to the BASEIR dump.
-//! CHECK-NOT: main_while
+// A constant-trip-count loop (10 <= 64) is fully unrolled: no header, body, or
+// latch survives.  The exit block may retain its source-derived debug name.
+//! CHECK-NOT: main_while_(header|body|latch)
 int main() {
     int i = 0;
     int s = 0;

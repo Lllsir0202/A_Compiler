@@ -1,6 +1,6 @@
-// DSE: the first g[5] store is overwritten with no read in between; exactly
-// one store survives.
-//! CHECK-COUNT: 1 :: var\.set
+// DSE plus load forwarding: the first g[5] store is overwritten, and the
+// second store is unobservable after its value is forwarded to putint.
+//! CHECK-COUNT: 0 :: var\.set
 int g[10];
 int main() {
     int x = getint();

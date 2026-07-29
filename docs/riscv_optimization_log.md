@@ -1198,3 +1198,284 @@ all, fail the equality and are left alone.
 
 A small win, and deliberately so: the measured alternative was 3.8M cheaper here
 and 250M more expensive elsewhere.
+
+## 2026-07-29: structured empty-suffix loop-domain tightening
+
+`transpose` contains a triangular loop written over a rectangular domain:
+iterations with `outer_iv < inner_iv` only advance the inner IV and continue.
+The existing continue-aware strength reduction removes much of the address
+arithmetic but cannot remove those dynamically executed empty iterations.
+
+`MLIRLoopDomainTightenPass` now recognizes the conservative structured form
+`iv < bound`, unit increment, and a leading `cut < iv` branch whose selected
+region consists only of `continue(iv + 1)`. It changes the loop bound to
+`min(bound, cut + 1)` and removes the branch. The add is guarded by
+`cut < bound`, which proves it cannot overflow. Since shortening the domain
+would otherwise change the loop result, the pass separately reconstructs the
+original exit IV as `init < bound ? bound : init`.
+
+The transform is independent of names, fixed matrix sizes, and target details.
+It runs before unswitch/unroll and can be disabled with
+`LOOP_DOMAIN_TIGHTEN_OFF=1`.
+
+Validation:
+
+- Eight directed cases cover the positive shape, stores/calls on the continue
+  path, unequal increments, observable final IV, zero-trip, `cut` outside both
+  sides of the domain, and `INT_MAX`.
+- RISC-V functional 109/109 and preliminary-performance 57/57 pass.
+  Hidden-functional is 39/40; the existing `30_many_dimensions` failure is
+  unchanged with the pass disabled, and this pass does not match it.
+- Only `transpose0/1/2` match in the preliminary-performance suite.
+
+| case | disabled | enabled | dynamic instruction reduction |
+|---|---:|---:|---:|
+| `transpose0` | 39,274,267 | 32,227,532 | 17.94% |
+| `transpose1` | 71,255,652 | 66,338,795 | 6.90% |
+| `transpose2` | 677,299,768 | 304,362,388 | 55.06% |
+
+The scoring-region timer is the primary metric. Five-run medians are 8,859 to
+5,804 us (`transpose0`), 17,054 to 11,611 us (`transpose1`), and 153,876 to
+51,012 us (`transpose2`), reductions of 34.48%, 31.92%, and 66.85%.
+
+## 2026-07-29: invariant repeat scaling and memory-state last iteration
+
+Two structured passes implement the first conservative memory-state scope.
+
+`MLIRLoopInvariantRepeatPass` handles a read-only repeated kernel with one live
+i32 accumulator. A dependency fixed point through nested while/if regions
+requires every accumulator operation to preserve coefficient one
+(`acc +/- invariant`) and rejects stores, calls, nonlinear uses, and outer-IV
+dependencies. The nested body runs zero or one time and the original result is
+rebuilt as `init + trip_count * (once - init)`, which is exact under i32 modular
+arithmetic. Runtime non-positive trip counts remain zero-trip. The A/B switch is
+`LOOP_INVARIANT_REPEAT_OFF=1`.
+
+`MLIRLoopMemoryLastIterationPass` recognizes a constant repeated body beginning
+with an exact two-dimensional `[0,n) x [0,n)` overwrite. It proves every later
+access to that object uses induction variables in the same rectangle, rejects
+read-before-write in the reset, writes to other roots, calls, observable loop
+results, and uses of the repetition IV. Earlier executions are then
+unobservable, so only one execution remains. The A/B switch is
+`LOOP_MEMORY_LAST_OFF=1`.
+
+Validation includes ten directed positive/negative cases and all 60 official
+RISC-V preliminary performance cases. In that suite, repeat scaling matches
+only `many_mat_cal-1/2/3`, and memory-last matches only `h-10-01/02/03`.
+
+Scoring-region timer medians:
+
+| case | disabled | enabled | reduction |
+|---|---:|---:|---:|
+| `h-10-01` | 16,497 us | 4,736 us | 71.29% |
+| `h-10-02` | 35,420 us | 7,429 us | 79.03% |
+| `h-10-03` | 70,374 us | 14,218 us | 79.80% |
+| `many_mat_cal-1` | 100,114 us | 99,311 us | 0.80% |
+| `many_mat_cal-2` | 99,006 us | 98,491 us | 0.52% |
+| `many_mat_cal-3` | 99,142 us | 97,818 us | 1.34% |
+
+## 2026-07-29: conditional reduction jam and array-result pipelining
+
+Two conservative structured transforms implement the first G3 matrix scope.
+
+`MLIRConditionalJamPass` combines four adjacent output columns when each column
+contains the same read-only, conditional scalar reduction. The new loop carries
+one reduction IV and four accumulators. It requires a constant column trip count
+divisible by four, rejects calls and all writes inside the reduction, and rejects
+any reduction read from the output object. A following partial-unroll step uses
+factor four only for the exact five-result/four-conditional-lane shape. The A/B
+switch is `CONDITIONAL_JAM_OFF=1`.
+
+`MLIRArrayPipelinePass` recognizes a row scalar producer followed by full-row
+broadcast, exact in-place negated transpose, and full matrix sum. For this
+specific traversal the final matrix sum equals the initial accumulator minus
+the sum of the broadcast row scalars, so the materialization loops are removed
+and the row producer directly updates the final accumulator. Matching requires
+the same matrix root, exact square domains and indices, no extra memory effects,
+and a sum initial value that dominates the row producer. The last condition was
+added after a directed late-initialization case exposed an invalid early use.
+The A/B switch is `ARRAY_PIPELINE_OFF=1`.
+
+The scoring-region timer is the primary metric:
+
+| transform | case | disabled | enabled | reduction |
+|---|---|---:|---:|---:|
+| array pipeline, 9-run median | `matmul1` | 35,885 us | 35,304 us | 1.62% |
+| array pipeline, 9-run median | `matmul2` | 124,876 us | 121,951 us | 2.34% |
+| array pipeline, 9-run median | `matmul3` | 71,112 us | 70,255 us | 1.21% |
+| conditional jam, 31-run interleaved median | `matmul1` | 35,584 us | 33,038 us | 7.15% |
+| conditional jam, 31-run interleaved median | `matmul2` | 124,789 us | 114,165 us | 8.51% |
+
+Conditional jam increases the diagnostic whole-process dynamic instruction
+count on `matmul1/2`, but its timer interval improves consistently. It is kept
+under the timer-first policy rather than rejected on instruction count alone.
+
+Validation:
+
+- Eight directed tests pass: four array-pipeline cases and four conditional-jam
+  cases, including dominance, domain, alias/read and side-effect rejection.
+- RISC-V functional is 109/109. Hidden-functional is 39/40; the pre-existing
+  `30_many_dimensions` failure has byte-identical assembly with both G3 passes
+  disabled.
+- All 149 functional/hidden-functional inputs compile, with no matcher hits.
+- The official preliminary performance suite is 60/60 under a three-run timer
+  sweep. Array pipeline matches only `matmul1/2/3`; conditional jam matches only
+  `matmul1/2`.
+
+## 2026-07-29: stencil interior/border versioning
+
+`MLIRStencilInteriorPass` recognizes a square constant odd-kernel reduction
+whose short-circuit guard is proven to be exactly:
+
+```text
+0 <= row + kr - pad < bound &&
+0 <= col + kc - pad < bound
+```
+
+It versions each output point. Border points execute the original reduction;
+interior points execute a cloned reduction with the guard specialized to true,
+which lets the existing full unroller expose branch-free kernel code. The first
+scope accepts kernel sizes 3 through 15, unit-step zero-based loops, one shared
+scalar bound, and a read-only kernel body. Even kernels, additional predicates,
+stores, calls, and non-exact coordinate expressions are rejected. The A/B switch
+is `STENCIL_INTERIOR_OFF=1`.
+
+The primary 21-run interleaved scoring-region timer results are:
+
+| case | disabled | enabled | reduction |
+|---|---:|---:|---:|
+| `conv2d-1` | 33,429 us | 20,425 us | 38.90% |
+| `conv2d-2` | 9,312 us | 6,033 us | 35.21% |
+| `conv2d-3` | 3,471 us | 2,345 us | 32.44% |
+
+The border fallback increases assembly from 792 to 895 lines. This is accepted
+because all three timer medians improve substantially. Diagnostic whole-process
+dynamic instructions fall from 170,167,332/46,402,242/16,279,317 to
+106,883,275/29,412,737/10,456,660.
+
+Three directed cases pass (positive, even-kernel rejection, extra-predicate
+rejection). Only the three official `conv2d` cases match. All 149
+functional/hidden-functional inputs compile with no matches, and the complete
+official timer sweep remains 60/60 correct.
+
+## 2026-07-29: branch-sensitive divisible power-of-two division
+
+`DivisibilitySimplifyPass` consumes a local CFG fact rather than assuming a
+numeric range. If the sole incoming edge proves `x % 2^k == 0`, signed
+`x / 2^k` is exactly arithmetic shift right by `k` for both positive and
+negative i32 values. The first scope accepts equality true edges and inequality
+false edges with identical numerator/divisor values; mismatches retain the
+original division. The A/B switch is `DIVISIBILITY_SIMPLIFY_OFF=1`.
+
+This removes the signed divide-by-two correction from the even Collatz path:
+
+| case | disabled | enabled | timer reduction |
+|---|---:|---:|---:|
+| `h-1-01` | 12,371 us | 10,989 us | 11.17% |
+| `h-1-02` | 1,040 us | 925 us | 11.06% |
+| `h-1-03` | 70,895 us | 62,638 us | 11.65% |
+
+Diagnostic dynamic instructions fall from
+33,484,569/2,827,576/193,334,217 to
+28,457,095/2,421,164/163,971,239. For `h-1-03`, the same-IR Clang `-O2`
+ratio is reduced from about 1.196x to about 1.014x.
+
+Three directed cases pass. The official suite also matches `fft` (nine
+divisions per case) and `h-9` (two per case), with only small timer changes.
+The functional suites match only `85_long_code`; enabled and disabled outputs
+are identical and the enabled dynamic count is slightly lower.
+
+## 2026-07-29: row-update/checksum demand fusion
+
+`MLIRRowChecksumPass` recognizes a zero-based square row reduction, a full-row
+`A[row * N + col] -= row_sum` update, and an immediately following full-array
+checksum. When no later operation can observe the array, i32 modular arithmetic
+allows the two materializing loops to be replaced by:
+
+```text
+checksum = sum_row((1 - N) * row_sum)
+```
+
+The transform is structural rather than name-based. It proves a common pointer
+root, identical affine row/column indices for both the load and store, exact
+subtraction, an `N * N` checksum bound, unused moved-loop results, and no later
+array access or unknown call. A runtime `0 < N <= 46340` guard selects the fast
+path; all other values execute the original loops so overflow in the original
+square bound cannot change behavior. The A/B switch is
+`ROW_CHECKSUM_OFF=1`.
+
+The primary 21-run interleaved scoring-region medians are:
+
+| case | disabled | enabled | reduction |
+|---|---:|---:|---:|
+| `conv2d-1` | 20,655 us | 19,956 us | 3.38% |
+| `conv2d-2` | 5,943 us | 5,773 us | 2.86% |
+| `conv2d-3` | 2,354 us | 2,280 us | 3.14% |
+
+Four directed tests pass on RISC-V and AArch64 at O0/O1: one positive case and
+rejections for the wrong update operator, a later observable array read, and a
+non-square checksum domain. The official 60-case suite has exactly the three
+expected matches. All 100 functional and 40 hidden-functional cases compile
+with no match, and the complete three-run official timer sweep is 60/60.
+
+## 2026-07-29: post-unroll GVN and modular linear cancellation
+
+The remaining `sort` and `crypto` gap was primarily created before target
+instruction selection. Structured partial unrolling and closed-form loop
+rewrites run after the original GVN pass, leaving repeated symbolic division
+guards, dynamic shifts, arithmetic, and addresses for StrengthReduce and the
+backend. `PostDLEGVNPass` refreshes the dependent analyses and reruns GVN
+between DeadLoopElim and StrengthReduce. Integer `shl/lshr/ashr` are now valid
+pure GVN expressions. The A/B switch is `POST_DLE_GVN_OFF=1`.
+
+The 21-run interleaved scoring-region medians are:
+
+| case | disabled | enabled | reduction |
+|---|---:|---:|---:|
+| `03_sort1` | 18,443 us | 14,752 us | 20.01% |
+| `03_sort2` | 18,467 us | 14,861 us | 19.53% |
+| `03_sort3` | 18,390 us | 14,760 us | 19.74% |
+| `crypto-1` | 132,152 us | 91,486 us | 30.77% |
+| `crypto-2` | 92,894 us | 64,485 us | 30.58% |
+| `crypto-3` | 53,316 us | 37,107 us | 30.40% |
+
+`ReassociatePass` also performs bounded linear cancellation over single-use
+integer `add/sub/neg` trees. Coefficients are accumulated modulo 2^32 and the
+tree is rebuilt only if at least two arithmetic instructions disappear. This
+is semantic expression matching, not recognition of source function names.
+With post-DLE GVN enabled, it gives another 6.19%/6.73%/6.44% timer reduction
+on `crypto-1/2/3`; other selected families remain within ±1.4%. Its A/B switch
+is `REASSOCIATE_LINEAR_OFF=1`.
+
+Directed tests cover reuse of two identical repeated-power-of-two division
+closed forms and linear cancellation with negative/wrapping inputs. Both pass
+on RISC-V and AArch64 at O0/O1.
+
+## 2026-07-29: zero-failure correctness closure
+
+`30_many_dimensions` exposed an MLIR inliner type-safety bug. A normal function
+call can pass an array-slice pointer whose caller-side pointee type is less
+precise than the formal parameter type because the ABI passes the same address.
+Inlining cannot directly substitute those values: VarGetPtr/LLVM GEP derives
+its stride from the substituted value's pointee layout. In the failing case an
+expected 8-byte offset became 1 MiB, producing `3583530` instead of `351799` at
+O1 while O0 remained correct.
+
+`MLIRFunctionInlinePass` now requires pointer actual and formal types to be the
+same interned layout before inlining. Calls with an incompatible slice layout
+remain calls; scalar arguments and ordinary same-layout array arguments retain
+the existing behavior. The case now produces `351799` on both RISC-V and
+AArch64 at O0 and O1.
+
+Two directed checks were also aligned with the optimized IR semantics:
+`overwrite_same_slot` now expects no `var.set` after complete forwarding and
+dead-store removal, while `full_unroll_small` checks the absence of loop
+header/body/latch blocks without rejecting a surviving exit-block debug name.
+
+Final regression:
+
+- directed: 96/96 across RISC-V/AArch64 and O0/O1;
+- functional: 109/109 on each target at both O0 and O1;
+- hidden-functional: 40/40 on each target at both O0 and O1;
+- official RISC-V preliminary performance: 60/60 correct and 60/60 timed in a
+  three-run `starttime`--`stoptime` median sweep.

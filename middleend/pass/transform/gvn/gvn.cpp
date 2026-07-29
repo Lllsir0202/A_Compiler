@@ -69,6 +69,13 @@ auto PostRotateGVNPass::Run() -> void {
   GVNPass::Run();
 }
 
+auto PostDLEGVNPass::Run() -> void {
+  if (std::getenv("POST_DLE_GVN_OFF") != nullptr) {
+    return;
+  }
+  GVNPass::Run();
+}
+
 auto GVNPass::RunOnFunction(analysis::MLIRFunctionCFG *function_cfg, analysis::DomTree *dom_tree) -> bool {
   (void)function_cfg;
   changed_ = false;
@@ -255,7 +262,9 @@ auto GVNPass::ComputeKey(mlir::Operation *operation, Expr *key) -> bool {
 auto GVNPass::IsPure(mlir::Operation *operation) -> bool {
   // Integer arithmetic and comparisons.
   if (Is<mlir::base::AddOp>(operation) || Is<mlir::base::SubOp>(operation) || Is<mlir::base::MulOp>(operation) ||
-      Is<mlir::base::DivOp>(operation) || Is<mlir::base::ModOp>(operation) || Is<mlir::base::EqualOp>(operation) ||
+      Is<mlir::base::DivOp>(operation) || Is<mlir::base::ModOp>(operation) || Is<mlir::base::ShlOp>(operation) ||
+      Is<mlir::base::LShrOp>(operation) || Is<mlir::base::AShrOp>(operation) ||
+      Is<mlir::base::EqualOp>(operation) ||
       Is<mlir::base::NotEqualOp>(operation) || Is<mlir::base::LessOp>(operation) ||
       Is<mlir::base::LessEqualOp>(operation) || Is<mlir::base::GreaterOp>(operation) ||
       Is<mlir::base::GreaterEqualOp>(operation)) {
