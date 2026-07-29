@@ -28,6 +28,7 @@ class LoopInfoPass;
 class MLIRFunctionCFG;
 class SCEVPass;
 class SCEV;
+class SCEVAddRecExpr;
 }  // namespace middleend::pass::analysis
 
 namespace middleend::pass::transform {
@@ -92,6 +93,14 @@ class StrengthReducePass : public TransformPass {
   // Replace a loop-variant multiply (whose value is an affine recurrence of the loop) with an
   // additive induction variable, reusing one per step across recurrences that differ by an offset.
   auto ReduceMul(mlir::base::MulOp *mul, analysis::Loop *loop, const LoopFrame &frame) -> bool;
+
+  // The affine recurrence of `value` in `loop`, or nullptr. Normally just its SCEV, but a `continue`
+  // duplicates the increment into both arms, so the merge holds two SSA names for one expression and
+  // SCEV leaves the induction variable opaque. Reconstructing it here -- rather than teaching SCEV to
+  // look through such phis -- keeps the recurrences every other consumer sees unchanged; that
+  // lookthrough was measured to reshape them badly enough to cost far more in ReduceGetPtr's pointer
+  // families than it gained here.
+  auto AffineRecurrence(mlir::Value *value, analysis::Loop *loop) -> const analysis::SCEVAddRecExpr *;
   // Replace a scalar-element `getptr` with exactly one affine varying index by
   // a pointer induction variable, reusing one per (base, invariant indices,
   // dimension, step).

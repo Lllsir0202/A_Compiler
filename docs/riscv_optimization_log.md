@@ -1115,3 +1115,86 @@ was. That change was reverted.
 correction (four instructions where gcc proved the dividend non-negative and used
 one `sraiw`) plus the back-edge jumps, which need a range analysis and a different
 loop shape respectively.
+
+## 21. Recovering an induction variable across a `continue`
+
+### Motivation
+
+`2025-7NA-21` transposes a matrix in place. Its inner loop was 16 instructions
+against `gcc -O2`'s 13, and the difference was one `mulw` recomputing
+`j * colsize` every iteration where gcc kept an additive induction variable:
+
+```c
+while (j < rowsize){
+    if (i < j){ j = j + 1; continue; }
+    ...
+    matrix[j * colsize + i] = matrix[i * rowsize + j];
+    j = j + 1;
+}
+```
+
+`StrengthReducePass` exists for exactly this and its loop-shape checks already
+passed, but it declined because the multiply's SCEV was not a recurrence. The
+`continue` duplicates `j = j + 1` into both arms, so the back edge carries a merge
+of two distinct SSA names -- `%102 = %278 + 1` and `%122 = %278 + 1` -- and
+`CreateAddRecFromPhi`, which expects the back-edge value to be `self + step`
+directly, leaves `j` opaque.
+
+### Why this is fixed in the pass and not in SCEV
+
+The obvious fix is to let SCEV look through a phi whose incomings have *equal*
+SCEVs (nodes are structurally uniqued, so equal means pointer-identical). That was
+implemented and measured first. It works -- this multiply reduces and `2025-7NA-21`
+drops to 129.9M -- but it is a large net loss: seeing through those phis reshapes
+recurrences into forms `ReduceGetPtr`'s pointer families no longer match, and
+getptr address reductions on `2025-DA5-52` collapse from **81 to 17**.
+
+| case | committed | with SCEV lookthrough |
+|---|---:|---:|
+| `2025-DA5-52` | 220,888,577 | 333,715,157 (+51%) |
+| `2025-FH0-62` | 200,924,338 | 294,389,676 (+46%) |
+| `2025-05H-55` | 363,030,474 | 505,571,884 (+39%) |
+
+That version was reverted. Reconstructing the recurrence inside
+`StrengthReducePass` instead leaves the SCEVs every other consumer sees untouched,
+so the pointer families are unaffected: `2025-DA5-52` keeps all 81 getptr
+reductions and its instruction count is byte-identical.
+
+### Implementation
+
+`AffineRecurrence` returns the affine recurrence of a value in a loop. Normally
+that is just its SCEV; when the value is a header phi whose back-edge operand is
+itself a merge, it requires every incoming of that merge to be the *same* SCEV --
+then the value is that expression regardless of which edge ran -- and accepts it
+when the expression is `phi + step` for a loop-invariant step. `ReduceMul` uses it
+for the `iv * invariant` case, scaling start and step by the invariant factor,
+which is exact under 32-bit modular arithmetic just as the direct case is.
+
+Arms that advance differently, or an arm that does not advance the variable at
+all, fail the equality and are left alone.
+
+### Validation
+
+- Four hand-written loops checked against native references at `-O0`, `-O1` and
+  `-O2`: equal-arm `continue` (fires), unequal-arm `continue` (must not fire),
+  a nested loop with a *negative* step through the new scaling path, and a
+  `continue` whose arm advances a different variable entirely. All match.
+- `SR_STATS` confirms the intent directly: `2025-7NA-21` goes from 1 reduced
+  multiply to 2 while keeping its 19 getptr reductions, and `2025-DA5-52` stays at
+  81 getptr reductions with 0 multiplies.
+- RV64 compile plus GNU assemble at `-O0` and `-O1`: functional 112/112,
+  hidden-functional 40/40, performance 57/57, final-performance 60/60. The only
+  executed-and-diffed failure is the pre-existing `30_many_dimensions`.
+- Final-performance cases executed under Spike with real inputs: all correct, and
+  every case other than `2025-7NA-21` is byte-identical to the parent commit.
+- Compiling the same input three times produced byte-identical assembly.
+
+### Result
+
+| Scope | Baseline | Optimized | Reduction |
+|---|---:|---:|---:|
+| `2025-7NA-21`, Spike dynamic instructions | 133,416,353 | 129,583,093 | 2.87% |
+| Same, ratio against `gcc -O2` | 1.15x | 1.12x | -- |
+
+A small win, and deliberately so: the measured alternative was 3.8M cheaper here
+and 250M more expensive elsewhere.
