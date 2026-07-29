@@ -215,18 +215,121 @@ auto StrengthReducePass::RunOnLoop(analysis::MLIRFunctionCFG *function_cfg, anal
   return changed;
 }
 
+auto StrengthReducePass::AffineRecurrence(mlir::Value *value,
+                                          analysis::Loop *loop) -> const analysis::SCEVAddRecExpr * {
+  auto affine_of = [&](const analysis::SCEV *scev) -> const analysis::SCEVAddRecExpr * {
+    if (scev == nullptr || scev->GetKind() != analysis::SCEVKind::AddRec) {
+      return nullptr;
+    }
+    const auto *add_rec = static_cast<const analysis::SCEVAddRecExpr *>(scev);
+    // A higher-order chain has no single additive stride to reduce to.
+    return (add_rec->GetLoop() == loop && add_rec->IsAffine()) ? add_rec : nullptr;
+  };
+  if (const auto *direct = affine_of(scev_->GetSCEV(value))) {
+    return direct;
+  }
+
+  // Rebuild the recurrence of a header phi that SCEV left opaque only because its back-edge value
+  // arrives through a merge. Require every in-loop incoming of that merge to be the *same* SCEV: then
+  // the value is that expression no matter which edge ran, and if it is `phi + step` for a
+  // loop-invariant step the phi is {entry, +, step}. Anything else is left alone.
+  auto *phi = mlir::DynamicOrNull<mlir::base::PhiOp>(value->op_ == nullptr ? nullptr : value->op_);
+  if (phi == nullptr || value != phi->GetRes()) {
+    return nullptr;
+  }
+  auto block_iter = op_to_block_.find(phi);
+  if (block_iter == op_to_block_.end() || block_iter->second != loop->GetHeader()) {
+    return nullptr;
+  }
+  mlir::Value *entry = nullptr;
+  mlir::Value *back = nullptr;
+  const auto &incoming_values = phi->GetIncomingValue();
+  const auto &incoming_blocks = phi->GetIncomingBlock();
+  for (size_t index = 0; index < incoming_values.size(); ++index) {
+    mlir::Value *&slot = loop->Contains(incoming_blocks[index]) ? back : entry;
+    if (slot != nullptr && slot != incoming_values[index]) {
+      return nullptr;
+    }
+    slot = incoming_values[index];
+  }
+  if (entry == nullptr || back == nullptr || back->op_ == nullptr) {
+    return nullptr;
+  }
+  // Collapse the merge the `continue` created: all of its in-loop incomings must agree as expressions.
+  auto *merge = mlir::DynamicOrNull<mlir::base::PhiOp>(back->op_);
+  if (merge == nullptr) {
+    return nullptr;
+  }
+  const analysis::SCEV *advanced = nullptr;
+  for (auto *candidate : merge->GetIncomingValue()) {
+    const analysis::SCEV *candidate_scev = scev_->GetSCEV(candidate);
+    if (advanced != nullptr && advanced != candidate_scev) {
+      return nullptr;  // the arms advance differently; not a single recurrence
+    }
+    advanced = candidate_scev;
+  }
+  if (advanced == nullptr || advanced->GetKind() != analysis::SCEVKind::Add) {
+    return nullptr;
+  }
+  // The merged expression must be exactly (phi + invariant step).
+  const analysis::SCEV *self = scev_->GetSCEV(value);
+  const auto &terms = static_cast<const analysis::SCEVAddExpr *>(advanced)->GetOperands();
+  std::vector<const analysis::SCEV *> step_terms;
+  int self_count = 0;
+  for (const auto *term : terms) {
+    if (term == self) {
+      ++self_count;
+    } else {
+      step_terms.emplace_back(term);
+    }
+  }
+  if (self_count != 1 || step_terms.empty()) {
+    return nullptr;
+  }
+  const analysis::SCEV *step = scev_->GetAddExpr(step_terms);
+  if (!scev_->IsLoopInvariant(step, loop)) {
+    return nullptr;
+  }
+  return affine_of(scev_->GetAddRecExpr(scev_->GetSCEV(entry), step, loop));
+}
+
 auto StrengthReducePass::ReduceMul(mlir::base::MulOp *mul, analysis::Loop *loop, const LoopFrame &frame) -> bool {
   auto *result = mul->GetRes();
   if (result->GetType() == nullptr || result->GetType()->GetKind() != type::TypeKind::INT) {
     return false;
   }
   const analysis::SCEV *scev = scev_->GetSCEV(result);
-  if (scev->GetKind() != analysis::SCEVKind::AddRec) {
-    return false;
-  }
-  const auto *add_rec = static_cast<const analysis::SCEVAddRecExpr *>(scev);
-  if (add_rec->GetLoop() != loop || !add_rec->IsAffine()) {
-    return false;  // a higher-order chain has no single additive stride to reduce to
+  const auto *add_rec = static_cast<const analysis::SCEVAddRecExpr *>(nullptr);
+  if (scev->GetKind() == analysis::SCEVKind::AddRec) {
+    add_rec = static_cast<const analysis::SCEVAddRecExpr *>(scev);
+    if (add_rec->GetLoop() != loop || !add_rec->IsAffine()) {
+      return false;  // a higher-order chain has no single additive stride to reduce to
+    }
+  } else {
+    // `iv * invariant` where the induction variable is only recoverable through a `continue` merge.
+    // Multiplying an affine recurrence by a loop-invariant factor scales both start and step, which is
+    // exact under 32-bit modular arithmetic just as the direct case is.
+    const analysis::SCEV *factor = nullptr;
+    const analysis::SCEVAddRecExpr *base = nullptr;
+    for (size_t index = 0; index < 2 && base == nullptr; ++index) {
+      if (const auto *candidate = AffineRecurrence(mul->operands_[index], loop)) {
+        const analysis::SCEV *other = scev_->GetSCEV(mul->operands_[1 - index]);
+        if (scev_->IsLoopInvariant(other, loop)) {
+          base = candidate;
+          factor = other;
+        }
+      }
+    }
+    if (base == nullptr) {
+      return false;
+    }
+    const analysis::SCEV *scaled_start = scev_->GetMulExpr({base->GetStart(), factor});
+    const analysis::SCEV *scaled_step = scev_->GetMulExpr({base->GetStep(), factor});
+    scev = scev_->GetAddRecExpr(scaled_start, scaled_step, loop);
+    if (scev->GetKind() != analysis::SCEVKind::AddRec) {
+      return false;
+    }
+    add_rec = static_cast<const analysis::SCEVAddRecExpr *>(scev);
   }
   const analysis::SCEV *start = add_rec->GetStart();
   const analysis::SCEV *step = add_rec->GetStep();

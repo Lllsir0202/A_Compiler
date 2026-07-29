@@ -7,6 +7,7 @@
 #include "middleend/mlir/dialect/func/funccall.h"
 #include "middleend/mlir/dialect/func/funcdef.h"
 #include "middleend/mlir/dialect/func/return.h"
+#include "middleend/mlir/dialect/scf/break.h"
 #include "middleend/mlir/dialect/scf/condition.h"
 #include "middleend/mlir/dialect/scf/if.h"
 #include "middleend/mlir/dialect/scf/while.h"
@@ -57,9 +58,17 @@ auto MLIRTailRecursionEliminatePass::RunOnFunction(mlir::func::FuncDefOp *func_o
   return RewriteMultiExitTailRecursion(func_op);
 }
 
+auto MLIRTailRecursionEliminatePass::IsFallThroughRegion(mlir::Region *region) -> bool {
+  if (region == nullptr || region->blocks_.size() != 1 || region->blocks_[0]->operations_.size() != 1) {
+    return false;
+  }
+  auto *yield_op = mlir::DynamicOrNull<mlir::scf::YieldOp>(region->blocks_[0]->operations_[0]);
+  return yield_op != nullptr && yield_op->GetOperands().empty();
+}
+
 auto MLIRTailRecursionEliminatePass::IsTerminalTailBlock(mlir::Block *block, mlir::func::FuncDefOp *func_op,
-                                                         bool *saw_tail) -> bool {
-  for (size_t index = 0; index < block->operations_.size(); ++index) {
+                                                         bool *saw_tail, size_t start) -> bool {
+  for (size_t index = start; index < block->operations_.size(); ++index) {
     auto *operation = block->operations_[index];
     if (auto *call = mlir::DynamicOrNull<mlir::func::FuncCallOp>(operation)) {
       if (call->GetName() != func_op->GetName() || index + 1 >= block->operations_.size()) {
@@ -98,6 +107,21 @@ auto MLIRTailRecursionEliminatePass::IsTerminalTailBlock(mlir::Block *block, mli
           return false;
         }
       }
+      // An `if` with no `else` does not end control flow: whichever branch is empty continues with
+      // the operations that follow this `if`, so scan those as that branch's continuation.
+      bool then_falls = IsFallThroughRegion(if_op->GetThenRegion());
+      bool else_falls = IsFallThroughRegion(if_op->GetElseRegion());
+      if (then_falls && else_falls) {
+        continue;  // an empty `if` decides nothing; keep scanning this block
+      }
+      if (then_falls || else_falls) {
+        if (if_op->results_.size() != 0) {
+          return false;  // a value-producing if cannot fall through
+        }
+        auto *terminal = then_falls ? if_op->GetElseRegion() : if_op->GetThenRegion();
+        return IsTerminalTailBlock(terminal->blocks_[0], func_op, saw_tail) &&
+               IsTerminalTailBlock(block, func_op, saw_tail, index + 1);
+      }
       return IsTerminalTailBlock(if_op->GetThenRegion()->blocks_[0], func_op, saw_tail) &&
              IsTerminalTailBlock(if_op->GetElseRegion()->blocks_[0], func_op, saw_tail);
     }
@@ -114,15 +138,29 @@ auto MLIRTailRecursionEliminatePass::IsTerminalTailBlock(mlir::Block *block, mli
 auto MLIRTailRecursionEliminatePass::BuildTailState(mlir::Block *source, mlir::Block *destination,
                                                     mlir::func::FuncDefOp *func_op,
                                                     const std::vector<mlir::Value *> &current_args,
-                                                    mlir::Value *current_result) -> std::vector<mlir::Value *> {
-  auto make_state = [&](const std::vector<mlir::Value *> &args, mlir::Value *active, mlir::Value *result) {
+                                                    mlir::Value *current_result,
+                                                    size_t start) -> std::vector<mlir::Value *> {
+  auto make_state = [&](const std::vector<mlir::Value *> &args, mlir::Value *result) {
     std::vector<mlir::Value *> state = args;
-    state.emplace_back(active);
     state.emplace_back(result);
     return state;
   };
+  // A branch that returns leaves the loop outright. Emitting `scf.break` here rather than clearing an
+  // `active` flag that the condition later tests keeps the flag -- and the phi for it at every
+  // enclosing merge -- out of the loop entirely; the exit value still reaches the exit block, because
+  // LowerBreakOp adds the break's state as an incoming to the exit phis.
+  auto emit_break = [&](mlir::Value *result) {
+    auto *break_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::BreakOp>(GET_MLIR_CONTEXT());
+    std::vector<mlir::Value *> state = make_state(current_args, result);
+    for (size_t slot = 0; slot < state.size(); ++slot) {
+      break_op->operands_.emplace_back(state[slot]);
+      state[slot]->AddUse(break_op, slot);
+    }
+    destination->AddOperation(break_op);
+    return state;
+  };
 
-  for (size_t index = 0; index < source->operations_.size(); ++index) {
+  for (size_t index = start; index < source->operations_.size(); ++index) {
     auto *operation = source->operations_[index];
     if (auto *call = mlir::DynamicOrNull<mlir::func::FuncCallOp>(operation)) {
       std::vector<mlir::Value *> next_args;
@@ -130,29 +168,40 @@ auto MLIRTailRecursionEliminatePass::BuildTailState(mlir::Block *source, mlir::B
       for (auto *operand : call->GetOperands()) {
         next_args.emplace_back(RemapValue(operand));
       }
-      return make_state(next_args, tail_continue_, current_result);
+      return make_state(next_args, current_result);
     }
     if (auto *return_op = mlir::DynamicOrNull<mlir::func::ReturnOp>(operation)) {
-      return make_state(current_args, tail_stop_, RemapValue(return_op->GetReturnValue()));
+      return emit_break(RemapValue(return_op->GetReturnValue()));
     }
     if (auto *yield_op = mlir::DynamicOrNull<mlir::scf::YieldOp>(operation)) {
-      return make_state(current_args, tail_stop_, RemapValue(yield_op->GetOperands()[0]));
+      return emit_break(RemapValue(yield_op->GetOperands()[0]));
     }
     if (auto *if_op = mlir::DynamicOrNull<mlir::scf::IfOp>(operation)) {
+      bool then_falls = IsFallThroughRegion(if_op->GetThenRegion());
+      bool else_falls = IsFallThroughRegion(if_op->GetElseRegion());
+      if (then_falls && else_falls) {
+        continue;
+      }
       auto outer_map = value_map_;
       auto *then_region = new mlir::Region();
       auto *then_block = new mlir::Block();
       then_region->blocks_.emplace_back(then_block);
-      auto then_state =
-          BuildTailState(if_op->GetThenRegion()->blocks_[0], then_block, func_op, current_args, current_result);
+      // A fall-through branch continues with the operations after this `if`, so its state is built
+      // from the rest of the enclosing block rather than from the (empty) region.
+      auto then_state = then_falls
+                            ? BuildTailState(source, then_block, func_op, current_args, current_result, index + 1)
+                            : BuildTailState(if_op->GetThenRegion()->blocks_[0], then_block, func_op, current_args,
+                                             current_result);
       then_block->AddOperation(GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::YieldOp>(GET_MLIR_CONTEXT(), then_state));
 
       value_map_ = outer_map;
       auto *else_region = new mlir::Region();
       auto *else_block = new mlir::Block();
       else_region->blocks_.emplace_back(else_block);
-      auto else_state =
-          BuildTailState(if_op->GetElseRegion()->blocks_[0], else_block, func_op, current_args, current_result);
+      auto else_state = else_falls
+                            ? BuildTailState(source, else_block, func_op, current_args, current_result, index + 1)
+                            : BuildTailState(if_op->GetElseRegion()->blocks_[0], else_block, func_op, current_args,
+                                             current_result);
       else_block->AddOperation(GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::YieldOp>(GET_MLIR_CONTEXT(), else_state));
       value_map_ = outer_map;
 
@@ -184,16 +233,15 @@ auto MLIRTailRecursionEliminatePass::RewriteMultiExitTailRecursion(mlir::func::F
   }
 
   auto arguments = func_op->GetArguments();
+  // Every way out of the recursion is now an `scf.break`, so the loop itself is unconditional. The
+  // carried state is just (args..., result): no `active` flag, which also removes the phi that flag
+  // needed at every enclosing scf.if merge.
   auto *one = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), 1);
   one->GetRes()->SetType(GET_TYPE_CONTEXT()->GetIntegerType());
-  auto *active = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(
+  auto *always = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(
       GET_MLIR_CONTEXT(), one->GetRes(), GET_TYPE_CONTEXT()->GetIntegerType(), GET_TYPE_CONTEXT()->GetBooleanType());
   auto *zero = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), 0);
   zero->GetRes()->SetType(GET_TYPE_CONTEXT()->GetIntegerType());
-  auto *stopped = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(
-      GET_MLIR_CONTEXT(), zero->GetRes(), GET_TYPE_CONTEXT()->GetIntegerType(), GET_TYPE_CONTEXT()->GetBooleanType());
-  tail_continue_ = active->GetRes();
-  tail_stop_ = stopped->GetRes();
 
   auto *cond_region = new mlir::Region();
   auto *cond_block = new mlir::Block();
@@ -204,7 +252,6 @@ auto MLIRTailRecursionEliminatePass::RewriteMultiExitTailRecursion(mlir::func::F
 
   std::vector<mlir::Value *> loop_args;
   std::vector<mlir::Value *> initial_values = arguments;
-  initial_values.emplace_back(tail_continue_);
   initial_values.emplace_back(zero->GetRes());
   loop_args.reserve(initial_values.size());
   for (auto *initial : initial_values) {
@@ -214,7 +261,7 @@ auto MLIRTailRecursionEliminatePass::RewriteMultiExitTailRecursion(mlir::func::F
     loop_args.emplace_back(loop_arg);
   }
   auto *condition = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::ConditionOp>(
-      GET_MLIR_CONTEXT(), loop_args[arguments.size()], std::unordered_map<symboltable::VarEntry *, mlir::Value *>{});
+      GET_MLIR_CONTEXT(), always->GetRes(), std::unordered_map<symboltable::VarEntry *, mlir::Value *>{});
   condition->SetLoopCarriedValues(loop_args, initial_values);
   cond_block->AddOperation(condition);
 
@@ -234,7 +281,7 @@ auto MLIRTailRecursionEliminatePass::RewriteMultiExitTailRecursion(mlir::func::F
   }
   auto *return_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::func::ReturnOp>(
       GET_MLIR_CONTEXT(), func_op->GetReturnType(), while_op->GetResultByIndex(initial_values.size() - 1));
-  func_op->GetEntryBlock()->operations_ = {one, active, zero, stopped, while_op, return_op};
+  func_op->GetEntryBlock()->operations_ = {one, always, zero, while_op, return_op};
   return true;
 }
 

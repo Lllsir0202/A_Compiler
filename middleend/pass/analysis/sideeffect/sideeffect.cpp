@@ -80,6 +80,23 @@ bool IsCallOp(mlir::Operation *op) {
          mlir::DynamicOrNull<mlir::func::FuncCallOp>(op) != nullptr;
 }
 
+auto MergeEffect(SideEffectSummary::ArgEffect current, SideEffectSummary::ArgEffect added)
+    -> SideEffectSummary::ArgEffect {
+  using ArgEffect = SideEffectSummary::ArgEffect;
+  if (current == added) return current;
+  if (current == ArgEffect::kNone) return added;
+  if (added == ArgEffect::kNone) return current;
+  return ArgEffect::kReadWrite;
+}
+
+bool EffectReads(SideEffectSummary::ArgEffect effect) {
+  return effect == SideEffectSummary::ArgEffect::kRead || effect == SideEffectSummary::ArgEffect::kReadWrite;
+}
+
+bool EffectWrites(SideEffectSummary::ArgEffect effect) {
+  return effect == SideEffectSummary::ArgEffect::kWrite || effect == SideEffectSummary::ArgEffect::kReadWrite;
+}
+
 // Walk the getptr chain to the root pointer.
 auto RootPointer(mlir::Value *ptr) -> mlir::Value * {
   while (ptr != nullptr && ptr->op_ != nullptr) {
@@ -240,8 +257,9 @@ void FunctionSideEffectPass::ComputeLibrary(const std::string &name) {
     s.arg_effects[0] = SideEffectSummary::ArgEffect::kWrite;
   }
   if (IsLibArrayOutput(name)) {
-    s.arg_effects.resize(1);
-    s.arg_effects[0] = SideEffectSummary::ArgEffect::kRead;
+    // putarray/putfarray take (int n, T a[]): the array is operand 1, not 0.
+    s.arg_effects.resize(2, SideEffectSummary::ArgEffect::kNone);
+    s.arg_effects[1] = SideEffectSummary::ArgEffect::kRead;
   }
   s.saves_pointer = false;
   summaries_[name] = s;
@@ -259,10 +277,34 @@ void FunctionSideEffectPass::ComputeOne(MLIRFunctionCFG *mlir_cfg) {
 
   SideEffectSummary s;
   std::unordered_set<mlir::Value *> pointer_params;
-  for (auto *param : fop->operands_) {
-    if (param->GetType() != nullptr && param->GetType()->GetKind() == type::TypeKind::PTR)
+  // Formal-parameter position of each pointer parameter, so an access rooted at
+  // one can be recorded as a per-argument effect instead of "all globals".
+  std::unordered_map<mlir::Value *, size_t> param_index;
+  for (size_t i = 0; i < fop->operands_.size(); ++i) {
+    auto *param = fop->operands_[i];
+    if (param != nullptr && param->GetType() != nullptr && param->GetType()->GetKind() == type::TypeKind::PTR) {
       pointer_params.insert(param);
+      param_index.emplace(param, i);
+    }
   }
+  s.arg_effects.assign(fop->operands_.size(), SideEffectSummary::ArgEffect::kNone);
+
+  // Record an access through `root`. A root that is one of our own pointer
+  // parameters becomes a per-argument effect; anything else unrooted stays the
+  // conservative all-globals answer.
+  auto record_unrooted = [&](mlir::Value *root, bool writes) {
+    auto it = param_index.find(root);
+    if (it != param_index.end()) {
+      auto effect = writes ? SideEffectSummary::ArgEffect::kWrite : SideEffectSummary::ArgEffect::kRead;
+      s.arg_effects[it->second] = MergeEffect(s.arg_effects[it->second], effect);
+      return;
+    }
+    if (writes) {
+      s.writes_all_globals = true;
+    } else {
+      s.reads_all_globals = true;
+    }
+  };
 
   bool has_unresolved_callee = false;
 
@@ -277,9 +319,10 @@ void FunctionSideEffectPass::ComputeOne(MLIRFunctionCFG *mlir_cfg) {
             mlir::DynamicOrNull<mlir::var::GlobalVarDefOp>(root->op_) != nullptr)
           s.written_globals.insert(root);
         // A store whose base is not rooted in any IR operation (var.def /
-        // var.globaldef) targets memory the caller owns — typically a
-        // pointer parameter. Mark conservatively.
-        if (root != nullptr && root->op_ == nullptr) s.writes_all_globals = true;
+        // var.globaldef) targets memory the caller owns. When it is one of our
+        // own pointer parameters, record it against that argument; otherwise
+        // fall back to the conservative all-globals answer.
+        if (root != nullptr && root->op_ == nullptr) record_unrooted(root, true);
         if (pointer_params.count(store->GetNewValue()) > 0) s.saves_pointer = true;
         continue;
       }
@@ -295,8 +338,8 @@ void FunctionSideEffectPass::ComputeOne(MLIRFunctionCFG *mlir_cfg) {
             mlir::DynamicOrNull<mlir::var::GlobalVarDefOp>(root->op_) != nullptr)
           s.read_globals.insert(root);
         // Not rooted in this function's IR: memory the caller owns (a pointer
-        // parameter). Mark conservatively, as the store path does.
-        if (root != nullptr && root->op_ == nullptr) s.reads_all_globals = true;
+        // parameter). Record per-argument when we can, as the store path does.
+        if (root != nullptr && root->op_ == nullptr) record_unrooted(root, false);
         continue;
       }
 
@@ -305,11 +348,46 @@ void FunctionSideEffectPass::ComputeOne(MLIRFunctionCFG *mlir_cfg) {
       std::string callee = GetCallName(op);
       if (callee.empty()) continue;
 
+      // Translate the callee's per-argument effects onto the memory *we* can
+      // name. Without this a callee that writes only through a pointer argument
+      // (getarray being the common case) leaves no trace in our summary, and
+      // callers then treat this function as write-none and forward stale values
+      // across the call.
+      auto apply_arg_effects = [&](const SideEffectSummary &callee_summary) {
+        const auto &effects = callee_summary.arg_effects;
+        for (size_t i = 0; i < effects.size() && i < op->operands_.size(); ++i) {
+          if (effects[i] == SideEffectSummary::ArgEffect::kNone) continue;
+          auto *arg_root = RootPointer(op->operands_[i]);
+          if (arg_root == nullptr) {
+            if (EffectReads(effects[i])) s.reads_all_globals = true;
+            if (EffectWrites(effects[i])) s.writes_all_globals = true;
+            continue;
+          }
+          if (arg_root->op_ != nullptr && mlir::DynamicOrNull<mlir::var::GlobalVarDefOp>(arg_root->op_) != nullptr) {
+            if (EffectReads(effects[i])) s.read_globals.insert(arg_root);
+            if (EffectWrites(effects[i])) s.written_globals.insert(arg_root);
+            continue;
+          }
+          if (arg_root->op_ == nullptr) {
+            // Caller-owned memory: our own parameter, or something we cannot name.
+            if (EffectReads(effects[i])) record_unrooted(arg_root, false);
+            if (EffectWrites(effects[i])) record_unrooted(arg_root, true);
+            continue;
+          }
+          // Rooted in a local var.def: the callee touches this frame's memory.
+          // Locals are not part of the global summary, but a write through the
+          // pointer must not be lost, so stay conservative.
+          if (EffectReads(effects[i])) s.reads_all_globals = true;
+          if (EffectWrites(effects[i])) s.writes_all_globals = true;
+        }
+      };
+
       if (IsLibrary(callee)) {
         const auto &ls = GetSummary(callee);
         if (ls.reads_io) s.reads_io = true;
         if (ls.writes_io) s.writes_io = true;
         if (ls.saves_pointer) s.saves_pointer = true;
+        apply_arg_effects(ls);
         continue;
       }
 
@@ -323,6 +401,7 @@ void FunctionSideEffectPass::ComputeOne(MLIRFunctionCFG *mlir_cfg) {
         if (ss.reads_io) s.reads_io = true;
         if (ss.writes_io) s.writes_io = true;
         if (ss.saves_pointer) s.saves_pointer = true;
+        apply_arg_effects(ss);
       } else {
         has_unresolved_callee = true;
       }

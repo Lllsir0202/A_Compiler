@@ -51,3 +51,4 @@ valgrind_output.*
 
 CLAUDE.md
 frontend/FlexLexer.h
+.claude/

@@ -5,6 +5,7 @@
 #include "backend/targets/utils/context/targetcontext.h"
 #include "backend/targets/utils/operand/targetliteral.h"
 #include "backend/targets/utils/operand/targetreg.h"
+#include "backend/targets/utils/operand/targetsymbol.h"
 #include "backend/targets/utils/struct/targetblock.h"
 #include "backend/targets/utils/struct/targetfunction.h"
 
@@ -56,6 +57,107 @@ auto RISCVPeephole::BuildFacts(TargetFunction *func) -> void {
           li_value_[res] = static_cast<TargetIntLiteral *>(ops[0])->GetValue();
         }
       }
+    }
+  }
+}
+
+auto RISCVPeephole::MarkShortCircuitCandidates(TargetFunction *func) -> void {
+  std::unordered_map<std::string, TargetBlock *> by_label;
+  for (auto *block : func->GetBlocks()) {
+    by_label[block->GetLabel()] = block;
+  }
+
+  auto is_zero = [](TargetOperand *operand) {
+    if (operand == nullptr || !operand->IsPhysicalReg()) {
+      return false;
+    }
+    auto *reg = static_cast<TargetPhysicalReg *>(operand);
+    return reg->GetRegClass() == TargetRegClass::General && reg->GetID() == 0;
+  };
+  auto target_block = [&](TargetOperand *operand) -> TargetBlock * {
+    if (operand == nullptr || operand->GetOpType() != TargetOperandType::Label) {
+      return nullptr;
+    }
+    auto found = by_label.find(static_cast<TargetLabel *>(operand)->GetName());
+    return found == by_label.end() ? nullptr : found->second;
+  };
+
+  for (auto *block : func->GetBlocks()) {
+    const auto &insts = block->GetInsts();
+    if (insts.size() < 3) {
+      continue;
+    }
+    auto *materialize = static_cast<RISCVInst *>(insts[insts.size() - 3]);
+    auto *branch = static_cast<RISCVInst *>(insts[insts.size() - 2]);
+    auto *jump = static_cast<RISCVInst *>(insts.back());
+    auto materialize_opcode = materialize->GetOpcode();
+    auto branch_opcode = branch->GetOpcode();
+    const auto &materialize_ops = materialize->GetOperands();
+    const auto &branch_ops = branch->GetOperands();
+    const auto &jump_ops = jump->GetOperands();
+    auto *boolean = materialize->GetResult();
+    if ((materialize_opcode != RVOpcode::SEQZ && materialize_opcode != RVOpcode::SNEZ) ||
+        (branch_opcode != RVOpcode::BEQ && branch_opcode != RVOpcode::BNE) || jump->GetOpcode() != RVOpcode::J ||
+        boolean == nullptr || !boolean->IsVirtualReg() || materialize_ops.size() != 1 || branch_ops.size() != 3 ||
+        jump_ops.size() != 1) {
+      continue;
+    }
+    bool branch_uses_boolean =
+        (branch_ops[0] == boolean && is_zero(branch_ops[1])) || (branch_ops[1] == boolean && is_zero(branch_ops[0]));
+    auto *branch_target = target_block(branch_ops[2]);
+    auto *jump_target = target_block(jump_ops[0]);
+    if (!branch_uses_boolean || branch_target == nullptr || jump_target == nullptr) {
+      continue;
+    }
+
+    // At this point the boolean still has its pre-phi-destruction identity.
+    // Prove that every use except the adjacent condition is an edge copy in
+    // one of the two successor blocks.  This semantic proof remains valid even
+    // though physical registers are later reused for unrelated values.
+    bool safe = true;
+    int edge_copy_count = 0;
+    TargetOperand *merged_boolean = nullptr;
+    for (auto *use_block : func->GetBlocks()) {
+      for (auto *use : use_block->GetInsts()) {
+        for (auto *operand : use->GetOperands()) {
+          if (operand != boolean || use == branch) {
+            continue;
+          }
+          auto *copy_result = use->GetResult();
+          bool is_edge_copy = static_cast<RISCVInst *>(use)->GetOpcode() == RVOpcode::MV && copy_result != nullptr &&
+                              copy_result->IsVirtualReg() && (use_block == branch_target || use_block == jump_target);
+          if (!is_edge_copy) {
+            safe = false;
+          } else {
+            ++edge_copy_count;
+            merged_boolean = copy_result;
+          }
+        }
+      }
+    }
+    if (!safe || edge_copy_count != 1 || use_count_[boolean] != 2 || merged_boolean == nullptr ||
+        use_count_[merged_boolean] != 1) {
+      continue;
+    }
+
+    // The copy destination must itself be consumed only by an equality branch
+    // against zero.  This distinguishes phi-edge copies from ordinary moves
+    // that happen to sit in a successor block.
+    bool has_merge_branch = false;
+    for (auto *use_block : func->GetBlocks()) {
+      for (auto *use : use_block->GetInsts()) {
+        const auto &use_ops = use->GetOperands();
+        if (use_ops.size() != 3 || (use_ops[0] != merged_boolean && use_ops[1] != merged_boolean)) {
+          continue;
+        }
+        auto use_opcode = static_cast<RISCVInst *>(use)->GetOpcode();
+        bool compares_zero = (use_ops[0] == merged_boolean && is_zero(use_ops[1])) ||
+                             (use_ops[1] == merged_boolean && is_zero(use_ops[0]));
+        has_merge_branch = compares_zero && (use_opcode == RVOpcode::BEQ || use_opcode == RVOpcode::BNE);
+      }
+    }
+    if (has_merge_branch) {
+      materialize->MarkShortCircuitMaterialization();
     }
   }
 }
@@ -621,6 +723,7 @@ auto RISCVPeephole::TransformInst(TargetInst *inst) -> bool {
 
 auto RISCVPeephole::RunOnFunction(TargetFunction *func) -> bool {
   BuildFacts(func);
+  MarkShortCircuitCandidates(func);
   bool changed = false;
   for (auto *block : func->GetBlocks()) {
     for (auto *inst : block->GetInsts()) {

@@ -38,6 +38,8 @@ auto CallMayWriteMemory(mlir::Operation *operation, AliasAnalysisPass *aa) -> bo
   if (!se->HasSummary(callee)) return true;
   const auto &s = se->GetSummary(callee);
   if (s.writes_all_globals || !s.written_globals.empty()) return true;
+  // IsMemoryWriteNone also accounts for writes through a pointer argument
+  // (getarray(a) being the common case), which name no global at all.
   return !s.IsMemoryWriteNone();
 }
 

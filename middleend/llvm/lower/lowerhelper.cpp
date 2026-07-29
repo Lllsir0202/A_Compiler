@@ -923,24 +923,14 @@ auto LowerHelper::LowerVarDefOp(mlir::var::VarDefOp *var_def) -> void {
 auto LowerHelper::LowerVarGetPtrOp(mlir::var::VarGetPtrOp *get_ptr_op) -> void {
   auto result = get_ptr_op->GetRes();
 
-  // Flatten a chain of getptr-of-getptr into a single access rooted at the
-  // underlying alloca / global / parameter. Such chains only arise when inlining
-  // a callee that indexes an array parameter: the parameter is substituted by the
-  // decayed array argument, which is itself a getptr. Re-expressing the access
-  // directly from the root reproduces exactly the getptr a direct (un-inlined)
-  // access would emit, so the base type and leading-zero handling below stay
-  // correct regardless of how many decay levels the argument went through.
+  // Preserve getptr-of-getptr boundaries. A nested getptr may be indexing a
+  // pointer value rather than descending another aggregate dimension. In
+  // particular, strength reduction deliberately represents a related address as
+  // `getptr(element_pointer, element_offset)`. Concatenating that offset onto the
+  // root array's indices produces invalid LLVM IR once the root GEP has already
+  // reached the scalar element type.
   auto ptr = get_ptr_op->GetPtr();
-  std::vector<mlir::Value *> collected_indices = get_ptr_op->GetIndices();
-  while (ptr != nullptr) {
-    auto *base_get_ptr = mlir::DynamicOrNull<mlir::var::VarGetPtrOp>(ptr->op_);
-    if (base_get_ptr == nullptr) {
-      break;
-    }
-    auto base_indices = base_get_ptr->GetIndices();
-    collected_indices.insert(collected_indices.begin(), base_indices.begin(), base_indices.end());
-    ptr = base_get_ptr->GetPtr();
-  }
+  auto logical_indices = get_ptr_op->GetIndices();
 
   auto llvm_ptr = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(ptr);
 
@@ -963,17 +953,18 @@ auto LowerHelper::LowerVarGetPtrOp(mlir::var::VarGetPtrOp *get_ptr_op) -> void {
     // It must be an array
     // Add a zero index to get the pointer to the first element
     // if it is an array
-    // If it is from parameter, which means it is just a pointer,
-    // we should not add a zero index,
-    // since the pointer already points to the first element.
-    // After the flattening above the root is always an alloca, a global or a
-    // parameter (never another getptr), so a defining instruction reliably marks
-    // a pointer to a whole array object.
-    if (allocated_type->GetKind() == type::TypeKind::ARRAY && llvm_ptr->GetInstruction() != nullptr) {
+    // Only an alloca/global denotes a whole array object and needs LLVM's leading
+    // object index. Parameters, GEP results and phi results are pointer values;
+    // even when their logical pointee is an array, their first explicit index is
+    // pointer arithmetic and must not be preceded by an inferred zero.
+    auto *defining_inst = llvm_ptr->GetInstruction();
+    bool is_array_object = defining_inst != nullptr && (defining_inst->VerifyOpKind(inst::OpKind::Alloca) ||
+                                                        defining_inst->VerifyOpKind(inst::OpKind::GlobalDef));
+    if (allocated_type->GetKind() == type::TypeKind::ARRAY && is_array_object) {
       indices.emplace_back(GET_LLVMIR_CONTEXT()->GetIntLiteral(0));
     }
 
-    for (auto &index : collected_indices) {
+    for (auto &index : logical_indices) {
       auto llvm_index = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(index);
       indices.emplace_back(llvm_index);
     }

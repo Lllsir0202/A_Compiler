@@ -10,10 +10,13 @@
 #include "backend/targets/riscv/pass/addrfold.h"
 #include "backend/targets/riscv/pass/blocklayout.h"
 #include "backend/targets/riscv/pass/branchfold.h"
+#include "backend/targets/riscv/pass/emptytail.h"
 #include "backend/targets/riscv/pass/localcse.h"
 #include "backend/targets/riscv/pass/machinedce.h"
 #include "backend/targets/riscv/pass/machinelicm.h"
 #include "backend/targets/riscv/pass/peephole.h"
+#include "backend/targets/riscv/pass/postra.h"
+#include "backend/targets/riscv/pass/twoaddress.h"
 #include "backend/targets/riscv/printer/riscvprinter.h"
 #include "backend/targets/riscv/regalloc/graphcoloralloc.h"
 #include "backend/targets/utils/operand/targetreg.h"
@@ -43,6 +46,7 @@ auto RISCVBackend::Run() -> int {
     machine_passes.AddPass(new RISCVLocalCSE(&ctx_));
     machine_passes.AddPass(new MachineLICM(&ctx_));
     machine_passes.AddPass(new MachineDCE(&ctx_));
+    machine_passes.AddPass(new RISCVTwoAddress(&ctx_));
     machine_passes.AddPass(new RISCVBlockLayout(&ctx_));
   }
 
@@ -54,12 +58,17 @@ auto RISCVBackend::Run() -> int {
     auto outgoing = isel.OutgoingBytes();
     auto alloca_bytes = isel.AllocaBytes();
     // Spills sit above the outgoing-args and alloca areas.
-    auto spill_slots = reg_alloc.Run(tfunc, outgoing + alloca_bytes);
+    auto spill_base = outgoing + alloca_bytes;
+    auto spill_slots = reg_alloc.Run(tfunc, spill_base);
     // Block layout is chosen while every CFG edge is still explicit. Only
     // after register allocation and phi destruction do we turn eligible jumps
     // into fallthroughs; reordering blocks after that point would silently
     // change the CFG.
     if (opt_level_ >= 1) {
+      RISCVPostRA post_ra(&ctx_);
+      post_ra.RunOnFunction(tfunc, spill_base, spill_slots);
+      RISCVEmptyTail empty_tail;
+      empty_tail.RunOnFunction(tfunc);
       BranchFold late_branch_fold(&ctx_);
       late_branch_fold.RunOnFunction(tfunc);
     }

@@ -1,0 +1,19 @@
+name: compiler
+
+services:
+  compiler:
+    image: sysy-compiler:ubuntu24.04
+    platform: ${DOCKER_PLATFORM:-linux/amd64}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: development
+      args:
+        JOBS: ${DOCKER_JOBS:-4}
+        RUN_DIRECTED_TESTS: ${RUN_DIRECTED_TESTS:-0}
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+    init: true
+    stdin_open: true
+    tty: true

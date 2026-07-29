@@ -24,6 +24,7 @@
 #include "middleend/pass/transform/adce/adce.h"
 #include "middleend/pass/transform/canonicalization/phi.h"
 #include "middleend/pass/transform/deadloopelim/deadloopelim.h"
+#include "middleend/pass/transform/defsink/defsink.h"
 #include "middleend/pass/transform/dse/dse.h"
 #include "middleend/pass/transform/functioninline/functioninline.h"
 #include "middleend/pass/transform/gvn/gvn.h"
@@ -312,7 +313,7 @@ auto main(int argc, char *argv[]) -> int {
     mlirpass_context->AddPass(mlir_loop_unroll_pass);
     auto mlir_loop_partial_unroll_pass =
         context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopPartialUnrollPass>(
-            &compiler_context, middleend::pass::PassStage::MLIR);
+            &compiler_context, middleend::pass::PassStage::MLIR, target_arch == "riscv" ? 4 : 8);
     mlirpass_context->AddPass(mlir_loop_partial_unroll_pass);
     ret = mlirpass_context->RunPasses();
     if (ret != 0) {
@@ -478,6 +479,12 @@ auto main(int argc, char *argv[]) -> int {
     auto gvnpre_pass = context::PassContext::CreatePass<middleend::pass::transform::GVNPREPass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(gvnpre_pass);
+    // Last of all: push each local aggregate's initialization down to the deepest block that still
+    // dominates its uses, so a guarded or rarely-taken path stops paying for a fill it never reads.
+    // Runs after every other transform so it sinks past the final CFG, not an intermediate one.
+    auto var_def_sink_pass = context::PassContext::CreatePass<middleend::pass::transform::VarDefSinkPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(var_def_sink_pass);
   }
 
   ret = baseirpass_context->RunPasses();

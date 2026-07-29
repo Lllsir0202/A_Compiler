@@ -14,7 +14,8 @@ class Value;
 }  // namespace middleend::mlir
 namespace middleend::mlir::base {
 class FuncDefOp;
-}
+class PhiOp;
+}  // namespace middleend::mlir::base
 namespace middleend::pass::analysis {
 class Loop;
 class LoopInfoPass;
@@ -79,11 +80,22 @@ class DeadLoopEliminatePass : public TransformPass {
   auto MakeComparison(mlir::Value *lhs, mlir::Value *rhs, mlir::Block *at) -> mlir::Value *;
   auto MakeBoolToInt(mlir::Value *value, mlir::Block *at) -> mlir::Value *;
   auto ExpandRepeatedDiv(const analysis::SCEV *scev, mlir::Block *at) -> mlir::Value *;
+  auto ExpandModAddRec(const analysis::SCEV *scev, mlir::Block *at) -> mlir::Value *;
   auto InsertBeforeTerminator(mlir::Operation *operation, mlir::Block *block) -> void;
+
+  // Fallback for a pure loop whose live-outs cannot be closed: when every value the loop leaves live
+  // is overwritten on each iteration and never read back, only the last iteration is observable, so
+  // the loop can be started at its final induction value instead of deleted. See the .cpp for the
+  // conditions.
+  auto TrySkipToLastIteration(analysis::MLIRFunctionCFG *function_cfg, analysis::Loop *loop, mlir::Block *preheader,
+                              mlir::Block *exiting) -> bool;
+  auto IsDeadAcrossIterations(analysis::Loop *loop, mlir::base::PhiOp *phi) -> bool;
 
   analysis::SCEVPass *scev_{nullptr};
   std::unordered_map<mlir::Operation *, mlir::Block *> op_to_block_;
   int deleted_count_{0};
+  int skipped_count_{0};
+  bool skipped_this_function_{false};
 };
 
 }  // namespace middleend::pass::transform

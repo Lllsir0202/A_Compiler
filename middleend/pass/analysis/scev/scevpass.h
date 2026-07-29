@@ -78,6 +78,9 @@ class SCEVPass : public AnalysisPass {
   auto GetAddExpr(std::vector<const SCEV *> operands) -> const SCEV *;
   auto GetMulExpr(std::vector<const SCEV *> operands) -> const SCEV *;
   auto GetDivExpr(const SCEV *lhs, const SCEV *rhs) -> const SCEV *;
+  auto GetModExpr(const SCEV *lhs, const SCEV *rhs) -> const SCEV *;
+  auto GetModAddRecExpr(const SCEV *start, const SCEV *iteration, int step, int modulus, int fold, int offset,
+                        Loop *loop) -> const SCEV *;
   auto GetRepeatedDivExpr(const SCEV *start, const SCEV *iteration, int base_shift, int step_shift,
                           Loop *loop) -> const SCEV *;
   auto GetSMaxExpr(std::vector<const SCEV *> operands) -> const SCEV *;
@@ -102,6 +105,10 @@ class SCEVPass : public AnalysisPass {
   auto CreateSCEVForOperation(mlir::Operation *op, mlir::Value *result) -> const SCEV *;
   auto CreateAddRecFromPhi(mlir::base::PhiOp *phi, Loop *loop) -> const SCEV *;
   auto MatchRepeatedPowerOfTwoDiv(const SCEV *scev, const SCEV *symbol, int *total_shift) -> bool;
+  // Recognize a chain of `x -> (x + step) % modulus` bottoming out at `symbol`, with constant
+  // 0 < step < modulus -- the shape that makes a wrapped counter closeable (see SCEVModAddRecExpr).
+  // `fold` receives the length of the chain, which exceeds one for an unrolled body.
+  auto MatchModAddRec(const SCEV *scev, const SCEV *symbol, int *step, int *modulus, int *fold) -> bool;
 
   auto ComputeBackedgeTakenCount(Loop *loop) -> const SCEV *;
   auto ComputeExitCount(Loop *loop, mlir::Block *exiting) -> const SCEV *;

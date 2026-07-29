@@ -587,32 +587,38 @@ auto LowerHelper::LowerGetElementPtrInst(middleend::llvm::inst::GetElementPtrIns
   auto indices = gep_inst->GetIndices();
 
   std::vector<int> dimensions;
+  bool is_array_object = false;
   if (base_ptr->GetInstruction() != nullptr) {
     auto inst = base_ptr->GetInstruction();
     if (inst->VerifyOpKind(middleend::llvm::inst::OpKind::Alloca)) {
       auto alloca_inst = static_cast<middleend::llvm::inst::AllocaInst *>(inst);
       // Means the base pointer is from a local variable
       dimensions = alloca_inst->GetDimensions();
+      is_array_object = true;
     } else if (inst->VerifyOpKind(middleend::llvm::inst::OpKind::GlobalDef)) {
       auto global_def_inst = static_cast<middleend::llvm::inst::GlobalDefInst *>(inst);
       dimensions = global_def_inst->GetDimensions();
+      is_array_object = true;
     }
-  } else {
-    // Means the base pointer is from a function parameter
+  }
+  if (!is_array_object) {
+    // Parameters, GEP results and phi results are all pointer values. Derive the
+    // logical pointee dimensions from the operand type so a preserved GEP chain
+    // keeps the correct stride at every pointer-arithmetic boundary.
     auto base_ptr_type = base_ptr->GetType();
     type::Type *base_type;
-    if (base_ptr_type->GetKind() == type::TypeKind::PTR) {
+    if (base_ptr_type != nullptr && base_ptr_type->GetKind() == type::TypeKind::PTR) {
       base_type = static_cast<type::PtrType *>(base_ptr_type)->GetBaseType();
     } else {
       // Should not happen, just in case.
       base_type = base_ptr_type;
     }
 
-    // Get the dimensions
-    // For function parameter, the first dimension is always -1,
-    // since it is represented as a pointer to other dimensions' array.
+    // The first dimension is unsized because the operand is already a pointer to
+    // its logical pointee. Target address lowering uses this sentinel to give the
+    // first index the whole-pointee stride.
     dimensions.emplace_back(-1);
-    while (base_type->GetKind() == type::TypeKind::ARRAY) {
+    while (base_type != nullptr && base_type->GetKind() == type::TypeKind::ARRAY) {
       auto array_type = static_cast<type::ArrayType *>(base_type);
       dimensions.emplace_back(array_type->GetSize());
       base_type = array_type->GetElementType();
