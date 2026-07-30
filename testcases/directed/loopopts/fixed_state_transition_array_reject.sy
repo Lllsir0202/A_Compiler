@@ -1,0 +1,23 @@
+//! CHECK-STATS: FixedStateTransition: loops=1 candidates=0 transformed=0
+
+int state[2];
+
+int transition(int recurse) {
+  state[0] = state[0] + 1;
+  if (recurse > 0) {
+    return transition(recurse - 1);
+  }
+  return state[0];
+}
+
+int main() {
+  int remaining = 5;
+  int last = 0;
+  while (remaining > 0) {
+    last = transition(0);
+    remaining = remaining - 1;
+  }
+  putint(last);
+  putch(10);
+  return 0;
+}

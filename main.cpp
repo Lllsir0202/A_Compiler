@@ -39,10 +39,12 @@
 #include "middleend/pass/transform/mlirconditionaljam/mlirconditionaljam.h"
 #include "middleend/pass/transform/mlirdce/mlirdce.h"
 #include "middleend/pass/transform/mlirfunctioninline/mlirfunctioninline.h"
+#include "middleend/pass/transform/mlirfixedstatetransition/mlirfixedstatetransition.h"
 #include "middleend/pass/transform/mlirloopdomaintighten/mlirloopdomaintighten.h"
 #include "middleend/pass/transform/mlirloopfusion/mlirloopfusion.h"
 #include "middleend/pass/transform/mlirloopinvariantrepeat/mlirloopinvariantrepeat.h"
 #include "middleend/pass/transform/mlirloopmemorylast/mlirloopmemorylast.h"
+#include "middleend/pass/transform/mlirmatrixrowsummary/mlirmatrixrowsummary.h"
 #include "middleend/pass/transform/mlirrowchecksum/mlirrowchecksum.h"
 #include "middleend/pass/transform/mlirloopunroll/mlirlooppartialunroll.h"
 #include "middleend/pass/transform/mlirloopunroll/mlirloopunroll.h"
@@ -296,6 +298,10 @@ auto main(int argc, char *argv[]) -> int {
         context::PassContext::CreatePass<middleend::pass::transform::MLIRTailRecursionEliminatePass>(
             &compiler_context, middleend::pass::PassStage::MLIR);
     mlirpass_context->AddPass(mlir_tail_recursion_eliminate_pass);
+    auto mlir_matrix_row_summary_pass =
+        context::PassContext::CreatePass<middleend::pass::transform::MLIRMatrixRowSummaryPass>(
+            &compiler_context, middleend::pass::PassStage::MLIR);
+    mlirpass_context->AddPass(mlir_matrix_row_summary_pass);
     auto mlir_function_inline_pass =
         context::PassContext::CreatePass<middleend::pass::transform::MLIRFunctionInlinePass>(
             &compiler_context, middleend::pass::PassStage::MLIR);
@@ -310,6 +316,10 @@ auto main(int argc, char *argv[]) -> int {
     auto mlir_memory_effects = context::PassContext::CreatePass<middleend::pass::analysis::MLIRMemoryEffectAnalysis>(
         &compiler_context, middleend::pass::PassStage::MLIR);
     mlirpass_context->AddPass(mlir_memory_effects);
+    auto mlir_fixed_state_transition_pass =
+        context::PassContext::CreatePass<middleend::pass::transform::MLIRFixedStateTransitionPass>(
+            &compiler_context, middleend::pass::PassStage::MLIR);
+    mlirpass_context->AddPass(mlir_fixed_state_transition_pass);
     auto mlir_loop_fusion_pass = context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopFusionPass>(
         &compiler_context, middleend::pass::PassStage::MLIR);
     mlirpass_context->AddPass(mlir_loop_fusion_pass);

@@ -1,0 +1,32 @@
+//! CHECK-STATS: FixedStateTransition: loops=1 candidates=1 transformed=1
+
+int state = 16;
+int reset_state;
+int output;
+
+int transition(int recurse) {
+  state = state / 2;
+  reset_state = reset_state + 1;
+  output = state + reset_state;
+  if (recurse > 0) {
+    return transition(recurse - 1);
+  }
+  return output;
+}
+
+int main() {
+  int remaining = 20;
+  int last = 0;
+  while (remaining > 0) {
+    reset_state = 3;
+    last = transition(0);
+    remaining = remaining - 1;
+  }
+  putint(state);
+  putch(32);
+  putint(last);
+  putch(32);
+  putint(output);
+  putch(10);
+  return 0;
+}

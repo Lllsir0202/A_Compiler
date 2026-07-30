@@ -1,0 +1,79 @@
+//! CHECK-STATS: MatrixRowSummary: kernels=1 candidates=0 summarized=0
+
+const int N = 4;
+
+void update(int n, int factor[][N], int input[][N], int output[][N]) {
+  int i = 0;
+  while (i < n) {
+    int j = 0;
+    while (j < n) {
+      output[i][j] = 0;
+      j = j + 1;
+    }
+    i = i + 1;
+  }
+  int k = 0;
+  while (k < n) {
+    i = 0;
+    while (i < n) {
+      if (factor[i][k] == 1) {
+        i = i + 1;
+        continue;
+      }
+      int j = 0;
+      while (j < n) {
+        output[i][j] = output[i][j] * factor[i][k] + input[k][j];
+        j = j + 1;
+      }
+      i = i + 1;
+    }
+    k = k + 1;
+  }
+}
+
+int factor[N][N];
+int first[N][N];
+int second[N][N];
+
+int main() {
+  int n = getint();
+  int i = 0;
+  while (i < n) {
+    int j = 0;
+    while (j < n) {
+      factor[i][j] = getint();
+      j = j + 1;
+    }
+    i = i + 1;
+  }
+  i = 0;
+  while (i < n) {
+    int j = 0;
+    while (j < n) {
+      first[i][j] = getint();
+      j = j + 1;
+    }
+    i = i + 1;
+  }
+  int repeat = 0;
+  while (repeat < 1) {
+    update(n, factor, first, second);
+    update(n, factor, second, first);
+    repeat = repeat + 1;
+  }
+  int answer = 0;
+  i = 0;
+  while (i < n) {
+    int j = 0;
+    while (j < n) {
+      answer = answer + first[i][j];
+      j = j + 1;
+    }
+    i = i + 1;
+  }
+  putint(answer);
+  putch(32);
+  putint(first[0][1]);
+  putch(10);
+  return 0;
+}
