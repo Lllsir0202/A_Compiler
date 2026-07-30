@@ -199,6 +199,9 @@ auto AArch64ISel::SelectInst(backend::inst::Instruction *inst) -> void {
     case OpKind::Mod:
       SelectMod(inst);
       break;
+    case OpKind::WideMulMod:
+      SelectWideMulMod(inst);
+      break;
     case OpKind::And:
       SelectBinary(inst, A64Opcode::AND);
       break;
@@ -278,6 +281,24 @@ auto AArch64ISel::SelectBinary(backend::inst::Instruction *inst, A64Opcode opcod
   auto *lhs = GetReg(inst->GetOperands()[0]);
   auto *rhs = GetReg(inst->GetOperands()[1]);
   Emit(opcode, GetOrCreateVReg(inst->GetResult()), {lhs, rhs});
+}
+
+auto AArch64ISel::SelectWideMulMod(backend::inst::Instruction *inst) -> void {
+  auto widen = [&](backend::utils::Operand *operand) {
+    auto *result = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
+    Emit(A64Opcode::SXTW, result, {GetReg(operand)});
+    return result;
+  };
+  auto *lhs = widen(inst->GetOperands()[0]);
+  auto *rhs = widen(inst->GetOperands()[1]);
+  auto *modulus = widen(inst->GetOperands()[2]);
+  auto *product = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
+  Emit(A64Opcode::MUL, product, {lhs, rhs});
+  auto *quotient = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
+  Emit(A64Opcode::SDIV, quotient, {product, modulus});
+  auto *remainder = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
+  Emit(A64Opcode::MSUB, remainder, {quotient, modulus, product});
+  Emit(A64Opcode::MOV, GetOrCreateVReg(inst->GetResult()), {remainder});
 }
 
 auto AArch64ISel::SelectDiv(backend::inst::Instruction *inst) -> void {

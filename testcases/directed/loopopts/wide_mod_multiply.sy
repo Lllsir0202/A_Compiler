@@ -1,0 +1,27 @@
+//! CHECK-STATS: WideModMultiply: functions=[0-9]+ candidates=1 calls=4
+
+const int MOD = 101;
+
+int multiply(int a, int b) {
+  if (b == 0) return 0;
+  if (b == 1) return a % MOD;
+  int cur = multiply(a, b / 2);
+  cur = (cur + cur) % MOD;
+  if (b % 2 == 1) return (cur + a) % MOD;
+  return cur;
+}
+
+int main() {
+  // Both signs exercise the wide signed-remainder path.
+  putint(multiply(100, 3));
+  putch(32);
+  putint(multiply(-100, 3));
+  putch(32);
+  // These violate one side of the versioning guard and must retain the
+  // original recursive semantics.
+  putint(multiply(1000, 3));
+  putch(32);
+  putint(multiply(7, -3));
+  putch(10);
+  return 0;
+}

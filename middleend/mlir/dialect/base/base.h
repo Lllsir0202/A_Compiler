@@ -8,4 +8,5 @@
 #include "middleend/mlir/dialect/base/funcdef.h"
 #include "middleend/mlir/dialect/base/phi.h"
 #include "middleend/mlir/dialect/base/unaryop.h"
+#include "middleend/mlir/dialect/base/widemulmod.h"
 #endif

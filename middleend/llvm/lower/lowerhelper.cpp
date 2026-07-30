@@ -7,6 +7,7 @@
 #include "llvm/utils/operand/literaloperand.h"
 #include "llvm/utils/operand/regoperand.h"
 #include "middleend/llvm/inst/arithm/arithm.h"
+#include "middleend/llvm/inst/arithm/widemulmod.h"
 #include "middleend/llvm/inst/branch/branch.h"
 #include "middleend/llvm/inst/branch/phi.h"
 #include "middleend/llvm/inst/branch/ret.h"
@@ -70,6 +71,7 @@ auto LowerHelper::LowerDispatch(mlir::Operation *op) -> void {
     LOWER_DISPATCH(mlir::base::MulOp, MulOp)
     LOWER_DISPATCH(mlir::base::DivOp, DivOp)
     LOWER_DISPATCH(mlir::base::ModOp, ModOp)
+    LOWER_DISPATCH(mlir::base::WideMulModOp, WideMulModOp)
     LOWER_DISPATCH(mlir::base::ShlOp, ShlOp)
     LOWER_DISPATCH(mlir::base::LShrOp, LShrOp)
     LOWER_DISPATCH(mlir::base::AShrOp, AShrOp)
@@ -307,6 +309,20 @@ LOWER_BINARY_OP(AddF);
 LOWER_BINARY_OP(SubF);
 LOWER_BINARY_OP(MulF);
 LOWER_BINARY_OP(DivF);
+
+auto LowerHelper::LowerWideMulModOp(mlir::base::WideMulModOp *op) -> void {
+  auto *lhs = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(op->GetLHS());
+  auto *rhs = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(op->GetRHS());
+  auto *modulus = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(op->GetModulus());
+  auto *inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::WideMulModInst>(GET_LLVMIR_CONTEXT(), lhs,
+                                                                                            rhs, modulus);
+  for (auto *operand : {lhs, rhs, modulus}) {
+    if (operand->GetInstruction() != nullptr) operand->GetInstruction()->AddUser(inst);
+  }
+  GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
+  GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(op->GetRes(), inst->GetResult());
+  inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint());
+}
 
 // Comparison operations
 #define ICMP_DISPTACH(OP_NAME, PREDICATE)                                                            \

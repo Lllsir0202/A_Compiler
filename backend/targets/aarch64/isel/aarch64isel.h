@@ -43,6 +43,7 @@ class AArch64ISel {
   auto SelectBinary(backend::inst::Instruction *inst, A64Opcode opcode) -> void;
   auto SelectDiv(backend::inst::Instruction *inst) -> void;
   auto SelectMod(backend::inst::Instruction *inst) -> void;
+  auto SelectWideMulMod(backend::inst::Instruction *inst) -> void;
   // Emit a signed division of `numer` by the constant `divisor` (no `sdiv`),
   // returning the quotient register, or nullptr if the divisor is not handled
   // (|d| < 2, d == INT_MIN) and the caller should fall back to `sdiv`.

@@ -52,6 +52,7 @@
 #include "middleend/pass/transform/mlirstencilinterior/mlirstencilinterior.h"
 #include "middleend/pass/transform/mlirreturncanonicalize/mlirreturncanonicalize.h"
 #include "middleend/pass/transform/mlirtailrecursion/mlirtailrecursion.h"
+#include "middleend/pass/transform/mlirwidemodmultiply/mlirwidemodmultiply.h"
 #include "middleend/pass/transform/promotion/promotion.h"
 #include "middleend/pass/transform/reassociate/reassociate.h"
 #include "middleend/pass/transform/recursivememo/recursivememo.h"
@@ -290,6 +291,10 @@ auto main(int argc, char *argv[]) -> int {
   if (optimization_level >= 1) {
     auto mlirpass_context = new context::PassContext(&compiler_context, middleend::pass::PassStage::MLIR);
     compiler_context.SetPassContext(mlirpass_context);
+    auto mlir_wide_mod_multiply_pass =
+        context::PassContext::CreatePass<middleend::pass::transform::MLIRWideModMultiplyPass>(
+            &compiler_context, middleend::pass::PassStage::MLIR);
+    mlirpass_context->AddPass(mlir_wide_mod_multiply_pass);
     auto mlir_return_canonicalize_pass =
         context::PassContext::CreatePass<middleend::pass::transform::MLIRReturnCanonicalizePass>(
             &compiler_context, middleend::pass::PassStage::MLIR);

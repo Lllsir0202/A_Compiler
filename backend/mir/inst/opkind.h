@@ -11,6 +11,7 @@ enum class OpKind : uint8_t {
   Mul,
   Div,
   Mod,
+  WideMulMod,
   // Float
   AddF,
   SubF,

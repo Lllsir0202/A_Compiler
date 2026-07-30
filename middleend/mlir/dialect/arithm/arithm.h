@@ -4,5 +4,6 @@
 #include "middleend/mlir/dialect/arithm/binaryop.h"
 #include "middleend/mlir/dialect/arithm/copy.h"
 #include "middleend/mlir/dialect/arithm/unaryop.h"
+#include "middleend/mlir/dialect/arithm/widemulmod.h"
 
 #endif  // MIDDLEEND_MLIR_DIALECT_ARITHM_ARITHM_H

@@ -8,6 +8,7 @@
 #include "compiler_context.h"
 #include "llvm/utils/struct/block.h"
 #include "middleend/llvm/inst/arithm/arithm.h"
+#include "middleend/llvm/inst/arithm/widemulmod.h"
 #include "middleend/llvm/inst/branch/branch.h"
 #include "middleend/llvm/inst/branch/phi.h"
 #include "middleend/llvm/inst/branch/ret.h"
@@ -49,6 +50,7 @@ class LowerHelper {
   auto LowerMulInst(middleend::llvm::inst::MulInst *mul_inst) -> void;
   auto LowerDivInst(middleend::llvm::inst::DivInst *div_inst) -> void;
   auto LowerModInst(middleend::llvm::inst::ModInst *mod_inst) -> void;
+  auto LowerWideMulModInst(middleend::llvm::inst::WideMulModInst *inst) -> void;
   auto LowerShlInst(middleend::llvm::inst::ShlInst *shl_inst) -> void;
   auto LowerLShrInst(middleend::llvm::inst::LShrInst *lshr_inst) -> void;
   auto LowerAShrInst(middleend::llvm::inst::AShrInst *ashr_inst) -> void;

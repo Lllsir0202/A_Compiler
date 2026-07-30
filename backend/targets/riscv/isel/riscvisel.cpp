@@ -195,6 +195,9 @@ auto RISCVISel::SelectInst(backend::inst::Instruction *inst) -> void {
     case OpKind::Mod:
       SelectMod(inst);
       break;
+    case OpKind::WideMulMod:
+      SelectWideMulMod(inst);
+      break;
     case OpKind::And:
       SelectBinary(inst, RVOpcode::AND);
       break;
@@ -274,6 +277,26 @@ auto RISCVISel::SelectBinary(backend::inst::Instruction *inst, RVOpcode opcode) 
   auto *lhs = GetReg(inst->GetOperands()[0]);
   auto *rhs = GetReg(inst->GetOperands()[1]);
   Emit(opcode, GetOrCreateVReg(inst->GetResult()), {lhs, rhs});
+}
+
+auto RISCVISel::SelectWideMulMod(backend::inst::Instruction *inst) -> void {
+  auto widen = [&](backend::utils::Operand *operand) {
+    auto *result = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
+    Emit(RVOpcode::SEXT_W, result, {GetReg(operand)});
+    return result;
+  };
+  auto *lhs = widen(inst->GetOperands()[0]);
+  auto *rhs = widen(inst->GetOperands()[1]);
+  auto *modulus = widen(inst->GetOperands()[2]);
+  auto *product = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
+  Emit(RVOpcode::MUL, product, {lhs, rhs});
+  auto *quotient = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
+  Emit(RVOpcode::DIV, quotient, {product, modulus});
+  auto *scaled = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
+  Emit(RVOpcode::MUL, scaled, {quotient, modulus});
+  auto *remainder = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
+  Emit(RVOpcode::SUB, remainder, {product, scaled});
+  Emit(RVOpcode::SEXT_W, GetOrCreateVReg(inst->GetResult()), {remainder});
 }
 
 auto RISCVISel::SelectDiv(backend::inst::Instruction *inst) -> void {

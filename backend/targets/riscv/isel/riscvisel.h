@@ -55,6 +55,7 @@ class RISCVISel {
   auto SelectBinary(backend::inst::Instruction *inst, RVOpcode opcode) -> void;
   auto SelectDiv(backend::inst::Instruction *inst) -> void;
   auto SelectMod(backend::inst::Instruction *inst) -> void;
+  auto SelectWideMulMod(backend::inst::Instruction *inst) -> void;
   // Emit a signed division of `numer` by the constant `divisor` without `divw`,
   // returning the quotient register, or nullptr if unsupported (magic disabled,
   // |d| < 2, d == INT_MIN) so the caller falls back to `divw`/`remw`.

@@ -31,6 +31,7 @@ auto LowerHelper::LowerDispatch(Operation *op) -> void {
   LOWER_DISPATCH(mlir::arithm::MulOp, MulOp)
   LOWER_DISPATCH(mlir::arithm::DivOp, DivOp)
   LOWER_DISPATCH(mlir::arithm::ModOp, ModOp)
+  LOWER_DISPATCH(mlir::arithm::WideMulModOp, WideMulModOp)
   LOWER_DISPATCH(mlir::arithm::EqualOp, EqualOp)
   LOWER_DISPATCH(mlir::arithm::NotEqualOp, NotEqualOp)
   LOWER_DISPATCH(mlir::arithm::LessOp, LessOp)
@@ -109,6 +110,16 @@ auto LowerHelper::LowerModOp(middleend::mlir::arithm::ModOp *mod_op) -> void {
   } else {
     compiler_context_->ReportError("Unsupported type for mod operation: " + type->ToString());
   }
+}
+
+auto LowerHelper::LowerWideMulModOp(middleend::mlir::arithm::WideMulModOp *op) -> void {
+  auto *lowered = GET_MLIR_CONTEXT()->CreateOperation<mlir::base::WideMulModOp>(op->GetRes(), op->GetLHS(),
+                                                                                op->GetRHS(), op->GetModulus());
+  op->GetLHS()->ReplaceAllOpUsesWith(op, lowered);
+  op->GetRHS()->ReplaceAllOpUsesWith(op, lowered);
+  op->GetModulus()->ReplaceAllOpUsesWith(op, lowered);
+  op->GetRes()->op_ = lowered;
+  GetInsertPoint()->AddOperation(lowered);
 }
 
 #define LOWER_LOGICAL_OP(OP_NAME)                                                                                  \

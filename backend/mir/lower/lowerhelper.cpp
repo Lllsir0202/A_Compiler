@@ -4,6 +4,7 @@
 #include <utility>
 #include <vector>
 #include "backend/mir/inst/arithm/arithm.h"
+#include "backend/mir/inst/arithm/widemulmod.h"
 #include "backend/mir/inst/branch/branch.h"
 #include "backend/mir/inst/branch/ret.h"
 #include "backend/mir/inst/cast/cast.h"
@@ -18,6 +19,7 @@
 #include "backend/mir/utils/struct/block.h"
 #include "backend/mir/utils/struct/function.h"
 #include "middleend/llvm/inst/arithm/arithm.h"
+#include "middleend/llvm/inst/arithm/widemulmod.h"
 #include "middleend/llvm/inst/cmp/cmp.h"
 #include "middleend/llvm/inst/inst.h"
 #include "middleend/llvm/inst/memory/globaldef.h"
@@ -44,6 +46,7 @@ auto LowerHelper::LowerDispatch(middleend::llvm::inst::Instruction *inst) -> voi
     DISPATCH_LOWERING(MulInst)
     DISPATCH_LOWERING(DivInst)
     DISPATCH_LOWERING(ModInst)
+    DISPATCH_LOWERING(WideMulModInst)
     DISPATCH_LOWERING(ShlInst)
     DISPATCH_LOWERING(LShrInst)
     DISPATCH_LOWERING(AShrInst)
@@ -277,6 +280,23 @@ LOWER_BINARY_INST(ModInst)
 LOWER_BINARY_INST(ShlInst)
 LOWER_BINARY_INST(LShrInst)
 LOWER_BINARY_INST(AShrInst)
+
+auto LowerHelper::LowerWideMulModInst(middleend::llvm::inst::WideMulModInst *inst) -> void {
+  std::vector<utils::Operand *> operands;
+  for (auto *operand : inst->GetOperands()) {
+    operands.emplace_back(GET_LOWER_CONTEXT()->GetMIROperandFromLLVMOperand(operand));
+  }
+  auto *mir_inst = GET_RESOURCE_CONTEXT()->CreateInstruction<backend::inst::WideMulModInst>(
+      GET_MIR_CONTEXT(), operands[0], operands[1], operands[2]);
+  auto *result = mir_inst->GetResult();
+  result->SetType(inst->GetResult()->GetType());
+  GET_LOWER_CONTEXT()->MapLLVMOperandToMIROperand(inst->GetResult(), result);
+  for (auto *operand : operands) {
+    if (operand->GetDefInst() != nullptr) operand->GetDefInst()->AddUser(mir_inst);
+  }
+  GET_LOWER_CONTEXT()->GetInsertPoint()->AddInstBack(mir_inst);
+  mir_inst->SetParentBlock(GET_LOWER_CONTEXT()->GetInsertPoint());
+}
 
 auto LowerHelper::LowerICmpInst(middleend::llvm::inst::ICmpInst *icmp_inst) -> void {
   auto predicate = inst::CmpPredicateFromLLVM(icmp_inst->GetPredicate());

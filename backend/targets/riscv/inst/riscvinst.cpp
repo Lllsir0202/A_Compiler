@@ -5,10 +5,10 @@
 namespace backend::targetir::riscv {
 
 auto GetRVOpcodeInfo(RVOpcode opcode) -> const RVOpcodeInfo & {
-  static const std::array<RVOpcodeInfo, 60> TABLE = {{
+  static const std::array<RVOpcodeInfo, 61> TABLE = {{
       {"addw", RVForm::RType},    {"subw", RVForm::RType},     {"mulw", RVForm::RType},
       {"divw", RVForm::RType},    {"remw", RVForm::RType},     {"add", RVForm::RType},
-      {"sub", RVForm::RType},     {"mul", RVForm::RType},      {"and", RVForm::RType},
+      {"sub", RVForm::RType},     {"mul", RVForm::RType},      {"div", RVForm::RType}, {"and", RVForm::RType},
       {"or", RVForm::RType},      {"xor", RVForm::RType},      {"sllw", RVForm::RType},
       {"srlw", RVForm::RType},    {"sraw", RVForm::RType},     {"slt", RVForm::RType},
       {"sltu", RVForm::RType},    {"addiw", RVForm::IType},    {"addi", RVForm::IType},

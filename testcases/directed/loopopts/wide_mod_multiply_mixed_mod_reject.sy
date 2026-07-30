@@ -1,0 +1,19 @@
+//! CHECK-STATS: WideModMultiply: functions=[0-9]+ candidates=0 calls=0
+
+const int MOD_A = 101;
+const int MOD_B = 103;
+
+int multiply(int a, int b) {
+  if (b == 0) return 0;
+  if (b == 1) return a % MOD_A;
+  int cur = multiply(a, b / 2);
+  cur = (cur + cur) % MOD_B;
+  if (b % 2 == 1) return (cur + a) % MOD_A;
+  return cur;
+}
+
+int main() {
+  putint(multiply(17, 9));
+  putch(10);
+  return 0;
+}

@@ -59,6 +59,7 @@ class LowerHelper {
   auto LowerMulOp(middleend::mlir::arithm::MulOp *mul_op) -> void;
   auto LowerDivOp(middleend::mlir::arithm::DivOp *div_op) -> void;
   auto LowerModOp(middleend::mlir::arithm::ModOp *mod_op) -> void;
+  auto LowerWideMulModOp(middleend::mlir::arithm::WideMulModOp *op) -> void;
   auto LowerEqualOp(middleend::mlir::arithm::EqualOp *equal_op) -> void;
   auto LowerNotEqualOp(middleend::mlir::arithm::NotEqualOp *ne_op) -> void;
   auto LowerLessOp(middleend::mlir::arithm::LessOp *less_op) -> void;

@@ -1,0 +1,19 @@
+//! CHECK-STATS: WideModMultiply: functions=[0-9]+ candidates=0 calls=0
+
+const int MOD = 101;
+
+int multiply_like(int a, int b) {
+  if (b == 0) return 0;
+  if (b == 1) return a % MOD;
+  int cur = multiply_like(a, b / 2);
+  // This extra one makes the recurrence differ from modular multiply.
+  cur = (cur + cur + 1) % MOD;
+  if (b % 2 == 1) return (cur + a) % MOD;
+  return cur;
+}
+
+int main() {
+  putint(multiply_like(17, 9));
+  putch(10);
+  return 0;
+}

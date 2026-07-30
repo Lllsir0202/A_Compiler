@@ -6,6 +6,7 @@
 #include "middleend/mlir/dialect/arithm/binaryop.h"
 #include "middleend/mlir/dialect/arithm/copy.h"
 #include "middleend/mlir/dialect/arithm/unaryop.h"
+#include "middleend/mlir/dialect/arithm/widemulmod.h"
 #include "middleend/mlir/dialect/func/funccall.h"
 #include "middleend/mlir/dialect/func/return.h"
 #include "middleend/mlir/dialect/scf/break.h"
@@ -112,6 +113,14 @@ auto OperationCloner::Clone(mlir::Operation *operation) -> mlir::Operation * {
     auto *new_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(
         GET_MLIR_CONTEXT(), RemapValue(cast_op->GetOperand()), cast_op->GetFromType(), cast_op->GetToType());
     value_map_[cast_op->GetRes()] = new_op->GetRes();
+    return new_op;
+  }
+  if (auto *wide_mul_mod_op = mlir::DynamicOrNull<mlir::arithm::WideMulModOp>(operation)) {
+    auto *new_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::WideMulModOp>(
+        GET_MLIR_CONTEXT(), RemapValue(wide_mul_mod_op->GetLHS()), RemapValue(wide_mul_mod_op->GetRHS()),
+        RemapValue(wide_mul_mod_op->GetModulus()));
+    new_op->GetRes()->SetType(wide_mul_mod_op->GetRes()->GetType());
+    value_map_[wide_mul_mod_op->GetRes()] = new_op->GetRes();
     return new_op;
   }
   if (auto *var_def_op = mlir::DynamicOrNull<mlir::var::VarDefOp>(operation)) {
