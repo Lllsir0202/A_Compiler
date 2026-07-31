@@ -1478,6 +1478,7 @@ auto LowerHelper::LowerStore(backend::inst::StoreInst *inst) -> void {
   auto ptr = inst->GetPtr();
   auto value = inst->GetValue();
   TargetOperand *target_value = nullptr;
+  bool is_float = value->IsFloat();
 
   if (value->IsLiteral()) {
     // If the value is a literal, we need to materialize it into a register first
@@ -1506,22 +1507,39 @@ auto LowerHelper::LowerStore(backend::inst::StoreInst *inst) -> void {
     // Global variable store, we need to la the global variable first
     auto global_var = static_cast<utils::GlobalOperand *>(ptr);
     auto target_global_var = GET_BACKEND_TARGET()->CreateSymbolOperand<RV64Symbol>(global_var->GetName());
-    auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+    // Get address
+    auto address_size =
+        GET_BACKEND_TARGET()->GetMemSize() == utils::MemSize::Bit32 ? TargetRegSize::DWord : TargetRegSize::QWord;
+    auto target_address = GET_BACKEND_TARGET()->CreateVirtualRegister(address_size, TargetRegClass::General);
+
     // Load the global variable address first
-    auto la_inst = GET_BACKEND_TARGET()->CreateInstruction<RVLAInst>(target_result, target_global_var);
+    auto la_inst = GET_BACKEND_TARGET()->CreateInstruction<RVLAInst>(target_address, target_global_var);
     GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(la_inst);
     // Then store the value to the address
     auto zero_literal = GET_BACKEND_TARGET()->CreateIntLiteral(0);
-    auto store_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSWInst>(target_value, zero_literal, target_result);
+    if (is_float) {
+      auto store_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFSWInst>(target_value, zero_literal, target_address);
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(store_inst);
+      return;
+    }
+    auto store_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSWInst>(target_value, zero_literal, target_address);
     GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(store_inst);
     return;
   }
+
   // Otherwise, the pointer must be a memory operand
   if (ptr->IsMemory()) {
     // Need to divide into two cases: local variable and global variable
     auto memory_operand = static_cast<utils::MemoryOperand *>(ptr);
     const auto &address_info = memory_operand->GetAddressInfo();
     const auto &memory_info = memory_operand->GetMemoryInfo();
+    auto data_size = memory_info.size_;
+
+    // Get address
+    auto address_size =
+        GET_BACKEND_TARGET()->GetMemSize() == utils::MemSize::Bit32 ? TargetRegSize::DWord : TargetRegSize::QWord;
+    auto target_address = GET_BACKEND_TARGET()->CreateVirtualRegister(address_size, TargetRegClass::General);
+
     if (ptr->IsFrame()) {
       // If the pointer is a local variable, we need to get the frame object first
       auto frame_operand = static_cast<utils::FrameOperand *>(ptr);
@@ -1541,35 +1559,342 @@ auto LowerHelper::LowerStore(backend::inst::StoreInst *inst) -> void {
         }
         // Otherwise, we need to materialize the offset into a register and use the normal add instruction
         auto target_offset = MaterializeLiteral(compiler_context_, offset_value);
-        auto add_inst = GET_BACKEND_TARGET()->CreateInstruction<RVADDInst>(target_frame_operand, target_frame_operand,
-                                                                           target_offset);
+        auto add_inst =
+            GET_BACKEND_TARGET()->CreateInstruction<RVADDInst>(target_address, target_frame_operand, target_offset);
         GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(add_inst);
+        if (is_float) {
+          auto store_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFSWInst>(
+              target_value, GET_BACKEND_TARGET()->CreateIntLiteral(0), target_address);
+          GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(store_inst);
+          return;
+        }
         auto store_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSWInst>(
-            target_value, GET_BACKEND_TARGET()->CreateIntLiteral(0), target_frame_operand);
+            target_value, GET_BACKEND_TARGET()->CreateIntLiteral(0), target_address);
         GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(store_inst);
         return;
       }
       // Otherwise, we need to calculate the offset at runtime, just like the load instruction case.
       // Just like load instruction
 
+      // Not a literal offset
+      // Calculate the offset at runtime, just like the global variable case, we need to calculate the offset based on
+      // the dimensions and indices.
+      const auto &dimensions = address_info.dimensions_;
+      const auto &indices = address_info.indices_;
+
+      // Note: The offset calculation is based on the formula:
+      // offset = sum_{i=0}^{n-1} (index_i * stride_i)
+      // where stride_i = product_{j=i+1}^{n-1} (dimension_j)
+      auto target_offset = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+      // target_offset = literal_offset + runtime_offset
+      // runtime_offset = sum_{i=0}^{n-1} (index_i * stride_i) for non-literal indices
+      // so we can initialize the target_offset when calculating the first non-literal index
+
+      // We need to calculate the offset based on the dimensions and indices.
+      // To optimize the unnecessary calculations,
+      // we can calculate those indices which are literals first,
+      // and then calculate the remaining indices which are not literals.
+      int literal_offset = 0;
+
+      // check if its the first non-literal index
+      bool first_non_literal_index = true;
+      for (int i = indices.size() - 1; i >= 0; --i) {
+        auto index = indices[i];
+        if (index->IsLiteral()) {
+          auto index_value = static_cast<utils::IntLiteral *>(index)->GetValue();
+          literal_offset += index_value * GetArrayStride(dimensions, i);
+        } else {
+          // If the index is not a literal, we need to calculate the offset at runtime.
+          auto target_index = GET_BACKEND_TARGET()->GetMappedOperand(index);
+          if (target_index == nullptr) {
+            compiler_context_->ReportError("Index operand is not mapped to a target operand");
+            return;
+          }
+          // Multiply the index by the stride
+          auto stride_value = GetArrayStride(dimensions, i);
+          if (stride_value != 1) {
+            // Need to multiply the index by the stride, if the stride is not 1
+            if (IsPowerOfTwo(stride_value)) {
+              int shift_amount = GetPowerOfTwoExponent(stride_value);
+              auto target_shift_amount = GET_BACKEND_TARGET()->CreateIntLiteral(shift_amount);
+              auto shift_inst =
+                  GET_BACKEND_TARGET()->CreateInstruction<RVSLLIInst>(target_index, target_index, target_shift_amount);
+              GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(shift_inst);
+              // Then add the shifted index to the offset
+              {
+                if (first_non_literal_index) {
+                  // Just mv the shifted index to the offset register
+                  auto mv_inst = GET_BACKEND_TARGET()->CreateInstruction<RVMVInst>(target_offset, target_index);
+                  GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(mv_inst);
+                  first_non_literal_index = false;
+                } else {
+                  auto add_inst =
+                      GET_BACKEND_TARGET()->CreateInstruction<RVADDInst>(target_offset, target_offset, target_index);
+                  GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(add_inst);
+                }
+              }
+            } else {
+              auto target_stride = MaterializeLiteral(compiler_context_, stride_value);
+              auto mul_inst =
+                  GET_BACKEND_TARGET()->CreateInstruction<RVMULInst>(target_index, target_index, target_stride);
+              GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(mul_inst);
+              // Then add the multiplied index to the offset
+              {
+                if (first_non_literal_index) {
+                  // Just mv the multiplied index to the offset register
+                  auto mv_inst = GET_BACKEND_TARGET()->CreateInstruction<RVMVInst>(target_offset, target_index);
+                  GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(mv_inst);
+                  first_non_literal_index = false;
+                } else {
+                  auto add_inst =
+                      GET_BACKEND_TARGET()->CreateInstruction<RVADDInst>(target_offset, target_offset, target_index);
+                  GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(add_inst);
+                }
+              }
+            }
+          } else {
+            // If the stride is 1, we can just add the index to the result register
+            if (first_non_literal_index) {
+              // Just mv the index to the offset register
+              auto mv_inst = GET_BACKEND_TARGET()->CreateInstruction<RVMVInst>(target_offset, target_index);
+              GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(mv_inst);
+              first_non_literal_index = false;
+            } else {
+              auto add_inst =
+                  GET_BACKEND_TARGET()->CreateInstruction<RVADDInst>(target_offset, target_offset, target_index);
+              GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(add_inst);
+            }
+          }
+        }
+      }
+
+      // Calculate the literal offset if it is not zero
+      if (literal_offset != 0) {
+        if (Is12BitSignedInteger(literal_offset)) {
+          auto target_literal = GET_BACKEND_TARGET()->CreateIntLiteral(literal_offset);
+          auto add_inst =
+              GET_BACKEND_TARGET()->CreateInstruction<RVADDIInst>(target_offset, target_offset, target_literal);
+          GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(add_inst);
+        } else {
+          auto target_literal = MaterializeLiteral(compiler_context_, literal_offset);
+          auto add_inst =
+              GET_BACKEND_TARGET()->CreateInstruction<RVADDInst>(target_offset, target_offset, target_literal);
+          GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(add_inst);
+        }
+      }
+
+      // Multiply the offset by the data size to get the final offset in bytes
+      if (IsPowerOfTwo(data_size)) {
+        int shift_amount = GetPowerOfTwoExponent(data_size);
+        auto target_shift_amount = GET_BACKEND_TARGET()->CreateIntLiteral(shift_amount);
+        auto shift_inst =
+            GET_BACKEND_TARGET()->CreateInstruction<RVSLLIInst>(target_offset, target_offset, target_shift_amount);
+        GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(shift_inst);
+      } else {
+        auto target_data_size = MaterializeLiteral(compiler_context_, static_cast<int>(data_size));
+        auto mul_inst =
+            GET_BACKEND_TARGET()->CreateInstruction<RVMULInst>(target_offset, target_offset, target_data_size);
+        GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(mul_inst);
+      }
+
+      // Calculate the final address by adding the offset to the frame pointer
+      // add target_result, target_frame_operand, target_offset
+      auto add_inst =
+          GET_BACKEND_TARGET()->CreateInstruction<RVADDInst>(target_address, target_frame_operand, target_offset);
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(add_inst);
+
       // Then store the value to the frame object
       auto zero_literal = GET_BACKEND_TARGET()->CreateIntLiteral(0);
-      auto store_inst =
-          GET_BACKEND_TARGET()->CreateInstruction<RVSWInst>(target_value, zero_literal, target_frame_operand);
+      if (is_float) {
+        auto store_inst =
+            GET_BACKEND_TARGET()->CreateInstruction<RVFSWInst>(target_value, zero_literal, target_address);
+        GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(store_inst);
+        return;
+      }
+      auto store_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSWInst>(target_value, zero_literal, target_address);
       GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(store_inst);
       return;
     }
     if (ptr->IsGlobal()) {
-      // If the pointer is a global variable, we need to la the global variable first
+      // If the base pointer is a global variable
       auto global_var = static_cast<utils::GlobalOperand *>(ptr);
       auto target_global_var = GET_BACKEND_TARGET()->CreateSymbolOperand<RV64Symbol>(global_var->GetName());
-      auto target_result = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
-      // Load the global variable address first
-      auto la_inst = GET_BACKEND_TARGET()->CreateInstruction<RVLAInst>(target_result, target_global_var);
+
+      auto address_size =
+          GET_BACKEND_TARGET()->GetMemSize() == utils::MemSize::Bit32 ? TargetRegSize::DWord : TargetRegSize::QWord;
+      auto target_address = GET_BACKEND_TARGET()->CreateVirtualRegister(address_size, TargetRegClass::General);
+      auto is_float = inst->GetValue()->IsFloat();
+
+      // Need to calculate the offset of the frame object
+      if (address_info.offset_ != nullptr && address_info.offset_->IsLiteral()) {
+        // If the offset is a literal, which means the offset is a compile-time constant
+        int offset_value = static_cast<utils::IntLiteral *>(address_info.offset_)->GetValue() * memory_info.size_;
+        if (Is12BitSignedInteger(offset_value)) {
+          auto target_offset = GET_BACKEND_TARGET()->CreateIntLiteral(offset_value);
+          auto la_inst = GET_BACKEND_TARGET()->CreateInstruction<RVLAInst>(target_address, target_global_var);
+          GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(la_inst);
+          auto store_inst =
+              GET_BACKEND_TARGET()->CreateInstruction<RVSWInst>(target_value, target_offset, target_address);
+          GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(store_inst);
+          return;
+        }
+        // Otherwise, we need to materialize the offset into a register and use the normal add instruction
+        auto target_offset = MaterializeLiteral(compiler_context_, offset_value);
+        auto la_inst = GET_BACKEND_TARGET()->CreateInstruction<RVLAInst>(target_address, target_global_var);
+        GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(la_inst);
+        auto add_inst =
+            GET_BACKEND_TARGET()->CreateInstruction<RVADDInst>(target_address, target_address, target_offset);
+        GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(add_inst);
+        if (is_float) {
+          auto store_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFSWInst>(
+              target_value, GET_BACKEND_TARGET()->CreateIntLiteral(0), target_address);
+          GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(store_inst);
+          return;
+        }
+        auto store_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSWInst>(
+            target_value, GET_BACKEND_TARGET()->CreateIntLiteral(0), target_address);
+        GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(store_inst);
+        return;
+      }
+      // Otherwise, we need to calculate the offset at runtime, just like the load instruction case.
+      // Just like load instruction
+
+      // Not a literal offset
+      // Calculate the offset at runtime, just like the global variable case, we need to calculate the offset based on
+      // the dimensions and indices.
+      const auto &dimensions = address_info.dimensions_;
+      const auto &indices = address_info.indices_;
+
+      // Note: The offset calculation is based on the formula:
+      // offset = sum_{i=0}^{n-1} (index_i * stride_i)
+      // where stride_i = product_{j=i+1}^{n-1} (dimension_j)
+      auto target_offset = GET_BACKEND_TARGET()->CreateVirtualRegister(TargetRegSize::DWord, TargetRegClass::General);
+      // target_offset = literal_offset + runtime_offset
+      // runtime_offset = sum_{i=0}^{n-1} (index_i * stride_i) for non-literal indices
+      // so we can initialize the target_offset when calculating the first non-literal index
+
+      // We need to calculate the offset based on the dimensions and indices.
+      // To optimize the unnecessary calculations,
+      // we can calculate those indices which are literals first,
+      // and then calculate the remaining indices which are not literals.
+      int literal_offset = 0;
+
+      // check if its the first non-literal index
+      bool first_non_literal_index = true;
+      for (int i = indices.size() - 1; i >= 0; --i) {
+        auto index = indices[i];
+        if (index->IsLiteral()) {
+          auto index_value = static_cast<utils::IntLiteral *>(index)->GetValue();
+          literal_offset += index_value * GetArrayStride(dimensions, i);
+        } else {
+          // If the index is not a literal, we need to calculate the offset at runtime.
+          auto target_index = GET_BACKEND_TARGET()->GetMappedOperand(index);
+          if (target_index == nullptr) {
+            compiler_context_->ReportError("Index operand is not mapped to a target operand");
+            return;
+          }
+          // Multiply the index by the stride
+          auto stride_value = GetArrayStride(dimensions, i);
+          if (stride_value != 1) {
+            // Need to multiply the index by the stride, if the stride is not 1
+            if (IsPowerOfTwo(stride_value)) {
+              int shift_amount = GetPowerOfTwoExponent(stride_value);
+              auto target_shift_amount = GET_BACKEND_TARGET()->CreateIntLiteral(shift_amount);
+              auto shift_inst =
+                  GET_BACKEND_TARGET()->CreateInstruction<RVSLLIInst>(target_index, target_index, target_shift_amount);
+              GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(shift_inst);
+              // Then add the shifted index to the offset
+              {
+                if (first_non_literal_index) {
+                  // Just mv the shifted index to the offset register
+                  auto mv_inst = GET_BACKEND_TARGET()->CreateInstruction<RVMVInst>(target_offset, target_index);
+                  GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(mv_inst);
+                  first_non_literal_index = false;
+                } else {
+                  auto add_inst =
+                      GET_BACKEND_TARGET()->CreateInstruction<RVADDInst>(target_offset, target_offset, target_index);
+                  GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(add_inst);
+                }
+              }
+            } else {
+              auto target_stride = MaterializeLiteral(compiler_context_, stride_value);
+              auto mul_inst =
+                  GET_BACKEND_TARGET()->CreateInstruction<RVMULInst>(target_index, target_index, target_stride);
+              GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(mul_inst);
+              // Then add the multiplied index to the offset
+              {
+                if (first_non_literal_index) {
+                  // Just mv the multiplied index to the offset register
+                  auto mv_inst = GET_BACKEND_TARGET()->CreateInstruction<RVMVInst>(target_offset, target_index);
+                  GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(mv_inst);
+                  first_non_literal_index = false;
+                } else {
+                  auto add_inst =
+                      GET_BACKEND_TARGET()->CreateInstruction<RVADDInst>(target_offset, target_offset, target_index);
+                  GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(add_inst);
+                }
+              }
+            }
+          } else {
+            // If the stride is 1, we can just add the index to the result register
+            if (first_non_literal_index) {
+              // Just mv the index to the offset register
+              auto mv_inst = GET_BACKEND_TARGET()->CreateInstruction<RVMVInst>(target_offset, target_index);
+              GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(mv_inst);
+              first_non_literal_index = false;
+            } else {
+              auto add_inst =
+                  GET_BACKEND_TARGET()->CreateInstruction<RVADDInst>(target_offset, target_offset, target_index);
+              GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(add_inst);
+            }
+          }
+        }
+      }
+
+      // Calculate the literal offset if it is not zero
+      if (literal_offset != 0) {
+        if (Is12BitSignedInteger(literal_offset)) {
+          auto target_literal = GET_BACKEND_TARGET()->CreateIntLiteral(literal_offset);
+          auto add_inst =
+              GET_BACKEND_TARGET()->CreateInstruction<RVADDIInst>(target_offset, target_offset, target_literal);
+          GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(add_inst);
+        } else {
+          auto target_literal = MaterializeLiteral(compiler_context_, literal_offset);
+          auto add_inst =
+              GET_BACKEND_TARGET()->CreateInstruction<RVADDInst>(target_offset, target_offset, target_literal);
+          GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(add_inst);
+        }
+      }
+
+      // Multiply the offset by the data size to get the final offset in bytes
+      if (IsPowerOfTwo(data_size)) {
+        int shift_amount = GetPowerOfTwoExponent(data_size);
+        auto target_shift_amount = GET_BACKEND_TARGET()->CreateIntLiteral(shift_amount);
+        auto shift_inst =
+            GET_BACKEND_TARGET()->CreateInstruction<RVSLLIInst>(target_offset, target_offset, target_shift_amount);
+        GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(shift_inst);
+      } else {
+        auto target_data_size = MaterializeLiteral(compiler_context_, static_cast<int>(data_size));
+        auto mul_inst =
+            GET_BACKEND_TARGET()->CreateInstruction<RVMULInst>(target_offset, target_offset, target_data_size);
+        GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(mul_inst);
+      }
+
+      // la the global variable address first
+      auto la_inst = GET_BACKEND_TARGET()->CreateInstruction<RVLAInst>(target_address, target_global_var);
       GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(la_inst);
-      // Then store the value to the address
+      auto add_inst = GET_BACKEND_TARGET()->CreateInstruction<RVADDInst>(target_address, target_address, target_offset);
+      GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(add_inst);
+
+      // Then store the value to the frame object
       auto zero_literal = GET_BACKEND_TARGET()->CreateIntLiteral(0);
-      auto store_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSWInst>(target_value, zero_literal, target_result);
+      if (is_float) {
+        auto store_inst =
+            GET_BACKEND_TARGET()->CreateInstruction<RVFSWInst>(target_value, zero_literal, target_address);
+        GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(store_inst);
+        return;
+      }
+      auto store_inst = GET_BACKEND_TARGET()->CreateInstruction<RVSWInst>(target_value, zero_literal, target_address);
       GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(store_inst);
       return;
     }
@@ -1734,7 +2059,7 @@ auto LowerHelper::LowerCall(backend::inst::CallInst *inst) -> void {
         }
         // Then create a store instruction to store the argument to the stack slot
         auto zero_literal = GET_BACKEND_TARGET()->CreateIntLiteral(0);
-        auto store_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFSDInst>(frame_operand, zero_literal, target_arg);
+        auto store_inst = GET_BACKEND_TARGET()->CreateInstruction<RVFSWInst>(frame_operand, zero_literal, target_arg);
         GET_BACKEND_TARGET()->GetCurrentBlock()->AddInst(store_inst);
         arguments.emplace_back(frame_operand);
       }

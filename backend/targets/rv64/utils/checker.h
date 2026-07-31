@@ -5,7 +5,7 @@
 #include "targets/utils/operand/targetreg.h"
 namespace backend::targetir::rv64 {
 
-enum class PowerOfTwoBinaryOp {
+enum class PowerOfTwoBinaryOp : uint8_t {
   Add,
   Sub,
 };

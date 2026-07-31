@@ -95,6 +95,7 @@ class Operand {
  private:
   const OpType op_type_;
   type::Type *type_ = nullptr;
+  friend class middleend::llvm::utils::factory::OperandFactory;
 
   /**
    * @brief instruction_ is used to record the instruction which generates
