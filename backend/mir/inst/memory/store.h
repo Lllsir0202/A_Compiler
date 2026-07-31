@@ -7,6 +7,10 @@ class StoreInst : public Instruction {
  public:
   auto Verify(context::CompilerContext *context) const -> bool override;
   auto Emit(std::ofstream *out) const -> void override;
+  // Get the pointer operand of the store instruction
+  auto GetPtr() const -> utils::Operand * { return operands_[1]; }
+  // Get the value operand of the store instruction
+  auto GetValue() const -> utils::Operand * { return operands_[0]; }
 
  private:
   explicit StoreInst() : Instruction(OpKind::Store) {}

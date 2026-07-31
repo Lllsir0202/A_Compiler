@@ -184,9 +184,9 @@ auto RV64Lower::Lower() -> int {
     }
 
     // Debugging: print the mapping from virtual register to physical register
-    // for (auto [vreg, preg] : backend_context->GetVregToPregMap()) {
-    //   printf("vreg: %zu, preg: %hhu\n", vreg->GetID(), preg->GetID());
-    // }
+    for (auto [vreg, preg] : backend_context->GetVregToPregMap()) {
+      printf("vreg: %zu, preg: %hhu\n", vreg->GetID(), preg->GetID());
+    }
 
   } catch (const std::exception &e) {
     compiler_context_->Print("Error during RV64 lowering: " + std::string(e.what()));
