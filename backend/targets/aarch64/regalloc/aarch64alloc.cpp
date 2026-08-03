@@ -31,6 +31,24 @@ auto AArch64GraphColorRegAlloc::Run(TargetFunction *func, size_t spill_base) -> 
   spill_temps_.clear();
   assigned_.clear();
   used_callee_saved_.clear();
+  has_vector_ = false;
+  for (auto *block : func_->GetBlocks()) {
+    for (auto *inst : block->GetInsts()) {
+      auto is_vector = [](TargetOperand *op) {
+        if (op == nullptr || (!op->IsVirtualReg() && !op->IsPhysicalReg())) {
+          return false;
+        }
+        if (op->IsVirtualReg()) {
+          return static_cast<TargetVirtualReg *>(op)->GetRegClass() == TargetRegClass::Vector;
+        }
+        return static_cast<TargetPhysicalReg *>(op)->GetRegClass() == TargetRegClass::Vector;
+      };
+      has_vector_ |= is_vector(inst->GetResult());
+      for (auto *op : inst->GetOperands()) {
+        has_vector_ |= is_vector(op);
+      }
+    }
+  }
 
   AllocateClass(TargetRegClass::General);
   AllocateClass(TargetRegClass::Float);
@@ -39,11 +57,19 @@ auto AArch64GraphColorRegAlloc::Run(TargetFunction *func, size_t spill_base) -> 
 }
 
 auto AArch64GraphColorRegAlloc::IsInClass(TargetOperand *op) const -> bool {
+  auto belongs = [&](TargetRegClass reg_class) {
+    // Scalar FP and AdvSIMD registers alias the same architectural v0-v31
+    // register file, so they must be colored in one interference graph.
+    if (class_ == TargetRegClass::Float) {
+      return reg_class == TargetRegClass::Float || reg_class == TargetRegClass::Vector;
+    }
+    return reg_class == class_;
+  };
   if (op->IsVirtualReg()) {
-    return static_cast<TargetVirtualReg *>(op)->GetRegClass() == class_;
+    return belongs(static_cast<TargetVirtualReg *>(op)->GetRegClass());
   }
   if (op->IsPhysicalReg()) {
-    return static_cast<TargetPhysicalReg *>(op)->GetRegClass() == class_;
+    return belongs(static_cast<TargetPhysicalReg *>(op)->GetRegClass());
   }
   return false;
 }
@@ -94,7 +120,9 @@ auto AArch64GraphColorRegAlloc::DefsUses(TargetInst *inst, std::vector<NodeId> *
     // A call clobbers every caller-saved register of the class: model each as a
     // def so values live across the call avoid them (or spill).
     for (auto id : reg_info_.AllocatableRegs(class_)) {
-      if (reg_info_.IsCallerSaved(class_, id)) {
+      // No 128-bit SIMD value is preserved by AAPCS64. If this function owns
+      // vectors, conservatively make every v-register interfere at calls.
+      if ((class_ == TargetRegClass::Float && has_vector_) || reg_info_.IsCallerSaved(class_, id)) {
         defs->push_back(NodeOf(ctx_->PhysReg(class_, TargetRegSize::QWord, id)));
       }
     }
@@ -560,6 +588,16 @@ auto AArch64GraphColorRegAlloc::AssignColors() -> void {
     select_stack_.pop_back();
     select_set_.erase(n);
     std::unordered_set<int> ok(allocatable.begin(), allocatable.end());
+    auto *operand = nodes_[n];
+    bool vector =
+        operand->IsVirtualReg() && static_cast<TargetVirtualReg *>(operand)->GetRegClass() == TargetRegClass::Vector;
+    if (vector) {
+      // v8-v15 preserve only their low 64 bits. Writing a q-register there
+      // would violate the callee ABI, so vectors use v0-v7/v16-v31 only.
+      for (int id = static_cast<int>(FPR::V8); id <= static_cast<int>(FPR::V15); ++id) {
+        ok.erase(id);
+      }
+    }
     for (auto w : adj_list_[n]) {
       NodeId aw = GetAlias(w);
       if (colored_nodes_.count(aw) != 0 || precolored_[aw]) {
@@ -591,7 +629,13 @@ auto AArch64GraphColorRegAlloc::SlotOf(TargetOperand *vreg) -> size_t {
   if (it != spill_slot_.end()) {
     return it->second;
   }
-  size_t slot = spill_count_++;
+  auto *reg = static_cast<TargetVirtualReg *>(vreg);
+  bool vector = reg->GetRegSize() == TargetRegSize::OWord;
+  if (vector && ((spill_base_ + spill_count_ * 8U) & 15U) != 0) {
+    ++spill_count_;  // keep 16-byte values naturally aligned
+  }
+  size_t slot = spill_count_;
+  spill_count_ += vector ? 2U : 1U;
   spill_slot_[vreg] = slot;
   return slot;
 }

@@ -1,41 +1,54 @@
 #include "backend/targets/aarch64/inst/aarch64inst.h"
 #include <array>
 #include "backend/targets/utils/operand/targetoperand.h"
+#include "backend/targets/utils/operand/targetreg.h"
 
 namespace backend::targetir::aarch64 {
 
+namespace {
+auto EmitVector4S(std::ofstream *out, TargetOperand *operand) -> void {
+  if (!operand->IsPhysicalReg()) {
+    operand->Emit(out);
+    *out << ".4s";
+    return;
+  }
+  auto *reg = static_cast<TargetPhysicalReg *>(operand);
+  *out << "v" << static_cast<int>(reg->GetID()) << ".4s";
+}
+}  // namespace
+
 auto A64CondName(A64Cond cond) -> const char * {
   switch (cond) {
-    case A64Cond::EQ: return "eq";
-    case A64Cond::NE: return "ne";
-    case A64Cond::LT: return "lt";
-    case A64Cond::LE: return "le";
-    case A64Cond::GT: return "gt";
-    case A64Cond::GE: return "ge";
-    default: return "al";
+    case A64Cond::EQ:
+      return "eq";
+    case A64Cond::NE:
+      return "ne";
+    case A64Cond::LT:
+      return "lt";
+    case A64Cond::LE:
+      return "le";
+    case A64Cond::GT:
+      return "gt";
+    case A64Cond::GE:
+      return "ge";
+    default:
+      return "al";
   }
 }
 
 auto GetA64OpcodeInfo(A64Opcode opcode) -> const A64OpcodeInfo & {
   using F = A64Form;
   static const std::array<A64OpcodeInfo, 50> TABLE = {{
-      {"add", F::R3},   {"sub", F::R3},   {"mul", F::R3},    {"sdiv", F::R3},
-      {"and", F::R3},   {"orr", F::R3},   {"eor", F::R3},
-      {"lsl", F::R3},   {"lsr", F::R3},   {"asr", F::R3},
-      {"msub", F::R4},  {"madd", F::R4},
-      {"add", F::RI},   {"sub", F::RI},
-      {"and", F::RI},   {"orr", F::RI},   {"eor", F::RI},
-      {"lsl", F::RI},   {"lsr", F::RI},   {"asr", F::RI},
-      {"mov", F::MovReg}, {"movz", F::MovImm}, {"movn", F::MovImm}, {"movk", F::MovK},
-      {"sxtw", F::Unary},
-      {"cmp", F::Cmp},  {"cmp", F::CmpImm}, {"cset", F::Cset},
-      {"b", F::BCond},  {"b", F::Branch}, {"cbz", F::CbzForm}, {"cbnz", F::CbzForm},
-      {"ldr", F::LoadOff}, {"str", F::StoreOff}, {"ldr", F::LoadReg}, {"str", F::StoreReg},
-      {"adrp", F::Adrp}, {"add", F::AddLo12},
-      {"fadd", F::R3},  {"fsub", F::R3},  {"fmul", F::R3},   {"fdiv", F::R3},
-      {"fcmp", F::FCmpForm}, {"fmov", F::MovReg}, {"fmov", F::Unary}, {"fmov", F::Unary},
-      {"scvtf", F::Unary}, {"fcvtzs", F::Unary},
-      {"bl", F::Call},  {"ret", F::Ret},
+      {"add", F::R3},       {"sub", F::R3},       {"mul", F::R3},        {"sdiv", F::R3},      {"and", F::R3},
+      {"orr", F::R3},       {"eor", F::R3},       {"lsl", F::R3},        {"lsr", F::R3},       {"asr", F::R3},
+      {"msub", F::R4},      {"madd", F::R4},      {"add", F::RI},        {"sub", F::RI},       {"and", F::RI},
+      {"orr", F::RI},       {"eor", F::RI},       {"lsl", F::RI},        {"lsr", F::RI},       {"asr", F::RI},
+      {"mov", F::MovReg},   {"movz", F::MovImm},  {"movn", F::MovImm},   {"movk", F::MovK},    {"sxtw", F::Unary},
+      {"cmp", F::Cmp},      {"cmp", F::CmpImm},   {"cset", F::Cset},     {"b", F::BCond},      {"b", F::Branch},
+      {"cbz", F::CbzForm},  {"cbnz", F::CbzForm}, {"ldr", F::LoadOff},   {"str", F::StoreOff}, {"ldr", F::LoadReg},
+      {"str", F::StoreReg}, {"adrp", F::Adrp},    {"add", F::AddLo12},   {"fadd", F::R3},      {"fsub", F::R3},
+      {"fmul", F::R3},      {"fdiv", F::R3},      {"fcmp", F::FCmpForm}, {"fmov", F::MovReg},  {"fmov", F::Unary},
+      {"fmov", F::Unary},   {"scvtf", F::Unary},  {"fcvtzs", F::Unary},  {"bl", F::Call},      {"ret", F::Ret},
   }};
   return TABLE[static_cast<size_t>(opcode)];
 }
@@ -78,6 +91,42 @@ auto AArch64Inst::Emit(std::ofstream *out) -> void {
     *out << ", #";
     operands_[3]->Emit(out);
     *out << "]\n";
+    return;
+  }
+  if (opcode_ == A64Opcode::V_DUP) {
+    *out << "\tdup ";
+    EmitVector4S(out, result_);
+    *out << ", ";
+    operands_[0]->Emit(out);
+    *out << "\n";
+    return;
+  }
+  if (opcode_ == A64Opcode::V_ADD || opcode_ == A64Opcode::V_MUL) {
+    *out << (opcode_ == A64Opcode::V_ADD ? "\tadd " : "\tmul ");
+    EmitVector4S(out, result_);
+    *out << ", ";
+    EmitVector4S(out, operands_[0]);
+    *out << ", ";
+    EmitVector4S(out, operands_[1]);
+    *out << "\n";
+    return;
+  }
+  if (opcode_ == A64Opcode::V_MLA || opcode_ == A64Opcode::V_MLS) {
+    *out << (opcode_ == A64Opcode::V_MLA ? "\tmla " : "\tmls ");
+    EmitVector4S(out, result_);
+    *out << ", ";
+    EmitVector4S(out, operands_[1]);
+    *out << ", ";
+    EmitVector4S(out, operands_[2]);
+    *out << "\n";
+    return;
+  }
+  if (opcode_ == A64Opcode::V_ADDV) {
+    *out << "\taddv ";
+    result_->Emit(out);
+    *out << ", ";
+    EmitVector4S(out, operands_[0]);
+    *out << "\n";
     return;
   }
   const auto &info = GetA64OpcodeInfo(opcode_);

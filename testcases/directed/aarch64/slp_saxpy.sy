@@ -1,0 +1,12 @@
+int dst[4] = {1, 2, 3, 4};
+int src[4] = {5, 6, 7, 8};
+
+int main() {
+  int scalar = getint();
+  dst[0] = dst[0] * scalar + src[0];
+  dst[1] = dst[1] * scalar + src[1];
+  dst[2] = dst[2] * scalar + src[2];
+  dst[3] = dst[3] * scalar + src[3];
+  putarray(4, dst);
+  return 0;
+}

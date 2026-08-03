@@ -34,18 +34,24 @@ class AArch64RegisterInfo : public RegisterInfo {
   }
 
   auto AllocatableRegs(TargetRegClass reg_class) const -> const std::vector<uint8_t> & override {
-    return reg_class == TargetRegClass::Float ? fpr_alloc_ : gpr_alloc_;
+    return (reg_class == TargetRegClass::Float || reg_class == TargetRegClass::Vector) ? fpr_alloc_ : gpr_alloc_;
   }
 
-  auto NumAllocatable(TargetRegClass reg_class) const -> size_t override {
-    return AllocatableRegs(reg_class).size();
-  }
+  auto NumAllocatable(TargetRegClass reg_class) const -> size_t override { return AllocatableRegs(reg_class).size(); }
 
   auto IsCallerSaved(TargetRegClass reg_class, uint8_t id) const -> bool override {
+    // AAPCS64 preserves only the low 64 bits of v8-v15. A 128-bit vector is
+    // therefore caller-saved even when it is assigned one of those registers.
+    if (reg_class == TargetRegClass::Vector) {
+      return true;
+    }
     return reg_class == TargetRegClass::Float ? IsFPRCallerSaved(id) : IsGPRCallerSaved(id);
   }
 
   auto CalleeSavedRegs(TargetRegClass reg_class) const -> const std::vector<uint8_t> & override {
+    if (reg_class == TargetRegClass::Vector) {
+      return empty_;
+    }
     return reg_class == TargetRegClass::Float ? fpr_callee_ : gpr_callee_;
   }
 
@@ -54,6 +60,7 @@ class AArch64RegisterInfo : public RegisterInfo {
   std::vector<uint8_t> fpr_alloc_;
   std::vector<uint8_t> gpr_callee_;
   std::vector<uint8_t> fpr_callee_;
+  std::vector<uint8_t> empty_;
 };
 
 }  // namespace backend::targetir::aarch64

@@ -96,6 +96,7 @@ class AArch64GraphColorRegAlloc {
   TargetContext *ctx_;
   AArch64RegisterInfo reg_info_;
   TargetFunction *func_ = nullptr;
+  bool has_vector_ = false;
 
   // Spill slots (shared numbering across both classes, offset from spill_base_).
   size_t spill_base_ = 0;

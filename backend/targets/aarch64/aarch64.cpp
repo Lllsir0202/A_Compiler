@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstring>
 #include <vector>
+#include "backend/mir/inst/memory/globaldef.h"
 #include "backend/targets/aarch64/frame/aarch64frame.h"
 #include "backend/targets/aarch64/isel/aarch64isel.h"
 #include "backend/targets/aarch64/pass/addrfold.h"
@@ -11,13 +12,13 @@
 #include "backend/targets/aarch64/pass/localcse.h"
 #include "backend/targets/aarch64/pass/machinedce.h"
 #include "backend/targets/aarch64/pass/peephole.h"
+#include "backend/targets/aarch64/pass/slpvectorize.h"
 #include "backend/targets/aarch64/printer/aarch64printer.h"
 #include "backend/targets/aarch64/regalloc/aarch64alloc.h"
 #include "backend/targets/utils/operand/targetreg.h"
 #include "backend/targets/utils/pass/machinepassmanager.h"
 #include "backend/targets/utils/struct/targetblock.h"
 #include "backend/targets/utils/struct/targetfunction.h"
-#include "backend/mir/inst/memory/globaldef.h"
 #include "context/compiler_context.h"
 
 namespace backend::targetir::aarch64 {
@@ -39,6 +40,7 @@ auto AArch64Backend::Run() -> int {
     machine_passes.AddPass(new AArch64IfConvert(&ctx_));
     machine_passes.AddPass(new AArch64Peephole(&ctx_));
     machine_passes.AddPass(new AArch64AddrFold(&ctx_));
+    machine_passes.AddPass(new AArch64SLPVectorize(&ctx_));
     machine_passes.AddPass(new AArch64LocalCSE(&ctx_));
     machine_passes.AddPass(new AArch64MachineDCE(&ctx_));
     machine_passes.AddPass(new AArch64BranchFold(&ctx_));

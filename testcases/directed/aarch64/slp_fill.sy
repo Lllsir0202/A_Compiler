@@ -1,0 +1,11 @@
+int data[4];
+
+int main() {
+  int value = getint();
+  data[0] = value;
+  data[1] = value;
+  data[2] = value;
+  data[3] = value;
+  putarray(4, data);
+  return 0;
+}

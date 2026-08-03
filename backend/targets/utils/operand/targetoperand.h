@@ -7,10 +7,11 @@ namespace backend::targetir {
 
 // Register operand size
 enum class TargetRegSize : uint8_t {
-  Byte = 1,   // 8-bit register
-  Word = 2,   // 16-bit register
-  DWord = 4,  // 32-bit register
-  QWord = 8,  // 64-bit register
+  Byte = 1,    // 8-bit register
+  Word = 2,    // 16-bit register
+  DWord = 4,   // 32-bit register
+  QWord = 8,   // 64-bit register
+  OWord = 16,  // 128-bit SIMD register
 };
 
 // Register class

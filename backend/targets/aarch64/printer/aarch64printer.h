@@ -20,6 +20,12 @@ class AArch64Printer : public TargetPrinter {
  public:
   auto GetRegName(TargetRegSize reg_size, uint8_t id, TargetRegClass reg_class) const -> std::string override {
     bool is64 = reg_size == TargetRegSize::QWord;
+    if (reg_class == TargetRegClass::Vector) {
+      if (id >= 32 || reg_size != TargetRegSize::OWord) {
+        return "<bad-vreg>";
+      }
+      return "q" + std::to_string(id);
+    }
     if (reg_class == TargetRegClass::Float) {
       if (id >= 32) {
         return "<bad-freg>";

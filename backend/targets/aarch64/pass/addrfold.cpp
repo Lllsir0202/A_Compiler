@@ -26,7 +26,12 @@ auto RegSizeOf(TargetOperand *op) -> TargetRegSize {
 auto IsQWord(TargetOperand *op) -> bool { return RegSizeOf(op) == TargetRegSize::QWord; }
 
 // Access width in bytes for the loaded/stored value register.
-auto AccessBytes(TargetRegSize size) -> int { return size == TargetRegSize::QWord ? 8 : 4; }
+auto AccessBytes(TargetRegSize size) -> int {
+  if (size == TargetRegSize::OWord) {
+    return 16;
+  }
+  return size == TargetRegSize::QWord ? 8 : 4;
+}
 }  // namespace
 
 auto AArch64AddrFold::BuildDefs(TargetFunction *func) -> void {
@@ -62,6 +67,41 @@ auto AArch64AddrFold::RunOnFunction(TargetFunction *func) -> bool {
     for (auto *inst : block->GetInsts()) {
       auto *ai = static_cast<AArch64Inst *>(inst);
       auto opc = ai->GetOpcode();
+      const bool is_reg_load = opc == A64Opcode::LDR_REG;
+      const bool is_reg_store = opc == A64Opcode::STR_REG;
+      if (is_reg_load || is_reg_store) {
+        const auto &ops = inst->GetOperands();
+        auto *value = is_reg_load ? inst->GetResult() : ops[0];
+        auto *base = is_reg_load ? ops[0] : ops[1];
+        auto *index = is_reg_load ? ops[1] : ops[2];
+        auto *shift_op = is_reg_load ? ops[2] : ops[3];
+        int shift = static_cast<TargetIntLiteral *>(shift_op)->GetValue();
+
+        // Resolve the common `movz wi, #C; sxtw xi, wi` index chain left by
+        // lowering. Turning it into an unsigned byte offset both removes address
+        // setup and exposes adjacent memory operations to SLP vectorization.
+        auto *extend = SingleDef(index);
+        TargetOperand *narrow = nullptr;
+        if (extend != nullptr && static_cast<AArch64Inst *>(extend)->GetOpcode() == A64Opcode::SXTW) {
+          narrow = extend->GetOperands()[0];
+        }
+        auto *constant = SingleDef(narrow);
+        if (constant != nullptr && static_cast<AArch64Inst *>(constant)->GetOpcode() == A64Opcode::MOVZ) {
+          int index_value = static_cast<TargetIntLiteral *>(constant->GetOperands()[0])->GetValue();
+          int offset = index_value << shift;
+          int width = AccessBytes(RegSizeOf(value));
+          if (offset >= 0 && offset % width == 0 && offset <= UOFF_IMM_MAX * width) {
+            ai->SetOpcode(is_reg_load ? A64Opcode::LDR_OFF : A64Opcode::STR_OFF);
+            if (is_reg_load) {
+              inst->SetOperands({base, ctx_->Imm(offset)});
+            } else {
+              inst->SetOperands({value, base, ctx_->Imm(offset)});
+            }
+            changed = true;
+          }
+        }
+        continue;
+      }
       const bool is_load = opc == A64Opcode::LDR_OFF;
       const bool is_store = opc == A64Opcode::STR_OFF;
       if (!is_load && !is_store) {
@@ -71,8 +111,7 @@ auto AArch64AddrFold::RunOnFunction(TargetFunction *func) -> bool {
       // load:  {base, #off}  (result = value)   store: {value, base, #off}
       auto *base = is_load ? ops[0] : ops[1];
       auto *off = is_load ? ops[1] : ops[2];
-      if (off->GetOpType() != TargetOperandType::Immediate ||
-          static_cast<TargetIntLiteral *>(off)->GetValue() != 0) {
+      if (off->GetOpType() != TargetOperandType::Immediate || static_cast<TargetIntLiteral *>(off)->GetValue() != 0) {
         continue;  // already carries a folded offset / register form
       }
       auto *value = is_load ? inst->GetResult() : ops[0];
