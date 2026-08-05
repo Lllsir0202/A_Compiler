@@ -7,6 +7,7 @@
 #include "middleend/mlir/dialect/arithm/binaryop.h"
 #include "middleend/mlir/dialect/arithm/copy.h"
 #include "middleend/mlir/dialect/arithm/unaryop.h"
+#include "middleend/mlir/dialect/func/funccall.h"
 #include "middleend/mlir/dialect/func/funcdef.h"
 #include "middleend/mlir/dialect/func/return.h"
 #include "middleend/mlir/dialect/scf/break.h"
@@ -348,6 +349,13 @@ auto IsDefinedInLoop(mlir::Value *value, mlir::scf::WhileOp *while_op) -> bool {
 
 namespace {
 auto OperationIsCloneable(mlir::Operation *operation) -> bool {
+  auto *call = mlir::DynamicOrNull<mlir::func::FuncCallOp>(operation);
+  // Duplicating an internal call before the late BASEIR inliner raises code
+  // size and prevents the callee's loop state from being optimized with the
+  // caller. Runtime/library calls remain cloneable.
+  if (call != nullptr && !mlir::func::IsLibraryFunction(call->GetName())) {
+    return false;
+  }
   if (mlir::DynamicOrNull<mlir::scf::WhileOp>(operation) != nullptr) {
     return false;
   }

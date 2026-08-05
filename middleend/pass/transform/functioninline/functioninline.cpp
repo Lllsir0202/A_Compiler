@@ -13,6 +13,7 @@
 #include "middleend/mlir/dialect/base/funcdef.h"
 #include "middleend/mlir/dialect/base/phi.h"
 #include "middleend/mlir/dialect/base/unaryop.h"
+#include "middleend/mlir/dialect/base/widemulmod.h"
 #include "middleend/mlir/dialect/func/return.h"
 #include "middleend/mlir/dialect/var/def.h"
 #include "middleend/mlir/dialect/var/getptr.h"
@@ -41,13 +42,18 @@ auto FunctionInlinePass::Run() -> void {
     throw std::logic_error("PreRun failed in FunctionInlinePass");
   }
 
-  CollectFunctions();
-  CollectCallGraph();
-
   bool changed = false;
-  auto inline_sites = FindInlineSites();
-  for (const auto &site : inline_sites) {
-    changed |= InlineCallSite(site);
+  for (size_t round = 0; round < kMaxInlineSites; ++round) {
+    CollectFunctions();
+    CollectCallGraph();
+    auto inline_sites = FindInlineSites();
+    if (inline_sites.empty()) {
+      break;
+    }
+    if (!InlineCallSite(inline_sites.front())) {
+      break;
+    }
+    changed = true;
   }
 
   if (!changed) {
@@ -140,14 +146,33 @@ auto FunctionInlinePass::IsInlineCandidate(mlir::base::FuncDefOp *caller, mlir::
   if (IsLibraryFunctionName(callee->GetName())) {
     return false;
   }
-  if (!IsSingleBlockInlineCandidate(callee)) {
+  if (!HasUnifiedReturn(callee)) {
     return false;
   }
-  if (!callee->GetEntryBlock()->arguments_.empty()) {
-    return false;
+  for (auto *block : callee->GetBlocks()) {
+    if (!block->arguments_.empty()) {
+      return false;
+    }
+  }
+  for (auto *argument : callee->GetArguments()) {
+    // Pointer arguments need aggregate/pointee remapping that the BASEIR cloner
+    // does not model yet.  Keep this inliner deliberately scalar-only.
+    if (argument->GetType() == nullptr || argument->GetType()->GetKind() == type::TypeKind::PTR) {
+      return false;
+    }
   }
   if (CountOperations(callee) > kMaxInlineOperationCount) {
     return false;
+  }
+  auto callee_edges = call_graph_.find(callee);
+  if (callee_edges != call_graph_.end()) {
+    for (auto *next : callee_edges->second) {
+      // Do not repeatedly expand a recursive callee into an otherwise
+      // non-recursive caller.
+      if (HasRecursivePath(next, callee)) {
+        return false;
+      }
+    }
   }
   if (HasRecursivePath(callee, caller)) {
     return false;
@@ -155,27 +180,20 @@ auto FunctionInlinePass::IsInlineCandidate(mlir::base::FuncDefOp *caller, mlir::
   return true;
 }
 
-auto FunctionInlinePass::IsSingleBlockInlineCandidate(mlir::base::FuncDefOp *callee) -> bool {
-  if (callee->GetBlocks().size() != 1) {
-    return false;
-  }
-  auto *entry_block = callee->GetEntryBlock();
-  if (entry_block->operations_.empty()) {
-    return false;
-  }
-  auto *terminator = entry_block->operations_.back();
-  if (mlir::DynamicOrNull<mlir::func::ReturnOp>(terminator) == nullptr) {
-    return false;
-  }
-  for (size_t i = 0; i + 1 < entry_block->operations_.size(); ++i) {
-    auto *operation = entry_block->operations_[i];
-    if (mlir::DynamicOrNull<mlir::base::BrOp>(operation) != nullptr ||
-        mlir::DynamicOrNull<mlir::base::CondBrOp>(operation) != nullptr ||
-        mlir::DynamicOrNull<mlir::base::PhiOp>(operation) != nullptr) {
-      return false;
+auto FunctionInlinePass::HasUnifiedReturn(mlir::base::FuncDefOp *callee) -> bool {
+  size_t returns = 0;
+  for (auto *block : callee->GetBlocks()) {
+    for (size_t index = 0; index < block->operations_.size(); ++index) {
+      if (mlir::DynamicOrNull<mlir::func::ReturnOp>(block->operations_[index]) == nullptr) {
+        continue;
+      }
+      if (index + 1 != block->operations_.size()) {
+        return false;
+      }
+      ++returns;
     }
   }
-  return true;
+  return returns == 1;
 }
 
 auto FunctionInlinePass::FindInlineSites() -> std::vector<InlineSite> {
@@ -215,6 +233,10 @@ auto FunctionInlinePass::CreateInlineBlock(const std::string &prefix) -> mlir::B
 auto FunctionInlinePass::CloneValue(mlir::Value *original) -> mlir::Value * {
   if (original == nullptr) {
     return nullptr;
+  }
+  auto existing = value_map_.find(original);
+  if (existing != value_map_.end()) {
+    return existing->second;
   }
   auto *cloned = GET_MLIR_CONTEXT()->CreateValue();
   cloned->SetType(original->GetType());
@@ -289,6 +311,7 @@ auto FunctionInlinePass::CloneOperation(mlir::Operation *operation) -> mlir::Ope
     auto *new_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarDefOp>(
         GET_MLIR_CONTEXT(), std::vector<int>(var_def_op->GetDimensions().begin(), var_def_op->GetDimensions().end()),
         inits);
+    new_op->GetRes()->SetType(var_def_op->GetRes()->GetType());
     value_map_[var_def_op->GetRes()] = new_op->GetRes();
     return new_op;
   }
@@ -299,18 +322,21 @@ auto FunctionInlinePass::CloneOperation(mlir::Operation *operation) -> mlir::Ope
     }
     auto *new_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetPtrOp>(
         GET_MLIR_CONTEXT(), RemapValue(get_ptr_op->GetPtr()), indices);
+    new_op->GetRes()->SetType(get_ptr_op->GetRes()->GetType());
     value_map_[get_ptr_op->GetRes()] = new_op->GetRes();
     return new_op;
   }
   if (auto *get_val_op = mlir::DynamicOrNull<mlir::var::VarGetValOp>(operation)) {
     auto *new_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarGetValOp>(GET_MLIR_CONTEXT(),
                                                                                RemapValue(get_val_op->GetPtr()));
+    new_op->GetRes()->SetType(get_val_op->GetRes()->GetType());
     value_map_[get_val_op->GetRes()] = new_op->GetRes();
     return new_op;
   }
   if (auto *set_op = mlir::DynamicOrNull<mlir::var::VarSetOp>(operation)) {
     auto *new_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::var::VarSetOp>(
         GET_MLIR_CONTEXT(), RemapValue(set_op->GetPtr()), RemapValue(set_op->GetNewValue()));
+    new_op->GetRes()->SetType(set_op->GetRes()->GetType());
     value_map_[set_op->GetRes()] = new_op->GetRes();
     return new_op;
   }
@@ -326,6 +352,9 @@ auto FunctionInlinePass::CloneOperation(mlir::Operation *operation) -> mlir::Ope
   CLONE_BASE_BINARY_OP(Mul)
   CLONE_BASE_BINARY_OP(Div)
   CLONE_BASE_BINARY_OP(Mod)
+  CLONE_BASE_BINARY_OP(Shl)
+  CLONE_BASE_BINARY_OP(LShr)
+  CLONE_BASE_BINARY_OP(AShr)
   CLONE_BASE_BINARY_OP(Equal)
   CLONE_BASE_BINARY_OP(NotEqual)
   CLONE_BASE_BINARY_OP(Less)
@@ -344,6 +373,12 @@ auto FunctionInlinePass::CloneOperation(mlir::Operation *operation) -> mlir::Ope
   CLONE_BASE_BINARY_OP(GreaterEqualF)
 
 #undef CLONE_BASE_BINARY_OP
+
+  if (auto *wide = mlir::DynamicOrNull<mlir::base::WideMulModOp>(operation)) {
+    return GET_MLIR_CONTEXT()->CreateOperation<mlir::base::WideMulModOp>(
+        CloneValue(wide->GetRes()), RemapValue(wide->GetLHS()), RemapValue(wide->GetRHS()),
+        RemapValue(wide->GetModulus()));
+  }
 
 #define CLONE_BASE_UNARY_OP(OP_TYPE)                                                                         \
   if (auto *unary_op = mlir::DynamicOrNull<mlir::base::OP_TYPE##Op>(operation)) {                            \
@@ -398,40 +433,74 @@ auto FunctionInlinePass::InlineCallSite(const InlineSite &site) -> bool {
   auto *callee = site.callee;
 
   auto *call_result = call_op->GetRes();
-
   for (size_t i = 0; i < callee->GetArguments().size(); ++i) {
     value_map_[callee->GetArguments()[i]] = call_op->GetOperands()[i];
   }
-  auto *callee_block = callee->GetEntryBlock();
-  auto *callee_return_op = mlir::DynamicOrNull<mlir::func::ReturnOp>(callee_block->operations_.back());
-  if (callee_return_op == nullptr) {
-    throw std::logic_error("Single-block callee does not end with ReturnOp");
+
+  auto callee_blocks = callee->GetBlocks();
+  for (auto *callee_block : callee_blocks) {
+    block_map_[callee_block] = CreateInlineBlock(callee->GetName() + "_inline");
+    for (auto *operation : callee_block->operations_) {
+      for (auto *result : operation->results_) {
+        CloneValue(result);
+      }
+    }
   }
+
+  auto *continuation = CreateInlineBlock(site.caller->GetName() + "_inline_cont");
+  for (size_t index = site.call_index + 1; index < call_block->operations_.size(); ++index) {
+    continuation->operations_.emplace_back(call_block->operations_[index]);
+  }
+
+  auto caller_blocks = site.caller->GetBlocks();
+  for (auto *block : caller_blocks) {
+    for (auto *operation : block->operations_) {
+      auto *phi = mlir::DynamicOrNull<mlir::base::PhiOp>(operation);
+      if (phi == nullptr) {
+        continue;
+      }
+      for (size_t index = 0; index < phi->GetIncomingSize(); ++index) {
+        if (phi->GetIncomingBlock()[index] == call_block) {
+          phi->UpdateIncoming(index, phi->GetIncomingValue()[index], continuation);
+        }
+      }
+    }
+  }
+
+  call_block->operations_.resize(site.call_index);
+  call_block->operations_.emplace_back(
+      GET_MLIR_CONTEXT()->CreateOperation<mlir::base::BrOp>(block_map_.at(callee->GetEntryBlock())));
+
   mlir::Value *inlined_return_value = nullptr;
-  std::vector<mlir::Operation *> cloned_operations;
-  for (size_t i = 0; i + 1 < callee_block->operations_.size(); ++i) {
-    auto *cloned = CloneOperation(callee_block->operations_[i]);
-    cloned_operations.emplace_back(cloned);
-  }
-  if (callee_return_op->GetReturnValue() != nullptr) {
-    inlined_return_value = RemapValue(callee_return_op->GetReturnValue());
+  for (auto *callee_block : callee_blocks) {
+    auto *cloned_block = block_map_.at(callee_block);
+    for (auto *operation : callee_block->operations_) {
+      if (auto *return_op = mlir::DynamicOrNull<mlir::func::ReturnOp>(operation)) {
+        inlined_return_value = RemapValue(return_op->GetReturnValue());
+        cloned_block->operations_.emplace_back(GET_MLIR_CONTEXT()->CreateOperation<mlir::base::BrOp>(continuation));
+      } else {
+        cloned_block->operations_.emplace_back(CloneOperation(operation));
+      }
+    }
   }
 
   if (call_result != nullptr && inlined_return_value != nullptr) {
     call_result->ReplaceAllUsesWith(inlined_return_value);
   }
-  std::vector<mlir::Operation *> new_operations;
-  new_operations.reserve(call_block->operations_.size() - 1 + cloned_operations.size());
-  for (size_t i = 0; i < site.call_index; ++i) {
-    new_operations.emplace_back(call_block->operations_[i]);
+
+  std::vector<mlir::Block *> new_blocks;
+  new_blocks.reserve(caller_blocks.size() + callee_blocks.size());
+  for (auto *block : caller_blocks) {
+    new_blocks.emplace_back(block);
+    if (block != call_block) {
+      continue;
+    }
+    for (auto *callee_block : callee_blocks) {
+      new_blocks.emplace_back(block_map_.at(callee_block));
+    }
+    new_blocks.emplace_back(continuation);
   }
-  for (auto *operation : cloned_operations) {
-    new_operations.emplace_back(operation);
-  }
-  for (size_t i = site.call_index + 1; i < call_block->operations_.size(); ++i) {
-    new_operations.emplace_back(call_block->operations_[i]);
-  }
-  call_block->operations_ = std::move(new_operations);
+  site.caller->SetBlocks(std::move(new_blocks));
   return true;
 }
 

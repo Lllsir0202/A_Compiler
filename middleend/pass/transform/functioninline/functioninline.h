@@ -1,5 +1,4 @@
-// base ir functionInline pass
-// beta version, no support for function with muti-blocks, complex phi case, recursion inline
+// BASEIR function inlining after structured control flow has been flattened.
 
 #ifndef MIDDLEEND_PASS_TRANSFORM_FUNCTIONINLINE_FUNCTIONINLINE_H
 #define MIDDLEEND_PASS_TRANSFORM_FUNCTIONINLINE_FUNCTIONINLINE_H
@@ -60,14 +59,15 @@ class FunctionInlinePass : public TransformPass {
   auto RebuildUses(mlir::base::FuncDefOp *func_op) -> void;
   auto RebuildOperationUses(mlir::Operation *operation) -> void;
   auto RebuildPhiUses(mlir::Operation *operation) -> void;
-  auto IsSingleBlockInlineCandidate(mlir::base::FuncDefOp *callee) -> bool;
+  auto HasUnifiedReturn(mlir::base::FuncDefOp *callee) -> bool;
 
   std::unordered_map<std::string, mlir::base::FuncDefOp *> function_map_;
   std::unordered_map<mlir::base::FuncDefOp *, std::unordered_set<mlir::base::FuncDefOp *>> call_graph_;
   std::unordered_map<mlir::Value *, mlir::Value *> value_map_;
   std::unordered_map<mlir::Block *, mlir::Block *> block_map_;
   size_t inline_block_id_counter_{0};
-  static constexpr size_t kMaxInlineOperationCount = 64;
+  static constexpr size_t kMaxInlineOperationCount = 200;
+  static constexpr size_t kMaxInlineSites = 256;
 };
 
 }  // namespace middleend::pass::transform
