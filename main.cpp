@@ -35,6 +35,7 @@
 #include "middleend/pass/transform/memoization/memoization.h"
 #include "middleend/pass/transform/mlirdce/mlirdce.h"
 #include "middleend/pass/transform/mlirfunctioninline/mlirfunctioninline.h"
+#include "middleend/pass/transform/mlirloopdomaintighten/mlirloopdomaintighten.h"
 #include "middleend/pass/transform/mlirloopfusion/mlirloopfusion.h"
 #include "middleend/pass/transform/mlirloopunroll/mlirlooppartialunroll.h"
 #include "middleend/pass/transform/mlirloopunroll/mlirloopunroll.h"
@@ -304,6 +305,10 @@ auto main(int argc, char *argv[]) -> int {
     auto mlir_loop_fusion_pass = context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopFusionPass>(
         &compiler_context, middleend::pass::PassStage::MLIR);
     mlirpass_context->AddPass(mlir_loop_fusion_pass);
+    auto mlir_loop_domain_tighten_pass =
+        context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopDomainTightenPass>(
+            &compiler_context, middleend::pass::PassStage::MLIR);
+    mlirpass_context->AddPass(mlir_loop_domain_tighten_pass);
     auto mlir_loop_unswitch_pass = context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopUnswitchPass>(
         &compiler_context, middleend::pass::PassStage::MLIR);
     mlirpass_context->AddPass(mlir_loop_unswitch_pass);
