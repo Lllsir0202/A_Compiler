@@ -99,30 +99,40 @@ auto ReassociatePass::Run() -> void {
     throw std::logic_error("ReassociatePass requires CFGPass");
   }
   bool changed = false;
-  for (auto *function_cfg : cfg_pass->Get()) {
-    auto *mlir_cfg = dynamic_cast<analysis::MLIRFunctionCFG *>(function_cfg);
-    if (mlir_cfg == nullptr) {
-      continue;
-    }
-    use_count_.clear();
-    for (auto *cfg_node : mlir_cfg->GetNodes()) {
-      auto *mlir_node = dynamic_cast<analysis::MLIRCFGNode *>(cfg_node);
-      if (mlir_node == nullptr) {
+  // A first round can build a cheaper add/sub/neg tree that exposes another cancellation.  One
+  // confirming cleanup round reaches a local fixpoint for these trees without repeatedly running
+  // unrelated pipeline passes.
+  for (size_t round = 0; round < 2; ++round) {
+    bool round_changed = false;
+    for (auto *function_cfg : cfg_pass->Get()) {
+      auto *mlir_cfg = dynamic_cast<analysis::MLIRFunctionCFG *>(function_cfg);
+      if (mlir_cfg == nullptr) {
         continue;
       }
-      for (auto *operation : mlir_node->GetBlock()->operations_) {
-        for (auto *operand : operation->operands_) {
-          if (operand != nullptr) {
-            ++use_count_[operand];
+      use_count_.clear();
+      for (auto *cfg_node : mlir_cfg->GetNodes()) {
+        auto *mlir_node = dynamic_cast<analysis::MLIRCFGNode *>(cfg_node);
+        if (mlir_node == nullptr) {
+          continue;
+        }
+        for (auto *operation : mlir_node->GetBlock()->operations_) {
+          for (auto *operand : operation->operands_) {
+            if (operand != nullptr) {
+              ++use_count_[operand];
+            }
           }
         }
       }
-    }
-    for (auto *cfg_node : mlir_cfg->GetNodes()) {
-      auto *mlir_node = dynamic_cast<analysis::MLIRCFGNode *>(cfg_node);
-      if (mlir_node != nullptr) {
-        changed = RunOnBlock(mlir_node->GetBlock()) || changed;
+      for (auto *cfg_node : mlir_cfg->GetNodes()) {
+        auto *mlir_node = dynamic_cast<analysis::MLIRCFGNode *>(cfg_node);
+        if (mlir_node != nullptr) {
+          round_changed = RunOnBlock(mlir_node->GetBlock()) || round_changed;
+        }
       }
+    }
+    changed = changed || round_changed;
+    if (!round_changed) {
+      break;
     }
   }
   if (changed) {
