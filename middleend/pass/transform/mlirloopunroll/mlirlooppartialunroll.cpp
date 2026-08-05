@@ -1,5 +1,7 @@
 #include "middleend/pass/transform/mlirloopunroll/mlirlooppartialunroll.h"
+#include <cstdlib>
 #include <cstdint>
+#include <iostream>
 #include <unordered_map>
 #include <utility>
 #include <variant>
@@ -39,8 +41,8 @@ auto GetConstantBound(mlir::Value *bound, int *out) -> bool {
 }
 
 // Whether bound_main = bound - (K-1)*step leaves the 32-bit range.
-auto BoundMainWraps(int bound, int64_t step) -> bool {
-  int64_t bound_main = static_cast<int64_t>(bound) - (MLIRLoopPartialUnrollPass::kUnrollFactor - 1) * step;
+auto BoundMainWraps(int bound, int64_t step, int64_t factor) -> bool {
+  int64_t bound_main = static_cast<int64_t>(bound) - (factor - 1) * step;
   return bound_main < INT32_MIN || bound_main > INT32_MAX;
 }
 
@@ -138,17 +140,33 @@ auto MLIRLoopPartialUnrollPass::Run() -> void {
 auto MLIRLoopPartialUnrollPass::RunOnFunction(mlir::func::FuncDefOp *func_op) -> bool {
   // First expose row-contiguous accesses in strict matrix dot products.  The ordinary partial
   // unroller below can then widen the newly-created shared reduction loop as usual.
+  register_blocked_loops_.clear();
   bool changed = JamDotProductLoops(func_op);
 
   // Collect the original loops before transforming: partial unroll inserts new (main) loops that
   // must not themselves be revisited, and only the pre-existing loops are candidates.
   std::vector<std::pair<mlir::Block *, mlir::scf::WhileOp *>> loops;
   CollectWhileLoops(func_op->GetEntryBlock(), &loops);
+  bool preserve_register_block = !register_blocked_loops_.empty();
 
   for (auto &[block, while_op] : loops) {
+    size_t body_operations = loopiv::CountOperations(while_op->GetBodyRegion());
+    // Narrow only genuinely large bodies. Small scalar loops still benefit from eight-way loop
+    // control amortization, while bodies above this budget tend to spill or duplicate substantial
+    // address arithmetic on AArch64. If the function contains a register-blocked strict dot
+    // product, preserve its coordinated eight-way schedule across the surrounding loop nest.
+    constexpr size_t kPressureBodyOperations = 32;
+    bool high_pressure = body_operations >= kPressureBodyOperations || while_op->GetResultsSize() >= 2;
+    int64_t factor = preserve_register_block || !high_pressure ? kUnrollFactor : unroll_factor_;
+    if (std::getenv("PARTIAL_UNROLL_STATS") != nullptr) {
+      std::cerr << "PartialUnroll: ops=" << body_operations
+                << " results=" << while_op->GetResultsSize()
+                << " register_blocked=" << (register_blocked_loops_.count(while_op) != 0)
+                << " factor=" << factor << '\n';
+    }
     loopiv::Induction iv;
-    if (CanPartialUnroll(while_op, &iv)) {
-      PartialUnroll(block, while_op, iv);
+    if (CanPartialUnroll(while_op, &iv, factor)) {
+      PartialUnroll(block, while_op, iv, factor);
       changed = true;
     }
   }
@@ -500,6 +518,7 @@ auto MLIRLoopPartialUnrollPass::TryJamDotProductLoop(mlir::Block *block, mlir::s
   jam_body_region->AddBlock(jam_body_block);
   auto *jam_loop = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::WhileOp>(GET_MLIR_CONTEXT(), kJamFactor + 1,
                                                                            jam_cond_region, jam_body_region);
+  register_blocked_loops_.insert(jam_loop);
   jam_loop->GetResultByIndex(0)->SetType(pattern.reduction_loop_->GetResultByIndex(reduction_index)->GetType());
   for (int64_t lane = 0; lane < kJamFactor; ++lane) {
     jam_loop->GetResultByIndex(lane + 1)->SetType(pattern.reduction_loop_->GetResultByIndex(sum_index)->GetType());
@@ -566,7 +585,8 @@ auto MLIRLoopPartialUnrollPass::CollectWhileLoops(
   }
 }
 
-auto MLIRLoopPartialUnrollPass::CanPartialUnroll(mlir::scf::WhileOp *while_op, loopiv::Induction *iv) -> bool {
+auto MLIRLoopPartialUnrollPass::CanPartialUnroll(mlir::scf::WhileOp *while_op, loopiv::Induction *iv, int64_t factor)
+    -> bool {
   *iv = loopiv::Recognize(while_op);
   if (!iv->valid_) {
     return false;
@@ -587,7 +607,7 @@ auto MLIRLoopPartialUnrollPass::CanPartialUnroll(mlir::scf::WhileOp *while_op, l
   }
   // delta = (K-1)*step and the wrap-guard thresholds INT_MIN/INT_MAX + delta must stay
   // representable as 32-bit ints.
-  if (iv->step_ > INT32_MAX / kUnrollFactor || iv->step_ < INT32_MIN / kUnrollFactor) {
+  if (iv->step_ > INT32_MAX / factor || iv->step_ < INT32_MIN / factor) {
     return false;
   }
   // Compile-time-constant bounds whose bound_main would wrap are rejected statically
@@ -597,13 +617,13 @@ auto MLIRLoopPartialUnrollPass::CanPartialUnroll(mlir::scf::WhileOp *while_op, l
   // small step is negligible (thresholds are near INT_MIN/INT_MAX, unreachable by any
   // real program), so this is an acceptable correctness/performance trade-off.
   int bound_value = 0;
-  if (GetConstantBound(iv->bound_, &bound_value) && BoundMainWraps(bound_value, iv->step_)) {
+  if (GetConstantBound(iv->bound_, &bound_value) && BoundMainWraps(bound_value, iv->step_, factor)) {
     return false;
   }
   if (!loopiv::BodyIsCloneable(while_op->GetBodyRegion())) {
     return false;
   }
-  if (loopiv::CountOperations(while_op->GetBodyRegion()) * static_cast<size_t>(kUnrollFactor) > kMaxBodyCost) {
+  if (loopiv::CountOperations(while_op->GetBodyRegion()) * static_cast<size_t>(factor) > kMaxBodyCost) {
     return false;
   }
   return true;
@@ -633,7 +653,7 @@ auto MLIRLoopPartialUnrollPass::MakeComparison(loopiv::CmpKind kind, mlir::Value
 }
 
 auto MLIRLoopPartialUnrollPass::PartialUnroll(mlir::Block *block, mlir::scf::WhileOp *while_op,
-                                              const loopiv::Induction &iv) -> void {
+                                              const loopiv::Induction &iv, int64_t factor) -> void {
   auto *cond_block = while_op->GetCondRegion()->blocks_[0];
   auto *body_block = while_op->GetBodyRegion()->blocks_[0];
   auto *condition_op = mlir::DynamicOrNull<mlir::scf::ConditionOp>(cond_block->operations_.back());
@@ -651,7 +671,7 @@ auto MLIRLoopPartialUnrollPass::PartialUnroll(mlir::Block *block, mlir::scf::Whi
   // (CanPartialUnroll already rejected the wrapping case); a runtime bound gets a guard: a
   // comparison against the constant threshold decides at runtime whether the main loop runs at
   // all, and when it fails the remainder loop simply runs every iteration.
-  int64_t delta = (kUnrollFactor - 1) * iv.step_;  // fits in int: CanPartialUnroll bounds |step_|
+  int64_t delta = (factor - 1) * iv.step_;  // fits in int: CanPartialUnroll bounds |step_|
   auto *delta_const =
       GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), static_cast<int>(delta));
   delta_const->GetRes()->SetType(iv.bound_->GetType());
@@ -695,7 +715,7 @@ auto MLIRLoopPartialUnrollPass::PartialUnroll(mlir::Block *block, mlir::scf::Whi
     main_body_block->AddArgument(arg);
   }
   std::vector<mlir::Value *> carried = main_args;
-  for (int64_t iteration = 0; iteration < kUnrollFactor; ++iteration) {
+  for (int64_t iteration = 0; iteration < factor; ++iteration) {
     cloner_.value_map_.clear();
     for (size_t i = 0; i < size; ++i) {
       cloner_.value_map_[cond_block->arguments_[i]] = carried[i];

@@ -317,7 +317,7 @@ auto main(int argc, char *argv[]) -> int {
     mlirpass_context->AddPass(mlir_loop_unroll_pass);
     auto mlir_loop_partial_unroll_pass =
         context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopPartialUnrollPass>(
-            &compiler_context, middleend::pass::PassStage::MLIR);
+            &compiler_context, middleend::pass::PassStage::MLIR, target_arch == "aarch64" ? 4 : 8);
     mlirpass_context->AddPass(mlir_loop_partial_unroll_pass);
     ret = mlirpass_context->RunPasses();
     if (ret != 0) {

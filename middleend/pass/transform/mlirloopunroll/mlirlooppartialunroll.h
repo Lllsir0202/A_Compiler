@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <stdexcept>
+#include <unordered_set>
 #include <vector>
 #include "middleend/mlir/utils/clone/operationcloner.h"
 #include "middleend/pass/transform/mlirloopunroll/inductionvariable.h"
@@ -42,10 +43,13 @@ namespace middleend::pass::transform {
  */
 class MLIRLoopPartialUnrollPass : public TransformPass {
  public:
-  MLIRLoopPartialUnrollPass(context::CompilerContext *compiler_context, PassStage stage)
-      : TransformPass(compiler_context, stage) {
+  MLIRLoopPartialUnrollPass(context::CompilerContext *compiler_context, PassStage stage, int64_t unroll_factor = 8)
+      : TransformPass(compiler_context, stage), unroll_factor_(unroll_factor) {
     if (stage != PassStage::MLIR) {
       throw std::invalid_argument("MLIRLoopPartialUnrollPass only supports MLIR stage");
+    }
+    if (unroll_factor < 2 || unroll_factor > kUnrollFactor) {
+      throw std::invalid_argument("MLIRLoopPartialUnrollPass requires an unroll factor in [2, 8]");
     }
   }
   ~MLIRLoopPartialUnrollPass() override = default;
@@ -62,14 +66,17 @@ class MLIRLoopPartialUnrollPass : public TransformPass {
   auto TryJamDotProductLoop(mlir::Block *block, mlir::scf::WhileOp *while_op) -> bool;
   auto CollectWhileLoops(mlir::Block *block,
                          std::vector<std::pair<mlir::Block *, mlir::scf::WhileOp *>> *loops) -> void;
-  auto CanPartialUnroll(mlir::scf::WhileOp *while_op, loopiv::Induction *iv) -> bool;
-  auto PartialUnroll(mlir::Block *block, mlir::scf::WhileOp *while_op, const loopiv::Induction &iv) -> void;
+  auto CanPartialUnroll(mlir::scf::WhileOp *while_op, loopiv::Induction *iv, int64_t factor) -> bool;
+  auto PartialUnroll(mlir::Block *block, mlir::scf::WhileOp *while_op, const loopiv::Induction &iv, int64_t factor)
+      -> void;
   auto MakeComparison(loopiv::CmpKind kind, mlir::Value *lhs, mlir::Value *rhs,
                       mlir::Value *result_type_source) -> mlir::Operation *;
 
   mlir::utils::OperationCloner cloner_{compiler_context_};
+  int64_t unroll_factor_{kUnrollFactor};
+  std::unordered_set<mlir::scf::WhileOp *> register_blocked_loops_;
 
-  // Cost cap on the widened main-loop body (kUnrollFactor * body-op-count).
+  // Cost cap on the widened main-loop body (selected factor * body-op-count).
   static constexpr int64_t kJamFactor = 4;
   static constexpr size_t kMaxBodyCost = 1024;
 };
