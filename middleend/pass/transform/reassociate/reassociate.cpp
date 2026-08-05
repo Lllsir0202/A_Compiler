@@ -390,11 +390,15 @@ auto ReassociatePass::Linearize(
   }
   if (!valid) return false;
 
+  // Shared arithmetic nodes may still be traversed to expose cancellation, but they remain live
+  // for their other users.  Count only the root and exclusively consumed nodes as removable when
+  // deciding whether rebuilding the expression is profitable.
+  size_t removable_arithmetic = 1;
   for (auto *expanded_operation : expanded) {
     if (expanded_operation == operation) continue;
     auto *value = expanded_operation->results_[0];
-    if (use_count_[value] != internal_references[value]) {
-      return false;
+    if (use_count_[value] == internal_references[value]) {
+      ++removable_arithmetic;
     }
   }
 
@@ -419,7 +423,7 @@ auto ReassociatePass::Linearize(
   } else if (negative_count > 0) {
     ++new_arithmetic;
   }
-  auto old_arithmetic = expanded.size();
+  auto old_arithmetic = removable_arithmetic;
   if (old_arithmetic <= 1) return false;
   ++linear_candidates_;
   // A one-instruction local win can lengthen a dependency chain or increase
