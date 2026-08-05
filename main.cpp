@@ -390,9 +390,9 @@ auto main(int argc, char *argv[]) -> int {
         context::PassContext::CreatePass<middleend::pass::transform::RecursiveMemoizationPass>(
             &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(recursive_memoization_pass);
-    // auto function_inline_pass = context::PassContext::CreatePass<middleend::pass::transform::FunctionInlinePass>(
-    // &compiler_context, middleend::pass::PassStage::BASEIR);
-    // baseirpass_context->AddPass(function_inline_pass);
+    auto function_inline_pass = context::PassContext::CreatePass<middleend::pass::transform::FunctionInlinePass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(function_inline_pass);
     auto domtree_pass = context::PassContext::CreatePass<middleend::pass::analysis::DomTreePass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(domtree_pass);
