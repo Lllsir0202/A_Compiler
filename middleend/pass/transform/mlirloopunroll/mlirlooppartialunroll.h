@@ -59,6 +59,10 @@ class MLIRLoopPartialUnrollPass : public TransformPass {
 
   // Unroll factor of the widened main loop.
   static constexpr int64_t kUnrollFactor = 8;
+  // Store-heavy multidimensional loops replicate address arithmetic and memory operations faster
+  // than they expose useful ILP.  A narrower factor keeps their straight-line body within the
+  // instruction-frontend and register-pressure budgets while retaining most loop-control savings.
+  static constexpr int64_t kAddressHeavyUnrollFactor = 4;
 
  private:
   auto RunOnFunction(mlir::func::FuncDefOp *func_op) -> bool;
