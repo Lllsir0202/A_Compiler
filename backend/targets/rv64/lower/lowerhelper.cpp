@@ -11,7 +11,10 @@
 #include "backend/targets/rv64/inst/cmp/cmp.h"
 #include "backend/targets/rv64/inst/func/call.h"
 #include "backend/targets/rv64/inst/func/ret.h"
-#include "backend/targets/rv64/inst/immediate/immediate.h"
+// #include "backend/targets/rv64/inst/immediate/immediate.h"
+#include "backend/mir/utils/operand/globaloperand.h"
+#include "backend/mir/utils/operand/memoryoperand.h"
+// #include "backend/mir/utils/operand/regoperand.h"
 #include "backend/targets/rv64/inst/memory/load.h"
 #include "backend/targets/rv64/inst/memory/store.h"
 #include "backend/targets/rv64/inst/pseudo/pseudo.h"
@@ -21,11 +24,6 @@
 #include "backend/targets/utils/operand/targetoperand.h"
 #include "backend/targets/utils/operand/targetreg.h"
 #include "context/compiler_context.h"
-#include "mir/utils/operand/globaloperand.h"
-#include "mir/utils/operand/memoryoperand.h"
-#include "mir/utils/operand/regoperand.h"
-#include "targets/rv64/inst/memory/store.h"
-#include "type/type.h"
 
 #define GET_BACKEND_TARGET() compiler_context_->GetBackendContext()
 namespace backend::targetir::rv64 {
@@ -38,6 +36,20 @@ static inline auto GetArrayStride(const std::vector<int> &dimensions, size_t ind
     stride *= dimensions[i];
   }
   return stride;
+}
+
+auto LowerHelper::LowerMemcpy([[maybe_unused]] backend::inst::CallInst *inst) -> void {
+  // llvm.memcpy parameters:
+  // llvm.memcpy.p0i8.p0i8.i64(i8* %dest, i8* %src, i64 %len, i1 false)
+  // dest: ptr, src: ptr, len: i64
+  printf("Lowering memcpy is not implemented yet\n");
+}
+
+auto LowerHelper::LowerMemset([[maybe_unused]] backend::inst::CallInst *inst) -> void {
+  // llvm.memset parameters:
+  // llvm.memset.p0i8.i64(i8* %dest, i8 %val, i64 %len, i1 false)
+  // dest: ptr, val: int, len: i64
+  printf("Lowering memset is not implemented yet\n");
 }
 
 /**
@@ -2024,8 +2036,18 @@ auto LowerHelper::LowerRet(backend::inst::RetInst *inst) -> void {
 
 auto LowerHelper::LowerCall(backend::inst::CallInst *inst) -> void {
   if (llvm_library_functions_.count(inst->GetCallee()) > 0) {
-    // TODO(loki): Implement the llvm library function lowering.
-    printf("Lowering call to llvm library function: %s\n", inst->GetCallee().c_str());
+    auto index = llvm_to_rv64_intrinsic_map_[inst->GetCallee()];
+    switch (index) {
+      case 0: {
+        LowerMemcpy(inst);
+      } break;
+      case 1: {
+        LowerMemset(inst);
+      } break;
+      default: {
+        compiler_context_->ReportError("Unsupported LLVM intrinsic function: " + inst->GetCallee());
+      } break;
+    }
     return;
   }
 

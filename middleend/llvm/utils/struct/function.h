@@ -28,6 +28,14 @@ class Function {
       entry_block_ = basic_blocks_[0];
     }
   }
+  auto GetBasicBlockByID(size_t id) -> BasicBlock * {
+    for (auto *block : basic_blocks_) {
+      if (block->GetID() == id) {
+        return block;
+      }
+    }
+    return nullptr;
+  }
 
   // Add block
   auto AddBasicBlock(BasicBlock *block) -> void {

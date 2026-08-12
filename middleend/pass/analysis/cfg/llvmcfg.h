@@ -1,9 +1,10 @@
 #ifndef MIDDLEEND_PASS_ANALYSIS_CFG_LLVMCFG_H
 #define MIDDLEEND_PASS_ANALYSIS_CFG_LLVMCFG_H
+#include <unordered_map>
 #include "middleend/llvm/utils/struct/block.h"
 #include "middleend/llvm/utils/struct/function.h"
 #include "middleend/pass/analysis/cfg/cfg.h"
-#include "pass/pass.h"
+#include "middleend/pass/pass.h"
 namespace middleend::pass::analysis {
 class LLVMIRCFGNode : public CFGNode {
  public:
@@ -22,8 +23,20 @@ class LLVMIRFunctionCFG : public FunctionCFG {
   auto GetFunction() -> middleend::llvm::utils::Function * { return function_; }
   auto VerifyFunctionCFG() -> bool override { return function_ != nullptr && cfg_stage_ == PassStage::LLVMIR; }
 
+  auto GetNodeByBlock(middleend::llvm::utils::BasicBlock *block) -> LLVMIRCFGNode * {
+    if (block_to_node_.count(block) == 0) {
+      return nullptr;
+    }
+    return block_to_node_[block];
+  }
+  auto MapBlockToNode(middleend::llvm::utils::BasicBlock *block, LLVMIRCFGNode *node) -> void {
+    block_to_node_[block] = node;
+  }
+
  private:
   middleend::llvm::utils::Function *function_;
+
+  std::unordered_map<middleend::llvm::utils::BasicBlock *, LLVMIRCFGNode *> block_to_node_;
 };
 
 // Build cfg for llvmir
@@ -31,6 +44,9 @@ class LLVMIRCFGBuilder : public CFGBuilder {
  public:
   explicit LLVMIRCFGBuilder(context::CompilerContext *compiler_context) : CFGBuilder(compiler_context) {}
   auto BuildCFG() -> void override;
+
+ private:
+  auto BuildFunctionCFG(middleend::llvm::utils::Function *function) -> void;
 };
 
 }  // namespace middleend::pass::analysis

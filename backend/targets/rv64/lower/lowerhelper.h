@@ -1,6 +1,7 @@
 #ifndef BACKEND_TARGETS_RV64_LOWER_LOWERHELPER_H
 #define BACKEND_TARGETS_RV64_LOWER_LOWERHELPER_H
 
+#include <sys/types.h>
 #include "backend/mir/inst/arithm/arithm.h"
 #include "backend/mir/inst/branch/branch.h"
 #include "backend/mir/inst/branch/ret.h"
@@ -24,6 +25,8 @@ class LowerHelper {
   RV64Getter rv64_getter_;
 
   std::unordered_set<std::string> llvm_library_functions_ = {"llvm.memcpy.p0.p0.i64", "llvm.memset.p0.i64"};
+  std::unordered_map<std::string, uint8_t> llvm_to_rv64_intrinsic_map_ = {{"llvm.memcpy.p0.p0.i64", 0},
+                                                                          {"llvm.memset.p0.i64", 1}};
 
   friend class RV64Lower;
 
@@ -57,6 +60,10 @@ class LowerHelper {
   auto LowerBool2Float(backend::inst::Bool2FloatInst *inst) -> void;
 
   auto LowerCopy(backend::inst::CopyInst *inst) -> void;
+
+  // Following are helper functions for lowering intrinsic functions
+  auto LowerMemcpy(backend::inst::CallInst *inst) -> void;
+  auto LowerMemset(backend::inst::CallInst *inst) -> void;
 };
 
 }  // namespace backend::targetir::rv64
