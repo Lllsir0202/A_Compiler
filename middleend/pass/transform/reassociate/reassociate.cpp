@@ -343,6 +343,7 @@ auto ReassociatePass::Linearize(
 
   using Coefficient = uint32_t;
   std::unordered_map<mlir::Value *, Coefficient> coefficients;
+  std::vector<mlir::Value *> leaf_order;
   std::unordered_map<mlir::Value *, size_t> internal_references;
   std::unordered_set<mlir::Operation *> expanded;
   Coefficient constant = 0;
@@ -384,6 +385,9 @@ auto ReassociatePass::Linearize(
             collect(neg->GetOperand(), Coefficient{0} - factor);
           }
           return;
+        }
+        if (coefficients.find(value) == coefficients.end()) {
+          leaf_order.emplace_back(value);
         }
         coefficients[value] += factor;
       };
@@ -468,19 +472,10 @@ auto ReassociatePass::Linearize(
     return target;
   };
 
-  std::vector<std::pair<mlir::Value *, Coefficient>> ordered;
-  ordered.reserve(coefficients.size());
-  for (const auto &[value, coefficient] : coefficients) {
-    if (coefficient != 0) ordered.emplace_back(value, coefficient);
-  }
-  std::sort(ordered.begin(), ordered.end(),
-            [](const auto &lhs, const auto &rhs) {
-              return std::less<mlir::Value *>{}(lhs.first, rhs.first);
-            });
-
   std::vector<mlir::Value *> positive;
   std::vector<mlir::Value *> negative;
-  for (const auto &[value, coefficient] : ordered) {
+  for (auto *value : leaf_order) {
+    auto coefficient = coefficients[value];
     if (coefficient == 1) {
       positive.emplace_back(value);
     } else if (coefficient == std::numeric_limits<Coefficient>::max()) {
