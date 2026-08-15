@@ -8,6 +8,7 @@
 #include "context/compiler_context.h"
 #include "middleend/mlir/dialect/base/binaryop.h"
 #include "middleend/mlir/dialect/base/branch.h"
+#include "middleend/mlir/dialect/base/cast.h"
 #include "middleend/mlir/dialect/base/copy.h"
 #include "middleend/mlir/dialect/base/phi.h"
 #include "middleend/mlir/dialect/base/unaryop.h"
@@ -91,6 +92,10 @@ auto ToString(const SCEV *scev) -> std::string {
       const auto *div = static_cast<const SCEVDivExpr *>(scev);
       return "(" + ToString(div->GetLHS()) + " / " + ToString(div->GetRHS()) + ")";
     }
+    case SCEVKind::Mod: {
+      const auto *mod = static_cast<const SCEVModExpr *>(scev);
+      return "(" + ToString(mod->GetLHS()) + " % " + ToString(mod->GetRHS()) + ")";
+    }
     case SCEVKind::RepeatedDiv: {
       const auto *repeat = static_cast<const SCEVRepeatedDivExpr *>(scev);
       std::string exponent = std::to_string(repeat->GetBaseShift());
@@ -99,6 +104,13 @@ auto ToString(const SCEV *scev) -> std::string {
         exponent += repeat->IsClosed() ? ToString(repeat->GetIteration()) : "i";
       }
       return "(" + ToString(repeat->GetStart()) + " / 2^(" + exponent + "))";
+    }
+    case SCEVKind::ModAddRec: {
+      const auto *mod_rec = static_cast<const SCEVModAddRecExpr *>(scev);
+      std::string count = mod_rec->IsClosed() ? ToString(mod_rec->GetIteration()) : "i";
+      return "{" + ToString(mod_rec->GetStart()) + ", +" + std::to_string(mod_rec->GetStep()) + " mod " +
+             std::to_string(mod_rec->GetModulus()) + ", x" + std::to_string(mod_rec->GetFold()) + "+" +
+             std::to_string(mod_rec->GetOffset()) + ", " + count + "}";
     }
   }
   return "?";
@@ -212,10 +224,23 @@ auto SCEVPass::Unique(SCEV *candidate) -> const SCEV * {
       key = "D" + PtrKey(div->GetLHS()) + ":" + PtrKey(div->GetRHS());
       break;
     }
+    case SCEVKind::Mod: {
+      auto *mod = static_cast<SCEVModExpr *>(candidate);
+      key = "R" + PtrKey(mod->GetLHS()) + ":" + PtrKey(mod->GetRHS());
+      break;
+    }
     case SCEVKind::RepeatedDiv: {
       auto *repeat = static_cast<SCEVRepeatedDivExpr *>(candidate);
       key = "Q" + PtrKey(repeat->GetStart()) + ":" + PtrKey(repeat->GetIteration()) + ":" + PtrKey(repeat->GetLoop()) +
             ":" + std::to_string(repeat->GetBaseShift()) + ":" + std::to_string(repeat->GetStepShift());
+      break;
+    }
+    case SCEVKind::ModAddRec: {
+      auto *mod_rec = static_cast<SCEVModAddRecExpr *>(candidate);
+      key = "M" + PtrKey(mod_rec->GetStart()) + ":" + PtrKey(mod_rec->GetIteration()) + ":" +
+            PtrKey(mod_rec->GetLoop()) + ":" + std::to_string(mod_rec->GetStep()) + ":" +
+            std::to_string(mod_rec->GetModulus()) + ":" + std::to_string(mod_rec->GetFold()) + ":" +
+            std::to_string(mod_rec->GetOffset());
       break;
     }
   }
@@ -475,6 +500,47 @@ auto SCEVPass::GetDivExpr(const SCEV *lhs, const SCEV *rhs) -> const SCEV * {
   return Unique(new SCEVDivExpr(lhs, rhs, IntType()));
 }
 
+auto SCEVPass::GetModExpr(const SCEV *lhs, const SCEV *rhs) -> const SCEV * {
+  if (rhs->GetKind() == SCEVKind::Constant && static_cast<const SCEVConstant *>(rhs)->IsInt()) {
+    int modulus = static_cast<const SCEVConstant *>(rhs)->GetInt();
+    if (modulus == 1 || modulus == -1) {
+      return GetConstant(0);
+    }
+    // SysY `%` truncates toward zero, which is exactly C++ int remainder.
+    if (modulus != 0 && lhs->GetKind() == SCEVKind::Constant && static_cast<const SCEVConstant *>(lhs)->IsInt()) {
+      return GetConstant(static_cast<const SCEVConstant *>(lhs)->GetInt() % modulus);
+    }
+    // `(counter + step) % modulus` applied to a wrapped counter is one more step along the same
+    // orbit, so it stays a ModAddRec with the step count bumped. This is what lets the value on the
+    // back edge -- or anywhere mid-chain in an unrolled body -- be closed just like the header phi.
+    const SCEV *counter = nullptr;
+    int extra = 0;
+    if (lhs->GetKind() == SCEVKind::Add) {
+      const auto &operands = static_cast<const SCEVAddExpr *>(lhs)->GetOperands();
+      if (operands.size() == 2) {
+        if (GetConstantValue(operands[0], &extra)) {
+          counter = operands[1];
+        } else if (GetConstantValue(operands[1], &extra)) {
+          counter = operands[0];
+        }
+      }
+    }
+    if (counter != nullptr && counter->GetKind() == SCEVKind::ModAddRec) {
+      const auto *mod_rec = static_cast<const SCEVModAddRecExpr *>(counter);
+      if (!mod_rec->IsClosed() && mod_rec->GetModulus() == modulus && mod_rec->GetStep() == extra) {
+        return GetModAddRecExpr(mod_rec->GetStart(), nullptr, mod_rec->GetStep(), modulus, mod_rec->GetFold(),
+                                mod_rec->GetOffset() + 1, mod_rec->GetLoop());
+      }
+    }
+  }
+  return Unique(new SCEVModExpr(lhs, rhs, IntType()));
+}
+
+auto SCEVPass::GetModAddRecExpr(const SCEV *start, const SCEV *iteration, int step, int modulus, int fold, int offset,
+                                Loop *loop) -> const SCEV * {
+  return Unique(new SCEVModAddRecExpr(start, iteration, step, modulus, fold, offset, loop, IntType()));
+}
+
 auto SCEVPass::GetRepeatedDivExpr(const SCEV *start, const SCEV *iteration, int base_shift, int step_shift,
                                   Loop *loop) -> const SCEV * {
   return Unique(new SCEVRepeatedDivExpr(start, iteration, base_shift, step_shift, loop, IntType()));
@@ -605,6 +671,17 @@ auto SCEVPass::EvaluateAtIteration(const SCEV *scev, const SCEV *iteration) -> c
     }
     return scev;
   }
+  if (scev->GetKind() == SCEVKind::ModAddRec) {
+    // Closing a wrapped counter is not an algebraic substitution: truncated `%` is not a
+    // homomorphism on negatives and `start + step*n` overflows. Record the iteration count and let
+    // the expander emit the orbit-reduction sequence documented on SCEVModAddRecExpr.
+    const auto *mod_rec = static_cast<const SCEVModAddRecExpr *>(scev);
+    if (!mod_rec->IsClosed()) {
+      return GetModAddRecExpr(mod_rec->GetStart(), iteration, mod_rec->GetStep(), mod_rec->GetModulus(),
+                              mod_rec->GetFold(), mod_rec->GetOffset(), mod_rec->GetLoop());
+    }
+    return scev;
+  }
   // A value invariant in the recurrence's loop is unchanged by iterating; only recurrence nodes close.
   if (scev->GetKind() != SCEVKind::AddRec) {
     return scev;
@@ -649,6 +726,10 @@ auto SCEVPass::IsLoopInvariant(const SCEV *scev, Loop *loop) -> bool {
       const auto *div = static_cast<const SCEVDivExpr *>(scev);
       return IsLoopInvariant(div->GetLHS(), loop) && IsLoopInvariant(div->GetRHS(), loop);
     }
+    case SCEVKind::Mod: {
+      const auto *mod = static_cast<const SCEVModExpr *>(scev);
+      return IsLoopInvariant(mod->GetLHS(), loop) && IsLoopInvariant(mod->GetRHS(), loop);
+    }
     case SCEVKind::AddRec: {
       const auto *add_rec = static_cast<const SCEVAddRecExpr *>(scev);
       // A recurrence of loop L is invariant in `loop` only when L strictly encloses `loop`; then the
@@ -667,6 +748,16 @@ auto SCEVPass::IsLoopInvariant(const SCEV *scev, Loop *loop) -> bool {
       }
       return IsLoopInvariant(repeat->GetStart(), loop) &&
              (repeat->GetIteration() == nullptr || IsLoopInvariant(repeat->GetIteration(), loop));
+    }
+    case SCEVKind::ModAddRec: {
+      // Like RepeatedDiv: the un-closed recurrence varies in its own loop; the closed form is
+      // invariant exactly when its start and iteration count are.
+      const auto *mod_rec = static_cast<const SCEVModAddRecExpr *>(scev);
+      if (!mod_rec->IsClosed() && (mod_rec->GetLoop() == loop || !mod_rec->GetLoop()->Contains(loop->GetHeader()))) {
+        return false;
+      }
+      return IsLoopInvariant(mod_rec->GetStart(), loop) &&
+             (!mod_rec->IsClosed() || IsLoopInvariant(mod_rec->GetIteration(), loop));
     }
   }
   return false;
@@ -732,6 +823,9 @@ auto SCEVPass::CreateSCEVForOperation(mlir::Operation *op, mlir::Value *result) 
   if (auto *div = mlir::DynamicOrNull<mlir::base::DivOp>(op)) {
     return GetDivExpr(GetSCEV(div->GetLHS()), GetSCEV(div->GetRHS()));
   }
+  if (auto *mod = mlir::DynamicOrNull<mlir::base::ModOp>(op)) {
+    return GetModExpr(GetSCEV(mod->GetLHS()), GetSCEV(mod->GetRHS()));
+  }
   if (auto *phi = mlir::DynamicOrNull<mlir::base::PhiOp>(op)) {
     auto *block = GetBlockOf(result);
     auto *loop = GetLoopFor(block);
@@ -789,6 +883,14 @@ auto SCEVPass::CreateAddRecFromPhi(mlir::base::PhiOp *phi, Loop *loop) -> const 
   int repeated_shift = 0;
   if (MatchRepeatedPowerOfTwoDiv(back_scev, self_symbol, &repeated_shift)) {
     const SCEV *recurrence = GetRepeatedDivExpr(GetSCEV(init_value), nullptr, 0, repeated_shift, loop);
+    ForgetValuesContaining(self_symbol);
+    return recurrence;
+  }
+  int mod_step = 0;
+  int mod_modulus = 0;
+  int mod_fold = 0;
+  if (MatchModAddRec(back_scev, self_symbol, &mod_step, &mod_modulus, &mod_fold)) {
+    const SCEV *recurrence = GetModAddRecExpr(GetSCEV(init_value), nullptr, mod_step, mod_modulus, mod_fold, 0, loop);
     ForgetValuesContaining(self_symbol);
     return recurrence;
   }
@@ -864,6 +966,56 @@ auto SCEVPass::MatchRepeatedPowerOfTwoDiv(const SCEV *scev, const SCEV *symbol, 
   return true;
 }
 
+auto SCEVPass::MatchModAddRec(const SCEV *scev, const SCEV *symbol, int *step, int *modulus, int *fold) -> bool {
+  int chain = 0;
+  int chain_step = 0;
+  int chain_modulus = 0;
+  // Peel `(inner + step) % modulus` off the outside repeatedly. An unrolled body produces one such
+  // layer per copy; every layer must use the same constants for the orbit argument to hold.
+  while (scev->GetKind() == SCEVKind::Mod) {
+    const auto *mod = static_cast<const SCEVModExpr *>(scev);
+    int layer_modulus = 0;
+    if (!GetConstantValue(mod->GetRHS(), &layer_modulus) || layer_modulus <= 0) {
+      return false;
+    }
+    if (mod->GetLHS()->GetKind() != SCEVKind::Add) {
+      return false;
+    }
+    const auto &operands = static_cast<const SCEVAddExpr *>(mod->GetLHS())->GetOperands();
+    if (operands.size() != 2) {
+      return false;
+    }
+    // The addend must be a positive constant strictly below the modulus: a larger step could trigger
+    // more than one reduction in a single application, which the bounded-orbit argument excludes.
+    int layer_step = 0;
+    const SCEV *inner = nullptr;
+    if (GetConstantValue(operands[0], &layer_step)) {
+      inner = operands[1];
+    } else if (GetConstantValue(operands[1], &layer_step)) {
+      inner = operands[0];
+    } else {
+      return false;
+    }
+    if (layer_step <= 0 || layer_step >= layer_modulus) {
+      return false;
+    }
+    if (chain != 0 && (layer_step != chain_step || layer_modulus != chain_modulus)) {
+      return false;
+    }
+    chain_step = layer_step;
+    chain_modulus = layer_modulus;
+    ++chain;
+    scev = inner;
+  }
+  if (chain == 0 || scev != symbol) {
+    return false;
+  }
+  *step = chain_step;
+  *modulus = chain_modulus;
+  *fold = chain;
+  return true;
+}
+
 auto SCEVPass::ScevContains(const SCEV *scev, const SCEV *target) -> bool {
   if (scev == target) {
     return true;
@@ -886,10 +1038,19 @@ auto SCEVPass::ScevContains(const SCEV *scev, const SCEV *target) -> bool {
       const auto *div = static_cast<const SCEVDivExpr *>(scev);
       return ScevContains(div->GetLHS(), target) || ScevContains(div->GetRHS(), target);
     }
+    case SCEVKind::Mod: {
+      const auto *mod = static_cast<const SCEVModExpr *>(scev);
+      return ScevContains(mod->GetLHS(), target) || ScevContains(mod->GetRHS(), target);
+    }
     case SCEVKind::RepeatedDiv: {
       const auto *repeat = static_cast<const SCEVRepeatedDivExpr *>(scev);
       return ScevContains(repeat->GetStart(), target) ||
              (repeat->GetIteration() != nullptr && ScevContains(repeat->GetIteration(), target));
+    }
+    case SCEVKind::ModAddRec: {
+      const auto *mod_rec = static_cast<const SCEVModAddRecExpr *>(scev);
+      return ScevContains(mod_rec->GetStart(), target) ||
+             (mod_rec->IsClosed() && ScevContains(mod_rec->GetIteration(), target));
     }
     default:
       return false;
@@ -1004,12 +1165,18 @@ auto SCEVPass::ComputeExitCount(Loop *loop, mlir::Block *exiting) -> const SCEV 
     predicate = Predicate::EQ;
     lhs_value = eq->GetLHS();
     rhs_value = eq->GetRHS();
+  } else if (auto *to_bool = mlir::DynamicOrNull<mlir::base::Int2BoolOp>(compare)) {
+    // `while (n)` lowers to a truthiness cast rather than a comparison, but it means exactly
+    // `n != 0`. Without this the whole family of countdown loops has no derivable trip count.
+    predicate = Predicate::NE;
+    lhs_value = to_bool->GetOperand();
+    rhs_value = nullptr;
   } else {
     return nullptr;
   }
 
   const SCEV *lhs_scev = GetSCEV(lhs_value);
-  const SCEV *rhs_scev = GetSCEV(rhs_value);
+  const SCEV *rhs_scev = rhs_value == nullptr ? GetConstant(0) : GetSCEV(rhs_value);
 
   // Orient so the induction variable is on the left; swap the predicate if it is on the right.
   auto swap_predicate = [](Predicate value) {
@@ -1102,8 +1269,11 @@ auto SCEVPass::ComputeExitCount(Loop *loop, mlir::Block *exiting) -> const SCEV 
           step < 0 ? clamp(ceil_div(GetMinusSCEV(start, GetAddExpr({bound, GetConstant(-1)})), -step)) : nullptr;
       break;
     case Predicate::NE: {
-      // The bound is reached exactly only for a compile-time-known monotone distance; otherwise the
-      // loop is not statically bounded through this exit.
+      // Both ends must be constant. A symbolic distance is unusable even with a unit step:
+      // `bound - start` is the count only when the induction variable moves *towards* the bound, and
+      // if it moves away the loop runs until the type wraps. Clamping the negative distance to zero
+      // would then wrongly report that the loop never runs. Proving the direction needs a dominating
+      // guard on the start value, which this analysis does not track.
       int start_value = 0;
       int limit_value = 0;
       if (!GetConstantValue(start, &start_value) || !GetConstantValue(bound, &limit_value)) {
