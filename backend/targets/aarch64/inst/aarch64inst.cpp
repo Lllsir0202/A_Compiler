@@ -162,6 +162,18 @@ auto AArch64Inst::Emit(std::ofstream *out) -> void {
     *out << "\n";
     return;
   }
+  if (opcode_ == A64Opcode::ADD_EXT_SXTW || opcode_ == A64Opcode::SUB_EXT_SXTW) {
+    *out << (opcode_ == A64Opcode::SUB_EXT_SXTW ? "\tsub " : "\tadd ");
+    result_->Emit(out);
+    *out << ", ";
+    operands_[0]->Emit(out);
+    *out << ", ";
+    operands_[1]->Emit(out);
+    *out << ", sxtw #";
+    operands_[2]->Emit(out);
+    *out << "\n";
+    return;
+  }
   const auto &info = GetA64OpcodeInfo(opcode_);
   const auto &ops = operands_;
   auto imm = [&](TargetOperand *o) {

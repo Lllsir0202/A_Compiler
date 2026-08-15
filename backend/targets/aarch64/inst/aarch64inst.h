@@ -101,6 +101,8 @@ enum class A64Opcode : uint8_t {
   SUB_SHIFT_LSL,
   SUB_SHIFT_LSR,
   SUB_SHIFT_ASR,
+  ADD_EXT_SXTW,
+  SUB_EXT_SXTW,  // add/sub xd, xn, wm, sxtw #shift
 };
 
 /// AArch64 condition codes used by cset / b.<cond>. SysY comparisons are signed

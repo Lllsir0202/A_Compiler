@@ -183,6 +183,76 @@ auto AArch64Peephole::TryFoldShiftedArithmetic(TargetInst *inst, TargetBlock *bl
   return try_shift(0) || try_shift(1);
 }
 
+auto AArch64Peephole::TryFoldExtendedArithmetic(TargetInst *inst, TargetBlock *block) -> bool {
+  if (!enable_tree_combine_ || std::getenv("AARCH64_EXTENDED_ARITH_COMBINE_OFF") != nullptr) {
+    return false;
+  }
+  auto *ai = static_cast<AArch64Inst *>(inst);
+  const auto opcode = ai->GetOpcode();
+  const auto &ops = inst->GetOperands();
+  const bool plain_add = opcode == A64Opcode::ADD;
+  const bool plain_sub = opcode == A64Opcode::SUB;
+  const bool shifted_add = opcode == A64Opcode::ADD_SHIFT_LSL;
+  const bool shifted_sub = opcode == A64Opcode::SUB_SHIFT_LSL;
+  if ((!plain_add && !plain_sub && !shifted_add && !shifted_sub) || inst->GetResult() == nullptr ||
+      !inst->GetResult()->IsVirtualReg()) {
+    return false;
+  }
+
+  auto *result = static_cast<TargetVirtualReg *>(inst->GetResult());
+  if (result->GetRegClass() != TargetRegClass::General || result->GetRegSize() != TargetRegSize::QWord) {
+    return false;
+  }
+
+  auto try_extend = [&](size_t extended_index, int amount) -> bool {
+    auto *extended = ops[extended_index];
+    if (!extended->IsVirtualReg() || use_count_[extended] != 1 || def_count_[extended] != 1 || amount < 0 ||
+        amount > 4) {
+      return false;
+    }
+    auto def_it = defining_inst_.find(extended);
+    if (def_it == defining_inst_.end() || containing_block_[def_it->second] != block) {
+      return false;
+    }
+    auto *extend = static_cast<AArch64Inst *>(def_it->second);
+    const auto &extend_ops = extend->GetOperands();
+    if (extend->GetOpcode() != A64Opcode::SXTW || extend_ops.size() != 1 || !extend_ops[0]->IsVirtualReg()) {
+      return false;
+    }
+
+    auto *plain = ops[1 - extended_index];
+    auto *wide = static_cast<TargetVirtualReg *>(extended);
+    auto *narrow = static_cast<TargetVirtualReg *>(extend_ops[0]);
+    if (!plain->IsVirtualReg() || static_cast<TargetVirtualReg *>(plain)->GetRegClass() != TargetRegClass::General ||
+        static_cast<TargetVirtualReg *>(plain)->GetRegSize() != TargetRegSize::QWord ||
+        wide->GetRegClass() != TargetRegClass::General || wide->GetRegSize() != TargetRegSize::QWord ||
+        narrow->GetRegClass() != TargetRegClass::General || narrow->GetRegSize() != TargetRegSize::DWord) {
+      return false;
+    }
+    const bool is_sub = plain_sub || shifted_sub;
+    if (is_sub && extended_index == 0) {
+      return false;
+    }
+    ai->SetOpcode(is_sub ? A64Opcode::SUB_EXT_SXTW : A64Opcode::ADD_EXT_SXTW);
+    inst->SetOperands({plain, narrow, ctx_->Imm(amount)});
+    return true;
+  };
+
+  if (shifted_add || shifted_sub) {
+    if (ops.size() != 3 || ops[2]->GetOpType() != TargetOperandType::Immediate) {
+      return false;
+    }
+    return try_extend(1, static_cast<TargetIntLiteral *>(ops[2])->GetValue());
+  }
+  if (ops.size() != 2) {
+    return false;
+  }
+  if (plain_sub) {
+    return try_extend(1, 0);
+  }
+  return try_extend(0, 0) || try_extend(1, 0);
+}
+
 auto AArch64Peephole::IsConst(TargetOperand *op, int *value) const -> bool {
   if (op == nullptr || !op->IsVirtualReg()) {
     return false;
@@ -204,6 +274,9 @@ auto AArch64Peephole::TransformInst(TargetInst *inst, TargetBlock *block) -> boo
   auto opcode = ai->GetOpcode();
   const auto &ops = inst->GetOperands();
   if (TryFoldMultiplyAccumulate(inst, block)) {
+    return true;
+  }
+  if (TryFoldExtendedArithmetic(inst, block)) {
     return true;
   }
   if (TryFoldShiftedArithmetic(inst, block)) {

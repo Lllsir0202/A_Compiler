@@ -43,6 +43,7 @@ class AArch64Peephole : public MachineFunctionPass {
   auto TransformInst(TargetInst *inst, TargetBlock *block) -> bool;
   auto TryFoldMultiplyAccumulate(TargetInst *inst, TargetBlock *block) -> bool;
   auto TryFoldShiftedArithmetic(TargetInst *inst, TargetBlock *block) -> bool;
+  auto TryFoldExtendedArithmetic(TargetInst *inst, TargetBlock *block) -> bool;
 
   std::unordered_map<TargetOperand *, int> def_count_;
   std::unordered_map<TargetOperand *, int> use_count_;
