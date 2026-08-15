@@ -3,18 +3,18 @@
 
 namespace middleend::mlir::var {
 auto VarGetPtrOp::Verify(context::CompilerContext *context) -> bool {
-  auto ptr = operands_[0];
-  if (ptr->GetType() == nullptr) {
-    context->Print("VarGetPtrOp: operand has null type\n");
+  if (operands_.empty() || operands_[0] == nullptr) {
+    context->Print("VarGetPtrOp: missing pointer operand\n");
     return false;
   }
+  auto ptr = operands_[0];
   if (ptr->GetType() == nullptr) {
     context->Print("VarGetPtrOp: operand has null type\n");
     return false;
   }
   for (size_t i = 1; i < operands_.size(); i++) {
     auto operand = operands_[i];
-    if (operand->GetType() == nullptr) {
+    if (operand == nullptr || operand->GetType() == nullptr) {
       context->Print("VarGetPtrOp: operand has null type\n");
       return false;
     }
@@ -25,7 +25,7 @@ auto VarGetPtrOp::Verify(context::CompilerContext *context) -> bool {
       return false;
     }
   }
-  if (results_[0]->GetType() == nullptr) {
+  if (results_.size() != 1 || results_[0] == nullptr || results_[0]->GetType() == nullptr) {
     context->Print("VarGetPtrOp: result has null type\n");
     return false;
   }

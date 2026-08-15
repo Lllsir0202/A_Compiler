@@ -308,6 +308,7 @@ auto PromotionPass::Promote(analysis::DomTree *dom_tree, analysis::Loop *loop, c
 
   // Materialize: insert the seed load, build the phis, redirect loads, drop stores, add exit stores.
   preheader->operations_.insert(preheader->operations_.end() - 1, seed_load);
+  op_to_block_[seed_load] = preheader;
   promoted_pointer_->AddUse(seed_load, 0);
   // Every operation this pass splices in must be registered: an enclosing loop is
   // promoted after the loops nested in it, and its candidate loads/stores can be

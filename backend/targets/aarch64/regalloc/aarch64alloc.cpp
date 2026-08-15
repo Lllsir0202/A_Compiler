@@ -12,7 +12,7 @@ namespace backend::targetir::aarch64 {
 namespace {
 constexpr auto SP = static_cast<uint8_t>(GPR::Sp);
 constexpr auto X16 = static_cast<uint8_t>(GPR::X16);  // address scratch (reserved)
-constexpr int OFF_MAX = 4095;                         // safe base+offset range for 8-aligned slots
+constexpr int FRAME_OFFSET_MAX = 4095;                // safe base+offset range for 8-aligned slots
 
 // Undirected edge key for the interference membership set.
 auto EdgeKey(int u, int v) -> long long {
@@ -675,7 +675,7 @@ auto AArch64GraphColorRegAlloc::EmitReload(std::vector<TargetInst *> *out, Targe
   auto *sp = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, SP);
   auto *ld = ctx_->CreateInst<AArch64Inst>(A64Opcode::LDR_OFF);
   ld->SetResult(dst);
-  if (offset >= 0 && offset <= OFF_MAX) {
+  if (offset >= 0 && offset <= FRAME_OFFSET_MAX) {
     ld->AddOperand(sp);
     ld->AddOperand(ctx_->Imm(static_cast<int>(offset)));
   } else {
@@ -691,7 +691,7 @@ auto AArch64GraphColorRegAlloc::EmitSpill(std::vector<TargetInst *> *out, Target
   auto *sp = ctx_->PhysReg(TargetRegClass::General, TargetRegSize::QWord, SP);
   auto *st = ctx_->CreateInst<AArch64Inst>(A64Opcode::STR_OFF);
   st->AddOperand(src);
-  if (offset >= 0 && offset <= OFF_MAX) {
+  if (offset >= 0 && offset <= FRAME_OFFSET_MAX) {
     st->AddOperand(sp);
     st->AddOperand(ctx_->Imm(static_cast<int>(offset)));
   } else {

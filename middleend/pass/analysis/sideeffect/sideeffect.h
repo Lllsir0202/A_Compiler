@@ -1,6 +1,8 @@
 #ifndef MIDDLEEND_PASS_ANALYSIS_SIDEEFFECT_SIDEEFFECT_H
 #define MIDDLEEND_PASS_ANALYSIS_SIDEEFFECT_SIDEEFFECT_H
 
+#include <algorithm>
+#include <cstdint>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -50,12 +52,27 @@ struct SideEffectSummary {
   enum class ArgEffect : uint8_t { kNone, kRead, kWrite, kReadWrite };
   std::vector<ArgEffect> arg_effects;
 
+  // Does the callee read / write through any pointer argument?  These must be
+  // folded into the coarse predicates below: a function whose only effect is a
+  // store through a pointer parameter is NOT write-none, and treating it as
+  // such lets ADCE delete the call outright.
+  bool ReadsAnyArgument() const {
+    return std::any_of(arg_effects.begin(), arg_effects.end(), [](ArgEffect e) {
+      return e == ArgEffect::kRead || e == ArgEffect::kReadWrite;
+    });
+  }
+  bool WritesAnyArgument() const {
+    return std::any_of(arg_effects.begin(), arg_effects.end(), [](ArgEffect e) {
+      return e == ArgEffect::kWrite || e == ArgEffect::kReadWrite;
+    });
+  }
+
   // IO-inclusive: used by ADCE / DeadLoopElim ("observable effect?").
-  bool IsReadNone() const { return !reads_all_globals && read_globals.empty() && !reads_io; }
-  bool IsWriteNone() const { return !writes_all_globals && written_globals.empty() && !writes_io; }
+  bool IsReadNone() const { return IsMemoryReadNone() && !reads_io; }
+  bool IsWriteNone() const { return IsMemoryWriteNone() && !writes_io; }
   // Memory-only: used by LICM / DSE / MemorySSA / GVN ("does the call touch this pointer?").
-  bool IsMemoryReadNone() const { return !reads_all_globals && read_globals.empty(); }
-  bool IsMemoryWriteNone() const { return !writes_all_globals && written_globals.empty(); }
+  bool IsMemoryReadNone() const { return !reads_all_globals && read_globals.empty() && !ReadsAnyArgument(); }
+  bool IsMemoryWriteNone() const { return !writes_all_globals && written_globals.empty() && !WritesAnyArgument(); }
 };
 
 class FunctionSideEffectPass : public AnalysisPass {
