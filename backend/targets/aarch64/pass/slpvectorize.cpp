@@ -260,6 +260,101 @@ auto AArch64SLPVectorize::RunOnFunction(TargetFunction *func) -> bool {
         }
       }
       // Four independent lanes of either
+      //   dst[i] = src[i] + scalar
+      // or
+      //   dst[i] = src[i] * scalar
+      // become one q load, dup, vector arithmetic and one q store.  The
+      // scalar operand must be identical in all lanes, which proves that it
+      // is loop-invariant over the unrolled group; an IV-derived scalar is
+      // intentionally left scalar until a proper vector-IV form exists.
+      if (std::getenv("AARCH64_SLP_SCALAR_OFF") == nullptr && i + 12 <= insts.size()) {
+        TargetOperand *src_base = nullptr;
+        TargetOperand *dst_base = nullptr;
+        TargetOperand *scalar = nullptr;
+        A64Opcode scalar_opcode = A64Opcode::ADD;
+        int src_first = 0;
+        int dst_first = 0;
+        bool match = true;
+        for (size_t lane = 0; lane < 4; ++lane) {
+          size_t p = i + lane * 3;
+          auto *load = insts[p];
+          auto *binary = insts[p + 1];
+          auto *store = insts[p + 2];
+          if (!IsOpcode(load, A64Opcode::LDR_OFF, 2) || !IsOpcode(store, A64Opcode::STR_OFF, 3) ||
+              !IsScalarI32(load->GetResult())) {
+            match = false;
+            break;
+          }
+          auto opcode = static_cast<AArch64Inst *>(binary)->GetOpcode();
+          if ((opcode != A64Opcode::ADD && opcode != A64Opcode::MUL) || !IsOpcode(binary, opcode, 2) ||
+              store->GetOperands()[0] != binary->GetResult()) {
+            match = false;
+            break;
+          }
+          TargetOperand *lane_scalar = nullptr;
+          if (binary->GetOperands()[0] == load->GetResult()) {
+            lane_scalar = binary->GetOperands()[1];
+          } else if (binary->GetOperands()[1] == load->GetResult()) {
+            lane_scalar = binary->GetOperands()[0];
+          } else {
+            match = false;
+            break;
+          }
+          int src_offset = 0;
+          int dst_offset = 0;
+          if (!Immediate(load->GetOperands()[1], &src_offset) || !Immediate(store->GetOperands()[2], &dst_offset) ||
+              !IsScalarI32(lane_scalar)) {
+            match = false;
+            break;
+          }
+          if (lane == 0) {
+            src_base = load->GetOperands()[0];
+            dst_base = store->GetOperands()[1];
+            scalar = lane_scalar;
+            scalar_opcode = opcode;
+            src_first = src_offset;
+            dst_first = dst_offset;
+          } else if (load->GetOperands()[0] != src_base || store->GetOperands()[1] != dst_base ||
+                     lane_scalar != scalar || opcode != scalar_opcode ||
+                     src_offset != src_first + static_cast<int>(lane) * 4 ||
+                     dst_offset != dst_first + static_cast<int>(lane) * 4) {
+            match = false;
+            break;
+          }
+        }
+        const bool encodable = src_first >= 0 && dst_first >= 0 && src_first % 16 == 0 && dst_first % 16 == 0 &&
+                               src_first <= 4095 * 16 && dst_first <= 4095 * 16;
+        if (match && encodable && safe_stream(dst_base, dst_first, src_base, src_first)) {
+          auto *src = ctx_->NewVirtualReg(TargetRegClass::Vector, TargetRegSize::OWord);
+          auto *factor = ctx_->NewVirtualReg(TargetRegClass::Vector, TargetRegSize::OWord);
+          auto *result = ctx_->NewVirtualReg(TargetRegClass::Vector, TargetRegSize::OWord);
+          auto *load = ctx_->CreateInst<AArch64Inst>(A64Opcode::LDR_OFF);
+          load->SetResult(src);
+          load->AddOperand(src_base);
+          load->AddOperand(ctx_->Imm(src_first));
+          rewritten.push_back(load);
+          auto *dup = ctx_->CreateInst<AArch64Inst>(A64Opcode::V_DUP);
+          dup->SetResult(factor);
+          dup->AddOperand(scalar);
+          rewritten.push_back(dup);
+          auto *vector_binary = ctx_->CreateInst<AArch64Inst>(scalar_opcode == A64Opcode::ADD ? A64Opcode::V_ADD
+                                                                                                 : A64Opcode::V_MUL);
+          vector_binary->SetResult(result);
+          vector_binary->AddOperand(src);
+          vector_binary->AddOperand(factor);
+          rewritten.push_back(vector_binary);
+          auto *store = ctx_->CreateInst<AArch64Inst>(A64Opcode::STR_OFF);
+          store->AddOperand(result);
+          store->AddOperand(dst_base);
+          store->AddOperand(ctx_->Imm(dst_first));
+          rewritten.push_back(store);
+          i += 12;
+          changed = true;
+          block_changed = true;
+          continue;
+        }
+      }
+      // Four independent lanes of either
       //   dst[i] = lhs[i] + rhs[i]
       // or
       //   dst[i] = lhs[i] * rhs[i]
