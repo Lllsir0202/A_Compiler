@@ -32,7 +32,7 @@ class LoopAccessAnalysisPass : public AnalysisPass {
     bool affine;
     bool has_loop_variant_index;
   };
-  enum class DependenceKind : unsigned char { NoDependence, LoopCarried, Unknown };
+  enum class DependenceKind : unsigned char { NoDependence, IntraIteration, LoopCarried, Unknown };
   struct Dependence {
     size_t first;
     size_t second;
@@ -71,6 +71,7 @@ class LoopAccessAnalysisPass : public AnalysisPass {
   size_t rejected_non_gep_{0};
   size_t rejected_non_affine_{0};
   size_t no_dependence_pairs_{0};
+  size_t intra_iteration_pairs_{0};
   size_t loop_carried_pairs_{0};
   size_t unknown_pairs_{0};
 };

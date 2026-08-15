@@ -25,7 +25,7 @@ auto LoopAccessAnalysisPass::Run() -> void {
   accesses_.clear();
   dependences_.clear();
   loops_analyzed_ = affine_accesses_ = rejected_non_gep_ = rejected_non_affine_ = 0;
-  no_dependence_pairs_ = loop_carried_pairs_ = unknown_pairs_ = 0;
+  no_dependence_pairs_ = intra_iteration_pairs_ = loop_carried_pairs_ = unknown_pairs_ = 0;
   auto *pass_context = compiler_context_->GetPassContext();
   auto *cfg = pass_context->GetSpecPass<CFGPass>("CFGPass");
   loop_info_ = pass_context->GetSpecPass<LoopInfoPass>("LoopInfoPass");
@@ -56,6 +56,7 @@ auto LoopAccessAnalysisPass::Run() -> void {
           dependence.second = second;
           dependences.push_back(dependence);
           if (dependence.kind == DependenceKind::NoDependence) ++no_dependence_pairs_;
+          else if (dependence.kind == DependenceKind::IntraIteration) ++intra_iteration_pairs_;
           else if (dependence.kind == DependenceKind::LoopCarried) ++loop_carried_pairs_;
           else ++unknown_pairs_;
         }
@@ -64,20 +65,24 @@ auto LoopAccessAnalysisPass::Run() -> void {
   }
   if (std::getenv("LOOP_ACCESS_STATS") != nullptr) {
     std::fprintf(stderr,
-                 "[LoopAccess] loops=%zu accesses=%zu affine=%zu non-gep=%zu non-affine=%zu no-dep=%zu carried=%zu unknown=%zu\n",
+                 "[LoopAccess] loops=%zu accesses=%zu affine=%zu non-gep=%zu non-affine=%zu no-dep=%zu intra=%zu carried=%zu unknown=%zu\n",
                  loops_analyzed_, affine_accesses_ + rejected_non_gep_ + rejected_non_affine_, affine_accesses_,
-                 rejected_non_gep_, rejected_non_affine_, no_dependence_pairs_, loop_carried_pairs_, unknown_pairs_);
+                 rejected_non_gep_, rejected_non_affine_, no_dependence_pairs_, intra_iteration_pairs_,
+                 loop_carried_pairs_, unknown_pairs_);
   }
   Validate();
 }
 
 auto LoopAccessAnalysisPass::ClassifyDependence(const Access &first, const Access &second, Loop *loop) -> Dependence {
+  int distance = 0;
+  if (first.affine && second.affine && ConstantDistance(first.pointer, second.pointer, loop, &distance)) {
+    return {0, 0, distance == 0 ? DependenceKind::IntraIteration : DependenceKind::LoopCarried, distance};
+  }
+  // AliasAnalysis proves that two addresses in one dynamic iteration differ.  That is insufficient
+  // for a loop-carried query when both are affine views of the same base, so it is consulted only
+  // after the recurrence-distance proof above.
   if (alias_->Alias(first.pointer, second.pointer) == AliasResult::NoAlias) {
     return {0, 0, DependenceKind::NoDependence, 0};
-  }
-  int distance = 0;
-  if (first.affine && second.affine && ConstantDistance(first.pointer, second.pointer, loop, &distance) && distance != 0) {
-    return {0, 0, DependenceKind::LoopCarried, distance};
   }
   return {0, 0, DependenceKind::Unknown, 0};
 }
@@ -111,7 +116,8 @@ auto LoopAccessAnalysisPass::ConstantDistance(mlir::Value *first, mlir::Value *s
     *distance = delta / step;
     found = true;
   }
-  return found;
+  if (!found) *distance = 0;
+  return true;
 }
 
 auto LoopAccessAnalysisPass::ConstantDifference(const SCEV *first, const SCEV *second, int *difference) const -> bool {
