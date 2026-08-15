@@ -85,9 +85,14 @@ enum class A64Opcode : uint8_t {
          // operands {rn, rm}, condition in cond_; rendered out of the table
   // 128-bit AdvSIMD i32x4 operations. Vector operands use qN as their storage
   // view; arithmetic is rendered with the architectural vN.4s lane view.
-  V_DUP,  // dup vd.4s, wn
+  V_DUP,    // dup vd.4s, wn
+  V_DUP_F,  // dup vd.4s, vn.s[0]
   V_ADD,
   V_MUL,  // add/mul vd.4s, vn.4s, vm.4s
+  V_FADD,
+  V_FSUB,
+  V_FMUL,
+  V_FDIV,  // fadd/fsub/fmul/fdiv vd.4s, vn.4s, vm.4s
   V_MLA,
   V_MLS,   // destructive accumulator; operands {acc, lhs, rhs}
   V_ADDV,  // addv sd, vn.4s

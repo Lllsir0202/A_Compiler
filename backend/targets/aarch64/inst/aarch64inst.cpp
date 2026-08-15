@@ -15,6 +15,16 @@ auto EmitVector4S(std::ofstream *out, TargetOperand *operand) -> void {
   auto *reg = static_cast<TargetPhysicalReg *>(operand);
   *out << "v" << static_cast<int>(reg->GetID()) << ".4s";
 }
+
+auto EmitVectorLane0S(std::ofstream *out, TargetOperand *operand) -> void {
+  if (!operand->IsPhysicalReg()) {
+    operand->Emit(out);
+    *out << ".s[0]";
+    return;
+  }
+  auto *reg = static_cast<TargetPhysicalReg *>(operand);
+  *out << "v" << static_cast<int>(reg->GetID()) << ".s[0]";
+}
 }  // namespace
 
 auto A64CondName(A64Cond cond) -> const char * {
@@ -93,16 +103,34 @@ auto AArch64Inst::Emit(std::ofstream *out) -> void {
     *out << "]\n";
     return;
   }
-  if (opcode_ == A64Opcode::V_DUP) {
+  if (opcode_ == A64Opcode::V_DUP || opcode_ == A64Opcode::V_DUP_F) {
     *out << "\tdup ";
     EmitVector4S(out, result_);
     *out << ", ";
-    operands_[0]->Emit(out);
+    if (opcode_ == A64Opcode::V_DUP_F) {
+      EmitVectorLane0S(out, operands_[0]);
+    } else {
+      operands_[0]->Emit(out);
+    }
     *out << "\n";
     return;
   }
   if (opcode_ == A64Opcode::V_ADD || opcode_ == A64Opcode::V_MUL) {
     *out << (opcode_ == A64Opcode::V_ADD ? "\tadd " : "\tmul ");
+    EmitVector4S(out, result_);
+    *out << ", ";
+    EmitVector4S(out, operands_[0]);
+    *out << ", ";
+    EmitVector4S(out, operands_[1]);
+    *out << "\n";
+    return;
+  }
+  if (opcode_ == A64Opcode::V_FADD || opcode_ == A64Opcode::V_FSUB || opcode_ == A64Opcode::V_FMUL ||
+      opcode_ == A64Opcode::V_FDIV) {
+    *out << (opcode_ == A64Opcode::V_FADD   ? "\tfadd "
+             : opcode_ == A64Opcode::V_FSUB ? "\tfsub "
+             : opcode_ == A64Opcode::V_FMUL ? "\tfmul "
+                                            : "\tfdiv ");
     EmitVector4S(out, result_);
     *out << ", ";
     EmitVector4S(out, operands_[0]);
