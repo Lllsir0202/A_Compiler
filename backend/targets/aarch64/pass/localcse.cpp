@@ -61,6 +61,8 @@ auto IsPure(A64Opcode op) -> bool {
     case A64Opcode::SUB_SHIFT_ASR:
     case A64Opcode::ADD_EXT_SXTW:
     case A64Opcode::SUB_EXT_SXTW:
+    case A64Opcode::ADD_I_LSL12:
+    case A64Opcode::SUB_I_LSL12:
       return true;
     default:
       return false;

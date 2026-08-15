@@ -14,6 +14,16 @@ constexpr int IMM12_MAX = 4095;  // arithmetic add/sub/cmp immediate (unshifted)
 
 auto InImm12(int value) -> bool { return value >= 0 && value <= IMM12_MAX; }
 
+auto InNegImm12(int value) -> bool { return value < 0 && value >= -IMM12_MAX; }
+
+auto InImm12Shift12(int value) -> bool { return value >= 4096 && value % 4096 == 0 && value / 4096 <= IMM12_MAX; }
+
+auto InNegImm12Shift12(int value) -> bool { return value <= -4096 && value >= -IMM12_MAX * 4096 && value % 4096 == 0; }
+
+auto SignedImmediateCombineEnabled() -> bool { return std::getenv("AARCH64_SIGNED_IMM_COMBINE_OFF") == nullptr; }
+
+auto Shift12ImmediateCombineEnabled() -> bool { return std::getenv("AARCH64_SHIFT12_IMM_COMBINE_OFF") == nullptr; }
+
 auto IsPowerOfTwo(int value, int *shift) -> bool {
   if (value <= 0 || (value & (value - 1)) != 0) {
     return false;
@@ -297,6 +307,10 @@ auto AArch64Peephole::TransformInst(TargetInst *inst, TargetBlock *block) -> boo
     ai->SetOpcode(op);
     inst->SetOperands({reg, ctx_->Imm(imm)});
   };
+  auto to_shifted_immediate = [&](A64Opcode op, TargetOperand *reg, int value) {
+    ai->SetOpcode(op);
+    inst->SetOperands({reg, ctx_->Imm(value / 4096)});
+  };
 
   switch (opcode) {
     case A64Opcode::MUL: {
@@ -329,8 +343,34 @@ auto AArch64Peephole::TransformInst(TargetInst *inst, TargetBlock *block) -> boo
         to_immediate(A64Opcode::ADD_I, lhs, c);
         return true;
       }
+      if (SignedImmediateCombineEnabled() && IsConst(rhs, &c) && InNegImm12(c)) {
+        to_immediate(A64Opcode::SUB_I, lhs, -c);
+        return true;
+      }
+      if (Shift12ImmediateCombineEnabled() && IsConst(rhs, &c) && InImm12Shift12(c)) {
+        to_shifted_immediate(A64Opcode::ADD_I_LSL12, lhs, c);
+        return true;
+      }
+      if (SignedImmediateCombineEnabled() && Shift12ImmediateCombineEnabled() && IsConst(rhs, &c) &&
+          InNegImm12Shift12(c)) {
+        to_shifted_immediate(A64Opcode::SUB_I_LSL12, lhs, -c);
+        return true;
+      }
       if (IsConst(lhs, &c) && InImm12(c)) {
         to_immediate(A64Opcode::ADD_I, rhs, c);
+        return true;
+      }
+      if (SignedImmediateCombineEnabled() && IsConst(lhs, &c) && InNegImm12(c)) {
+        to_immediate(A64Opcode::SUB_I, rhs, -c);
+        return true;
+      }
+      if (Shift12ImmediateCombineEnabled() && IsConst(lhs, &c) && InImm12Shift12(c)) {
+        to_shifted_immediate(A64Opcode::ADD_I_LSL12, rhs, c);
+        return true;
+      }
+      if (SignedImmediateCombineEnabled() && Shift12ImmediateCombineEnabled() && IsConst(lhs, &c) &&
+          InNegImm12Shift12(c)) {
+        to_shifted_immediate(A64Opcode::SUB_I_LSL12, rhs, -c);
         return true;
       }
       return false;
@@ -338,6 +378,19 @@ auto AArch64Peephole::TransformInst(TargetInst *inst, TargetBlock *block) -> boo
     case A64Opcode::SUB: {  // only the subtrahend folds: a - C
       if (IsConst(rhs, &c) && InImm12(c)) {
         to_immediate(A64Opcode::SUB_I, lhs, c);
+        return true;
+      }
+      if (SignedImmediateCombineEnabled() && IsConst(rhs, &c) && InNegImm12(c)) {
+        to_immediate(A64Opcode::ADD_I, lhs, -c);
+        return true;
+      }
+      if (Shift12ImmediateCombineEnabled() && IsConst(rhs, &c) && InImm12Shift12(c)) {
+        to_shifted_immediate(A64Opcode::SUB_I_LSL12, lhs, c);
+        return true;
+      }
+      if (SignedImmediateCombineEnabled() && Shift12ImmediateCombineEnabled() && IsConst(rhs, &c) &&
+          InNegImm12Shift12(c)) {
+        to_shifted_immediate(A64Opcode::ADD_I_LSL12, lhs, -c);
         return true;
       }
       return false;
@@ -352,6 +405,8 @@ auto AArch64Peephole::TransformInst(TargetInst *inst, TargetBlock *block) -> boo
     // Algebraic identities left behind by folding.
     case A64Opcode::ADD_I:
     case A64Opcode::SUB_I:
+    case A64Opcode::ADD_I_LSL12:
+    case A64Opcode::SUB_I_LSL12:
     case A64Opcode::LSL_I:
     case A64Opcode::LSR_I:
     case A64Opcode::ASR_I: {

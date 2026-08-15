@@ -174,6 +174,16 @@ auto AArch64Inst::Emit(std::ofstream *out) -> void {
     *out << "\n";
     return;
   }
+  if (opcode_ == A64Opcode::ADD_I_LSL12 || opcode_ == A64Opcode::SUB_I_LSL12) {
+    *out << (opcode_ == A64Opcode::SUB_I_LSL12 ? "\tsub " : "\tadd ");
+    result_->Emit(out);
+    *out << ", ";
+    operands_[0]->Emit(out);
+    *out << ", #";
+    operands_[1]->Emit(out);
+    *out << ", lsl #12\n";
+    return;
+  }
   const auto &info = GetA64OpcodeInfo(opcode_);
   const auto &ops = operands_;
   auto imm = [&](TargetOperand *o) {

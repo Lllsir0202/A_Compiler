@@ -1,0 +1,12 @@
+int main() {
+  int value = getint();
+  putint(value + -5);
+  putch(10);
+  putint(value - -7);
+  putch(10);
+  putint(value + 8192);
+  putch(10);
+  putint(value - 12288);
+  putch(10);
+  return 0;
+}
