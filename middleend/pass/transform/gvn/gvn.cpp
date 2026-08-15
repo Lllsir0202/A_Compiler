@@ -255,7 +255,8 @@ auto GVNPass::ComputeKey(mlir::Operation *operation, Expr *key) -> bool {
 auto GVNPass::IsPure(mlir::Operation *operation) -> bool {
   // Integer arithmetic and comparisons.
   if (Is<mlir::base::AddOp>(operation) || Is<mlir::base::SubOp>(operation) || Is<mlir::base::MulOp>(operation) ||
-      Is<mlir::base::DivOp>(operation) || Is<mlir::base::ModOp>(operation) || Is<mlir::base::EqualOp>(operation) ||
+      Is<mlir::base::DivOp>(operation) || Is<mlir::base::ModOp>(operation) || Is<mlir::base::ShlOp>(operation) ||
+      Is<mlir::base::LShrOp>(operation) || Is<mlir::base::AShrOp>(operation) || Is<mlir::base::EqualOp>(operation) ||
       Is<mlir::base::NotEqualOp>(operation) || Is<mlir::base::LessOp>(operation) ||
       Is<mlir::base::LessEqualOp>(operation) || Is<mlir::base::GreaterOp>(operation) ||
       Is<mlir::base::GreaterEqualOp>(operation)) {

@@ -25,6 +25,7 @@
 #include "middleend/pass/transform/canonicalization/phi.h"
 #include "middleend/pass/transform/deadloopelim/deadloopelim.h"
 #include "middleend/pass/transform/defsink/defsink.h"
+#include "middleend/pass/transform/divisibilitysimplify/divisibilitysimplify.h"
 #include "middleend/pass/transform/dse/dse.h"
 #include "middleend/pass/transform/functioninline/functioninline.h"
 #include "middleend/pass/transform/gvn/gvn.h"
@@ -438,6 +439,10 @@ auto main(int argc, char *argv[]) -> int {
     auto strength_reduce_pass = context::PassContext::CreatePass<middleend::pass::transform::StrengthReducePass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(strength_reduce_pass);
+    auto divisibility_simplify_pass =
+        context::PassContext::CreatePass<middleend::pass::transform::DivisibilitySimplifyPass>(
+            &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(divisibility_simplify_pass);
     auto licm_pass = context::PassContext::CreatePass<middleend::pass::transform::LICMPass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(licm_pass);
