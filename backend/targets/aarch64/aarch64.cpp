@@ -44,6 +44,10 @@ auto AArch64Backend::Run() -> int {
     // destroys the scalar expression shape from which vector packs are built.
     machine_passes.AddPass(new AArch64Peephole(&ctx_, false));
     machine_passes.AddPass(new AArch64AddrFold(&ctx_));
+    // Address folding leaves its now-dead address-building chain behind. Remove
+    // it before SLP so adjacent scalar memory/arithmetic lanes become visible
+    // to the packer; a second DCE below cleans up the vector rewrite itself.
+    machine_passes.AddPass(new AArch64MachineDCE(&ctx_));
     machine_passes.AddPass(new AArch64SLPVectorize(&ctx_));
     machine_passes.AddPass(new AArch64Peephole(&ctx_));
     machine_passes.AddPass(new AArch64LocalCSE(&ctx_));
