@@ -1,0 +1,10 @@
+int data[16];
+
+int main() {
+  int store_index = getint();
+  int load_index = getint();
+  data[store_index + 4] = store_index * 3;
+  putint(data[load_index + 4]);
+  putch(10);
+  return 0;
+}

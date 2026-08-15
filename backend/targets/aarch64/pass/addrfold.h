@@ -40,6 +40,25 @@ class AArch64AddrFold : public MachineFunctionPass {
   std::unordered_map<TargetOperand *, int> def_count_;
 };
 
+/**
+ * Fold an allocated `sxtw` immediately feeding one register-offset memory
+ * operation into AArch64's extended-register addressing form. Running after
+ * allocation makes the rewrite unable to perturb virtual-register liveness or
+ * spill decisions; the conservative local liveness check removes `sxtw` only
+ * when its physical result dies at that memory operation.
+ */
+class AArch64PostRAAddrFold : public MachineFunctionPass {
+ public:
+  explicit AArch64PostRAAddrFold(TargetContext *ctx) : MachineFunctionPass(ctx) {}
+
+  auto Name() const -> std::string override { return "aarch64-postra-addr-fold"; }
+  auto RunOnFunction(TargetFunction *func) -> bool override;
+  auto FoldedCount() const -> size_t { return folded_count_; }
+
+ private:
+  size_t folded_count_ = 0;
+};
+
 }  // namespace backend::targetir::aarch64
 
 #endif

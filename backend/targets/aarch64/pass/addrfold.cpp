@@ -32,6 +32,24 @@ auto AccessBytes(TargetRegSize size) -> int {
   }
   return size == TargetRegSize::QWord ? 8 : 4;
 }
+
+auto SamePhysicalStorage(TargetOperand *lhs, TargetOperand *rhs) -> bool {
+  if (lhs == nullptr || rhs == nullptr || !lhs->IsPhysicalReg() || !rhs->IsPhysicalReg()) {
+    return false;
+  }
+  auto *lhs_reg = static_cast<TargetPhysicalReg *>(lhs);
+  auto *rhs_reg = static_cast<TargetPhysicalReg *>(rhs);
+  return lhs_reg->GetRegClass() == rhs_reg->GetRegClass() && lhs_reg->GetID() == rhs_reg->GetID();
+}
+
+auto UsesPhysicalStorage(TargetInst *inst, TargetOperand *reg) -> bool {
+  for (auto *operand : inst->GetOperands()) {
+    if (SamePhysicalStorage(operand, reg)) {
+      return true;
+    }
+  }
+  return false;
+}
 }  // namespace
 
 auto AArch64AddrFold::BuildDefs(TargetFunction *func) -> void {
@@ -171,6 +189,70 @@ auto AArch64AddrFold::RunOnFunction(TargetFunction *func) -> bool {
         continue;
       }
     }
+  }
+  return changed;
+}
+
+auto AArch64PostRAAddrFold::RunOnFunction(TargetFunction *func) -> bool {
+  bool changed = false;
+  for (auto *block : func->GetBlocks()) {
+    const auto &instructions = block->GetInsts();
+    std::vector<TargetInst *> kept;
+    kept.reserve(instructions.size());
+    for (size_t index = 0; index < instructions.size(); ++index) {
+      auto *extend = static_cast<AArch64Inst *>(instructions[index]);
+      if (extend->GetOpcode() != A64Opcode::SXTW || index + 1 >= instructions.size() ||
+          extend->GetResult() == nullptr || extend->GetOperands().size() != 1 ||
+          !extend->GetResult()->IsPhysicalReg() || !extend->GetOperands()[0]->IsPhysicalReg()) {
+        kept.emplace_back(extend);
+        continue;
+      }
+
+      auto *memory = static_cast<AArch64Inst *>(instructions[index + 1]);
+      bool is_load = memory->GetOpcode() == A64Opcode::LDR_REG;
+      bool is_store = memory->GetOpcode() == A64Opcode::STR_REG;
+      if (!is_load && !is_store) {
+        kept.emplace_back(extend);
+        continue;
+      }
+      const auto &memory_operands = memory->GetOperands();
+      size_t memory_index = is_load ? 1 : 2;
+      if (memory_operands.size() <= memory_index ||
+          !SamePhysicalStorage(memory_operands[memory_index], extend->GetResult())) {
+        kept.emplace_back(extend);
+        continue;
+      }
+
+      // The extended temporary must die here. A result definition by the load is an immediate
+      // kill; otherwise the first later mention in this block must be a definition, not a use.
+      bool dies_here = SamePhysicalStorage(memory->GetResult(), extend->GetResult());
+      if (!dies_here) {
+        for (size_t later = index + 2; later < instructions.size(); ++later) {
+          auto *candidate = instructions[later];
+          if (UsesPhysicalStorage(candidate, extend->GetResult())) {
+            break;
+          }
+          if (SamePhysicalStorage(candidate->GetResult(), extend->GetResult())) {
+            dies_here = true;
+            break;
+          }
+        }
+      }
+      if (!dies_here) {
+        kept.emplace_back(extend);
+        continue;
+      }
+
+      std::vector<TargetOperand *> operands = memory_operands;
+      operands[memory_index] = extend->GetOperands()[0];
+      memory->SetOperands(operands);
+      memory->SetOpcode(is_load ? A64Opcode::LDR_SXTW : A64Opcode::STR_SXTW);
+      changed = true;
+      ++folded_count_;
+      // Do not keep the now-dead SXTW. The memory operation is visited and retained on the next
+      // iteration, preserving instruction order without changing any other allocated register.
+    }
+    block->SetInsts(std::move(kept));
   }
   return changed;
 }

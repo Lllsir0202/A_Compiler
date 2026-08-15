@@ -1,7 +1,9 @@
 #include "backend/targets/aarch64/aarch64.h"
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
+#include <iostream>
 #include <vector>
 #include "backend/mir/inst/memory/globaldef.h"
 #include "backend/targets/aarch64/frame/aarch64frame.h"
@@ -46,6 +48,8 @@ auto AArch64Backend::Run() -> int {
     machine_passes.AddPass(new AArch64BranchFold(&ctx_));
   }
 
+  AArch64PostRAAddrFold post_ra_addr_fold(&ctx_);
+
   for (auto *mir_func : module->GetFunctions()) {
     auto *tfunc = isel.SelectFunction(mir_func);
     if (!machine_passes.Empty()) {
@@ -54,8 +58,17 @@ auto AArch64Backend::Run() -> int {
     auto outgoing = isel.OutgoingBytes();
     auto alloca_bytes = isel.AllocaBytes();
     auto spill_slots = reg_alloc.Run(tfunc, outgoing + alloca_bytes);
+    if (opt_level_ >= 1 && std::getenv("AARCH64_POSTRA_ADDR_FOLD_OFF") == nullptr) {
+      // Allocation can make a sign-extension temporary die at its sole
+      // register-offset load/store. Fold it only now so the shorter physical
+      // sequence cannot perturb virtual-register liveness or coloring.
+      post_ra_addr_fold.RunOnFunction(tfunc);
+    }
     frame.Finalize(tfunc, outgoing + alloca_bytes, spill_slots, reg_alloc.UsedCalleeSaved());
     target_functions_.push_back(tfunc);
+  }
+  if (std::getenv("AARCH64_POSTRA_ADDR_FOLD_STATS") != nullptr) {
+    std::cerr << "AArch64PostRAAddrFold: folded=" << post_ra_addr_fold.FoldedCount() << '\n';
   }
   return 0;
 }

@@ -8,6 +8,7 @@
 
 namespace backend::targetir {
 class TargetContext;
+class TargetBlock;
 class TargetFunction;
 class TargetOperand;
 class TargetInst;
@@ -36,11 +37,15 @@ class AArch64Peephole : public MachineFunctionPass {
   auto RunOnFunction(TargetFunction *func) -> bool override;
 
  private:
-  auto BuildConstants(TargetFunction *func) -> void;
+  auto BuildAnalysis(TargetFunction *func) -> void;
   auto IsConst(TargetOperand *op, int *value) const -> bool;
-  auto TransformInst(TargetInst *inst) -> bool;
+  auto TransformInst(TargetInst *inst, TargetBlock *block) -> bool;
+  auto TryFoldMultiplyAccumulate(TargetInst *inst, TargetBlock *block) -> bool;
 
   std::unordered_map<TargetOperand *, int> def_count_;
+  std::unordered_map<TargetOperand *, int> use_count_;
+  std::unordered_map<TargetOperand *, TargetInst *> defining_inst_;
+  std::unordered_map<TargetInst *, TargetBlock *> containing_block_;
   std::unordered_map<TargetOperand *, int> const_value_;  // vreg -> value (single movz/movn def)
 };
 

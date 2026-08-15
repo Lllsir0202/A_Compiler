@@ -29,7 +29,7 @@ enum class A64Opcode : uint8_t {
   ASRV,  // register-amount shifts
   // Multiply-accumulate (rd, rn, rm, ra)
   MSUB,
-  MADD,  // msub: rd = ra - rn*rm  (used for modulo)
+  MADD,  // madd: rd = rn*rm + ra; msub: rd = ra - rn*rm
   // Immediate (rd, rn, #imm)
   ADD_I,
   SUB_I,
@@ -91,6 +91,8 @@ enum class A64Opcode : uint8_t {
   V_MLA,
   V_MLS,   // destructive accumulator; operands {acc, lhs, rhs}
   V_ADDV,  // addv sd, vn.4s
+  LDR_SXTW,
+  STR_SXTW,  // late form: ldr/str rt, [xn, wm, sxtw #shift]
 };
 
 /// AArch64 condition codes used by cset / b.<cond>. SysY comparisons are signed

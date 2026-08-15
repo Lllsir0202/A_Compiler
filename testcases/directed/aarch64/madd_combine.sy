@@ -1,0 +1,8 @@
+int main() {
+  int lhs = getint();
+  int rhs = getint();
+  int addend = getint();
+  putint(lhs * rhs + addend);
+  putch(10);
+  return 0;
+}

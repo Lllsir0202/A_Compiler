@@ -129,6 +129,20 @@ auto AArch64Inst::Emit(std::ofstream *out) -> void {
     *out << "\n";
     return;
   }
+  if (opcode_ == A64Opcode::LDR_SXTW || opcode_ == A64Opcode::STR_SXTW) {
+    const bool is_load = opcode_ == A64Opcode::LDR_SXTW;
+    const auto &ops = operands_;
+    *out << (is_load ? "\tldr " : "\tstr ");
+    (is_load ? result_ : ops[0])->Emit(out);
+    *out << ", [";
+    ops[is_load ? 0 : 1]->Emit(out);
+    *out << ", ";
+    ops[is_load ? 1 : 2]->Emit(out);
+    *out << ", sxtw #";
+    ops[is_load ? 2 : 3]->Emit(out);
+    *out << "]\n";
+    return;
+  }
   const auto &info = GetA64OpcodeInfo(opcode_);
   const auto &ops = operands_;
   auto imm = [&](TargetOperand *o) {

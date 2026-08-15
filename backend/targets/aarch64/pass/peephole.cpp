@@ -1,4 +1,5 @@
 #include "backend/targets/aarch64/pass/peephole.h"
+#include <cstdlib>
 #include <vector>
 #include "backend/targets/utils/context/targetcontext.h"
 #include "backend/targets/utils/operand/targetliteral.h"
@@ -22,14 +23,24 @@ auto IsPowerOfTwo(int value, int *shift) -> bool {
 }
 }  // namespace
 
-auto AArch64Peephole::BuildConstants(TargetFunction *func) -> void {
+auto AArch64Peephole::BuildAnalysis(TargetFunction *func) -> void {
   def_count_.clear();
+  use_count_.clear();
+  defining_inst_.clear();
+  containing_block_.clear();
   const_value_.clear();
   for (auto *block : func->GetBlocks()) {
     for (auto *inst : block->GetInsts()) {
+      containing_block_[inst] = block;
       auto *res = inst->GetResult();
       if (res != nullptr) {
         def_count_[res]++;
+        defining_inst_[res] = inst;
+      }
+      for (auto *operand : inst->GetOperands()) {
+        if (operand->IsVirtualReg()) {
+          use_count_[operand]++;
+        }
       }
       auto *ai = static_cast<AArch64Inst *>(inst);
       auto opc = ai->GetOpcode();
@@ -42,6 +53,65 @@ auto AArch64Peephole::BuildConstants(TargetFunction *func) -> void {
       }
     }
   }
+}
+
+auto AArch64Peephole::TryFoldMultiplyAccumulate(TargetInst *inst, TargetBlock *block) -> bool {
+  if (std::getenv("AARCH64_MADD_COMBINE_OFF") != nullptr) {
+    return false;
+  }
+  auto *ai = static_cast<AArch64Inst *>(inst);
+  const auto opcode = ai->GetOpcode();
+  const auto &ops = inst->GetOperands();
+  if ((opcode != A64Opcode::ADD && opcode != A64Opcode::SUB) || ops.size() != 2 || inst->GetResult() == nullptr ||
+      !inst->GetResult()->IsVirtualReg()) {
+    return false;
+  }
+
+  auto try_product = [&](size_t product_index) -> bool {
+    auto *product = ops[product_index];
+    if (!product->IsVirtualReg() || use_count_[product] != 1 || def_count_[product] != 1) {
+      return false;
+    }
+    auto def_it = defining_inst_.find(product);
+    if (def_it == defining_inst_.end() || containing_block_[def_it->second] != block) {
+      return false;
+    }
+    auto *mul = static_cast<AArch64Inst *>(def_it->second);
+    const auto &mul_ops = mul->GetOperands();
+    if (mul->GetOpcode() != A64Opcode::MUL || mul_ops.size() != 2) {
+      return false;
+    }
+
+    auto *other = ops[1 - product_index];
+    if (!other->IsVirtualReg() || !mul_ops[0]->IsVirtualReg() || !mul_ops[1]->IsVirtualReg()) {
+      return false;
+    }
+    auto *result_reg = static_cast<TargetVirtualReg *>(inst->GetResult());
+    auto same_general_width = [&](TargetOperand *operand) {
+      auto *reg = static_cast<TargetVirtualReg *>(operand);
+      return reg->GetRegClass() == TargetRegClass::General && reg->GetRegSize() == result_reg->GetRegSize();
+    };
+    if (result_reg->GetRegClass() != TargetRegClass::General || !same_general_width(other) ||
+        !same_general_width(mul_ops[0]) || !same_general_width(mul_ops[1])) {
+      return false;
+    }
+
+    if (opcode == A64Opcode::ADD) {
+      ai->SetOpcode(A64Opcode::MADD);
+    } else if (product_index == 1) {
+      // AArch64 msub computes ra - rn * rm, matching `other - product`.
+      ai->SetOpcode(A64Opcode::MSUB);
+    } else {
+      return false;  // `product - other` has no direct integer fused form.
+    }
+    inst->SetOperands({mul_ops[0], mul_ops[1], other});
+    return true;
+  };
+
+  if (opcode == A64Opcode::SUB) {
+    return try_product(1);
+  }
+  return try_product(0) || try_product(1);
 }
 
 auto AArch64Peephole::IsConst(TargetOperand *op, int *value) const -> bool {
@@ -60,10 +130,13 @@ auto AArch64Peephole::IsConst(TargetOperand *op, int *value) const -> bool {
   return true;
 }
 
-auto AArch64Peephole::TransformInst(TargetInst *inst) -> bool {
+auto AArch64Peephole::TransformInst(TargetInst *inst, TargetBlock *block) -> bool {
   auto *ai = static_cast<AArch64Inst *>(inst);
   auto opcode = ai->GetOpcode();
   const auto &ops = inst->GetOperands();
+  if (TryFoldMultiplyAccumulate(inst, block)) {
+    return true;
+  }
   if (ops.size() != 2) {
     return false;
   }
@@ -137,8 +210,7 @@ auto AArch64Peephole::TransformInst(TargetInst *inst) -> bool {
     case A64Opcode::LSL_I:
     case A64Opcode::LSR_I:
     case A64Opcode::ASR_I: {
-      if (rhs->GetOpType() == TargetOperandType::Immediate &&
-          static_cast<TargetIntLiteral *>(rhs)->GetValue() == 0) {
+      if (rhs->GetOpType() == TargetOperandType::Immediate && static_cast<TargetIntLiteral *>(rhs)->GetValue() == 0) {
         to_move(lhs);
         return true;
       }
@@ -150,11 +222,11 @@ auto AArch64Peephole::TransformInst(TargetInst *inst) -> bool {
 }
 
 auto AArch64Peephole::RunOnFunction(TargetFunction *func) -> bool {
-  BuildConstants(func);
+  BuildAnalysis(func);
   bool changed = false;
   for (auto *block : func->GetBlocks()) {
     for (auto *inst : block->GetInsts()) {
-      changed |= TransformInst(inst);
+      changed |= TransformInst(inst, block);
     }
   }
   return changed;
