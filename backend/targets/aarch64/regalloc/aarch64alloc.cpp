@@ -5,6 +5,7 @@
 #include <limits>
 #include "backend/targets/aarch64/regs/aarch64reg.h"
 #include "backend/targets/utils/operand/targetreg.h"
+#include "backend/targets/utils/operand/targetsymbol.h"
 #include "backend/targets/utils/struct/targetblock.h"
 #include "backend/targets/utils/struct/targetfunction.h"
 
@@ -717,11 +718,11 @@ auto AArch64GraphColorRegAlloc::EmitSpill(std::vector<TargetInst *> *out, Target
 
 auto AArch64GraphColorRegAlloc::RewriteProgram() -> void {
   // Single-instruction constants are cheaper to recreate at each use than to
-  // store and reload. Restrict this to single-def movz/movn: movk chains and
-  // address expressions remain ordinary spills until their complete recipes are
-  // modeled explicitly.
+  // store and reload. Global addresses use a similarly pure two-instruction
+  // ADRP+ADD_LO12 recipe, which is also safe to recreate at each use.
   std::unordered_map<TargetOperand *, int> def_count;
   std::unordered_map<TargetOperand *, TargetInst *> constant_def;
+  std::unordered_map<TargetOperand *, std::pair<TargetInst *, TargetInst *>> address_def;
   for (auto *block : func_->GetBlocks()) {
     for (auto *inst : block->GetInsts()) {
       auto *res = inst->GetResult();
@@ -736,6 +737,22 @@ auto AArch64GraphColorRegAlloc::RewriteProgram() -> void {
         constant_def[res] = inst;
       }
     }
+    const auto &insts = block->GetInsts();
+    for (size_t i = 0; i + 1 < insts.size(); ++i) {
+      auto *adrp = static_cast<AArch64Inst *>(insts[i]);
+      auto *add_lo12 = static_cast<AArch64Inst *>(insts[i + 1]);
+      auto *addr = adrp->GetResult();
+      const auto &adrp_ops = adrp->GetOperands();
+      const auto &add_ops = add_lo12->GetOperands();
+      if (adrp->GetOpcode() != A64Opcode::ADRP || add_lo12->GetOpcode() != A64Opcode::ADD_LO12 || addr == nullptr ||
+          !addr->IsVirtualReg() || adrp_ops.size() != 1 || adrp_ops[0]->GetOpType() != TargetOperandType::Symbol ||
+          add_lo12->GetResult() != addr || add_ops.size() != 2 || add_ops[0] != addr ||
+          add_ops[1]->GetOpType() != TargetOperandType::Symbol ||
+          static_cast<TargetSymbol *>(adrp_ops[0])->GetName() != static_cast<TargetSymbol *>(add_ops[1])->GetName()) {
+        continue;
+      }
+      address_def[addr] = {adrp, add_lo12};
+    }
   }
 
   // Set of original vregs that must be spilled this round, partitioned into
@@ -746,6 +763,8 @@ auto AArch64GraphColorRegAlloc::RewriteProgram() -> void {
     auto *vreg = nodes_[n];
     if (std::getenv("AARCH64_REMAT_CONST_OFF") == nullptr && def_count[vreg] == 1 && constant_def.count(vreg) != 0) {
       rematerialize_set.insert(vreg);
+    } else if (std::getenv("AARCH64_REMAT_ADDR_OFF") == nullptr && address_def.count(vreg) != 0) {
+      rematerialize_set.insert(vreg);
     } else {
       spill_set.insert(vreg);
       SlotOf(vreg);  // reserve the slot up front
@@ -755,7 +774,7 @@ auto AArch64GraphColorRegAlloc::RewriteProgram() -> void {
     std::vector<TargetInst *> rewritten;
     for (auto *inst : b->GetInsts()) {
       if (rematerialize_set.count(inst->GetResult()) != 0) {
-        continue;  // every use below receives a fresh equivalent movz/movn.
+        continue;  // every use below receives a fresh equivalent rematerialization.
       }
       std::vector<TargetInst *> before;
       std::vector<TargetInst *> after;
@@ -770,11 +789,26 @@ auto AArch64GraphColorRegAlloc::RewriteProgram() -> void {
           spill_temps_.insert(tmp);
           local[op] = tmp;
           if (rematerialize_set.count(op) != 0) {
-            auto *def = static_cast<AArch64Inst *>(constant_def[op]);
-            auto *remat = ctx_->CreateInst<AArch64Inst>(def->GetOpcode());
-            remat->SetResult(tmp);
-            remat->SetOperands(def->GetOperands());
-            before.push_back(remat);
+            if (constant_def.count(op) != 0) {
+              auto *def = static_cast<AArch64Inst *>(constant_def[op]);
+              auto *remat = ctx_->CreateInst<AArch64Inst>(def->GetOpcode());
+              remat->SetResult(tmp);
+              remat->SetOperands(def->GetOperands());
+              before.push_back(remat);
+            } else {
+              auto [adrp_def, add_lo12_def] = address_def[op];
+              auto *page = ctx_->NewVirtualReg(v->GetRegClass(), v->GetRegSize());
+              spill_temps_.insert(page);
+              auto *adrp = ctx_->CreateInst<AArch64Inst>(A64Opcode::ADRP);
+              adrp->SetResult(page);
+              adrp->SetOperands(adrp_def->GetOperands());
+              before.push_back(adrp);
+              auto *add_lo12 = ctx_->CreateInst<AArch64Inst>(A64Opcode::ADD_LO12);
+              add_lo12->SetResult(tmp);
+              add_lo12->AddOperand(page);
+              add_lo12->AddOperand(add_lo12_def->GetOperands()[1]);
+              before.push_back(add_lo12);
+            }
           } else {
             EmitReload(&before, op, tmp, SlotOf(op));
           }
