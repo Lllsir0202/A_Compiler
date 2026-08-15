@@ -31,7 +31,8 @@ namespace backend::targetir::aarch64 {
  */
 class AArch64Peephole : public MachineFunctionPass {
  public:
-  explicit AArch64Peephole(TargetContext *ctx) : MachineFunctionPass(ctx) {}
+  explicit AArch64Peephole(TargetContext *ctx, bool enable_tree_combine = true)
+      : MachineFunctionPass(ctx), enable_tree_combine_(enable_tree_combine) {}
 
   auto Name() const -> std::string override { return "aarch64-peephole"; }
   auto RunOnFunction(TargetFunction *func) -> bool override;
@@ -41,12 +42,14 @@ class AArch64Peephole : public MachineFunctionPass {
   auto IsConst(TargetOperand *op, int *value) const -> bool;
   auto TransformInst(TargetInst *inst, TargetBlock *block) -> bool;
   auto TryFoldMultiplyAccumulate(TargetInst *inst, TargetBlock *block) -> bool;
+  auto TryFoldShiftedArithmetic(TargetInst *inst, TargetBlock *block) -> bool;
 
   std::unordered_map<TargetOperand *, int> def_count_;
   std::unordered_map<TargetOperand *, int> use_count_;
   std::unordered_map<TargetOperand *, TargetInst *> defining_inst_;
   std::unordered_map<TargetInst *, TargetBlock *> containing_block_;
   std::unordered_map<TargetOperand *, int> const_value_;  // vreg -> value (single movz/movn def)
+  bool enable_tree_combine_;
 };
 
 }  // namespace backend::targetir::aarch64

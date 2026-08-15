@@ -93,6 +93,14 @@ enum class A64Opcode : uint8_t {
   V_ADDV,  // addv sd, vn.4s
   LDR_SXTW,
   STR_SXTW,  // late form: ldr/str rt, [xn, wm, sxtw #shift]
+  // Arithmetic with a shifted final register operand. Kept as explicit opcodes
+  // so the shift kind remains part of Machine IR and local value numbering.
+  ADD_SHIFT_LSL,
+  ADD_SHIFT_LSR,
+  ADD_SHIFT_ASR,
+  SUB_SHIFT_LSL,
+  SUB_SHIFT_LSR,
+  SUB_SHIFT_ASR,
 };
 
 /// AArch64 condition codes used by cset / b.<cond>. SysY comparisons are signed

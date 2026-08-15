@@ -1,0 +1,9 @@
+int main() {
+  int value = getint();
+  int base = getint();
+  putint(base + value * 8);
+  putch(10);
+  putint(base - value * 4);
+  putch(10);
+  return 0;
+}

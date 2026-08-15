@@ -143,6 +143,25 @@ auto AArch64Inst::Emit(std::ofstream *out) -> void {
     *out << "]\n";
     return;
   }
+  if (opcode_ == A64Opcode::ADD_SHIFT_LSL || opcode_ == A64Opcode::ADD_SHIFT_LSR ||
+      opcode_ == A64Opcode::ADD_SHIFT_ASR || opcode_ == A64Opcode::SUB_SHIFT_LSL ||
+      opcode_ == A64Opcode::SUB_SHIFT_LSR || opcode_ == A64Opcode::SUB_SHIFT_ASR) {
+    const bool is_sub = opcode_ == A64Opcode::SUB_SHIFT_LSL || opcode_ == A64Opcode::SUB_SHIFT_LSR ||
+                        opcode_ == A64Opcode::SUB_SHIFT_ASR;
+    const char *shift = (opcode_ == A64Opcode::ADD_SHIFT_LSL || opcode_ == A64Opcode::SUB_SHIFT_LSL)   ? "lsl"
+                        : (opcode_ == A64Opcode::ADD_SHIFT_LSR || opcode_ == A64Opcode::SUB_SHIFT_LSR) ? "lsr"
+                                                                                                       : "asr";
+    *out << (is_sub ? "\tsub " : "\tadd ");
+    result_->Emit(out);
+    *out << ", ";
+    operands_[0]->Emit(out);
+    *out << ", ";
+    operands_[1]->Emit(out);
+    *out << ", " << shift << " #";
+    operands_[2]->Emit(out);
+    *out << "\n";
+    return;
+  }
   const auto &info = GetA64OpcodeInfo(opcode_);
   const auto &ops = operands_;
   auto imm = [&](TargetOperand *o) {

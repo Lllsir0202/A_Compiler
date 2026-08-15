@@ -40,9 +40,12 @@ auto AArch64Backend::Run() -> int {
   MachinePassManager machine_passes(&ctx_);
   if (opt_level_ >= 1) {
     machine_passes.AddPass(new AArch64IfConvert(&ctx_));
-    machine_passes.AddPass(new AArch64Peephole(&ctx_));
+    // Keep tree combines after SLP: rewriting mul/add or shift/add too early
+    // destroys the scalar expression shape from which vector packs are built.
+    machine_passes.AddPass(new AArch64Peephole(&ctx_, false));
     machine_passes.AddPass(new AArch64AddrFold(&ctx_));
     machine_passes.AddPass(new AArch64SLPVectorize(&ctx_));
+    machine_passes.AddPass(new AArch64Peephole(&ctx_));
     machine_passes.AddPass(new AArch64LocalCSE(&ctx_));
     machine_passes.AddPass(new AArch64MachineDCE(&ctx_));
     machine_passes.AddPass(new AArch64BranchFold(&ctx_));
