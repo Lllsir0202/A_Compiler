@@ -17,6 +17,7 @@
 #include "middleend/pass/analysis/cfg/mlircfg.h"
 #include "middleend/pass/analysis/domtree/domtree.h"
 #include "middleend/pass/analysis/loopinfo/loopinfo.h"
+#include "middleend/pass/analysis/loopaccess/loopaccess.h"
 #include "middleend/pass/analysis/memoryssa/memoryssa.h"
 #include "middleend/pass/analysis/mlirmemoryeffects/mlirmemoryeffects.h"
 #include "middleend/pass/analysis/scev/scevpass.h"
@@ -433,6 +434,9 @@ auto main(int argc, char *argv[]) -> int {
     auto scev_pass = context::PassContext::CreatePass<middleend::pass::analysis::SCEVPass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(scev_pass);
+    auto loop_access_pass = context::PassContext::CreatePass<middleend::pass::analysis::LoopAccessAnalysisPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(loop_access_pass);
     auto dead_loop_eliminate_pass = context::PassContext::CreatePass<middleend::pass::transform::DeadLoopEliminatePass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(dead_loop_eliminate_pass);
