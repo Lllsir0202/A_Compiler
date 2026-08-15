@@ -146,10 +146,13 @@ def execute_asm(input, output, opt, stdin, stdout, testout, arch):
         print(f"\033[93mOutput Error on \033[0m{input}")
         return 0
 
-    result = execute([
+    link_command = [
         gcc, "-static", "../../tmp.o", "../../libs/sylib.c",
-        "-I", "../../libs", "-o", "a.out", "-mcmodel=medany"
-    ])
+        "-I", "../../libs", "-o", "a.out"
+    ]
+    if arch == "rv":
+        link_command.append("-mcmodel=medany")
+    result = execute(link_command)
     if result.returncode != 0:
         execute(["rm", "-rf", "../../tmp.o"])
         print(f"\033[93mLink Error on \033[0m{input}")
