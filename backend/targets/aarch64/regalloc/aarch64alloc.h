@@ -126,8 +126,9 @@ class AArch64GraphColorRegAlloc {
   std::unordered_set<long long> adj_set_;
   std::vector<int> degree_;
   std::vector<NodeId> alias_;
-  std::vector<std::vector<TargetInst *>> move_list_;  // moves touching each node
-  std::vector<double> spill_weight_;                  // def+use frequency, for spill choice
+  std::vector<std::vector<TargetInst *>> move_list_;     // moves touching each node
+  std::vector<double> spill_weight_;                     // def+use frequency, for spill choice
+  std::unordered_map<TargetInst *, size_t> move_order_;  // stable program order for coalescing
 
   // Temps introduced by spill rewriting: never chosen as spill candidates again
   // (their live ranges are tiny), which guarantees the outer loop terminates.

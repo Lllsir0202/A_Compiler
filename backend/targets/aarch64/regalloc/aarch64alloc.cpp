@@ -305,6 +305,13 @@ auto AArch64GraphColorRegAlloc::AddEdge(NodeId u, NodeId v) -> void {
 }
 
 auto AArch64GraphColorRegAlloc::Build() -> void {
+  move_order_.clear();
+  size_t instruction_order = 0;
+  for (auto *block : func_->GetBlocks()) {
+    for (auto *inst : block->GetInsts()) {
+      move_order_[inst] = instruction_order++;
+    }
+  }
   std::vector<NodeId> defs;
   std::vector<NodeId> uses;
   for (auto *b : func_->GetBlocks()) {
@@ -358,6 +365,7 @@ auto AArch64GraphColorRegAlloc::Adjacent(NodeId n) -> std::vector<NodeId> {
       out.push_back(a);
     }
   }
+  std::sort(out.begin(), out.end());
   return out;
 }
 
@@ -419,8 +427,9 @@ auto AArch64GraphColorRegAlloc::DecrementDegree(NodeId n) -> void {
 }
 
 auto AArch64GraphColorRegAlloc::Simplify() -> void {
-  NodeId n = *simplify_worklist_.begin();
-  simplify_worklist_.erase(simplify_worklist_.begin());
+  auto it = std::min_element(simplify_worklist_.begin(), simplify_worklist_.end());
+  NodeId n = *it;
+  simplify_worklist_.erase(it);
   select_stack_.push_back(n);
   select_set_.insert(n);
   for (auto m : Adjacent(n)) {
@@ -479,8 +488,11 @@ auto AArch64GraphColorRegAlloc::Combine(NodeId u, NodeId v) -> void {
 }
 
 auto AArch64GraphColorRegAlloc::Coalesce() -> void {
-  auto *m = *worklist_moves_.begin();
-  worklist_moves_.erase(worklist_moves_.begin());
+  auto it = std::min_element(worklist_moves_.begin(), worklist_moves_.end(), [&](TargetInst *lhs, TargetInst *rhs) {
+    return move_order_.at(lhs) < move_order_.at(rhs);
+  });
+  auto *m = *it;
+  worklist_moves_.erase(it);
   NodeId x = 0;
   NodeId y = 0;
   IsMove(m, &x, &y);
@@ -552,8 +564,9 @@ auto AArch64GraphColorRegAlloc::FreezeMoves(NodeId u) -> void {
 }
 
 auto AArch64GraphColorRegAlloc::Freeze() -> void {
-  NodeId u = *freeze_worklist_.begin();
-  freeze_worklist_.erase(freeze_worklist_.begin());
+  auto it = std::min_element(freeze_worklist_.begin(), freeze_worklist_.end());
+  NodeId u = *it;
+  freeze_worklist_.erase(it);
   simplify_worklist_.insert(u);
   FreezeMoves(u);
 }
@@ -571,7 +584,7 @@ auto AArch64GraphColorRegAlloc::SelectSpill() -> void {
   double best_cost = 0.0;
   for (auto n : spill_worklist_) {
     double cost = SpillCost(n);
-    if (best == -1 || cost < best_cost) {
+    if (best == -1 || cost < best_cost || (cost == best_cost && n < best)) {
       best = n;
       best_cost = cost;
     }
