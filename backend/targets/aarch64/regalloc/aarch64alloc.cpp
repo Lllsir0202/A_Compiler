@@ -1,6 +1,7 @@
 #include "backend/targets/aarch64/regalloc/aarch64alloc.h"
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <limits>
 #include "backend/targets/aarch64/regs/aarch64reg.h"
 #include "backend/targets/utils/operand/targetreg.h"
@@ -715,26 +716,68 @@ auto AArch64GraphColorRegAlloc::EmitSpill(std::vector<TargetInst *> *out, Target
 }
 
 auto AArch64GraphColorRegAlloc::RewriteProgram() -> void {
-  // Set of original vregs that must be spilled this round.
+  // Single-instruction constants are cheaper to recreate at each use than to
+  // store and reload. Restrict this to single-def movz/movn: movk chains and
+  // address expressions remain ordinary spills until their complete recipes are
+  // modeled explicitly.
+  std::unordered_map<TargetOperand *, int> def_count;
+  std::unordered_map<TargetOperand *, TargetInst *> constant_def;
+  for (auto *block : func_->GetBlocks()) {
+    for (auto *inst : block->GetInsts()) {
+      auto *res = inst->GetResult();
+      if (res == nullptr || !res->IsVirtualReg()) {
+        continue;
+      }
+      def_count[res]++;
+      auto opcode = static_cast<AArch64Inst *>(inst)->GetOpcode();
+      const auto &ops = inst->GetOperands();
+      if ((opcode == A64Opcode::MOVZ || opcode == A64Opcode::MOVN) && ops.size() == 1 &&
+          ops[0]->GetOpType() == TargetOperandType::Immediate) {
+        constant_def[res] = inst;
+      }
+    }
+  }
+
+  // Set of original vregs that must be spilled this round, partitioned into
+  // stack-backed values and rematerializable constants.
   std::unordered_set<TargetOperand *> spill_set;
+  std::unordered_set<TargetOperand *> rematerialize_set;
   for (auto n : spilled_nodes_) {
-    spill_set.insert(nodes_[n]);
-    SlotOf(nodes_[n]);  // reserve the slot up front
+    auto *vreg = nodes_[n];
+    if (std::getenv("AARCH64_REMAT_CONST_OFF") == nullptr && def_count[vreg] == 1 && constant_def.count(vreg) != 0) {
+      rematerialize_set.insert(vreg);
+    } else {
+      spill_set.insert(vreg);
+      SlotOf(vreg);  // reserve the slot up front
+    }
   }
   for (auto *b : func_->GetBlocks()) {
     std::vector<TargetInst *> rewritten;
     for (auto *inst : b->GetInsts()) {
+      if (rematerialize_set.count(inst->GetResult()) != 0) {
+        continue;  // every use below receives a fresh equivalent movz/movn.
+      }
       std::vector<TargetInst *> before;
       std::vector<TargetInst *> after;
       std::unordered_map<TargetOperand *, TargetOperand *> local;
-      // Uses: reload each distinct spilled operand into a fresh temp.
+      // Uses: reload stack-backed values or recreate each cheap constant into a
+      // fresh temp. A repeated operand in one instruction still gets one temp.
       for (auto *op : inst->GetOperands()) {
-        if (op->IsVirtualReg() && spill_set.count(op) != 0 && local.count(op) == 0) {
+        if (op->IsVirtualReg() && (spill_set.count(op) != 0 || rematerialize_set.count(op) != 0) &&
+            local.count(op) == 0) {
           auto *v = static_cast<TargetVirtualReg *>(op);
           auto *tmp = ctx_->NewVirtualReg(v->GetRegClass(), v->GetRegSize());
           spill_temps_.insert(tmp);
           local[op] = tmp;
-          EmitReload(&before, op, tmp, SlotOf(op));
+          if (rematerialize_set.count(op) != 0) {
+            auto *def = static_cast<AArch64Inst *>(constant_def[op]);
+            auto *remat = ctx_->CreateInst<AArch64Inst>(def->GetOpcode());
+            remat->SetResult(tmp);
+            remat->SetOperands(def->GetOperands());
+            before.push_back(remat);
+          } else {
+            EmitReload(&before, op, tmp, SlotOf(op));
+          }
           inst->ReplaceOperand(op, tmp);
         }
       }
