@@ -53,6 +53,7 @@ class MLIRFunctionInlinePass : public TransformPass {
   auto RunInlineRound() -> bool;
   auto TryInlineInBlock(mlir::func::FuncDefOp *caller, mlir::Block *block) -> bool;
   auto IsInlineCandidate(mlir::func::FuncDefOp *caller, mlir::func::FuncDefOp *callee) -> bool;
+  auto HaveCompatibleArgumentTypes(mlir::func::FuncCallOp *call_op, mlir::func::FuncDefOp *callee) -> bool;
   auto HasRecursivePath(mlir::func::FuncDefOp *from, mlir::func::FuncDefOp *target) -> bool;
   auto CountOperations(mlir::func::FuncDefOp *func_op) -> size_t;
   auto CountOperations(mlir::Operation *operation) -> size_t;
