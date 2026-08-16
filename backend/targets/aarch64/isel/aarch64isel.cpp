@@ -81,7 +81,7 @@ auto AArch64ISel::SelectFunction(backend::utils::Function *mir_func) -> TargetFu
   func_name_ = mir_func->GetName();
   value_map_.clear();
   block_by_id_.clear();
-  fused_icmps_.clear();
+  fused_cmps_.clear();
   use_count_.clear();
   one_user_.clear();
   alloca_offset_.clear();
@@ -122,8 +122,10 @@ auto AArch64ISel::SelectFunction(backend::utils::Function *mir_func) -> TargetFu
   }
   for (auto *mir_block : mir_func->GetBlocks()) {
     for (auto *inst : mir_block->GetInstructions()) {
-      if (inst->GetOpKind() == OpKind::ICmp && IsFusableToBranch(inst)) {
-        fused_icmps_.insert(inst);
+      bool is_int_cmp = inst->GetOpKind() == OpKind::ICmp;
+      bool is_float_cmp = inst->GetOpKind() == OpKind::FCmp && std::getenv("AARCH64_FCMP_BRANCH_FUSION_OFF") == nullptr;
+      if ((is_int_cmp || is_float_cmp) && IsFusableToBranch(inst)) {
+        fused_cmps_.insert(inst);
       }
     }
   }
@@ -306,7 +308,7 @@ auto AArch64ISel::EmitConstDivide(TargetOperand *numer, int divisor) -> TargetOp
 }
 
 auto AArch64ISel::SelectICmp(backend::inst::Instruction *inst) -> void {
-  if (fused_icmps_.count(inst) != 0U) {
+  if (fused_cmps_.count(inst) != 0U) {
     return;  // folded into the consuming branch
   }
   auto pred = static_cast<backend::inst::ICmpInst *>(inst)->GetPredicate();
@@ -317,6 +319,9 @@ auto AArch64ISel::SelectICmp(backend::inst::Instruction *inst) -> void {
 }
 
 auto AArch64ISel::SelectFCmp(backend::inst::Instruction *inst) -> void {
+  if (fused_cmps_.count(inst) != 0U) {
+    return;  // folded into the consuming branch
+  }
   auto pred = static_cast<backend::inst::FCmpInst *>(inst)->GetPredicate();
   auto *lhs = GetReg(inst->GetOperands()[0]);
   auto *rhs = GetReg(inst->GetOperands()[1]);
@@ -336,11 +341,12 @@ auto AArch64ISel::SelectCondBr(backend::inst::Instruction *inst) -> void {
   auto false_id = static_cast<backend::utils::LabelOperand *>(ops[2])->GetId();
 
   auto *def = cond->GetDefInst();
-  if (def != nullptr && fused_icmps_.count(def) != 0U) {
-    auto pred = static_cast<backend::inst::ICmpInst *>(def)->GetPredicate();
+  if (def != nullptr && fused_cmps_.count(def) != 0U) {
+    auto pred = def->GetOpKind() == OpKind::ICmp ? static_cast<backend::inst::ICmpInst *>(def)->GetPredicate()
+                                                 : static_cast<backend::inst::FCmpInst *>(def)->GetPredicate();
     auto *lhs = GetReg(def->GetOperands()[0]);
     auto *rhs = GetReg(def->GetOperands()[1]);
-    Emit(A64Opcode::CMP, nullptr, {lhs, rhs});
+    Emit(def->GetOpKind() == OpKind::ICmp ? A64Opcode::CMP : A64Opcode::FCMP, nullptr, {lhs, rhs});
     EmitCond(A64Opcode::B_COND, nullptr, CondFor(pred), {LabelForBlock(true_id)});
   } else {
     auto *creg = GetReg(cond);
@@ -673,8 +679,8 @@ auto AArch64ISel::LowerAddress(backend::utils::Operand *ptr) -> TargetOperand * 
   return PhysGPR(X0, TargetRegSize::QWord);
 }
 
-auto AArch64ISel::IsFusableToBranch(backend::inst::Instruction *icmp) const -> bool {
-  auto *res = icmp->GetResult();
+auto AArch64ISel::IsFusableToBranch(backend::inst::Instruction *cmp) const -> bool {
+  auto *res = cmp->GetResult();
   if (res == nullptr) {
     return false;
   }

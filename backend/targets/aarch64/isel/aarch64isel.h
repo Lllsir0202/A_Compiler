@@ -81,7 +81,7 @@ class AArch64ISel {
   auto EmitBaseLoad(A64Opcode opcode, TargetOperand *dst, uint8_t base_id, int offset) -> void;
   auto EmitBaseStore(A64Opcode opcode, TargetOperand *value, uint8_t base_id, int offset) -> void;
 
-  auto IsFusableToBranch(backend::inst::Instruction *icmp) const -> bool;
+  auto IsFusableToBranch(backend::inst::Instruction *cmp) const -> bool;
 
   context::CompilerContext *compiler_context_;
   TargetContext *ctx_;
@@ -91,7 +91,7 @@ class AArch64ISel {
   TargetBlock *cur_block_ = nullptr;
   std::unordered_map<backend::utils::Operand *, TargetOperand *> value_map_;
   std::unordered_map<size_t, TargetBlock *> block_by_id_;
-  std::unordered_set<backend::inst::Instruction *> fused_icmps_;
+  std::unordered_set<backend::inst::Instruction *> fused_cmps_;
   std::unordered_map<backend::utils::Operand *, int> use_count_;
   std::unordered_map<backend::utils::Operand *, backend::inst::Instruction *> one_user_;
 
