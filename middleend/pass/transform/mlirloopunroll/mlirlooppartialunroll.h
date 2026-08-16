@@ -59,10 +59,10 @@ class MLIRLoopPartialUnrollPass : public TransformPass {
 
   // Unroll factor of the widened main loop.
   static constexpr int64_t kUnrollFactor = 8;
-  // Store-heavy multidimensional loops replicate address arithmetic and memory operations faster
-  // than they expose useful ILP.  A narrower factor keeps their straight-line body within the
-  // instruction-frontend and register-pressure budgets while retaining most loop-control savings.
-  static constexpr int64_t kAddressHeavyUnrollFactor = 4;
+  // Cap the estimated expanded body size and progressively lower the factor for larger loops.
+  // This is a code-size budget, not a source-pattern heuristic: control flow, memory operations,
+  // arithmetic, and nested regions all contribute through CountOperations.
+  static constexpr size_t kPartialUnrollThreshold = 150;
 
  private:
   auto RunOnFunction(mlir::func::FuncDefOp *func_op) -> bool;
@@ -83,7 +83,6 @@ class MLIRLoopPartialUnrollPass : public TransformPass {
   static constexpr int64_t kJamFactor = 4;
   int64_t jam_unroll_factor_;
   std::unordered_set<mlir::scf::WhileOp *> register_blocked_loops_;
-  static constexpr size_t kMaxBodyCost = 1024;
 };
 
 }  // namespace middleend::pass::transform
