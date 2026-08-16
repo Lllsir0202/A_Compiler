@@ -48,3 +48,5 @@ __pycache__/
 # Ignore valgrind output files
 valgrind_output.*
 /bench/
+
+optimize_plan/
