@@ -27,7 +27,7 @@ namespace backend::targetir::riscv {
  *     (and the sub / and / or / xor / shift / slt analogues), whenever C fits the
  *     12-bit signed immediate (or 0..31 for a shift amount);
  *   - strength reduction: multiply by a power of two -> shift, by 1 -> move,
- *     by 0 -> load-zero;
+ *     by 0 -> load-zero, and 2^k +/- 1 families -> shift plus add/subtract;
  *   - algebraic identities left behind by the above (add/or/xor/shift of 0 -> move,
  *     and of -1 -> move).
  *   - redundant RV64 word sign extension -> coalescible move, when the source
