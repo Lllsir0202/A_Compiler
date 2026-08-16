@@ -25,6 +25,8 @@ enum class RVOpcode : uint8_t {
   ADD,
   SUB,
   MUL,  // 64-bit, address arithmetic
+  DIV,  // 64-bit, widened arithmetic
+  REM,  // 64-bit, widened arithmetic
   AND,
   OR,
   XOR,

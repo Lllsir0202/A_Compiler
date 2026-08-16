@@ -55,6 +55,8 @@ auto LowerHelper::LowerDispatch(middleend::llvm::inst::Instruction *inst) -> voi
     DISPATCH_LOWERING(FCmpInst)
     DISPATCH_LOWERING(XorInst)
     DISPATCH_LOWERING(ZextInst)
+    DISPATCH_LOWERING(SextInst)
+    DISPATCH_LOWERING(TruncInst)
     DISPATCH_LOWERING(SitoFpInst)
     DISPATCH_LOWERING(FptoSiInst)
     DISPATCH_LOWERING(UitoFpInst)
@@ -364,6 +366,30 @@ auto LowerHelper::LowerZextInst(middleend::llvm::inst::ZextInst *zext_inst) -> v
     mir_operand->GetDefInst()->AddUser(mir_inst);
   }
   mir_result->SetType(result->GetType());
+  GET_LOWER_CONTEXT()->GetInsertPoint()->AddInstBack(mir_inst);
+  mir_inst->SetParentBlock(GET_LOWER_CONTEXT()->GetInsertPoint());
+}
+
+auto LowerHelper::LowerSextInst(middleend::llvm::inst::SextInst *sext_inst) -> void {
+  auto *operand = sext_inst->GetSrc();
+  auto *mir_operand = GET_LOWER_CONTEXT()->GetMIROperandFromLLVMOperand(operand);
+  auto *mir_inst = GET_RESOURCE_CONTEXT()->CreateInstruction<inst::SextInst>(GET_MIR_CONTEXT(), mir_operand);
+  auto *mir_result = mir_inst->GetResult();
+  GET_LOWER_CONTEXT()->MapLLVMOperandToMIROperand(sext_inst->GetResult(), mir_result);
+  if (mir_operand->GetDefInst() != nullptr) mir_operand->GetDefInst()->AddUser(mir_inst);
+  mir_result->SetType(sext_inst->GetResult()->GetType());
+  GET_LOWER_CONTEXT()->GetInsertPoint()->AddInstBack(mir_inst);
+  mir_inst->SetParentBlock(GET_LOWER_CONTEXT()->GetInsertPoint());
+}
+
+auto LowerHelper::LowerTruncInst(middleend::llvm::inst::TruncInst *trunc_inst) -> void {
+  auto *operand = trunc_inst->GetSrc();
+  auto *mir_operand = GET_LOWER_CONTEXT()->GetMIROperandFromLLVMOperand(operand);
+  auto *mir_inst = GET_RESOURCE_CONTEXT()->CreateInstruction<inst::TruncInst>(GET_MIR_CONTEXT(), mir_operand);
+  auto *mir_result = mir_inst->GetResult();
+  GET_LOWER_CONTEXT()->MapLLVMOperandToMIROperand(trunc_inst->GetResult(), mir_result);
+  if (mir_operand->GetDefInst() != nullptr) mir_operand->GetDefInst()->AddUser(mir_inst);
+  mir_result->SetType(trunc_inst->GetResult()->GetType());
   GET_LOWER_CONTEXT()->GetInsertPoint()->AddInstBack(mir_inst);
   mir_inst->SetParentBlock(GET_LOWER_CONTEXT()->GetInsertPoint());
 }

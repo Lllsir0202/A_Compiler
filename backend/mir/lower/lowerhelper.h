@@ -68,6 +68,8 @@ class LowerHelper {
 
   // Cast instructions
   auto LowerZextInst(middleend::llvm::inst::ZextInst *zext_inst) -> void;
+  auto LowerSextInst(middleend::llvm::inst::SextInst *sext_inst) -> void;
+  auto LowerTruncInst(middleend::llvm::inst::TruncInst *trunc_inst) -> void;
   auto LowerSitoFpInst(middleend::llvm::inst::SitoFpInst *sitofp_inst) -> void;
   auto LowerFptoSiInst(middleend::llvm::inst::FptoSiInst *fptosi_inst) -> void;
   auto LowerUitoFpInst(middleend::llvm::inst::UitoFpInst *uitofp_inst) -> void;

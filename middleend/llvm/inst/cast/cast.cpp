@@ -3,6 +3,56 @@
 #include "llvm/utils/operand/operand.h"
 
 namespace middleend::llvm::inst {
+namespace {
+auto EmitIntegerCast(std::ofstream *out, const char *name, utils::Operand *result, utils::Operand *src) -> void {
+  *out << "  ";
+  result->Emit(out);
+  *out << " = " << name << " " << utils::Operand::GetTypeInLLVMIR(src->GetType()) << " ";
+  src->Emit(out);
+  *out << " to " << utils::Operand::GetTypeInLLVMIR(result->GetType()) << "\n";
+}
+}  // namespace
+
+auto SextInst::Emit(std::ofstream *out) const -> void { EmitIntegerCast(out, "sext", result_, operands_[0]); }
+
+auto SextInst::Verify(context::CompilerContext *context) const -> bool {
+  if (operands_.size() != 1 || operands_[0] == nullptr || !operands_[0]->IsInt32() || result_ == nullptr ||
+      !result_->IsLong() || result_->GetInstruction() != this) {
+    context->Print("Sext instruction requires an i32 source and i64 result");
+    return false;
+  }
+  return true;
+}
+
+auto SextInst::Create(context::LLVMIRContext *context, utils::Operand *src) -> SextInst * {
+  auto *inst = new SextInst();
+  inst->AddOperand(src);
+  auto *res = context->GetNewRegOperand(context->GetLongType());
+  inst->SetResult(res);
+  res->SetInstruction(inst);
+  return inst;
+}
+
+auto TruncInst::Emit(std::ofstream *out) const -> void { EmitIntegerCast(out, "trunc", result_, operands_[0]); }
+
+auto TruncInst::Verify(context::CompilerContext *context) const -> bool {
+  if (operands_.size() != 1 || operands_[0] == nullptr || !operands_[0]->IsLong() || result_ == nullptr ||
+      !result_->IsInt32() || result_->GetInstruction() != this) {
+    context->Print("Trunc instruction requires an i64 source and i32 result");
+    return false;
+  }
+  return true;
+}
+
+auto TruncInst::Create(context::LLVMIRContext *context, utils::Operand *src) -> TruncInst * {
+  auto *inst = new TruncInst();
+  inst->AddOperand(src);
+  auto *res = context->GetNewRegOperand(context->GetIntegerType());
+  inst->SetResult(res);
+  res->SetInstruction(inst);
+  return inst;
+}
+
 auto ZextInst::Emit(std::ofstream *out) const -> void {
   // Emit the instruction in LLVM IR format
   // For example: %result = zext i1 %src to i32

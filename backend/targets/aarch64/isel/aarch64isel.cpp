@@ -259,6 +259,12 @@ auto AArch64ISel::SelectInst(backend::inst::Instruction *inst) -> void {
     case OpKind::Zext:
       SelectCopy(inst);
       break;
+    case OpKind::Sext:
+      Emit(A64Opcode::SXTW, GetOrCreateVReg(inst->GetResult()), {GetReg(inst->GetOperands()[0])});
+      break;
+    case OpKind::Trunc:
+      SelectCopy(inst);
+      break;
     case OpKind::Call:
       SelectCall(inst);
       break;
@@ -295,6 +301,13 @@ auto AArch64ISel::SelectDiv(backend::inst::Instruction *inst) -> void {
 auto AArch64ISel::SelectMod(backend::inst::Instruction *inst) -> void {
   // AArch64 has no modulo: r = a - (a / b) * b  via  sdiv q, a, b; msub r, q, b, a.
   auto *a = GetReg(inst->GetOperands()[0]);
+  if (inst->GetResult()->IsLong()) {
+    auto *b = GetReg(inst->GetOperands()[1]);
+    auto *q = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
+    Emit(A64Opcode::SDIV, q, {a, b});
+    Emit(A64Opcode::MSUB, GetOrCreateVReg(inst->GetResult()), {q, b, a});
+    return;
+  }
   auto *lit = dynamic_cast<backend::utils::IntLiteral *>(inst->GetOperands()[1]);
   if (lit != nullptr) {
     if (auto *q = EmitConstDivide(a, lit->GetValue())) {
@@ -494,7 +507,7 @@ auto AArch64ISel::GetOrCreateVReg(backend::utils::Operand *mir_operand) -> Targe
     return it->second;
   }
   auto reg_class = mir_operand->IsFloat() ? TargetRegClass::Float : TargetRegClass::General;
-  auto reg_size = mir_operand->IsPtr() ? TargetRegSize::QWord : TargetRegSize::DWord;
+  auto reg_size = (mir_operand->IsPtr() || mir_operand->IsLong()) ? TargetRegSize::QWord : TargetRegSize::DWord;
   auto *vreg = ctx_->NewVirtualReg(reg_class, reg_size);
   value_map_[mir_operand] = vreg;
   return vreg;

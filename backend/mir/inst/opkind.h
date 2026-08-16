@@ -44,6 +44,8 @@ enum class OpKind : uint8_t {
 
   // Cast operations
   Zext,
+  Sext,
+  Trunc,
   Int2Float,
   Float2Int,
   Bool2Float,

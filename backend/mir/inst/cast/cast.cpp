@@ -3,6 +3,48 @@
 #include "context/compiler_context.h"
 
 namespace backend::inst {
+namespace {
+auto VerifyUnaryCast(context::CompilerContext *context, const std::vector<utils::Operand *> &operands,
+                     const char *name) -> bool {
+  if (operands.size() != 1 || operands[0] == nullptr ||
+      (!operands[0]->IsRegister() && !operands[0]->IsLiteral())) {
+    context->Print(std::string(name) + " instruction requires one register or literal operand");
+    return false;
+  }
+  return true;
+}
+}  // namespace
+
+auto SextInst::Verify(context::CompilerContext *context) const -> bool {
+  return VerifyUnaryCast(context, operands_, "sext");
+}
+auto SextInst::Create(context::MIRContext *context, utils::Operand *src) -> SextInst * {
+  auto *inst = new SextInst();
+  inst->AddOperand(src);
+  auto *res = context->GetNewRegOperand(context->GetLongType());
+  inst->SetResult(res);
+  res->SetDefInst(inst);
+  return inst;
+}
+auto SextInst::Emit(std::ofstream *out) const -> void {
+  *out << "  "; result_->Emit(out); *out << " = sext "; operands_[0]->Emit(out); *out << "\n";
+}
+
+auto TruncInst::Verify(context::CompilerContext *context) const -> bool {
+  return VerifyUnaryCast(context, operands_, "trunc");
+}
+auto TruncInst::Create(context::MIRContext *context, utils::Operand *src) -> TruncInst * {
+  auto *inst = new TruncInst();
+  inst->AddOperand(src);
+  auto *res = context->GetNewRegOperand(context->GetIntegerType());
+  inst->SetResult(res);
+  res->SetDefInst(inst);
+  return inst;
+}
+auto TruncInst::Emit(std::ofstream *out) const -> void {
+  *out << "  "; result_->Emit(out); *out << " = trunc "; operands_[0]->Emit(out); *out << "\n";
+}
+
 auto ZextInst::Verify(context::CompilerContext *context) const -> bool {
   // The zext instruction should have exactly one operand, which is the source operand
   if (operands_.size() != 1) {

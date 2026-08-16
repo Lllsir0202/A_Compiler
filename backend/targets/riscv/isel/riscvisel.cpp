@@ -181,7 +181,7 @@ auto RISCVISel::SelectFunction(backend::utils::Function *mir_func) -> TargetFunc
 auto RISCVISel::SelectInst(backend::inst::Instruction *inst) -> void {
   switch (inst->GetOpKind()) {
     case OpKind::Add:
-      SelectBinary(inst, RVOpcode::ADDW);
+      SelectBinary(inst, inst->GetResult()->IsLong() ? RVOpcode::ADD : RVOpcode::ADDW);
       break;
     case OpKind::Sub:
       SelectBinary(inst, RVOpcode::SUBW);
@@ -255,6 +255,12 @@ auto RISCVISel::SelectInst(backend::inst::Instruction *inst) -> void {
     case OpKind::Zext:
       SelectCopy(inst);
       break;  // i1 -> i32 is a value-preserving move
+    case OpKind::Sext:
+      Emit(RVOpcode::SEXT_W, GetOrCreateVReg(inst->GetResult()), {GetReg(inst->GetOperands()[0])});
+      break;
+    case OpKind::Trunc:
+      Emit(RVOpcode::SEXT_W, GetOrCreateVReg(inst->GetResult()), {GetReg(inst->GetOperands()[0])});
+      break;
     case OpKind::Call:
       SelectCall(inst);
       break;
@@ -319,6 +325,10 @@ auto RISCVISel::ModResultOnlyTestedAgainstZero(backend::utils::Operand *mod_resu
 
 auto RISCVISel::SelectMod(backend::inst::Instruction *inst) -> void {
   auto *numer = GetReg(inst->GetOperands()[0]);
+  if (inst->GetResult()->IsLong()) {
+    Emit(RVOpcode::REM, GetOrCreateVReg(inst->GetResult()), {numer, GetReg(inst->GetOperands()[1])});
+    return;
+  }
   auto *lit = dynamic_cast<backend::utils::IntLiteral *>(inst->GetOperands()[1]);
   if (lit != nullptr) {
     // `x % 2^k == 0` iff the low k bits are zero, regardless of sign. When the remainder is only
@@ -646,7 +656,7 @@ auto RISCVISel::GetOrCreateVReg(backend::utils::Operand *mir_operand) -> TargetO
     return it->second;
   }
   auto reg_class = mir_operand->IsFloat() ? TargetRegClass::Float : TargetRegClass::General;
-  auto reg_size = mir_operand->IsPtr() ? TargetRegSize::QWord : TargetRegSize::DWord;
+  auto reg_size = (mir_operand->IsPtr() || mir_operand->IsLong()) ? TargetRegSize::QWord : TargetRegSize::DWord;
   auto *vreg = ctx_->NewVirtualReg(reg_class, reg_size);
   value_map_[mir_operand] = vreg;
   return vreg;
