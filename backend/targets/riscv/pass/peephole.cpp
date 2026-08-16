@@ -725,10 +725,91 @@ auto RISCVPeephole::RunOnFunction(TargetFunction *func) -> bool {
   BuildFacts(func);
   MarkShortCircuitCandidates(func);
   bool changed = false;
+
+  auto match_small_constant_multiply = [&](TargetInst *inst, TargetOperand **reg, int *shift, RVOpcode *combine,
+                                           bool *shifted_first) -> bool {
+    auto *riscv_inst = static_cast<RISCVInst *>(inst);
+    const auto opcode = riscv_inst->GetOpcode();
+    const auto &operands = inst->GetOperands();
+    if ((opcode != RVOpcode::MULW && opcode != RVOpcode::MUL) || operands.size() != 2) {
+      return false;
+    }
+
+    int constant = 0;
+    if (IsConst(operands[1], &constant)) {
+      *reg = operands[0];
+    } else if (IsConst(operands[0], &constant)) {
+      *reg = operands[1];
+    } else {
+      return false;
+    }
+
+    *shifted_first = false;
+    if (constant > 1 && IsPowerOfTwo(constant - 1, shift)) {
+      // x * (2^k + 1) = (x << k) + x.
+      *combine = opcode == RVOpcode::MULW ? RVOpcode::ADDW : RVOpcode::ADD;
+    } else if (constant > 1 && constant < std::numeric_limits<int>::max() && IsPowerOfTwo(constant + 1, shift)) {
+      // x * (2^k - 1) = (x << k) - x.
+      *combine = opcode == RVOpcode::MULW ? RVOpcode::SUBW : RVOpcode::SUB;
+      *shifted_first = true;
+    } else if (constant < -1 && constant > std::numeric_limits<int>::min() && IsPowerOfTwo(1 - constant, shift)) {
+      // x * (1 - 2^k) = x - (x << k).
+      *combine = opcode == RVOpcode::MULW ? RVOpcode::SUBW : RVOpcode::SUB;
+    } else {
+      return false;
+    }
+    return *shift > 0 && *shift <= (opcode == RVOpcode::MULW ? 31 : 63);
+  };
+
+  // Each expansion adds one live temporary.  Avoid applying the latency
+  // optimization wholesale to arithmetic-dense functions, where simultaneous
+  // live ranges and code growth can outweigh it; those functions retain MUL.
+  // Four sites cap growth at four instructions while covering small kernels.
+  size_t expansion_candidates = 0;
   for (auto *block : func->GetBlocks()) {
     for (auto *inst : block->GetInsts()) {
-      changed |= TransformInst(inst);
+      TargetOperand *reg = nullptr;
+      int shift = 0;
+      RVOpcode combine = RVOpcode::ADDW;
+      bool shifted_first = false;
+      expansion_candidates += match_small_constant_multiply(inst, &reg, &shift, &combine, &shifted_first) ? 1 : 0;
     }
+  }
+  constexpr size_t kMaxSmallConstantMultiplyExpansions = 4;
+
+  for (auto *block : func->GetBlocks()) {
+    std::vector<TargetInst *> rewritten;
+    rewritten.reserve(block->GetInsts().size());
+    for (auto *inst : block->GetInsts()) {
+      // On a generic RV32/64 core with the M extension, a dependent multiply is
+      // commonly more expensive than a shift followed by an add/subtract.  The
+      // constants 2^k+1, 2^k-1, and 1-2^k have exact two-instruction forms;
+      // unlike a general addition-chain expansion, these keep register pressure
+      // and code growth bounded and have a predictable latency advantage.
+      auto *riscv_inst = static_cast<RISCVInst *>(inst);
+      const auto opcode = riscv_inst->GetOpcode();
+      if (expansion_candidates <= kMaxSmallConstantMultiplyExpansions) {
+        TargetOperand *reg = nullptr;
+        int shift = 0;
+        RVOpcode combine = RVOpcode::ADDW;
+        bool shifted_first = false;
+        if (match_small_constant_multiply(inst, &reg, &shift, &combine, &shifted_first)) {
+          auto *shifted = ctx_->NewVirtualReg(TargetRegClass::General,
+                                              opcode == RVOpcode::MULW ? TargetRegSize::DWord : TargetRegSize::QWord);
+          auto *shift_inst = ctx_->CreateInst<RISCVInst>(opcode == RVOpcode::MULW ? RVOpcode::SLLIW : RVOpcode::SLLI);
+          shift_inst->SetResult(shifted);
+          shift_inst->SetOperands({reg, ctx_->Imm(shift)});
+          rewritten.emplace_back(shift_inst);
+          riscv_inst->SetOpcode(combine);
+          inst->SetOperands(shifted_first ? std::vector<TargetOperand *>{shifted, reg}
+                                          : std::vector<TargetOperand *>{reg, shifted});
+          changed = true;
+        }
+      }
+      changed |= TransformInst(inst);
+      rewritten.emplace_back(inst);
+    }
+    block->SetInsts(std::move(rewritten));
   }
   return changed;
 }
