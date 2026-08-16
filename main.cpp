@@ -35,10 +35,10 @@
 #include "middleend/pass/transform/looprotate/looprotate.h"
 #include "middleend/pass/transform/loopsimplify/loopsimplify.h"
 #include "middleend/pass/transform/memoization/memoization.h"
-#include "middleend/pass/transform/modrecurrencesink/modrecurrencesink.h"
 #include "middleend/pass/transform/mlirarraypipeline/mlirarraypipeline.h"
 #include "middleend/pass/transform/mlirconditionaljam/mlirconditionaljam.h"
 #include "middleend/pass/transform/mlirdce/mlirdce.h"
+#include "middleend/pass/transform/mlirfixedstatetransition/mlirfixedstatetransition.h"
 #include "middleend/pass/transform/mlirfunctioninline/mlirfunctioninline.h"
 #include "middleend/pass/transform/mlirloopdomaintighten/mlirloopdomaintighten.h"
 #include "middleend/pass/transform/mlirloopfusion/mlirloopfusion.h"
@@ -48,9 +48,13 @@
 #include "middleend/pass/transform/mlirloopunroll/mlirlooppartialunroll.h"
 #include "middleend/pass/transform/mlirloopunroll/mlirloopunroll.h"
 #include "middleend/pass/transform/mlirloopunswitch/mlirloopunswitch.h"
-#include "middleend/pass/transform/mlirstencilinterior/mlirstencilinterior.h"
+#include "middleend/pass/transform/mlirmatrixrowsummary/mlirmatrixrowsummary.h"
 #include "middleend/pass/transform/mlirreturncanonicalize/mlirreturncanonicalize.h"
+#include "middleend/pass/transform/mlirrowchecksum/mlirrowchecksum.h"
+#include "middleend/pass/transform/mlirstencilinterior/mlirstencilinterior.h"
 #include "middleend/pass/transform/mlirtailrecursion/mlirtailrecursion.h"
+#include "middleend/pass/transform/mlirwidemodmultiply/mlirwidemodmultiply.h"
+#include "middleend/pass/transform/modrecurrencesink/modrecurrencesink.h"
 #include "middleend/pass/transform/promotion/promotion.h"
 #include "middleend/pass/transform/reassociate/reassociate.h"
 #include "middleend/pass/transform/recursivememo/recursivememo.h"
@@ -333,9 +337,8 @@ auto main(int argc, char *argv[]) -> int {
         context::PassContext::CreatePass<middleend::pass::transform::MLIRStencilInteriorPass>(
             &compiler_context, middleend::pass::PassStage::MLIR);
     mlirpass_context->AddPass(mlir_stencil_interior_pass);
-    auto mlir_row_checksum_pass =
-        context::PassContext::CreatePass<middleend::pass::transform::MLIRRowChecksumPass>(
-            &compiler_context, middleend::pass::PassStage::MLIR);
+    auto mlir_row_checksum_pass = context::PassContext::CreatePass<middleend::pass::transform::MLIRRowChecksumPass>(
+        &compiler_context, middleend::pass::PassStage::MLIR);
     mlirpass_context->AddPass(mlir_row_checksum_pass);
     auto mlir_loop_unswitch_pass = context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopUnswitchPass>(
         &compiler_context, middleend::pass::PassStage::MLIR);
@@ -469,16 +472,14 @@ auto main(int argc, char *argv[]) -> int {
     // Structured unrolling and DLE expose new scalar/address equivalences
     // after the early GVN round. Refresh the dependent analyses and share
     // those expressions before the SCEV-driven strength-reduction consumer.
-    auto post_dle_gvn_pass =
-        context::PassContext::CreatePass<middleend::pass::transform::PostDLEGVNPass>(
-            &compiler_context, middleend::pass::PassStage::BASEIR);
+    auto post_dle_gvn_pass = context::PassContext::CreatePass<middleend::pass::transform::PostDLEGVNPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(post_dle_gvn_pass);
     auto strength_reduce_pass = context::PassContext::CreatePass<middleend::pass::transform::StrengthReducePass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(strength_reduce_pass);
-    auto mod_recurrence_sink_pass =
-        context::PassContext::CreatePass<middleend::pass::transform::ModRecurrenceSinkPass>(
-            &compiler_context, middleend::pass::PassStage::BASEIR);
+    auto mod_recurrence_sink_pass = context::PassContext::CreatePass<middleend::pass::transform::ModRecurrenceSinkPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(mod_recurrence_sink_pass);
     auto divisibility_simplify_pass =
         context::PassContext::CreatePass<middleend::pass::transform::DivisibilitySimplifyPass>(
@@ -494,6 +495,9 @@ auto main(int argc, char *argv[]) -> int {
         context::PassContext::CreatePass<middleend::pass::transform::PhiCanonicalizationPass>(
             &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(post_loop_phi_canonicalization_pass);
+    auto post_loop_gvn_pass = context::PassContext::CreatePass<middleend::pass::transform::PostLoopGVNPass>(
+        &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(post_loop_gvn_pass);
 
     auto reassociate_pass = context::PassContext::CreatePass<middleend::pass::transform::ReassociatePass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
