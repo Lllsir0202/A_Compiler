@@ -13,6 +13,7 @@
 #include "backend/targets/aarch64/pass/ifconvert.h"
 #include "backend/targets/aarch64/pass/localcse.h"
 #include "backend/targets/aarch64/pass/machinedce.h"
+#include "backend/targets/aarch64/pass/machinelicm.h"
 #include "backend/targets/aarch64/pass/peephole.h"
 #include "backend/targets/aarch64/pass/slpvectorize.h"
 #include "backend/targets/aarch64/printer/aarch64printer.h"
@@ -51,6 +52,7 @@ auto AArch64Backend::Run() -> int {
     machine_passes.AddPass(new AArch64SLPVectorize(&ctx_));
     machine_passes.AddPass(new AArch64Peephole(&ctx_));
     machine_passes.AddPass(new AArch64LocalCSE(&ctx_));
+    machine_passes.AddPass(new AArch64MachineLICM(&ctx_));
     machine_passes.AddPass(new AArch64MachineDCE(&ctx_));
     machine_passes.AddPass(new AArch64BranchFold(&ctx_));
   }
