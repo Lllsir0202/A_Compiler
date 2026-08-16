@@ -476,6 +476,13 @@ auto ReassociatePass::Linearize(
   std::vector<mlir::Value *> negative;
   for (auto *value : leaf_order) {
     auto coefficient = coefficients[value];
+    // Terms that cancelled while collecting the linear expression must not be
+    // materialized again.  Besides being dead work in its own right, rebuilding
+    // them as `value * 0` hides the final zero/negation from the cleanup passes
+    // that follow reassociation.
+    if (coefficient == 0) {
+      continue;
+    }
     if (coefficient == 1) {
       positive.emplace_back(value);
     } else if (coefficient == std::numeric_limits<Coefficient>::max()) {
