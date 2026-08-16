@@ -15,6 +15,28 @@ class ZextInst : public Instruction {
   friend class utils::factory::InstFactory;
 };
 
+class SextInst : public Instruction {
+ public:
+  auto Verify(context::CompilerContext *context) const -> bool override;
+  auto Emit(std::ofstream *out) const -> void override;
+
+ private:
+  explicit SextInst() : Instruction(OpKind::Sext) {}
+  static auto Create(context::MIRContext *context, utils::Operand *src) -> SextInst *;
+  friend class utils::factory::InstFactory;
+};
+
+class TruncInst : public Instruction {
+ public:
+  auto Verify(context::CompilerContext *context) const -> bool override;
+  auto Emit(std::ofstream *out) const -> void override;
+
+ private:
+  explicit TruncInst() : Instruction(OpKind::Trunc) {}
+  static auto Create(context::MIRContext *context, utils::Operand *src) -> TruncInst *;
+  friend class utils::factory::InstFactory;
+};
+
 class Int2FloatInst : public Instruction {
  public:
   auto Verify(context::CompilerContext *context) const -> bool override;

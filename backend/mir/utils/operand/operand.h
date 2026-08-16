@@ -48,6 +48,7 @@ class Operand {
   auto IsFrame() const -> bool { return op_type_ == OpType::Frame; }
   // Interface to check the type of the operand
   auto IsInt() const -> bool { return type_ != nullptr && type_->GetKind() == type::TypeKind::INT; }
+  auto IsLong() const -> bool { return type_ != nullptr && type_->GetKind() == type::TypeKind::LONG; }
   auto IsFloat() const -> bool { return type_ != nullptr && type_->GetKind() == type::TypeKind::FLOAT; }
   auto IsBool() const -> bool { return type_ != nullptr && type_->GetKind() == type::TypeKind::BOOL; }
   auto IsVoid() const -> bool { return type_ != nullptr && type_->GetKind() == type::TypeKind::VOID; }

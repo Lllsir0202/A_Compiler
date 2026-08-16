@@ -31,7 +31,8 @@ auto AddInst::Verify(context::CompilerContext *context) const -> bool {
     return false;
   }
 
-  return operands_[0]->IsInt() && operands_[1]->IsInt();
+  return operands_[0]->GetType() == operands_[1]->GetType() && result_->GetType() == operands_[0]->GetType() &&
+         (operands_[0]->IsInt() || operands_[0]->IsLong());
 }
 
 auto AddInst::Create(context::MIRContext *context, utils::Operand *operand1, utils::Operand *operand2) -> AddInst * {
@@ -231,7 +232,8 @@ auto ModInst::Verify(context::CompilerContext *context) const -> bool {
     return false;
   }
 
-  return operands_[0]->IsInt() && operands_[1]->IsInt();
+  return operands_[0]->GetType() == operands_[1]->GetType() && result_->GetType() == operands_[0]->GetType() &&
+         (operands_[0]->IsInt() || operands_[0]->IsLong());
 }
 
 auto ModInst::Create(context::MIRContext *context, utils::Operand *operand1, utils::Operand *operand2) -> ModInst * {

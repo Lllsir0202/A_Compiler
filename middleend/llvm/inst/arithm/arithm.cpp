@@ -56,12 +56,13 @@ auto AddInst::Verify(context::CompilerContext *context) const -> bool {
     return false;
   }
 
-  return operands_[0]->IsInt32() && operands_[1]->IsInt32();
+  return operands_[0]->GetType() == operands_[1]->GetType() && result_->GetType() == operands_[0]->GetType() &&
+         (operands_[0]->IsInt32() || operands_[0]->IsLong());
 }
 
 auto AddInst::Create(context::LLVMIRContext *context, utils::Operand *operand1, utils::Operand *operand2) -> AddInst * {
   auto *inst = new AddInst();
-  auto res = context->GetNewRegOperand(context->GetIntegerType());
+  auto res = context->GetNewRegOperand(operand1->GetType());
   inst->SetResult(res);
   res->SetInstruction(inst);
   inst->AddOperand(operand1);
@@ -177,12 +178,13 @@ auto SubInst::Verify(context::CompilerContext *context) const -> bool {
     return false;
   }
 
-  return operands_[0]->IsInt32() && operands_[1]->IsInt32();
+  return operands_[0]->GetType() == operands_[1]->GetType() && result_->GetType() == operands_[0]->GetType() &&
+         (operands_[0]->IsInt32() || operands_[0]->IsLong());
 }
 
 auto SubInst::Create(context::LLVMIRContext *context, utils::Operand *operand1, utils::Operand *operand2) -> SubInst * {
   auto *inst = new SubInst();
-  auto res = context->GetNewRegOperand(context->GetIntegerType());
+  auto res = context->GetNewRegOperand(operand1->GetType());
   inst->SetResult(res);
   res->SetInstruction(inst);
   inst->AddOperand(operand1);
@@ -522,12 +524,13 @@ auto ModInst::Verify(context::CompilerContext *context) const -> bool {
     return false;
   }
 
-  return operands_[0]->IsInt32() && operands_[1]->IsInt32();
+  return operands_[0]->GetType() == operands_[1]->GetType() && result_->GetType() == operands_[0]->GetType() &&
+         (operands_[0]->IsInt32() || operands_[0]->IsLong());
 }
 
 auto ModInst::Create(context::LLVMIRContext *context, utils::Operand *operand1, utils::Operand *operand2) -> ModInst * {
   auto *inst = new ModInst();
-  auto res = context->GetNewRegOperand(context->GetIntegerType());
+  auto res = context->GetNewRegOperand(operand1->GetType());
   inst->SetResult(res);
   res->SetInstruction(inst);
   inst->AddOperand(operand1);

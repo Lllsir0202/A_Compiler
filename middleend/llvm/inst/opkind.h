@@ -53,6 +53,8 @@ enum class OpKind : uint8_t {
   // Boolean 2 Integer
   // Use zext
   Zext,
+  Sext,
+  Trunc,
   // Integer 2 Boolean
   // Use icmp ne with 0
   // Int 2 Float

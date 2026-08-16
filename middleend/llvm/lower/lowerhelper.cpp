@@ -105,6 +105,8 @@ auto LowerHelper::LowerDispatch(mlir::Operation *op) -> void {
     LOWER_DISPATCH(mlir::base::Float2BoolOp, Float2BoolOp)
     LOWER_DISPATCH(mlir::base::Bool2IntOp, Bool2IntOp)
     LOWER_DISPATCH(mlir::base::Bool2FloatOp, Bool2FloatOp)
+    LOWER_DISPATCH(mlir::base::Int2LongOp, Int2LongOp)
+    LOWER_DISPATCH(mlir::base::Long2IntOp, Long2IntOp)
     // Variable-related operations
     LOWER_DISPATCH(middleend::mlir::var::VarGetPtrOp, VarGetPtrOp)
     LOWER_DISPATCH(middleend::mlir::var::VarDefOp, VarDefOp)
@@ -482,6 +484,26 @@ auto LowerHelper::LowerInt2FloatOp(mlir::base::Int2FloatOp *op) -> void {
   GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint()->AddInstBack(inst);
   GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(result, inst->GetResult());
   inst->SetParentBlock(GET_LLVMIR_CONTEXT()->GetInsertPoint());
+}
+
+auto LowerHelper::LowerInt2LongOp(mlir::base::Int2LongOp *op) -> void {
+  auto *operand = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(op->GetOperand());
+  auto *inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::SextInst>(GET_LLVMIR_CONTEXT(), operand);
+  if (operand->GetInstruction() != nullptr) operand->GetInstruction()->AddUser(inst);
+  auto *block = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint();
+  block->AddInstBack(inst);
+  inst->SetParentBlock(block);
+  GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(op->GetRes(), inst->GetResult());
+}
+
+auto LowerHelper::LowerLong2IntOp(mlir::base::Long2IntOp *op) -> void {
+  auto *operand = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetLLVMIROperandFromMLIRValue(op->GetOperand());
+  auto *inst = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::TruncInst>(GET_LLVMIR_CONTEXT(), operand);
+  if (operand->GetInstruction() != nullptr) operand->GetInstruction()->AddUser(inst);
+  auto *block = GET_LLVMIR_CONTEXT()->GetLowerContext()->GetInsertPoint();
+  block->AddInstBack(inst);
+  inst->SetParentBlock(block);
+  GET_LLVMIR_CONTEXT()->GetLowerContext()->MapMLIRValueToLLVMIROperand(op->GetRes(), inst->GetResult());
 }
 
 /**

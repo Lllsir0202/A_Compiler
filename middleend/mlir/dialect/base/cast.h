@@ -13,6 +13,8 @@ DEFINE_CAST_OP(Bool2Int, bool2int, BOOL, INT)
 DEFINE_CAST_OP(Int2Bool, int2bool, INT, BOOL)
 DEFINE_CAST_OP(Bool2Float, bool2float, BOOL, FLOAT)
 DEFINE_CAST_OP(Float2Bool, float2bool, FLOAT, BOOL)
+DEFINE_CAST_OP(Int2Long, int2long, INT, LONG)
+DEFINE_CAST_OP(Long2Int, long2int, LONG, INT)
 
 }  // namespace middleend::mlir::base
 

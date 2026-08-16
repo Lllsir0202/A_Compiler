@@ -35,6 +35,7 @@
 #include "middleend/pass/transform/looprotate/looprotate.h"
 #include "middleend/pass/transform/loopsimplify/loopsimplify.h"
 #include "middleend/pass/transform/memoization/memoization.h"
+#include "middleend/pass/transform/modrecurrencesink/modrecurrencesink.h"
 #include "middleend/pass/transform/mlirarraypipeline/mlirarraypipeline.h"
 #include "middleend/pass/transform/mlirconditionaljam/mlirconditionaljam.h"
 #include "middleend/pass/transform/mlirdce/mlirdce.h"
@@ -490,6 +491,10 @@ auto main(int argc, char *argv[]) -> int {
     auto strength_reduce_pass = context::PassContext::CreatePass<middleend::pass::transform::StrengthReducePass>(
         &compiler_context, middleend::pass::PassStage::BASEIR);
     baseirpass_context->AddPass(strength_reduce_pass);
+    auto mod_recurrence_sink_pass =
+        context::PassContext::CreatePass<middleend::pass::transform::ModRecurrenceSinkPass>(
+            &compiler_context, middleend::pass::PassStage::BASEIR);
+    baseirpass_context->AddPass(mod_recurrence_sink_pass);
     auto divisibility_simplify_pass =
         context::PassContext::CreatePass<middleend::pass::transform::DivisibilitySimplifyPass>(
             &compiler_context, middleend::pass::PassStage::BASEIR);

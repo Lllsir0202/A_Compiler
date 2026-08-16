@@ -38,7 +38,8 @@
         context->Print(#OPNAME ": operand types do not match\n");                            \
         return false;                                                                        \
       }                                                                                      \
-      if (operands_[0]->type_->GetKind() != type::TypeKind::INT) {                           \
+      if (operands_[0]->type_->GetKind() != type::TypeKind::INT &&                          \
+          operands_[0]->type_->GetKind() != type::TypeKind::LONG) {                         \
         context->Print(#OPNAME ": operands are not of integer type\n");                      \
         return false;                                                                        \
       }                                                                                      \

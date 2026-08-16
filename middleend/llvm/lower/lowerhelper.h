@@ -82,6 +82,8 @@ class LowerHelper {
   auto LowerFloat2BoolOp(mlir::base::Float2BoolOp *op) -> void;
   auto LowerBool2IntOp(mlir::base::Bool2IntOp *op) -> void;
   auto LowerBool2FloatOp(mlir::base::Bool2FloatOp *op) -> void;
+  auto LowerInt2LongOp(mlir::base::Int2LongOp *op) -> void;
+  auto LowerLong2IntOp(mlir::base::Long2IntOp *op) -> void;
 
   // Copy operation,
   // which is used for value forwarding,
