@@ -36,6 +36,7 @@
 #include "middleend/pass/transform/looprotate/looprotate.h"
 #include "middleend/pass/transform/loopsimplify/loopsimplify.h"
 #include "middleend/pass/transform/memoization/memoization.h"
+#include "middleend/pass/transform/mlirconstantarrayreduction/mlirconstantarrayreduction.h"
 #include "middleend/pass/transform/mlirdce/mlirdce.h"
 #include "middleend/pass/transform/mlirfunctioninline/mlirfunctioninline.h"
 #include "middleend/pass/transform/mlirloopdomaintighten/mlirloopdomaintighten.h"
@@ -44,6 +45,7 @@
 #include "middleend/pass/transform/mlirloopmemorylast/mlirloopmemorylast.h"
 #include "middleend/pass/transform/mlirloopunroll/mlirlooppartialunroll.h"
 #include "middleend/pass/transform/mlirloopunroll/mlirloopunroll.h"
+#include "middleend/pass/transform/mlirmatrixrowsummary/mlirmatrixrowsummary.h"
 #include "middleend/pass/transform/mlirloopunswitch/mlirloopunswitch.h"
 #include "middleend/pass/transform/mlirreturncanonicalize/mlirreturncanonicalize.h"
 #include "middleend/pass/transform/mlirtailrecursion/mlirtailrecursion.h"
@@ -314,6 +316,10 @@ auto main(int argc, char *argv[]) -> int {
         context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopDomainTightenPass>(
             &compiler_context, middleend::pass::PassStage::MLIR);
     mlirpass_context->AddPass(mlir_loop_domain_tighten_pass);
+    auto mlir_constant_array_reduction_pass =
+        context::PassContext::CreatePass<middleend::pass::transform::MLIRConstantArrayReductionPass>(
+            &compiler_context, middleend::pass::PassStage::MLIR);
+    mlirpass_context->AddPass(mlir_constant_array_reduction_pass);
     auto mlir_loop_invariant_repeat_pass =
         context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopInvariantRepeatPass>(
             &compiler_context, middleend::pass::PassStage::MLIR);
