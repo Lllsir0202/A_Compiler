@@ -146,10 +146,20 @@ class PostRotateGVNPass : public GVNPass {
 
 class PostDLEGVNPass : public GVNPass {
  public:
-  PostDLEGVNPass(context::CompilerContext *compiler_context, PassStage stage)
-      : GVNPass(compiler_context, stage) {}
+  PostDLEGVNPass(context::CompilerContext *compiler_context, PassStage stage) : GVNPass(compiler_context, stage) {}
   auto Run() -> void override;
   auto Name() const -> std::string override { return "PostDLEGVNPass"; }
+};
+
+// LCSSA phis deliberately keep loop exits explicit while loop transforms run.
+// Once the phi canonicalizer removes single-incoming exit phis, values that
+// previously had distinct SSA names become identical again.  Refresh GVN at
+// that point to eliminate the newly exposed cross-block redundancies.
+class PostLoopGVNPass : public GVNPass {
+ public:
+  PostLoopGVNPass(context::CompilerContext *compiler_context, PassStage stage) : GVNPass(compiler_context, stage) {}
+  auto Run() -> void override { GVNPass::Run(); }
+  auto Name() const -> std::string override { return "PostLoopGVNPass"; }
 };
 
 }  // namespace middleend::pass::transform
