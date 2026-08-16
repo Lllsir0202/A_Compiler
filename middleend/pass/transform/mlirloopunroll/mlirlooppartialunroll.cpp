@@ -26,28 +26,6 @@
 
 namespace middleend::pass::transform {
 namespace {
-struct BodyCost {
-  size_t loads{0};
-  size_t stores{0};
-  size_t multiplies{0};
-  size_t divides{0};
-};
-
-auto AnalyzeBodyCost(mlir::Region *region, BodyCost *cost) -> void {
-  for (auto *profile_block : region->blocks_) {
-    for (auto *operation : profile_block->operations_) {
-      cost->loads += mlir::DynamicOrNull<mlir::var::VarGetValOp>(operation) != nullptr;
-      cost->stores += mlir::DynamicOrNull<mlir::var::VarSetOp>(operation) != nullptr;
-      cost->multiplies += mlir::DynamicOrNull<mlir::arithm::MulOp>(operation) != nullptr;
-      cost->divides += mlir::DynamicOrNull<mlir::arithm::DivOp>(operation) != nullptr ||
-                       mlir::DynamicOrNull<mlir::arithm::ModOp>(operation) != nullptr;
-      for (auto *nested : operation->regions_) {
-        AnalyzeBodyCost(nested, cost);
-      }
-    }
-  }
-}
-
 auto GetConstantBound(mlir::Value *bound, int *out) -> bool {
   if (bound == nullptr || bound->op_ == nullptr) {
     return false;
@@ -183,12 +161,14 @@ auto MLIRLoopPartialUnrollPass::RunOnFunction(mlir::func::FuncDefOp *func_op) ->
     // A four-lane conditional reduction created by the earlier generic jam
     // pass has five results: one induction variable and four accumulators.
     bool register_blocked = register_blocked_loops_.count(while_op) != 0 || IsConditionalRegisterBlock(while_op);
-    BodyCost body_cost;
-    AnalyzeBodyCost(while_op->GetBodyRegion(), &body_cost);
-    bool store_address_heavy = loopiv::CountOperations(while_op->GetBodyRegion()) <= 32 && body_cost.divides == 0 &&
-                               body_cost.loads >= 1 && body_cost.stores >= 2 && body_cost.multiplies >= 2;
-    int64_t factor = register_blocked ? jam_unroll_factor_
-                                      : (store_address_heavy ? kAddressHeavyUnrollFactor : kUnrollFactor);
+    int64_t factor = register_blocked ? jam_unroll_factor_ : kUnrollFactor;
+    size_t body_cost = loopiv::CountOperations(while_op->GetBodyRegion());
+    while (factor >= 2 && body_cost * static_cast<size_t>(factor) > kPartialUnrollThreshold) {
+      factor /= 2;
+    }
+    if (factor < 2) {
+      continue;
+    }
     loopiv::Induction iv;
     if (CanPartialUnroll(while_op, &iv, factor)) {
       PartialUnroll(block, while_op, iv, factor);
@@ -649,7 +629,8 @@ auto MLIRLoopPartialUnrollPass::CanPartialUnroll(mlir::scf::WhileOp *while_op, l
   if (!loopiv::BodyIsCloneable(while_op->GetBodyRegion())) {
     return false;
   }
-  if (loopiv::CountOperations(while_op->GetBodyRegion()) * static_cast<size_t>(factor) > kMaxBodyCost) {
+  if (loopiv::CountOperations(while_op->GetBodyRegion()) * static_cast<size_t>(factor) >
+      kPartialUnrollThreshold) {
     return false;
   }
   return true;

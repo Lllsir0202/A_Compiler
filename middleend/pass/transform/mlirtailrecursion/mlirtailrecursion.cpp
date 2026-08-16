@@ -224,7 +224,9 @@ auto MLIRTailRecursionEliminatePass::BuildTailState(mlir::Block *source, mlir::B
 }
 
 auto MLIRTailRecursionEliminatePass::RewriteMultiExitTailRecursion(mlir::func::FuncDefOp *func_op) -> bool {
-  if (func_op->GetReturnType() == nullptr || func_op->GetReturnType()->GetKind() != type::TypeKind::INT) {
+  if (func_op->GetReturnType() == nullptr ||
+      (func_op->GetReturnType()->GetKind() != type::TypeKind::INT &&
+       func_op->GetReturnType()->GetKind() != type::TypeKind::FLOAT)) {
     return false;
   }
   bool saw_tail = false;
@@ -240,8 +242,10 @@ auto MLIRTailRecursionEliminatePass::RewriteMultiExitTailRecursion(mlir::func::F
   one->GetRes()->SetType(GET_TYPE_CONTEXT()->GetIntegerType());
   auto *always = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CastOp>(
       GET_MLIR_CONTEXT(), one->GetRes(), GET_TYPE_CONTEXT()->GetIntegerType(), GET_TYPE_CONTEXT()->GetBooleanType());
-  auto *zero = GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), 0);
-  zero->GetRes()->SetType(GET_TYPE_CONTEXT()->GetIntegerType());
+  auto *zero = func_op->GetReturnType()->GetKind() == type::TypeKind::FLOAT
+                   ? GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), 0.0F)
+                   : GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::ConstOp>(GET_MLIR_CONTEXT(), 0);
+  zero->GetRes()->SetType(func_op->GetReturnType());
 
   auto *cond_region = new mlir::Region();
   auto *cond_block = new mlir::Block();
@@ -456,9 +460,27 @@ auto MLIRTailRecursionEliminatePass::RemapValue(mlir::Value *value) -> mlir::Val
 }
 
 auto MLIRTailRecursionEliminatePass::CanCloneOperation(mlir::Operation *operation) -> bool {
+  if (auto *if_op = mlir::DynamicOrNull<mlir::scf::IfOp>(operation)) {
+    if (if_op->GetThenRegion() == nullptr || if_op->GetElseRegion() == nullptr ||
+        if_op->GetThenRegion()->blocks_.size() != 1 || if_op->GetElseRegion()->blocks_.size() != 1) {
+      return false;
+    }
+    for (auto *region : {if_op->GetThenRegion(), if_op->GetElseRegion()}) {
+      auto *block = region->blocks_[0];
+      if (block->operations_.empty() ||
+          mlir::DynamicOrNull<mlir::scf::YieldOp>(block->operations_.back()) == nullptr) {
+        return false;
+      }
+      for (size_t index = 0; index + 1 < block->operations_.size(); ++index) {
+        if (!CanCloneOperation(block->operations_[index])) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
   if (mlir::DynamicOrNull<mlir::func::FuncCallOp>(operation) != nullptr ||
       mlir::DynamicOrNull<mlir::func::ReturnOp>(operation) != nullptr ||
-      mlir::DynamicOrNull<mlir::scf::IfOp>(operation) != nullptr ||
       mlir::DynamicOrNull<mlir::scf::WhileOp>(operation) != nullptr ||
       mlir::DynamicOrNull<mlir::scf::YieldOp>(operation) != nullptr ||
       mlir::DynamicOrNull<mlir::scf::ConditionOp>(operation) != nullptr) {
@@ -485,6 +507,39 @@ auto MLIRTailRecursionEliminatePass::CanCloneOperation(mlir::Operation *operatio
 }
 
 auto MLIRTailRecursionEliminatePass::CloneOperation(mlir::Operation *operation) -> mlir::Operation * {
+  if (auto *if_op = mlir::DynamicOrNull<mlir::scf::IfOp>(operation)) {
+    auto outer_map = value_map_;
+    auto clone_region = [&](mlir::Region *source) {
+      value_map_ = outer_map;
+      auto *region = new mlir::Region();
+      auto *block = new mlir::Block();
+      region->blocks_.emplace_back(block);
+      auto *source_block = source->blocks_[0];
+      for (size_t index = 0; index + 1 < source_block->operations_.size(); ++index) {
+        block->AddOperation(CloneOperation(source_block->operations_[index]));
+      }
+      auto *source_yield = mlir::DynamicOrNull<mlir::scf::YieldOp>(source_block->operations_.back());
+      std::vector<mlir::Value *> operands;
+      operands.reserve(source_yield->GetOperands().size());
+      for (auto *operand : source_yield->GetOperands()) {
+        operands.emplace_back(RemapValue(operand));
+      }
+      block->AddOperation(
+          GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::YieldOp>(GET_MLIR_CONTEXT(), operands));
+      return region;
+    };
+
+    auto *then_region = clone_region(if_op->GetThenRegion());
+    auto *else_region = clone_region(if_op->GetElseRegion());
+    value_map_ = outer_map;
+    auto *new_op = GET_MLIR_CONTEXT()->CreateOperation<mlir::scf::IfOp>(
+        GET_MLIR_CONTEXT(), if_op->results_.size(), RemapValue(if_op->GetCondition()), then_region, else_region);
+    for (size_t index = 0; index < if_op->results_.size(); ++index) {
+      new_op->GetResultByIndex(index)->SetType(if_op->GetResultByIndex(index)->GetType());
+      value_map_[if_op->GetResultByIndex(index)] = new_op->GetResultByIndex(index);
+    }
+    return new_op;
+  }
   if (auto *copy_op = mlir::DynamicOrNull<mlir::arithm::CopyOp>(operation)) {
     auto *new_op =
         GET_MLIR_CONTEXT()->CreateOperation<mlir::arithm::CopyOp>(GET_MLIR_CONTEXT(), RemapValue(copy_op->GetValue()));
