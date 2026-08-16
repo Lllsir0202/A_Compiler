@@ -1,6 +1,7 @@
 #include "backend/targets/aarch64/isel/aarch64isel.h"
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -642,8 +643,17 @@ auto AArch64ISel::LowerAddress(backend::utils::Operand *ptr) -> TargetOperand * 
 
     for (size_t k = 0; k < m; ++k) {
       auto *lit = dynamic_cast<backend::utils::IntLiteral *>(indices[k]);
-      if (lit != nullptr && lit->GetValue() == 0) {
-        continue;
+      if (lit != nullptr) {
+        long offset = static_cast<long>(lit->GetValue()) * strides[k];
+        if (offset == 0) {
+          continue;
+        }
+        if (std::getenv("AARCH64_CONST_INDEX_ADDR_OFF") == nullptr && offset > 0 && offset <= IMM12_MAX) {
+          auto *next = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
+          Emit(A64Opcode::ADD_I, next, {addr, ctx_->Imm(static_cast<int>(offset))});
+          addr = next;
+          continue;
+        }
       }
       // Sign-extend the 32-bit index to 64 bits, scale by the stride, add to base.
       auto *idx32 = GetReg(indices[k]);
