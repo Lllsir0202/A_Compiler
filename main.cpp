@@ -42,6 +42,7 @@
 #include "middleend/pass/transform/mlirfunctioninline/mlirfunctioninline.h"
 #include "middleend/pass/transform/mlirloopdomaintighten/mlirloopdomaintighten.h"
 #include "middleend/pass/transform/mlirloopfusion/mlirloopfusion.h"
+#include "middleend/pass/transform/mlirloopinterchange/mlirloopinterchange.h"
 #include "middleend/pass/transform/mlirloopinvariantrepeat/mlirloopinvariantrepeat.h"
 #include "middleend/pass/transform/mlirloopmemorylast/mlirloopmemorylast.h"
 #include "middleend/pass/transform/mlirrowchecksum/mlirrowchecksum.h"
@@ -330,6 +331,10 @@ auto main(int argc, char *argv[]) -> int {
         context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopInvariantRepeatPass>(
             &compiler_context, middleend::pass::PassStage::MLIR);
     mlirpass_context->AddPass(mlir_loop_invariant_repeat_pass);
+    auto mlir_loop_interchange_pass =
+        context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopInterchangePass>(
+            &compiler_context, middleend::pass::PassStage::MLIR);
+    mlirpass_context->AddPass(mlir_loop_interchange_pass);
     auto mlir_loop_memory_last_pass =
         context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopMemoryLastIterationPass>(
             &compiler_context, middleend::pass::PassStage::MLIR);
@@ -360,9 +365,8 @@ auto main(int argc, char *argv[]) -> int {
     // repeat, memory-last, stencil, checksum, unswitch, unroll). It tiles counted
     // non-innermost loops for cache data locality; the inner loops have already been
     // unrolled above.
-    auto mlir_loop_tiling_pass =
-        context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopTilingPass>(
-            &compiler_context, middleend::pass::PassStage::MLIR);
+    auto mlir_loop_tiling_pass = context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopTilingPass>(
+        &compiler_context, middleend::pass::PassStage::MLIR);
     mlirpass_context->AddPass(mlir_loop_tiling_pass);
     ret = mlirpass_context->RunPasses();
     if (ret != 0) {

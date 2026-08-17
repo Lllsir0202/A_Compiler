@@ -1,0 +1,17 @@
+int matrix[32][32];
+
+int main() {
+  int row = 0, col = 0, sum = 0;
+  col = 0;
+  while (col < 32) {
+    row = 0;
+    while (row < 32) {
+      matrix[row][col] = row * 32 + col;
+      sum = sum + matrix[row][col];
+      row = row + 1;
+    }
+    col = col + 1;
+  }
+  putint(sum);
+  return 0;
+}

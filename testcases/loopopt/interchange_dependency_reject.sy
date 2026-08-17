@@ -1,0 +1,21 @@
+int matrix[16][16];
+
+int main() {
+  int row = 0, col = 0;
+  row = 0;
+  while (row < 16) {
+    matrix[row][0] = row;
+    row = row + 1;
+  }
+  col = 1;
+  while (col < 16) {
+    row = 0;
+    while (row < 15) {
+      matrix[row][col] = matrix[row + 1][col - 1] + 1;
+      row = row + 1;
+    }
+    col = col + 1;
+  }
+  putint(matrix[0][15]);
+  return 0;
+}
