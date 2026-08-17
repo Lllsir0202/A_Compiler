@@ -1,0 +1,29 @@
+int g[11][13];
+
+int sum_cols(int data[][13], int rows) {
+  int col = 0;
+  int sum = 0;
+  while (col < 13) {
+    int row = 0;
+    while (row < rows) {
+      sum = sum + data[row][col] * (row + 2);
+      row = row + 1;
+    }
+    col = col + 1;
+  }
+  return sum;
+}
+
+int main() {
+  int row = 0;
+  while (row < 11) {
+    int col = 0;
+    while (col < 13) {
+      g[row][col] = row * 13 + col + 1;
+      col = col + 1;
+    }
+    row = row + 1;
+  }
+  putint(sum_cols(g, 11));
+  return 0;
+}
