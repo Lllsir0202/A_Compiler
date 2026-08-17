@@ -19,6 +19,7 @@ class Operand;
 }  // namespace backend::utils
 namespace backend::inst {
 class Instruction;
+class CallInst;
 }
 
 namespace backend::targetir::riscv {
@@ -35,8 +36,9 @@ namespace backend::targetir::riscv {
  */
 class RISCVISel {
  public:
-  RISCVISel(context::CompilerContext *compiler_context, TargetContext *ctx, bool magic_div = true)
-      : compiler_context_(compiler_context), ctx_(ctx), magic_div_(magic_div) {}
+  RISCVISel(context::CompilerContext *compiler_context, TargetContext *ctx, bool magic_div = true,
+            bool rvv_enabled = false)
+      : compiler_context_(compiler_context), ctx_(ctx), magic_div_(magic_div), rvv_enabled_(rvv_enabled) {}
 
   /// Select a whole MIR function into a RISC-V TargetFunction (virtual regs).
   auto SelectFunction(backend::utils::Function *mir_func) -> TargetFunction *;
@@ -71,6 +73,8 @@ class RISCVISel {
   auto SelectCall(backend::inst::Instruction *inst) -> void;
   auto SelectLoad(backend::inst::Instruction *inst) -> void;
   auto SelectStore(backend::inst::Instruction *inst) -> void;
+  // Expand an `rvv.<op>.<elem>` intrinsic into an RVV strip-mine loop + scalar tail.
+  auto SelectRVVIntrinsic(backend::inst::CallInst *call) -> void;
 
   // Materialize the address denoted by a MIR pointer operand (frame slot, global
   // symbol, GEP memory operand, or a register already holding an address) into a
@@ -85,7 +89,11 @@ class RISCVISel {
   auto Zero() -> TargetOperand *;                                        // x0
   auto PhysGPR(uint8_t id) -> TargetOperand *;
   auto PhysFPR(uint8_t id) -> TargetOperand *;
+  auto PhysVPR(uint8_t id) -> TargetOperand *;
   auto LabelForBlock(size_t block_id) -> TargetLabel *;
+  // Fresh block id + label for a vectorizer-synthesized block (unique within the
+  // function, kept clear of the MIR block-id space).
+  auto NewVectorBlock() -> TargetBlock *;
 
   // Instruction emission helper: build a RISCVInst, wire result + operands, append.
   auto Emit(RVOpcode opcode, TargetOperand *result, const std::vector<TargetOperand *> &operands) -> RISCVInst *;
@@ -104,9 +112,12 @@ class RISCVISel {
   context::CompilerContext *compiler_context_;
   TargetContext *ctx_;
   bool magic_div_ = true;  // turn constant division into magic multiply (vs divw/remw)
+  bool rvv_enabled_ = false;  // lower vector intrinsics to RVV
 
   std::string func_name_;
+  TargetFunction *cur_func_ = nullptr;
   TargetBlock *cur_block_ = nullptr;
+  size_t next_vector_block_id_ = 0;
   std::unordered_map<backend::utils::Operand *, TargetOperand *> value_map_;
   std::unordered_map<size_t, TargetBlock *> block_by_id_;
   std::unordered_set<backend::inst::Instruction *> fused_icmps_;

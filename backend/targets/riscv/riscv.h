@@ -27,8 +27,12 @@ namespace backend::targetir::riscv {
  */
 class RISCVBackend {
  public:
-  explicit RISCVBackend(context::CompilerContext *compiler_context, int opt_level = 0, bool magic_div = true)
-      : compiler_context_(compiler_context), opt_level_(opt_level), magic_div_(magic_div) {}
+  explicit RISCVBackend(context::CompilerContext *compiler_context, int opt_level = 0, bool magic_div = true,
+                        bool rvv_enabled = false)
+      : compiler_context_(compiler_context),
+        opt_level_(opt_level),
+        magic_div_(magic_div),
+        rvv_enabled_(rvv_enabled) {}
 
   /// Run the whole codegen pipeline over the MIR module. Returns 0 on success.
   auto Run() -> int;
@@ -46,6 +50,10 @@ class RISCVBackend {
 
   // Turn constant division/modulo into a magic multiply (vs divw/remw). On.
   bool magic_div_ = true;
+
+  // Lower vector intrinsics to RVV (only meaningful for the riscv target, and only
+  // when the middle-end vectorizer was enabled via -rvv). Off by default.
+  bool rvv_enabled_ = false;
 
   // Owns all target IR (operands, instructions, blocks, functions).
   TargetContext ctx_;

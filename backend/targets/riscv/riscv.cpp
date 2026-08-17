@@ -32,7 +32,7 @@ auto RISCVBackend::Run() -> int {
   if (module == nullptr) {
     return 0;
   }
-  RISCVISel isel(compiler_context_, &ctx_, magic_div_);
+  RISCVISel isel(compiler_context_, &ctx_, magic_div_, rvv_enabled_);
   GraphColorRegAlloc reg_alloc(&ctx_);
   RISCVFrame frame(&ctx_);
 

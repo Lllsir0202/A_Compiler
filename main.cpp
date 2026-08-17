@@ -52,6 +52,7 @@
 #include "middleend/pass/transform/mlirrowchecksum/mlirrowchecksum.h"
 #include "middleend/pass/transform/mlirstencilinterior/mlirstencilinterior.h"
 #include "middleend/pass/transform/mlirtailrecursion/mlirtailrecursion.h"
+#include "middleend/pass/transform/mlirvectorize/mlirvectorize.h"
 #include "middleend/pass/transform/mlirwidemodmultiply/mlirwidemodmultiply.h"
 #include "middleend/pass/transform/modrecurrencesink/modrecurrencesink.h"
 #include "middleend/pass/transform/promotion/promotion.h"
@@ -88,6 +89,11 @@ static std::string target_arch = "riscv";  // for benchmark at competition webse
 // hardware divide. A win on out-of-order cores (BOOM, A72/Neoverse); `-no-magic-div`
 // disables it for A/B testing on in-order boards.
 static bool magic_div = true;
+// Enable RISC-V "V" (RVV) auto-vectorization. Off by default: the emitted scalar
+// code is byte-identical unless this is set, and the competition board may lack V.
+// When on, the MLIR vectorizer rewrites vectorizable loops into vector intrinsics
+// that the RISC-V backend lowers to RVV.
+static bool rvv_enabled = false;
 
 static const std::unordered_set<std::string> STAGES = {"lexer", "parser", "ast", "mlir", "baseir",
                                                        "llvm",  "mir",    "S",   "s"};
@@ -128,6 +134,8 @@ auto static inline ParseArgs(int argc, char *argv[]) -> bool {
         target_arch = "riscv";
       } else if (arg == "-no-magic-div") {
         magic_div = false;
+      } else if (arg == "-rvv") {
+        rvv_enabled = true;
       } else {
         // invalid option
         std::cerr << "Invalid option: " << arg << '\n';
@@ -148,7 +156,7 @@ auto main(int argc, char *argv[]) -> int {
     std::cerr
         << "Usage: " << argv[0]
         << " <input_file> -o <output_file> [-<stage>{lexer, parser, ast, mlir, baseir, llvm, S/s}] [-O<level>{0,1,2}] "
-           "[--Werror|-Werror]"
+           "[--Werror|-Werror] [-rvv]"
         << '\n';
     return 1;
   }
@@ -326,6 +334,16 @@ auto main(int argc, char *argv[]) -> int {
         context::PassContext::CreatePass<middleend::pass::transform::MLIRFixedStateTransitionPass>(
             &compiler_context, middleend::pass::PassStage::MLIR);
     mlirpass_context->AddPass(mlir_fixed_state_transition_pass);
+    // RVV auto-vectorization runs BEFORE loop fusion and unrolling: fusion would
+    // merge adjacent vectorizable loops into a multi-store loop the vectorizer
+    // cannot match, and unrolling would obscure the clean single-store shape. The
+    // vectorizer rewrites loops into `rvv.*` intrinsic calls, which fusion/unroll
+    // then leave untouched (they are calls, not loops). RISC-V only, only with -rvv.
+    if (rvv_enabled && target_arch == "riscv") {
+      auto mlir_vectorize_pass = context::PassContext::CreatePass<middleend::pass::transform::MLIRVectorizePass>(
+          &compiler_context, middleend::pass::PassStage::MLIR);
+      mlirpass_context->AddPass(mlir_vectorize_pass);
+    }
     auto mlir_loop_fusion_pass = context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopFusionPass>(
         &compiler_context, middleend::pass::PassStage::MLIR);
     mlirpass_context->AddPass(mlir_loop_fusion_pass);
@@ -626,8 +644,8 @@ auto main(int argc, char *argv[]) -> int {
     return ret;
   }
 
-  auto riscv_backend =
-      std::make_unique<backend::targetir::riscv::RISCVBackend>(&compiler_context, optimization_level, magic_div);
+  auto riscv_backend = std::make_unique<backend::targetir::riscv::RISCVBackend>(&compiler_context, optimization_level,
+                                                                                magic_div, rvv_enabled);
   ret = riscv_backend->Run();
   if (ret != 0) {
     return 1;

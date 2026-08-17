@@ -24,6 +24,8 @@ class RISCVPrinter : public TargetPrinter {
     switch (reg_class) {
       case TargetRegClass::Float:
         return FPR_ABI_NAME[id];
+      case TargetRegClass::Vector:
+        return "v" + std::to_string(id);
       case TargetRegClass::General:
       case TargetRegClass::Special:
       default:

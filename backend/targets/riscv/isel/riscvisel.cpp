@@ -57,6 +57,26 @@ auto IsMemIntrinsic(const std::string &callee) -> bool {
   return IsMemsetIntrinsic(callee) || IsMemcpyIntrinsic(callee);
 }
 
+// The RVV vector intrinsics (`rvv.<op>.<elem>`) emitted by the MLIR vectorizer.
+// Each carries a whole element-wise loop; the backend expands it into an RVV
+// strip-mine loop. Matched by the `rvv.` prefix (unambiguous for SysY identifiers).
+auto IsRVVIntrinsic(const std::string &callee) -> bool { return callee.rfind("rvv.", 0) == 0; }
+
+// Map the intrinsic suffix (the part after `rvv.`) to its vector opcode. Returns
+// RVOpcode::COMMENT (sentinel) when the suffix is not a known binary op.
+auto RVVBinaryOpcode(const std::string &suffix) -> RVOpcode {
+  if (suffix == "add.i32") return RVOpcode::VADD_VV;
+  if (suffix == "sub.i32") return RVOpcode::VSUB_VV;
+  if (suffix == "mul.i32") return RVOpcode::VMUL_VV;
+  if (suffix == "div.i32") return RVOpcode::VDIV_VV;
+  if (suffix == "rem.i32") return RVOpcode::VREM_VV;
+  if (suffix == "fadd.f32") return RVOpcode::VFADD_VV;
+  if (suffix == "fsub.f32") return RVOpcode::VFSUB_VV;
+  if (suffix == "fmul.f32") return RVOpcode::VFMUL_VV;
+  if (suffix == "fdiv.f32") return RVOpcode::VFDIV_VV;
+  return RVOpcode::COMMENT;
+}
+
 // Number of arguments a call actually passes through the integer ABI. The
 // memset/memcpy intrinsics are rewritten to 3-argument libc calls.
 auto CallArgCount(backend::inst::Instruction *inst) -> size_t {
@@ -96,6 +116,8 @@ auto RISCVISel::SelectFunction(backend::utils::Function *mir_func) -> TargetFunc
   outgoing_bytes_ = max_stack_args * 8;
 
   auto *tfunc = ctx_->NewFunction(func_name_);
+  cur_func_ = tfunc;
+  next_vector_block_id_ = 0;
 
   // Pass 1: create a target block per MIR block, keyed by MIR block id.
   for (auto *mir_block : mir_func->GetBlocks()) {
@@ -619,6 +641,12 @@ auto RISCVISel::SelectCall(backend::inst::Instruction *inst) -> void {
   auto *call = static_cast<backend::inst::CallInst *>(inst);
   const auto &callee = call->GetCallee();
 
+  // RVV vector intrinsics: expand into a vectorized loop + scalar tail.
+  if (IsRVVIntrinsic(callee)) {
+    SelectRVVIntrinsic(call);
+    return;
+  }
+
   // The LLVM memset/memcpy intrinsics lower to the libc routines, which sylib /
   // the C runtime provide. Their pointer arguments are addresses, not values.
   if (IsMemIntrinsic(callee)) {
@@ -671,6 +699,73 @@ auto RISCVISel::SelectCall(backend::inst::Instruction *inst) -> void {
       Emit(RVOpcode::MV, GetOrCreateVReg(inst->GetResult()), {PhysGPR(A0)});
     }
   }
+}
+
+auto RISCVISel::SelectRVVIntrinsic(backend::inst::CallInst *call) -> void {
+  const auto &callee = call->GetCallee();
+  const auto &ops = call->GetOperands();
+  // Binary intrinsics carry exactly (n, dst, a, b); a future reduction/copy family
+  // may differ, so guard on arity before indexing.
+  if (ops.size() != 4) {
+    Comment("TODO: unsupported rvv intrinsic arity " + callee);
+    return;
+  }
+  auto opcode = RVVBinaryOpcode(callee.substr(std::string("rvv.").size()));
+  if (opcode == RVOpcode::COMMENT) {
+    Comment("TODO: unknown rvv intrinsic " + callee);
+    return;
+  }
+
+  // Live-across-loop values in general-purpose virtual registers. The base
+  // addresses are copied into fresh vregs: LowerAddress may return a register that
+  // is shared with later uses (a global's once-per-function `la`), and the strip-mine
+  // loop advances its pointers in place, so it must never mutate that shared register.
+  // The counter is likewise copied: several intrinsics in one function may share the
+  // same hoisted trip-count value, and each loop decrements its own counter to zero.
+  auto *counter = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
+  Emit(RVOpcode::MV, counter, {GetReg(ops[0])});  // remaining element count
+  auto address_of = [&](backend::utils::Operand *op) {
+    auto *fresh = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
+    Emit(RVOpcode::MV, fresh, {LowerAddress(op)});
+    return fresh;
+  };
+  auto *dst_ptr = address_of(ops[1]);             // destination base
+  auto *lhs_ptr = address_of(ops[2]);             // left source base
+  auto *rhs_ptr = address_of(ops[3]);             // right source base
+
+  // Strip-mine loop: header block (body + back-edge) and exit block (continuation
+  // for the rest of the MIR block). The header ends with an explicit `j exit` so the
+  // block-layout pass sees the fallthrough edge (a bare conditional back-edge leaves
+  // the exit block's predecessor edge invisible, which mis-lays out multiple loops).
+  auto *header = NewVectorBlock();
+  auto *header_label = ctx_->Label(header->GetLabel());
+  auto *exit = NewVectorBlock();
+  auto *exit_label = ctx_->Label(exit->GetLabel());
+
+  // Preheader: enter the loop.
+  Emit(RVOpcode::J, nullptr, {header_label});
+
+  // Loop header: process up to VLMAX elements, then advance by the returned VL.
+  cur_block_ = header;
+  auto *vl = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
+  Emit(RVOpcode::VSETVLI, vl, {counter});
+  auto *va = PhysVPR(0);
+  auto *vb = PhysVPR(1);
+  Emit(RVOpcode::VLE32, va, {lhs_ptr, ctx_->Imm(0)});
+  Emit(RVOpcode::VLE32, vb, {rhs_ptr, ctx_->Imm(0)});
+  Emit(opcode, va, {va, vb});
+  Emit(RVOpcode::VSE32, nullptr, {va, dst_ptr, ctx_->Imm(0)});
+  auto *off = ctx_->NewVirtualReg(TargetRegClass::General, TargetRegSize::QWord);
+  Emit(RVOpcode::SLLI, off, {vl, ctx_->Imm(2)});  // byte offset = vl * sizeof(elem)
+  Emit(RVOpcode::ADD, lhs_ptr, {lhs_ptr, off});
+  Emit(RVOpcode::ADD, rhs_ptr, {rhs_ptr, off});
+  Emit(RVOpcode::ADD, dst_ptr, {dst_ptr, off});
+  Emit(RVOpcode::SUB, counter, {counter, vl});
+  Emit(RVOpcode::BNE, nullptr, {counter, Zero(), header_label});
+  Emit(RVOpcode::J, nullptr, {exit_label});
+
+  // The rest of the MIR block (including its terminator) continues in the exit block.
+  cur_block_ = exit;
 }
 
 auto RISCVISel::GetOrCreateVReg(backend::utils::Operand *mir_operand) -> TargetOperand * {
@@ -736,6 +831,19 @@ auto RISCVISel::PhysGPR(uint8_t id) -> TargetOperand * {
 
 auto RISCVISel::PhysFPR(uint8_t id) -> TargetOperand * {
   return ctx_->PhysReg(TargetRegClass::Float, TargetRegSize::DWord, id);
+}
+
+auto RISCVISel::PhysVPR(uint8_t id) -> TargetOperand * {
+  return ctx_->PhysReg(TargetRegClass::Vector, TargetRegSize::DWord, id);
+}
+
+auto RISCVISel::NewVectorBlock() -> TargetBlock * {
+  // Keep vectorizer blocks clear of the MIR block-id space (ids 0..N-1).
+  auto id = 10000 + next_vector_block_id_++;
+  auto *block = ctx_->NewBlock(id);
+  block->SetLabel(".L_" + func_name_ + "_vec" + std::to_string(next_vector_block_id_));
+  cur_func_->AddBlock(block);
+  return block;
 }
 
 auto RISCVISel::LabelForBlock(size_t block_id) -> TargetLabel * {

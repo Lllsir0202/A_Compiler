@@ -89,6 +89,40 @@ enum class RVOpcode : uint8_t {
   COMMENT,  // "# text" pseudo, carries no operands; used for annotations / TODOs
   SRAI,     // 64-bit arithmetic shift-right immediate (magic-division high part);
             // kept out of the index-aligned table like CALL/RET
+
+  // --- RISC-V "V" vector extension (RVV), gated by -rvv. These live out of the
+  // index-aligned table like CALL/RET/SRAI: the printer resolves them below.
+  VSETVLI,   // vsetvli rd, rs1, e32, m1, ta, ma   (rd = VL = min(rs1, VLMAX))
+  VLE32,     // vle32.v vd, (rs1)                   unit-stride 32-bit load
+  VSE32,     // vse32.v vs3, (rs1)                  unit-stride 32-bit store
+  VADD_VV,   // vadd.vv vd, vs2, vs1
+  VSUB_VV,   // vsub.vv
+  VMUL_VV,   // vmul.vv
+  VDIV_VV,   // vdiv.vv
+  VREM_VV,   // vrem.vv
+  VAND_VV,   // vand.vv
+  VOR_VV,    // vor.vv
+  VXOR_VV,   // vxor.vv
+  VADD_VX,   // vadd.vx vd, vs2, rs1
+  VSUB_VX,   // vsub.vx
+  VMUL_VX,   // vmul.vx
+  VDIV_VX,   // vdiv.vx
+  VREM_VX,   // vrem.vx
+  VADD_VI,   // vadd.vi vd, vs2, imm
+  VSUB_VI,   // vsub.vi
+  VMUL_VI,   // vmul.vi
+  VMV_V_I,   // vmv.v.i vd, imm                    splat an immediate
+  VMV_V_X,   // vmv.v.x vd, rs1                    splat a scalar register
+  VMV_X_S,   // vmv.x.s rd, vs2                    extract element 0 to a GPR
+  VMV_S_X,   // vmv.s.x vd, rs1                    set element 0 from a GPR
+  VFADD_VV,  // vfadd.vv vd, vs2, vs1
+  VFSUB_VV,  // vfsub.vv
+  VFMUL_VV,  // vfmul.vv
+  VFDIV_VV,  // vfdiv.vv
+  VREDSUM_VS,  // vredsum.vs vd, vs2, vs1          sum-reduce a vector into vs1
+  VSLL_VI,   // vsll.vi vd, vs2, imm
+  VSRL_VI,   // vsrl.vi
+  VSRA_VI,   // vsra.vi
 };
 
 /// How an opcode's operands are rendered as text.
@@ -105,6 +139,7 @@ enum class RVForm : uint8_t {
   Call,          // mnem op0                 op0 = symbol
   Ret,           // mnem
   ConvertToInt,  // mnem rd, op0, rtz  (fcvt.w.s truncating convert)
+  VSetvli,       // mnem rd, op0, e32, m1, ta, ma   (rd = VL, op0 = AVL)
 };
 
 struct RVOpcodeInfo {

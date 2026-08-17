@@ -1,0 +1,10 @@
+int a[100];
+int main() {
+  int i = 0;
+  while (i < 100) { a[i] = i * i; i = i + 1; }
+  int s = 0;
+  i = 0;
+  while (i < 100) { s = s + a[i]; i = i + 1; }
+  putint(s);
+  return 0;
+}

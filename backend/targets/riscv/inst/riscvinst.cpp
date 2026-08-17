@@ -1,5 +1,6 @@
 #include "backend/targets/riscv/inst/riscvinst.h"
 #include <array>
+#include <vector>
 #include "backend/targets/utils/operand/targetoperand.h"
 
 namespace backend::targetir::riscv {
@@ -33,6 +34,21 @@ auto GetRVOpcodeInfo(RVOpcode opcode) -> const RVOpcodeInfo & {
   static const RVOpcodeInfo CALL_INFO = {"call", RVForm::Call};
   static const RVOpcodeInfo RET_INFO = {"ret", RVForm::Ret};
   static const RVOpcodeInfo SRAI_INFO = {"srai", RVForm::IType};
+  // Vector opcodes, kept out of the index-aligned scalar table like CALL/RET/SRAI.
+  // Order matches the RVOpcode enum from VSETVLI to VSRA_VI.
+  static const std::vector<RVOpcodeInfo> VECTOR_TABLE = {
+      {"vsetvli", RVForm::VSetvli}, {"vle32.v", RVForm::Load},   {"vse32.v", RVForm::Store},
+      {"vadd.vv", RVForm::RType},   {"vsub.vv", RVForm::RType},  {"vmul.vv", RVForm::RType},
+      {"vdiv.vv", RVForm::RType},   {"vrem.vv", RVForm::RType},  {"vand.vv", RVForm::RType},
+      {"vor.vv", RVForm::RType},    {"vxor.vv", RVForm::RType},  {"vadd.vx", RVForm::RType},
+      {"vsub.vx", RVForm::RType},   {"vmul.vx", RVForm::RType},  {"vdiv.vx", RVForm::RType},
+      {"vrem.vx", RVForm::RType},   {"vadd.vi", RVForm::IType},  {"vsub.vi", RVForm::IType},
+      {"vmul.vi", RVForm::IType},   {"vmv.v.i", RVForm::LoadImm}, {"vmv.v.x", RVForm::Unary},
+      {"vmv.x.s", RVForm::Unary},   {"vmv.s.x", RVForm::Unary},  {"vfadd.vv", RVForm::RType},
+      {"vfsub.vv", RVForm::RType},  {"vfmul.vv", RVForm::RType}, {"vfdiv.vv", RVForm::RType},
+      {"vredsum.vs", RVForm::RType}, {"vsll.vi", RVForm::IType}, {"vsrl.vi", RVForm::IType},
+      {"vsra.vi", RVForm::IType},
+  };
   if (opcode == RVOpcode::CALL) {
     return CALL_INFO;
   }
@@ -41,6 +57,9 @@ auto GetRVOpcodeInfo(RVOpcode opcode) -> const RVOpcodeInfo & {
   }
   if (opcode == RVOpcode::SRAI) {
     return SRAI_INFO;
+  }
+  if (static_cast<size_t>(opcode) >= static_cast<size_t>(RVOpcode::VSETVLI)) {
+    return VECTOR_TABLE[static_cast<size_t>(opcode) - static_cast<size_t>(RVOpcode::VSETVLI)];
   }
   return TABLE[static_cast<size_t>(opcode)];
 }
@@ -120,6 +139,13 @@ auto RISCVInst::Emit(std::ofstream *out) -> void {
       *out << ", ";
       ops[0]->Emit(out);
       *out << ", rtz";
+      break;
+    case RVForm::VSetvli:  // vsetvli rd, rs1, e32, m1, ta, ma
+      *out << " ";
+      result_->Emit(out);
+      *out << ", ";
+      ops[0]->Emit(out);
+      *out << ", e32, m1, ta, ma";
       break;
     case RVForm::Ret:
       break;

@@ -1,5 +1,6 @@
 #include "middleend/llvm/lower/lower.h"
 #include <stdexcept>
+#include <string>
 #include "context/llvmir_context.h"
 #include "llvm/inst/func/funcdeclare.h"
 #include "middleend/llvm/utils/factory/modulefactory.h"
@@ -86,6 +87,26 @@ auto LLVMLower::RegisterLibraryFunctions() -> void {
   GET_LLVMIR_CONTEXT()->GetResourceContext()->AddLibraryFunction(stoptime_func);
   GET_LLVMIR_CONTEXT()->GetResourceContext()->AddLibraryFunction(llvm_memset_func);
   GET_LLVMIR_CONTEXT()->GetResourceContext()->AddLibraryFunction(llvm_memcpy_func);
+
+  // RVV vector intrinsics `rvv.<op>.<elem>(i32 n, elem* dst, elem* a, elem* b) -> void`,
+  // emitted by the MLIR vectorizer and expanded inline by the RISC-V backend. Declared
+  // here as library symbols so the LLVM-IR call verifier can resolve the call; the
+  // aarch64 backend never sees them (the vectorizer is riscv-only).
+  auto int_type = GET_LLVMIR_CONTEXT()->GetIntegerType();
+  auto int_ptr_type = GET_LLVMIR_CONTEXT()->GetPtrType(int_type);
+  auto float_ptr_type = GET_LLVMIR_CONTEXT()->GetPtrType(GET_LLVMIR_CONTEXT()->GetFloatType());
+  auto declare_rvv_binary = [&](const std::string &name, type::Type *elem_ptr_type) {
+    auto *func = GET_LLVMIR_CONTEXT()->GetResourceContext()->CreateInst<inst::FuncDeclareInst>(
+        GET_LLVMIR_CONTEXT(), name, GET_LLVMIR_CONTEXT()->GetVoidType(),
+        std::vector<type::Type *>{int_type, elem_ptr_type, elem_ptr_type, elem_ptr_type});
+    GET_LLVMIR_CONTEXT()->GetResourceContext()->AddLibraryFunction(func);
+  };
+  for (const char *op : {"add", "sub", "mul", "div", "rem"}) {
+    declare_rvv_binary(std::string("rvv.") + op + ".i32", int_ptr_type);
+  }
+  for (const char *op : {"fadd", "fsub", "fmul", "fdiv"}) {
+    declare_rvv_binary(std::string("rvv.") + op + ".f32", float_ptr_type);
+  }
 }
 
 auto LLVMLower::Lower() -> int {
