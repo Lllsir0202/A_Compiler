@@ -1,0 +1,27 @@
+int a[10][9];
+
+int main() {
+  int row = 0;
+  int col = 0;
+  int sum = 0;
+  while (row < 10) {
+    col = 0;
+    while (col < 9) {
+      a[row][col] = row * 9 + col + 1;
+      col = col + 1;
+    }
+    row = row + 1;
+  }
+
+  col = 1;
+  while (col < 8) {
+    row = 0;
+    while (row < 8) {
+      sum = sum + a[row + 1][col - 1];
+      row = row + 1;
+    }
+    col = col + 1;
+  }
+  putint(sum);
+  return 0;
+}
