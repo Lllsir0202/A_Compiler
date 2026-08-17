@@ -1,0 +1,16 @@
+int a[12][12];
+
+int main() {
+  int col = 0;
+  int sum = 0;
+  while (col < 12) {
+    int row = 0;
+    while (row < col) {
+      sum = sum + a[row][col];
+      row = row + 1;
+    }
+    col = col + 1;
+  }
+  putint(sum);
+  return 0;
+}

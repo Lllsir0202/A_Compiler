@@ -1,0 +1,39 @@
+int a[9][8];
+
+int main() {
+  int row = 0;
+  int col = 0;
+  int scan = 0;
+  int col2 = 0;
+  int sum = 0;
+  while (row < 9) {
+    col = 0;
+    while (col < 8) {
+      a[row][col] = row * 8 + col;
+      col = col + 1;
+    }
+    row = row + 1;
+  }
+
+  col = 0;
+  while (col < 8) {
+    scan = 0;
+    while (scan < 9) {
+      a[scan][col] = a[scan][col] + scan + col;
+      scan = scan + 1;
+    }
+    col = col + 1;
+  }
+
+  row = 0;
+  while (row < 9) {
+    col2 = 0;
+    while (col2 < 8) {
+      sum = sum + a[row][col2];
+      col2 = col2 + 1;
+    }
+    row = row + 1;
+  }
+  putint(sum);
+  return 0;
+}

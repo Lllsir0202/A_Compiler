@@ -1,0 +1,28 @@
+int a[8][6];
+
+int main() {
+  int row = 0;
+  int col = 0;
+  int scan = 0;
+  int sum = 0;
+  while (row <= 7) {
+    col = 0;
+    while (col <= 5) {
+      a[row][col] = row * 6 + col + 1;
+      col = col + 1;
+    }
+    row = row + 1;
+  }
+
+  col = 0;
+  while (col <= 5) {
+    scan = 0;
+    while (scan <= 7) {
+      sum = sum + a[scan][col];
+      scan = scan + 1;
+    }
+    col = col + 1;
+  }
+  putint(sum);
+  return 0;
+}
