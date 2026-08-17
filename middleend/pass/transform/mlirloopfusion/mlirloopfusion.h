@@ -74,6 +74,9 @@ class MLIRLoopFusionPass : public TransformPass {
   size_t shape_rejects_{0};
   size_t scalar_rejects_{0};
   size_t memory_rejects_{0};
+  // Loop-carried inits of the second loop that are dead-on-arrival (their body
+  // argument is never read) and therefore ignored by the scalar-dependence check.
+  size_t dead_inits_{0};
   std::unordered_map<mlir::Value *, std::unordered_set<mlir::Value *>> noalias_parameters_;
   analysis::MLIRMemoryEffectAnalysis *memory_effects_{nullptr};
 };

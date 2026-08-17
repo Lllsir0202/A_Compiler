@@ -1,0 +1,9 @@
+int a[200][200], b[200][200], c[200][200];
+int main() {
+  int i = 0, j = 0;
+  while (i < 200) { j = 0; while (j < 200) { a[i][j] = i * 2; b[i][j] = j * 3; j = j + 1; } i = i + 1; }
+  i = 0;
+  while (i < 200) { j = 0; while (j < 200) { c[i][j] = a[i][j] + b[i][j]; j = j + 1; } i = i + 1; }
+  putint(c[0][0]); putint(c[137][99]); putint(c[199][199]);
+  return 0;
+}

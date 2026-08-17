@@ -1,0 +1,11 @@
+int a[1000];
+int main() {
+  int i = 0;
+  while (i < 1000) {
+    a[i] = i * 7;
+    if (a[i] > 999) break;
+    i = i + 1;
+  }
+  putint(i);
+  return 0;
+}

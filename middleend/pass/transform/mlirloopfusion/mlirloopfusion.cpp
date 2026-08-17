@@ -354,6 +354,54 @@ auto UsesAnyResult(mlir::Operation *operation, const std::unordered_set<mlir::Va
   return false;
 }
 
+// Recursively: does any operation use a `results` value as an *operand* (not as a
+// loop-carried condition original)? Used to separate real operand dependences from
+// the (possibly dead) carried-value inits.
+auto UsesResultAsOperand(mlir::Operation *operation, const std::unordered_set<mlir::Value *> &results) -> bool {
+  for (auto *operand : operation->operands_) {
+    if (results.count(TraceCopies(operand)) > 0) {
+      return true;
+    }
+  }
+  for (auto *region : operation->regions_) {
+    for (auto *block : region->blocks_) {
+      for (auto *nested : block->operations_) {
+        if (UsesResultAsOperand(nested, results)) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+// True if `arg` (a loop-carried block argument) is read anywhere in `body`, walking
+// recursively through nested regions (operands and nested condition originals).
+auto BlockArgumentIsRead(mlir::Value *arg, mlir::Block *body) -> bool {
+  for (auto *operation : body->operations_) {
+    for (auto *operand : operation->operands_) {
+      if (TraceCopies(operand) == arg) {
+        return true;
+      }
+    }
+    if (auto *condition = mlir::DynamicOrNull<mlir::scf::ConditionOp>(operation)) {
+      for (auto *original : condition->GetOriginalValues()) {
+        if (TraceCopies(original) == arg) {
+          return true;
+        }
+      }
+    }
+    for (auto *region : operation->regions_) {
+      for (auto *nested_block : region->blocks_) {
+        if (BlockArgumentIsRead(arg, nested_block)) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 auto IsHoistableGapOperation(mlir::Operation *operation) -> bool {
   return mlir::DynamicOrNull<mlir::arithm::ConstOp>(operation) != nullptr ||
          mlir::DynamicOrNull<mlir::arithm::CopyOp>(operation) != nullptr ||
@@ -402,6 +450,7 @@ auto MLIRLoopFusionPass::Run() -> void {
   shape_rejects_ = 0;
   scalar_rejects_ = 0;
   memory_rejects_ = 0;
+  dead_inits_ = 0;
   noalias_parameters_.clear();
   auto *module = GET_MLIR_CONTEXT()->GetModuleOp();
   if (module == nullptr) {
@@ -416,7 +465,8 @@ auto MLIRLoopFusionPass::Run() -> void {
   }
   if (std::getenv("LOOP_OPT_STATS") != nullptr) {
     std::cerr << "LoopFusion: candidates=" << candidates_ << " fused=" << fused_loops_ << " domain=" << domain_rejects_
-              << " shape=" << shape_rejects_ << " scalar=" << scalar_rejects_ << " memory=" << memory_rejects_ << '\n';
+              << " shape=" << shape_rejects_ << " scalar=" << scalar_rejects_ << " memory=" << memory_rejects_
+              << " dead_inits=" << dead_inits_ << '\n';
   }
 }
 
@@ -598,7 +648,29 @@ auto MLIRLoopFusionPass::CanFuse(mlir::scf::WhileOp *first, mlir::scf::WhileOp *
   }
 
   std::unordered_set<mlir::Value *> first_results(first->results_.begin(), first->results_.end());
-  if (UsesAnyResult(second, first_results)) {
+  // Loop-carried inits of the second loop whose body argument is never read are
+  // dead-on-arrival and carry no real dependence through the first loop's results
+  // (a phantom of variable-based lowering, e.g. an outer loop re-carries a variable
+  // that the body overwrites before any use). Only a *live* carried init — or an
+  // operand use anywhere in the body — counts as a scalar dependence.
+  std::unordered_set<mlir::Value *> dead_originals;
+  for (size_t index = 0; index < second_body->arguments_.size(); ++index) {
+    if (second_condition != nullptr && index < second_condition->GetOriginalValues().size() &&
+        !BlockArgumentIsRead(second_body->arguments_[index], second_body)) {
+      dead_originals.insert(second_condition->GetOriginalValues()[index]);
+      ++dead_inits_;
+    }
+  }
+  bool scalar_dep = UsesResultAsOperand(second, first_results);
+  if (!scalar_dep && second_condition != nullptr) {
+    for (auto *original : second_condition->GetOriginalValues()) {
+      if (dead_originals.count(original) == 0 && first_results.count(TraceCopies(original)) > 0) {
+        scalar_dep = true;
+        break;
+      }
+    }
+  }
+  if (scalar_dep) {
     ++scalar_rejects_;
     return false;
   }
