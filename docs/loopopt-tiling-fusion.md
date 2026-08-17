@@ -84,3 +84,17 @@ guard for runtime bounds); on the cached FPGA BOOM board it reduces C-traffic in
 matmul kernels, which is the real payoff. The fusion dead-init fix is semantically
 neutral on the given performance kernels (their loop pairs have real memory
 dependences) but enables coalescing of 2D init+transform shapes.
+
+### Wall-clock (qemu, `riscv_performance` full-suite aggregate)
+
+| | run1 | run2 | avg |
+|---|---|---|---|
+| current (tiling on) | 41.96 s | 42.67 s | ~42.3 s |
+| baseline (Backend-tmp-rv) | 40.88 s | 43.07 s | ~42.0 s |
+
+Δ ≈ **+0.3–0.8%**, inside the run-to-run variance (±2.5%). Under qemu the wall-clock
+tracks the insn-count ratio (qemu executes instructions at a fixed rate; no cache is
+modeled), so the local speed difference mirrors the +0.5% insn increase. Per-test
+timings are sub-second and noise-dominated (e.g. h-5-01 appeared +11.8% on one run,
+yet tiling changed its code by only 3k of 1.27B instructions). The tiling *speedup*
+only appears on hardware with a real cache.
