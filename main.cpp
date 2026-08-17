@@ -52,6 +52,7 @@
 #include "middleend/pass/transform/mlirrowchecksum/mlirrowchecksum.h"
 #include "middleend/pass/transform/mlirstencilinterior/mlirstencilinterior.h"
 #include "middleend/pass/transform/mlirtailrecursion/mlirtailrecursion.h"
+#include "middleend/pass/transform/mlirtiling/mlirtiling.h"
 #include "middleend/pass/transform/mlirwidemodmultiply/mlirwidemodmultiply.h"
 #include "middleend/pass/transform/modrecurrencesink/modrecurrencesink.h"
 #include "middleend/pass/transform/promotion/promotion.h"
@@ -365,6 +366,15 @@ auto main(int argc, char *argv[]) -> int {
         context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopPartialUnrollPass>(
             &compiler_context, middleend::pass::PassStage::MLIR, target_arch == "riscv" ? 4 : 8);
     mlirpass_context->AddPass(mlir_loop_partial_unroll_pass);
+    // Loop tiling runs last among the MLIR loop transforms so it cannot perturb the
+    // pattern-recognition passes that precede it (loop-domain tighten, invariant
+    // repeat, memory-last, stencil, checksum, unswitch, unroll). It tiles counted
+    // non-innermost loops for cache data locality; the inner loops have already been
+    // unrolled above.
+    auto mlir_loop_tiling_pass =
+        context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopTilingPass>(
+            &compiler_context, middleend::pass::PassStage::MLIR);
+    mlirpass_context->AddPass(mlir_loop_tiling_pass);
     ret = mlirpass_context->RunPasses();
     if (ret != 0) {
       return 1;
