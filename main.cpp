@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <fstream>
 #include <memory>
 #include <unordered_set>
@@ -93,6 +94,11 @@ static bool magic_div = true;
 
 static const std::unordered_set<std::string> STAGES = {"lexer", "parser", "ast", "mlir", "baseir",
                                                        "llvm",  "mir",    "S",   "s"};
+
+auto static inline EnvFlagEnabled(const char *name) -> bool {
+  const char *value = std::getenv(name);
+  return value != nullptr && std::string(value) != "0";
+}
 
 auto static inline ParseArgs(int argc, char *argv[]) -> bool {
   for (int i = 1; i < argc; i++) {
@@ -371,14 +377,13 @@ auto main(int argc, char *argv[]) -> int {
         context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopPartialUnrollPass>(
             &compiler_context, middleend::pass::PassStage::MLIR, target_arch == "riscv" ? 4 : 8);
     mlirpass_context->AddPass(mlir_loop_partial_unroll_pass);
-    // Loop tiling runs last among the MLIR loop transforms so it cannot perturb the
-    // pattern-recognition passes that precede it (loop-domain tighten, invariant
-    // repeat, memory-last, stencil, checksum, unswitch, unroll). It tiles counted
-    // non-innermost loops for cache data locality; the inner loops have already been
-    // unrolled above.
-    auto mlir_loop_tiling_pass = context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopTilingPass>(
-        &compiler_context, middleend::pass::PassStage::MLIR);
-    mlirpass_context->AddPass(mlir_loop_tiling_pass);
+    // Loop tiling is opt-in because its cache benefit is not visible under qemu's
+    // timing model and it can add loop overhead on small/public workloads.
+    if (EnvFlagEnabled("TILING_ON") && !EnvFlagEnabled("TILING_OFF")) {
+      auto mlir_loop_tiling_pass = context::PassContext::CreatePass<middleend::pass::transform::MLIRLoopTilingPass>(
+          &compiler_context, middleend::pass::PassStage::MLIR);
+      mlirpass_context->AddPass(mlir_loop_tiling_pass);
+    }
     ret = mlirpass_context->RunPasses();
     if (ret != 0) {
       return 1;
