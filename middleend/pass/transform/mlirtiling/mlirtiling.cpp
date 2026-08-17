@@ -94,11 +94,16 @@ auto BodyHasNestedLoop(mlir::Block *body) -> bool {
   return false;
 }
 
+auto EnvFlagEnabled(const char *name) -> bool {
+  const char *value = std::getenv(name);
+  return value != nullptr && std::string(value) != "0";
+}
+
 }  // namespace
 
 auto MLIRLoopTilingPass::Run() -> void {
   PreRun();
-  if (std::getenv("TILING_OFF") != nullptr) {
+  if (!EnvFlagEnabled("TILING_ON") || EnvFlagEnabled("TILING_OFF")) {
     return;
   }
   candidates_ = 0;

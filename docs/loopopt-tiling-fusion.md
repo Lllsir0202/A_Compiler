@@ -44,7 +44,8 @@ while (ii < bound):                    # tile loop, step T
 - Pipeline position: **last** among the MLIR loop transforms (after
   `MLIRLoopPartialUnrollPass`) so it cannot perturb the pattern-recognition passes
   (loop-domain tighten, invariant repeat, memory-last, stencil, checksum, unswitch,
-  unroll) that the directed suite asserts on. Default ON at -O1; A/B via `TILING_OFF=1`.
+  unroll) that the directed suite asserts on. Default OFF at -O1; opt in with
+  `TILING_ON=1`, and force off with `TILING_OFF=1`.
 
 ## Fusion improvement (Loop Coalescing)
 
