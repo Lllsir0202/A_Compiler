@@ -358,9 +358,12 @@ auto BuildInnerToOuterMap(mlir::scf::WhileOp *inner, const LoopParts &outer_part
   const size_t inner_args = inner_parts.condition_block->arguments_.size();
   const size_t outer_args = outer_parts.condition_block->arguments_.size();
   inner_to_outer->assign(inner_args, -1);
-  (*inner_to_outer)[inner_iv.index_] = outer_slot_for_inner_iv;
 
-  std::unordered_set<int> used_outer_slots{outer_slot_for_inner_iv};
+  std::unordered_set<int> used_outer_slots;
+  if (outer_slot_for_inner_iv >= 0) {
+    (*inner_to_outer)[inner_iv.index_] = outer_slot_for_inner_iv;
+    used_outer_slots.insert(outer_slot_for_inner_iv);
+  }
   for (size_t inner_index = 0; inner_index < inner_args; ++inner_index) {
     if (inner_index == inner_iv.index_) {
       continue;
@@ -435,7 +438,7 @@ auto ValidateScalarAndOuterYields(mlir::scf::WhileOp *inner, const LoopParts &ou
     if (outer_index == outer_iv.index_) {
       continue;
     }
-    if (static_cast<int>(outer_index) == outer_slot_for_inner_iv) {
+    if (outer_slot_for_inner_iv >= 0 && static_cast<int>(outer_index) == outer_slot_for_inner_iv) {
       if (!SameValue(yield, inner->GetResultByIndex(inner_iv.index_))) {
         return false;
       }
@@ -595,6 +598,143 @@ auto LocalityScore(const std::vector<MemoryAccess> &accesses, mlir::Value *candi
   return score;
 }
 
+auto CollectArrayDimensionsFromType(type::Type *root_type, std::vector<int64_t> *dimensions) -> void {
+  if (root_type == nullptr) {
+    return;
+  }
+  if (root_type->GetKind() == type::TypeKind::PTR) {
+    root_type = static_cast<type::PtrType *>(root_type)->GetBaseType();
+  }
+  while (root_type != nullptr && root_type->GetKind() == type::TypeKind::ARRAY) {
+    auto *array_type = static_cast<type::ArrayType *>(root_type);
+    dimensions->push_back(static_cast<int64_t>(array_type->GetSize()));
+    root_type = array_type->GetElementType();
+  }
+}
+
+auto GetPointerDimensions(mlir::Value *pointer, std::vector<int64_t> *dimensions) -> bool {
+  auto root = analysis::MLIRMemoryEffectAnalysis::GetPointerRoot(pointer);
+  if (root.value == nullptr) {
+    return false;
+  }
+  if (auto *local = mlir::DynamicOrNull<mlir::var::VarDefOp>(root.value->op_)) {
+    for (int dimension : local->GetDimensions()) {
+      dimensions->push_back(dimension);
+    }
+  } else if (auto *global = mlir::DynamicOrNull<mlir::var::GlobalVarDefOp>(root.value->op_)) {
+    for (int dimension : global->GetDimensions()) {
+      dimensions->push_back(dimension);
+    }
+  }
+  if (dimensions->empty()) {
+    CollectArrayDimensionsFromType(root.value->GetType(), dimensions);
+  }
+  return !dimensions->empty();
+}
+
+auto RowMajorStrides(size_t rank, const std::vector<int64_t> &dimensions, std::vector<int64_t> *strides) -> bool {
+  if (rank == 0) {
+    return false;
+  }
+  strides->assign(rank, 1);
+  const size_t first_known_index = dimensions.size() >= rank ? 0 : rank - dimensions.size();
+  auto extent_for_index = [&](size_t index, int64_t *extent) -> bool {
+    if (index < first_known_index) {
+      return false;
+    }
+    *extent = dimensions[index - first_known_index];
+    return *extent > 0;
+  };
+
+  for (size_t index = 0; index < rank; ++index) {
+    __int128 stride = 1;
+    for (size_t next = index + 1; next < rank; ++next) {
+      int64_t extent = 0;
+      if (!extent_for_index(next, &extent)) {
+        return false;
+      }
+      stride *= extent;
+      if (stride > INT64_MAX) {
+        return false;
+      }
+    }
+    (*strides)[index] = static_cast<int64_t>(stride);
+  }
+  return true;
+}
+
+auto RowMajorStep(const MemoryAccess &access, mlir::Value *outer_iv, mlir::Value *inner_iv,
+                  bool outer_is_candidate_inner, int64_t *step) -> bool {
+  PointerAccess pointer_access;
+  CollectPointerIndices(access.pointer, &pointer_access);
+  if (pointer_access.indices.empty()) {
+    return false;
+  }
+  std::vector<int64_t> dimensions;
+  if (!GetPointerDimensions(access.pointer, &dimensions)) {
+    return false;
+  }
+  std::vector<int64_t> strides;
+  if (!RowMajorStrides(pointer_access.indices.size(), dimensions, &strides)) {
+    return false;
+  }
+
+  __int128 total = 0;
+  for (size_t index = 0; index < pointer_access.indices.size(); ++index) {
+    Affine2D affine;
+    if (!ExtractAffine(pointer_access.indices[index], outer_iv, inner_iv, &affine)) {
+      return false;
+    }
+    int64_t coefficient = outer_is_candidate_inner ? affine.outer : affine.inner;
+    total += static_cast<__int128>(coefficient) * strides[index];
+    if (total < INT64_MIN || total > INT64_MAX) {
+      return false;
+    }
+  }
+  *step = static_cast<int64_t>(total);
+  return true;
+}
+
+auto StepLocalityQuality(int64_t step) -> int {
+  if (step == 0) {
+    return 16;
+  }
+  int64_t distance = std::llabs(step);
+  if (distance == 1) {
+    return 64;
+  }
+  if (distance <= 4) {
+    return 24;
+  }
+  if (distance <= 16) {
+    return 8;
+  }
+  return 1;
+}
+
+auto RowMajorLocalityScore(const std::vector<MemoryAccess> &accesses, mlir::Value *outer_iv, mlir::Value *inner_iv,
+                           bool outer_is_candidate_inner) -> int {
+  int score = 0;
+  for (const auto &access : accesses) {
+    int64_t step = 0;
+    if (!RowMajorStep(access, outer_iv, inner_iv, outer_is_candidate_inner, &step)) {
+      continue;
+    }
+    score += StepLocalityQuality(step) * (access.writes ? 3 : 2);
+  }
+  return score;
+}
+
+auto InterchangedHasBetterLocality(const std::vector<MemoryAccess> &accesses, mlir::Value *outer_iv,
+                                   mlir::Value *inner_iv) -> bool {
+  int original_score = RowMajorLocalityScore(accesses, outer_iv, inner_iv, false);
+  int interchanged_score = RowMajorLocalityScore(accesses, outer_iv, inner_iv, true);
+  if (original_score != 0 || interchanged_score != 0) {
+    return interchanged_score > original_score;
+  }
+  return LocalityScore(accesses, outer_iv) > LocalityScore(accesses, inner_iv);
+}
+
 auto MakeStepValue(context::MLIRContext *context, mlir::Block *block, mlir::Value *current,
                    const loopiv::Induction &iv) -> mlir::Value * {
   auto *constant = context->CreateOperation<mlir::arithm::ConstOp>(context, static_cast<int>(iv.step_));
@@ -735,7 +875,7 @@ auto MLIRLoopInterchangePass::TryInterchange(mlir::Block *parent, size_t index) 
   }
 
   int outer_slot_for_inner_iv = ResultIndexForInner(inner->GetResultByIndex(inner_iv.index_), outer_parts);
-  if (outer_slot_for_inner_iv < 0 || static_cast<size_t>(outer_slot_for_inner_iv) == outer_iv.index_) {
+  if (outer_slot_for_inner_iv >= 0 && static_cast<size_t>(outer_slot_for_inner_iv) == outer_iv.index_) {
     ++shape_rejects_;
     return false;
   }
@@ -759,15 +899,16 @@ auto MLIRLoopInterchangePass::TryInterchange(mlir::Block *parent, size_t index) 
     ++dependence_rejects_;
     return false;
   }
-  int original_score = LocalityScore(accesses, original_inner_iv_value);
-  int interchanged_score = LocalityScore(accesses, original_outer_iv_value);
-  if (accesses.empty() || interchanged_score <= original_score) {
+  if (accesses.empty() || !InterchangedHasBetterLocality(accesses, original_outer_iv_value, original_inner_iv_value)) {
     ++profitability_rejects_;
     return false;
   }
 
   auto *context = GET_MLIR_CONTEXT();
-  const size_t slots = outer_parts.condition_block->arguments_.size();
+  const size_t original_slots = outer_parts.condition_block->arguments_.size();
+  const bool inner_iv_needs_slot = outer_slot_for_inner_iv < 0;
+  const size_t inner_iv_slot = inner_iv_needs_slot ? original_slots : static_cast<size_t>(outer_slot_for_inner_iv);
+  const size_t slots = original_slots + (inner_iv_needs_slot ? 1 : 0);
   std::vector<int> outer_to_inner(slots, -1);
   for (size_t inner_arg = 0; inner_arg < inner_to_outer.size(); ++inner_arg) {
     if (inner_to_outer[inner_arg] >= 0) {
@@ -783,7 +924,8 @@ auto MLIRLoopInterchangePass::TryInterchange(mlir::Block *parent, size_t index) 
   new_outer_args.reserve(slots);
   for (size_t slot = 0; slot < slots; ++slot) {
     auto *arg = context->CreateValue();
-    arg->SetType(outer_parts.condition_block->arguments_[slot]->GetType());
+    arg->SetType(slot < original_slots ? outer_parts.condition_block->arguments_[slot]->GetType()
+                                       : inner_parts.condition_block->arguments_[inner_iv.index_]->GetType());
     new_outer_args.push_back(arg);
     new_outer_cond_block->AddArgument(arg);
     new_outer_body_block->AddArgument(arg);
@@ -792,6 +934,9 @@ auto MLIRLoopInterchangePass::TryInterchange(mlir::Block *parent, size_t index) 
   cloner_.value_map_.clear();
   for (size_t inner_arg = 0; inner_arg < inner_parts.condition_block->arguments_.size(); ++inner_arg) {
     int outer_slot = inner_to_outer[inner_arg];
+    if (inner_arg == inner_iv.index_ && inner_iv_needs_slot) {
+      outer_slot = static_cast<int>(inner_iv_slot);
+    }
     if (outer_slot >= 0) {
       cloner_.value_map_[inner_parts.condition_block->arguments_[inner_arg]] =
           new_outer_args[static_cast<size_t>(outer_slot)];
@@ -805,7 +950,7 @@ auto MLIRLoopInterchangePass::TryInterchange(mlir::Block *parent, size_t index) 
   new_outer_originals.reserve(slots);
   auto outer_originals = outer_parts.condition->GetOriginalValues();
   for (size_t slot = 0; slot < slots; ++slot) {
-    if (static_cast<int>(slot) == outer_slot_for_inner_iv) {
+    if (slot == inner_iv_slot) {
       new_outer_originals.push_back(TraceCopies(inner_iv.init_));
     } else {
       new_outer_originals.push_back(outer_originals[slot]);
@@ -822,14 +967,15 @@ auto MLIRLoopInterchangePass::TryInterchange(mlir::Block *parent, size_t index) 
   new_inner_args.reserve(slots);
   for (size_t slot = 0; slot < slots; ++slot) {
     auto *arg = context->CreateValue();
-    arg->SetType(outer_parts.condition_block->arguments_[slot]->GetType());
+    arg->SetType(slot < original_slots ? outer_parts.condition_block->arguments_[slot]->GetType()
+                                       : inner_parts.condition_block->arguments_[inner_iv.index_]->GetType());
     new_inner_args.push_back(arg);
     new_inner_cond_block->AddArgument(arg);
     new_inner_body_block->AddArgument(arg);
   }
 
   cloner_.value_map_.clear();
-  for (size_t slot = 0; slot < slots; ++slot) {
+  for (size_t slot = 0; slot < original_slots; ++slot) {
     cloner_.value_map_[outer_parts.condition_block->arguments_[slot]] = new_inner_args[slot];
   }
   auto *new_inner_cond_value =
@@ -841,28 +987,29 @@ auto MLIRLoopInterchangePass::TryInterchange(mlir::Block *parent, size_t index) 
   for (size_t slot = 0; slot < slots; ++slot) {
     if (slot == outer_iv.index_) {
       new_inner_originals.push_back(outer_originals[slot]);
-    } else {
+    } else if (slot < original_slots) {
       new_inner_originals.push_back(new_outer_args[slot]);
+    } else {
+      new_inner_originals.push_back(new_outer_args[inner_iv_slot]);
     }
   }
   new_inner_condition->SetLoopCarriedValues(new_inner_args, new_inner_originals);
   new_inner_cond_block->AddOperation(new_inner_condition);
 
   cloner_.value_map_.clear();
-  for (size_t slot = 0; slot < slots; ++slot) {
+  for (size_t slot = 0; slot < original_slots; ++slot) {
     cloner_.value_map_[outer_parts.condition_block->arguments_[slot]] = new_inner_args[slot];
     cloner_.value_map_[outer_parts.body_block->arguments_[slot]] = new_inner_args[slot];
   }
   for (size_t inner_arg = 0; inner_arg < inner_parts.condition_block->arguments_.size(); ++inner_arg) {
     int outer_slot = inner_to_outer[inner_arg];
-    if (outer_slot < 0) {
-      continue;
-    }
     mlir::Value *replacement = nullptr;
     if (inner_arg == inner_iv.index_) {
-      replacement = new_outer_args[static_cast<size_t>(outer_slot_for_inner_iv)];
-    } else {
+      replacement = new_outer_args[inner_iv_slot];
+    } else if (outer_slot >= 0) {
       replacement = new_inner_args[static_cast<size_t>(outer_slot)];
+    } else {
+      continue;
     }
     cloner_.value_map_[inner_parts.condition_block->arguments_[inner_arg]] = replacement;
     cloner_.value_map_[inner_parts.body_block->arguments_[inner_arg]] = replacement;
@@ -879,7 +1026,7 @@ auto MLIRLoopInterchangePass::TryInterchange(mlir::Block *parent, size_t index) 
       new_inner_yields.push_back(outer_step);
       continue;
     }
-    if (static_cast<int>(slot) == outer_slot_for_inner_iv) {
+    if (slot == inner_iv_slot) {
       new_inner_yields.push_back(new_inner_args[slot]);
       continue;
     }
@@ -899,16 +1046,16 @@ auto MLIRLoopInterchangePass::TryInterchange(mlir::Block *parent, size_t index) 
   auto *new_inner =
       context->CreateOperation<mlir::scf::WhileOp>(context, slots, new_inner_cond_region, new_inner_body_region);
   for (size_t slot = 0; slot < slots; ++slot) {
-    new_inner->GetResultByIndex(slot)->SetType(outer->GetResultByIndex(slot)->GetType());
+    new_inner->GetResultByIndex(slot)->SetType(slot < original_slots ? outer->GetResultByIndex(slot)->GetType()
+                                                                     : new_inner_args[slot]->GetType());
   }
   new_outer_body_block->AddOperation(new_inner);
 
-  auto *inner_step = MakeStepValue(context, new_outer_body_block,
-                                   new_outer_args[static_cast<size_t>(outer_slot_for_inner_iv)], inner_iv);
+  auto *inner_step = MakeStepValue(context, new_outer_body_block, new_outer_args[inner_iv_slot], inner_iv);
   std::vector<mlir::Value *> new_outer_yields;
   new_outer_yields.reserve(slots);
   for (size_t slot = 0; slot < slots; ++slot) {
-    if (static_cast<int>(slot) == outer_slot_for_inner_iv) {
+    if (slot == inner_iv_slot) {
       new_outer_yields.push_back(inner_step);
     } else {
       new_outer_yields.push_back(new_inner->GetResultByIndex(slot));
@@ -923,7 +1070,10 @@ auto MLIRLoopInterchangePass::TryInterchange(mlir::Block *parent, size_t index) 
   auto *new_outer =
       context->CreateOperation<mlir::scf::WhileOp>(context, slots, new_outer_cond_region, new_outer_body_region);
   for (size_t slot = 0; slot < slots; ++slot) {
-    new_outer->GetResultByIndex(slot)->SetType(outer->GetResultByIndex(slot)->GetType());
+    new_outer->GetResultByIndex(slot)->SetType(slot < original_slots ? outer->GetResultByIndex(slot)->GetType()
+                                                                     : new_outer_args[slot]->GetType());
+  }
+  for (size_t slot = 0; slot < original_slots; ++slot) {
     outer->GetResultByIndex(slot)->ReplaceAllUsesWith(new_outer->GetResultByIndex(slot));
   }
   parent->operations_[index] = new_outer;
