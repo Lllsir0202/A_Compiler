@@ -46,7 +46,6 @@
 #include "middleend/pass/transform/mlirloopinterchange/mlirloopinterchange.h"
 #include "middleend/pass/transform/mlirloopinvariantrepeat/mlirloopinvariantrepeat.h"
 #include "middleend/pass/transform/mlirloopmemorylast/mlirloopmemorylast.h"
-#include "middleend/pass/transform/mlirrowchecksum/mlirrowchecksum.h"
 #include "middleend/pass/transform/mlirloopunroll/mlirlooppartialunroll.h"
 #include "middleend/pass/transform/mlirloopunroll/mlirloopunroll.h"
 #include "middleend/pass/transform/mlirloopunswitch/mlirloopunswitch.h"

@@ -366,6 +366,117 @@ Since the `base` dialect is designed to be transfered to the `llvmir` module, it
 Moreover, since the `base` dialect is designed to be transfered to the`llvmir` module, we separate some of the operations into different ones based on the type of the operands. 
 
 ## Optimization
-Before starting the work of optimization, I will first design the basic idea and principle of optimization in our compiler, and then I will introduce some details about the optimizations we have implemented in the future.
+The optimization pipeline is split into high-level MLIR passes, low-level BaseIR passes, and target-specific machine passes.  The MLIR stage keeps structured control flow and array semantics, so most loop and memory-layout transforms are done there.  After lowering to BaseIR, the compiler runs CFG/SSA style scalar and loop optimizations.  Machine passes then clean up target instructions before and after register allocation.
 
-Since the __high-level dialect__ is designed to contain more semantic information, it is more convenient to do optimizations in the high-level dialect, which can be easier to utilize the semantic information to do optimizations especially on the `scf` dialect to do some loop optimizations. 
+Most optimizations are enabled by `-O1`.  Loop tiling is opt-in because it may add overhead on small qemu workloads:
+
+```bash
+TILING_ON=1 ./bin/compiler test.sy -S -riscv -O1 -o test.s
+```
+
+Set `LOOP_OPT_STATS=1` to print lightweight pass statistics while compiling.
+
+### Analysis Passes
+| Pass | Description |
+| --- | --- |
+| `CFGPass` | Builds the control-flow graph used by BaseIR analyses and transforms. |
+| `DomTreePass` | Builds dominator information for code motion, promotion, and CFG cleanup. |
+| `LoopInfoPass` | Recognizes natural loops and loop nesting in BaseIR. |
+| `AliasAnalysisPass` | Proves simple no-alias facts for globals, locals, and array parameters. |
+| `FunctionSideEffectPass` | Summarizes function memory effects for interprocedural safety checks. |
+| `MemorySSAPass` | Builds memory def-use information for GVN and dead-store elimination. |
+| `SCEVPass` | Models induction variables and scalar recurrences for loop optimizations. |
+| `MLIRMemoryEffectAnalysis` | Collects structured MLIR memory reads/writes for loop transforms. |
+
+### MLIR Passes
+| Pass | Description |
+| --- | --- |
+| `MLIRReturnCanonicalizePass` | Normalizes function returns so later passes see a simpler function exit shape. |
+| `MLIRTailRecursionEliminatePass` | Converts simple tail recursion into structured loops. |
+| `MLIRFunctionInlinePass` | Inlines small or profitable MLIR functions before structural loop optimization. |
+| `MLIRDeadFunctionEliminatePass` | Removes unreachable non-library functions after inlining. |
+| `MLIRFixedStateTransitionPass` | Optimizes loops that repeatedly update a fixed scalar/global state. |
+| `MLIRLoopFusionPass` | Fuses adjacent counted loops with the same domain when scalar and memory dependences allow it. |
+| `MLIRArrayPipelinePass` | Fuses producer-consumer array loops to reduce temporary array traffic. |
+| `MLIRLoopDomainTightenPass` | Tightens structured loop bounds when later iterations are provably useless. |
+| `MLIRLoopInvariantRepeatPass` | Collapses repeated loop-invariant work inside structured loops. |
+| `MLIRLoopInterchangePass` | Swaps legal adjacent loops to turn row-major strided array access into contiguous access. |
+| `MLIRLoopMemoryLastIterationPass` | Replaces eligible loop-carried memory updates with the last iteration's value. |
+| `MLIRStencilInteriorPass` | Specializes regular stencil-style loop interiors to reduce boundary checks. |
+| `MLIRRowChecksumPass` | Recognizes row checksum style loops and folds repeated row accumulation patterns. |
+| `MLIRLoopUnswitchPass` | Moves loop-invariant branches out of loops by cloning the loop body. |
+| `MLIRLoopUnrollPass` | Fully unrolls small constant-trip-count structured loops. |
+| `MLIRConditionalJamPass` | Jams small conditional regions when doing so exposes straight-line optimization. |
+| `MLIRLoopPartialUnrollPass` | Partially unrolls counted runtime loops and leaves a compact remainder loop. |
+| `MLIRLoopTilingPass` | Strip-mines non-innermost counted loops for cache locality; disabled by default and enabled with `TILING_ON=1`. |
+
+### BaseIR Passes
+| Pass | Description |
+| --- | --- |
+| `SimplifyPass` | Performs local algebraic simplification and removes trivial instructions. |
+| `UnifyReturnPass` | Merges multiple returns into a single canonical function exit. |
+| `RecursiveMemoizationPass` | Adds memoization for selected pure recursive integer functions. |
+| `FunctionInlinePass` | Inlines BaseIR functions after CFG lowering. |
+| `ADCEPass` | Removes instructions and blocks that cannot affect program output. |
+| `SCCPPass` | Runs sparse conditional constant propagation across CFG edges. |
+| `DSEPass` | Deletes stores that are overwritten or never observed. |
+| `LoopSimplifyPass` | Canonicalizes loops before SCEV-based transforms. |
+| `LoopRotatePass` | Rotates loop headers to expose canonical preheader/body/exit structure. |
+| `PromotionPass` | Promotes safe scalar memory locations into SSA values. |
+| `DeadLoopEliminatePass` | Removes loops whose effects can be replaced by closed-form values. |
+| `StrengthReducePass` | Replaces expensive recurrence/address expressions with cheaper increments. |
+| `ModRecurrenceSinkPass` | Sinks modulo recurrence operations to reduce loop-body work. |
+| `DivisibilitySimplifyPass` | Simplifies divisions and modulo checks using proven divisibility facts. |
+| `LICMPass` | Hoists loop-invariant computations out of loops. |
+| `PhiCanonicalizationPass` | Removes redundant phis after loop transforms and LCSSA-style cleanup. |
+| `GVNPass` | Eliminates redundant computations and loads using value numbering. |
+| `ReassociatePass` | Reassociates linear arithmetic expressions to expose common terms. |
+| `TrivialBlockMergePass` | Merges simple basic blocks and removes redundant branches. |
+| `MemoizationPass` | Adds late memoization for selected pure functions after scalar cleanup. |
+| `GVNPREPass` | Performs partial redundancy elimination with value numbering. |
+| `VarDefSinkPass` | Sinks local aggregate initialization into the deepest block that still dominates its uses. |
+
+Some passes are reused as cleanup rounds, for example `PostSCCPSimplifyPass`, `PostSCCPADCEPass`, `PostDSEADCEPass`, `PostLoopSCCPPass`, `PostLoopADCEPass`, `PostLoopGVNPass`, and `PostLoopTrivialBlockMergePass`.
+
+## Backend
+The backend lowers MIR into target assembly.  `-riscv` selects the RISC-V backend, and `-aarch64` selects the ARMv8-A backend.  Both backends share the MIR layer, target-independent machine containers, and graph-coloring register allocation style; target details are handled by each instruction selector, frame finalizer, printer, and machine pass pipeline.
+
+### MIR
+| Component | Description |
+| --- | --- |
+| MIR module/function/block | Target-neutral control-flow and instruction containers used before instruction selection. |
+| MIR instructions | Arithmetic, compare, branch, call, memory, cast, and pseudo instructions. |
+| MIR lowering | Lowers BaseIR operations into MIR while preserving CFG and call-frame information. |
+| Frame information | Tracks local stack objects, outgoing call arguments, spills, and callee-saved registers. |
+
+### RISC-V Backend
+| Pass | Description |
+| --- | --- |
+| `RISCVISel` | Selects MIR into RISC-V target instructions. |
+| `RISCVPeephole` | Folds simple instruction patterns such as constant arithmetic and redundant moves. |
+| `RISCVAddrFold` | Folds address arithmetic into load/store offsets when the immediate range allows it. |
+| `RISCVLocalCSE` | Removes repeated pure register computations inside a basic block. |
+| `MachineLICM` | Hoists cheap loop-invariant machine instructions before register allocation. |
+| `MachineDCE` | Deletes dead virtual-register definitions without side effects. |
+| `RISCVTwoAddress` | Rewrites virtual-register code into forms friendlier to two-address machine patterns. |
+| `RISCVBlockLayout` | Orders blocks to improve fallthroughs before late branch cleanup. |
+| `GraphColorRegAlloc` | Allocates RISC-V virtual registers and creates spill slots when needed. |
+| `RISCVPostRA` | Cleans up spill/reload and physical-register code after register allocation. |
+| `RISCVEmptyTail` | Removes empty tail blocks that only forward control. |
+| `BranchFold` | Threads and folds redundant jumps after final block/register cleanup. |
+| `RISCVFrame` | Emits prologue/epilogue stack adjustment and callee-saved register handling. |
+| `RISCVPrinter` | Prints final RISC-V assembly. |
+
+### AArch64 Backend
+| Pass | Description |
+| --- | --- |
+| `AArch64ISel` | Selects MIR into AArch64 target instructions. |
+| `AArch64IfConvert` | Converts small branch diamonds into conditional-select style code. |
+| `AArch64Peephole` | Folds simple AArch64 instruction patterns and constant cases. |
+| `AArch64AddrFold` | Folds address arithmetic into scaled load/store offsets. |
+| `AArch64LocalCSE` | Removes repeated pure register computations inside a basic block. |
+| `AArch64MachineDCE` | Deletes dead virtual-register definitions without side effects. |
+| `AArch64BranchFold` | Removes redundant branch chains and branch-to-next-block patterns. |
+| `AArch64GraphColorRegAlloc` | Allocates AArch64 virtual registers and handles spills. |
+| `AArch64Frame` | Emits stack frame setup, teardown, and callee-saved register handling. |
+| `AArch64Printer` | Prints final AArch64 assembly. |
